@@ -1,0 +1,47 @@
+name: dataverse_stack
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dataverse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dataverse}
+      POSTGRES_DB: ${POSTGRES_DB:-dataverse}
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - dataverse_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dataverse} -d ${POSTGRES_DB:-dataverse}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-dataverse}:${POSTGRES_PASSWORD:-dataverse}@db:5432/${POSTGRES_DB:-dataverse}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-dataverse}:${POSTGRES_PASSWORD:-dataverse}@db:5432/${POSTGRES_DB:-dataverse}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+volumes:
+  dataverse_pgdata:
