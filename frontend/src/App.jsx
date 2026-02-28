@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Billboard, Line, OrbitControls, Stars, Text } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
+import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "d3-force-3d";
 import * as THREE from "three";
 import {
   API_BASE,
@@ -11,6 +12,7 @@ import {
   normalizeSnapshot,
   toAsOfIso
 } from "./lib/dataverseApi";
+import { calculateSectorLayout } from "./lib/layout_service";
 import { useAuth } from "./context/AuthContext.jsx";
 
 const DEFAULT_CAMERA_POSITION = [0, 0, 28];
@@ -109,12 +111,34 @@ function extractComputedValue(asteroid) {
   return measured.sort((a, b) => b - a)[0];
 }
 
+function extractFormulaFields(metadata) {
+  const fields = new Set();
+  const source = safeMetadata(metadata);
+  Object.values(source).forEach((value) => {
+    if (typeof value !== "string" || !value.trim().startsWith("=")) return;
+    const match = value.trim().match(/^=\s*(SUM|AVG|MIN|MAX|COUNT)\s*\(\s*([^)]+)\s*\)/i);
+    if (!match) return;
+    const field = (match[2] || "").trim();
+    if (field) fields.add(field);
+  });
+  return fields;
+}
+
 function PlanetShape({ planet, selected }) {
   const color = planet.color || "#9ad8ff";
   const radius = planet.radius || 0.9;
   const baseOpacity = typeof planet.opacity === "number" ? planet.opacity : 1;
   const glowBoost = planet.glowBoost || 1;
-  const emissiveIntensity = (selected ? 2.5 : 1.7) * glowBoost * (0.35 + 0.65 * baseOpacity);
+  const activeAlerts = Array.isArray(planet.active_alerts) ? planet.active_alerts : [];
+  const hasAlert = activeAlerts.length > 0;
+  const alertAmplifier = hasAlert ? 1.45 : 0.72;
+  const emissiveIntensity = clamp(
+    (selected ? 1.05 : 0.72) * glowBoost * alertAmplifier * (0.45 + 0.55 * baseOpacity),
+    0.35,
+    3.2
+  );
+  const accentIntensity = clamp(emissiveIntensity * (hasAlert ? 1.2 : 1.04), 0.42, 3.4);
+  const auraIntensity = clamp(emissiveIntensity * (hasAlert ? 0.92 : 0.7), 0.28, 2.6);
   const coreMaterial = (
     <meshStandardMaterial
       color={color}
@@ -140,7 +164,7 @@ function PlanetShape({ planet, selected }) {
             <meshStandardMaterial
               color="#ffffff"
               emissive={color}
-              emissiveIntensity={2.1 * glowBoost}
+              emissiveIntensity={accentIntensity}
               transparent
               opacity={0.78 * baseOpacity}
             />
@@ -178,7 +202,7 @@ function PlanetShape({ planet, selected }) {
             <meshStandardMaterial
               color={color}
               emissive={color}
-              emissiveIntensity={2.15 * glowBoost}
+              emissiveIntensity={accentIntensity}
               transparent={baseOpacity < 0.999}
               opacity={baseOpacity}
             />
@@ -212,7 +236,7 @@ function PlanetShape({ planet, selected }) {
             <meshStandardMaterial
               color={color}
               emissive={color}
-              emissiveIntensity={2.3 * glowBoost}
+              emissiveIntensity={accentIntensity}
               transparent={baseOpacity < 0.999}
               opacity={baseOpacity}
             />
@@ -232,7 +256,7 @@ function PlanetShape({ planet, selected }) {
             <meshStandardMaterial
               color={color}
               emissive={color}
-              emissiveIntensity={1.4 * glowBoost}
+              emissiveIntensity={auraIntensity}
               transparent
               opacity={0.2 * baseOpacity}
             />
@@ -254,6 +278,9 @@ function PlanetNode({ planet, position, onSelectPlanet }) {
   const bodyRef = useRef(null);
   const currentScaleRef = useRef(planet.visualScale || 1);
   const targetScaleRef = useRef(planet.visualScale || 1);
+  const baseRadius = planet.radius || 0.9;
+  const scaledRadius = baseRadius * (planet.visualScale || 1);
+  const showAtmosphere = scaledRadius >= 2.65;
 
   useEffect(() => {
     targetScaleRef.current = planet.visualScale || 1;
@@ -287,6 +314,19 @@ function PlanetNode({ planet, position, onSelectPlanet }) {
     >
       <group ref={bodyRef}>
         <PlanetShape planet={planet} selected={Boolean(planet.selected)} />
+        {showAtmosphere ? (
+          <mesh>
+            <sphereGeometry args={[baseRadius * 1.78, 30, 30]} />
+            <meshStandardMaterial
+              color={planet.color}
+              emissive={planet.color}
+              emissiveIntensity={Array.isArray(planet.active_alerts) && planet.active_alerts.length ? 1.1 : 0.66}
+              transparent
+              opacity={0.14 * Math.max(0.25, planet.opacity ?? 1)}
+              depthWrite={false}
+            />
+          </mesh>
+        ) : null}
       </group>
       {planet.isCategoryCore ? (
         <mesh>
@@ -332,101 +372,240 @@ function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
 
-function halton(index, base) {
-  let f = 1;
-  let r = 0;
-  let i = index;
-  while (i > 0) {
-    f /= base;
-    r += f * (i % base);
-    i = Math.floor(i / base);
-  }
-  return r;
+function seededUnitVector(seedText) {
+  const seed = hashText(seedText);
+  const u = ((seed & 0xffff) / 0xffff) * 2 - 1;
+  const v = (((seed >>> 16) & 0xffff) / 0xffff) * 2 - 1;
+  const theta = (u + 1) * Math.PI;
+  const z = clamp(v, -0.97, 0.97);
+  const radius = Math.sqrt(1 - z * z);
+  return [Math.cos(theta) * radius, z, Math.sin(theta) * radius];
 }
 
-function calculateStaticLayout(nodes, edges, iterations = 150) {
-  const MIN_DISTANCE = 5.0;
-  const IDEAL_LINK_DISTANCE = 6.5;
-  const CENTER_PULL = 0.01;
-  const bounds = 25;
-
-  const points = nodes.map((node, i) => ({
-    id: node.id,
-    x: (halton(i + 1, 2) - 0.5) * 20,
-    y: (halton(i + 1, 3) - 0.5) * 10,
-    z: (halton(i + 1, 5) - 0.5) * 20,
-  }));
-
-  const byId = new Map(points.map((point, index) => [point.id, index]));
-  const massById = new Map(nodes.map((node) => [node.id, Number(node.mass) || 1]));
-
-  for (let it = 0; it < iterations; it += 1) {
-    const alpha = 1 - it / iterations;
-
-    for (const edge of edges) {
-      const sourceIdx = byId.get(edge.from || edge.source_id);
-      const targetIdx = byId.get(edge.to || edge.target_id);
-      if (sourceIdx === undefined || targetIdx === undefined) continue;
-
-      const s = points[sourceIdx];
-      const t = points[targetIdx];
-      const dx = t.x - s.x;
-      const dy = t.y - s.y;
-      const dz = t.z - s.z;
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.01;
-
-      const sourceMass = massById.get(s.id) || 1;
-      const targetMass = massById.get(t.id) || 1;
-      const massSignal = Math.sqrt(sourceMass * targetMass);
-      const idealDistance = clamp(IDEAL_LINK_DISTANCE - Math.log10(massSignal + 1) * 1.05, 3.2, IDEAL_LINK_DISTANCE);
-
-      if (dist > idealDistance) {
-        const force = (dist - idealDistance) * (0.032 + massSignal * 0.006) * alpha;
-        const sourceWeight = targetMass / (sourceMass + targetMass);
-        const targetWeight = sourceMass / (sourceMass + targetMass);
-        s.x += (dx / dist) * force * sourceWeight;
-        s.y += (dy / dist) * force * sourceWeight;
-        s.z += (dz / dist) * force * sourceWeight;
-        t.x -= (dx / dist) * force * targetWeight;
-        t.y -= (dy / dist) * force * targetWeight;
-        t.z -= (dz / dist) * force * targetWeight;
-      }
-    }
-
-    for (let i = 0; i < points.length; i += 1) {
-      for (let j = i + 1; j < points.length; j += 1) {
-        const a = points[i];
-        const b = points[j];
-        const dx = a.x - b.x;
-        const dy = a.y - b.y;
-        const dz = a.z - b.z;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.01;
-        const massA = massById.get(a.id) || 1;
-        const massB = massById.get(b.id) || 1;
-        const minDistance = MIN_DISTANCE + Math.log10(massA + massB + 1) * 0.45;
-
-        if (dist < minDistance) {
-          const force = (minDistance - dist) * (0.08 + Math.log10(massA + massB + 1) * 0.012) * alpha;
-          a.x += (dx / dist) * force;
-          a.y += (dy / dist) * force;
-          a.z += (dz / dist) * force;
-          b.x -= (dx / dist) * force;
-          b.y -= (dy / dist) * force;
-          b.z -= (dz / dist) * force;
+function projectNoOverlap(nodes, iterations = 16) {
+  if (nodes.length < 2) return;
+  for (let pass = 0; pass < iterations; pass += 1) {
+    let moved = false;
+    for (let i = 0; i < nodes.length; i += 1) {
+      for (let j = i + 1; j < nodes.length; j += 1) {
+        const a = nodes[i];
+        const b = nodes[j];
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dz = a.z - b.z;
+        let dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist < 0.0001) {
+          const [nx, ny, nz] = seededUnitVector(`${a.id}|${b.id}|overlap`);
+          dx = nx;
+          dy = ny;
+          dz = nz;
+          dist = 1;
         }
+        const minDistance = (a.collisionRadius || 2) + (b.collisionRadius || 2) + 1.0;
+        if (dist >= minDistance) continue;
+        moved = true;
+        const overlap = (minDistance - dist) * 0.52;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const nz = dz / dist;
+        a.x += nx * overlap;
+        a.y += ny * overlap;
+        a.z += nz * overlap;
+        b.x -= nx * overlap;
+        b.y -= ny * overlap;
+        b.z -= nz * overlap;
       }
-
-      points[i].x -= points[i].x * CENTER_PULL * alpha;
-      points[i].y -= points[i].y * CENTER_PULL * alpha;
-      points[i].z -= points[i].z * CENTER_PULL * alpha;
-
-      points[i].x = clamp(points[i].x, -bounds, bounds);
-      points[i].y = clamp(points[i].y, -bounds / 2, bounds / 2);
-      points[i].z = clamp(points[i].z, -bounds, bounds);
     }
+    if (!moved) break;
+  }
+}
+
+function calculatePatentGravityLayout(nodes, edges, previousPositions) {
+  if (!nodes.length) return [];
+
+  const sortedNodes = [...nodes].sort((a, b) => a.id.localeCompare(b.id));
+  const adjacency = new Map(sortedNodes.map((node) => [node.id, new Set()]));
+  const incoming = new Map(sortedNodes.map((node) => [node.id, new Set()]));
+  const outgoing = new Map(sortedNodes.map((node) => [node.id, new Set()]));
+  edges.forEach((edge) => {
+    const sourceId = edge.flow_source_id || edge.source_id || edge.source;
+    const targetId = edge.flow_target_id || edge.target_id || edge.target;
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    if (!adjacency.has(sourceId) || !adjacency.has(targetId)) return;
+    adjacency.get(sourceId)?.add(targetId);
+    adjacency.get(targetId)?.add(sourceId);
+    outgoing.get(sourceId)?.add(targetId);
+    incoming.get(targetId)?.add(sourceId);
+  });
+
+  const formulaById = new Map(
+    sortedNodes.map((node) => [node.id, node.formulaFields instanceof Set ? node.formulaFields : new Set()])
+  );
+  const hasFormulaById = new Map(sortedNodes.map((node) => [node.id, (formulaById.get(node.id)?.size || 0) > 0]));
+  const depthById = new Map(sortedNodes.map((node) => [node.id, hasFormulaById.get(node.id) ? 1 : 0]));
+  for (let pass = 0; pass < 14; pass += 1) {
+    sortedNodes.forEach((node) => {
+      if (!hasFormulaById.get(node.id)) return;
+      let nextDepth = 1;
+      incoming.get(node.id)?.forEach((sourceId) => {
+        nextDepth = Math.max(nextDepth, (depthById.get(sourceId) || 0) + 1);
+      });
+      depthById.set(node.id, clamp(nextDepth, 1, 8));
+    });
   }
 
-  return points;
+  const points = new Map();
+  const sunCandidate = [...sortedNodes]
+    .sort((a, b) => {
+      const aFormula = hasFormulaById.get(a.id) ? 1 : 0;
+      const bFormula = hasFormulaById.get(b.id) ? 1 : 0;
+      if (aFormula !== bFormula) return bFormula - aFormula;
+      return (b.mass || 1) - (a.mass || 1);
+    })[0];
+  const sunId = sunCandidate?.id || sortedNodes[0].id;
+  const baseBounds = 46 + Math.sqrt(sortedNodes.length) * 4.8;
+
+  sortedNodes.forEach((node) => {
+    const prev = previousPositions?.get(node.id);
+    const hasFormula = hasFormulaById.get(node.id);
+    const depth = depthById.get(node.id) || 0;
+    const targetRadius = hasFormula ? 5 + depth * 3.6 : 28 + Math.min(16, (outgoing.get(node.id)?.size || 0) * 1.2);
+    if (Array.isArray(prev) && prev.length === 3 && prev.every((x) => Number.isFinite(x))) {
+      points.set(node.id, {
+        id: node.id,
+        x: prev[0],
+        y: prev[1],
+        z: prev[2],
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        mass: Number(node.mass) || 1,
+        collisionRadius: Number(node.collisionRadius) || 2.2,
+        hasFormula,
+        depth,
+        targetRadius,
+        degree: adjacency.get(node.id)?.size || 0,
+      });
+      return;
+    }
+    const [dx, dy, dz] = seededUnitVector(`${node.id}|spawn`);
+    const centerBias = hasFormula ? 0.48 : 1;
+    const orbit = targetRadius * (0.88 + (hashText(node.id) % 100) / 420);
+
+    points.set(node.id, {
+      id: node.id,
+      x: dx * orbit * centerBias,
+      y: dy * orbit * 0.78 * centerBias,
+      z: dz * orbit * centerBias,
+      vx: 0,
+      vy: 0,
+      vz: 0,
+      mass: Number(node.mass) || 1,
+      collisionRadius: Number(node.collisionRadius) || 2.2,
+      hasFormula,
+      depth,
+      targetRadius,
+      degree: adjacency.get(node.id)?.size || 0,
+    });
+  });
+
+  const simNodes = sortedNodes.map((node) => points.get(node.id)).filter(Boolean);
+  const simLinks = edges
+    .map((edge) => {
+      const sourceId = edge.flow_source_id || edge.source_id || edge.source;
+      const targetId = edge.flow_target_id || edge.target_id || edge.target;
+      if (!points.has(sourceId) || !points.has(targetId) || sourceId === targetId) return null;
+      return { source: sourceId, target: targetId };
+    })
+    .filter(Boolean);
+
+  simNodes.forEach((node) => {
+    if (node.id === sunId) {
+      node.fx = 0;
+      node.fy = 0;
+      node.fz = 0;
+      node.x = 0;
+      node.y = 0;
+      node.z = 0;
+    }
+  });
+
+  const nodeById = new Map(simNodes.map((node) => [node.id, node]));
+  const simulation = forceSimulation(simNodes, 3)
+    .alpha(1)
+    .alphaDecay(0.022)
+    .velocityDecay(0.26)
+    .force(
+      "charge",
+      forceManyBody().strength((node) => {
+        const mass = Number(node.mass) || 1;
+        const edgeSpace = node.hasFormula ? 0.9 : 1.2;
+        return -(120 + mass * mass * 6.2 + mass * 34) * edgeSpace;
+      })
+    )
+    .force(
+      "link",
+      forceLink(simLinks)
+        .id((node) => node.id)
+        .distance((link) => {
+          const source = typeof link.source === "object" ? link.source : nodeById.get(link.source);
+          const target = typeof link.target === "object" ? link.target : nodeById.get(link.target);
+          const sourceR = Number(source?.collisionRadius) || 2.2;
+          const targetR = Number(target?.collisionRadius) || 2.2;
+          const depthGap = Math.abs((source?.depth || 0) - (target?.depth || 0));
+          return sourceR + targetR + 2.8 + depthGap * 1.3;
+        })
+        .strength((link) => {
+          const source = typeof link.source === "object" ? link.source : nodeById.get(link.source);
+          const target = typeof link.target === "object" ? link.target : nodeById.get(link.target);
+          const flowToFormula = source && target ? (!source.hasFormula && target.hasFormula ? 1.2 : 1) : 1;
+          return clamp(0.12 * flowToFormula, 0.1, 0.4);
+        })
+    )
+    .force(
+      "collide",
+      forceCollide()
+        .radius((node) => (Number(node.collisionRadius) || 2.2) + 1.35)
+        .strength(1)
+        .iterations(3)
+    )
+    .force("center", forceCenter(0, 0, 0))
+    .stop();
+
+  const iterations = clamp(220 + simNodes.length * 5, 220, 420);
+  for (let it = 0; it < iterations; it += 1) {
+    simulation.tick();
+    const alpha = 1 - it / iterations;
+    simNodes.forEach((node) => {
+      if (node.id === sunId) return;
+      const dist = Math.sqrt(node.x * node.x + node.y * node.y + node.z * node.z) || 0.0001;
+      const nx = node.x / dist;
+      const ny = node.y / dist;
+      const nz = node.z / dist;
+      const radialDiff = (node.targetRadius || 10) - dist;
+      const radialStrength = (node.hasFormula ? 0.052 : 0.061) * alpha;
+      node.vx += nx * radialDiff * radialStrength;
+      node.vy += ny * radialDiff * radialStrength * 0.9;
+      node.vz += nz * radialDiff * radialStrength;
+      if (node.hasFormula) {
+        node.vy += -node.y * 0.0035 * alpha;
+      }
+      node.x = clamp(node.x, -baseBounds, baseBounds);
+      node.y = clamp(node.y, -baseBounds * 0.72, baseBounds * 0.72);
+      node.z = clamp(node.z, -baseBounds, baseBounds);
+    });
+  }
+
+  projectNoOverlap(simNodes, 26);
+  const sun = nodeById.get(sunId);
+  if (sun) {
+    sun.x = 0;
+    sun.y = 0;
+    sun.z = 0;
+  }
+
+  const working = simNodes;
+  return working.map((node) => ({ id: node.id, x: node.x, y: node.y, z: node.z }));
 }
 
 function curvePoints(start, control, end, segments = 64) {
@@ -443,44 +622,161 @@ function curvePoints(start, control, end, segments = 64) {
   return pts;
 }
 
+function samplePolyline(points, t) {
+  if (!Array.isArray(points) || !points.length) return [0, 0, 0];
+  if (points.length === 1) return points[0];
+  const clamped = clamp(t, 0, 1);
+  const scaled = clamped * (points.length - 1);
+  const index = Math.floor(scaled);
+  const nextIndex = Math.min(points.length - 1, index + 1);
+  const local = scaled - index;
+  const a = points[index];
+  const b = points[nextIndex];
+  return [
+    a[0] + (b[0] - a[0]) * local,
+    a[1] + (b[1] - a[1]) * local,
+    a[2] + (b[2] - a[2]) * local,
+  ];
+}
+
+function FlowLink({ bond, onHover, onLeave }) {
+  const flowPhaseRef = useRef((hashText(bond.id) % 1000) / 1000);
+  const flowRefs = useRef([]);
+  const hitPointFractions = [0.3, 0.5, 0.7];
+  const flowSpeed = 0.13 + ((hashText(bond.id) % 9) / 9) * 0.18;
+  const dotColor = bond.flow_highlight ? "#7df4ff" : "#56b7db";
+  const lineColor = bond.flow_highlight ? "#7adfff" : "#3f7f9d";
+
+  useFrame((_, delta) => {
+    flowPhaseRef.current = (flowPhaseRef.current + delta * flowSpeed) % 1;
+    flowRefs.current.forEach((ref, index) => {
+      if (!ref) return;
+      const t = (flowPhaseRef.current + index / Math.max(flowRefs.current.length, 1)) % 1;
+      const [x, y, z] = samplePolyline(bond.points, t);
+      ref.position.set(x, y, z);
+    });
+  });
+
+  return (
+    <group>
+      <Line
+        points={bond.points}
+        color={lineColor}
+        lineWidth={bond.flow_highlight ? 1.5 : 1.2}
+        transparent
+        opacity={typeof bond.opacity === "number" ? bond.opacity : 0.85}
+      />
+
+      {[0, 1, 2].map((index) => (
+        <mesh
+          key={`${bond.id}-flow-dot-${index}`}
+          ref={(el) => {
+            flowRefs.current[index] = el;
+          }}
+        >
+          <sphereGeometry args={[bond.flow_highlight ? 0.2 : 0.16, 12, 12]} />
+          <meshStandardMaterial
+            color={dotColor}
+            emissive={dotColor}
+            emissiveIntensity={bond.flow_highlight ? 1.35 : 0.85}
+            transparent
+            opacity={Math.max(0.15, bond.opacity || 0.8)}
+            depthWrite={false}
+          />
+        </mesh>
+      ))}
+
+      {hitPointFractions.map((fraction) => {
+        const [hx, hy, hz] = samplePolyline(bond.points, fraction);
+        return (
+          <mesh
+            key={`${bond.id}-hit-${fraction}`}
+            position={[hx, hy, hz]}
+            onPointerOver={(event) => {
+              event.stopPropagation();
+              onHover?.({
+                id: bond.id,
+                text: bond.flowLabel || "Tok dat",
+                x: event.clientX,
+                y: event.clientY,
+              });
+            }}
+            onPointerMove={(event) => {
+              event.stopPropagation();
+              onHover?.({
+                id: bond.id,
+                text: bond.flowLabel || "Tok dat",
+                x: event.clientX,
+                y: event.clientY,
+              });
+            }}
+            onPointerOut={(event) => {
+              event.stopPropagation();
+              onLeave?.();
+            }}
+          >
+            <sphereGeometry args={[0.95, 8, 8]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
 function dampVector3(current, target, lambda, delta) {
   current.x = THREE.MathUtils.damp(current.x, target.x, lambda, delta);
   current.y = THREE.MathUtils.damp(current.y, target.y, lambda, delta);
   current.z = THREE.MathUtils.damp(current.z, target.z, lambda, delta);
 }
 
-function CameraRig({ selectedPlanet, defaultCameraPosition, controlsRef }) {
+function CameraRig({
+  selectedPlanet,
+  defaultCameraPosition,
+  defaultCameraTarget,
+  defaultMinDistance,
+  controlsRef,
+}) {
   const { camera } = useThree();
   const targetPosition = useRef(new THREE.Vector3(0, 0, 0));
   const cameraPosition = useRef(new THREE.Vector3(...defaultCameraPosition));
   const modeRef = useRef("idle");
+  const desiredMinDistanceRef = useRef(2.5);
   const lastSelectedIdRef = useRef(null);
+  const homeSignatureRef = useRef("");
 
   useEffect(() => {
     if (selectedPlanet?.id && selectedPlanet.position) {
-      if (lastSelectedIdRef.current === selectedPlanet.id) {
-        return;
-      }
+      const selectedScale = Number(selectedPlanet.visualScale) || 1;
+      const padding = 4.2;
+      const targetDistance = selectedScale * 3.5 + padding;
       targetPosition.current.set(...selectedPlanet.position);
       cameraPosition.current.set(
         selectedPlanet.position[0],
-        selectedPlanet.position[1] + 2,
-        selectedPlanet.position[2] + 8
+        selectedPlanet.position[1] + selectedScale * 1.25 + 1.2,
+        selectedPlanet.position[2] + targetDistance
       );
+      desiredMinDistanceRef.current = clamp(targetDistance * 0.55, 2.4, 48);
       modeRef.current = "fly";
       lastSelectedIdRef.current = selectedPlanet.id;
       return;
     }
 
-    if (lastSelectedIdRef.current) {
-      targetPosition.current.set(0, 0, 0);
+    const homeSignature = `${defaultCameraPosition.join(",")}|${defaultCameraTarget.join(",")}|${defaultMinDistance.toFixed(4)}`;
+    if (lastSelectedIdRef.current || homeSignatureRef.current !== homeSignature) {
+      targetPosition.current.set(...defaultCameraTarget);
       cameraPosition.current.set(...defaultCameraPosition);
+      desiredMinDistanceRef.current = defaultMinDistance;
       modeRef.current = "home";
       lastSelectedIdRef.current = null;
+      homeSignatureRef.current = homeSignature;
     }
-  }, [selectedPlanet, defaultCameraPosition]);
+  }, [selectedPlanet, defaultCameraPosition, defaultCameraTarget, defaultMinDistance]);
 
   useFrame((_, delta) => {
+    if (controlsRef.current) {
+      controlsRef.current.minDistance = desiredMinDistanceRef.current;
+    }
     if (modeRef.current === "idle") {
       return;
     }
@@ -503,39 +799,97 @@ function CameraRig({ selectedPlanet, defaultCameraPosition, controlsRef }) {
   return null;
 }
 
-function UniverseScene({ atoms, bonds, atomPositions, selectedPlanet, onSelectPlanet, onClearSelection }) {
+function SectorGridPlate({ sector }) {
+  const center = Array.isArray(sector?.center) ? sector.center : [0, 0, 0];
+  const size = Math.max(180, Number(sector?.size) || 260);
+  const mode = sector?.mode === "ring" ? "ring" : "belt";
+  const accent = mode === "ring" ? "#2f7aa2" : "#2a5e7f";
+  const secondary = mode === "ring" ? "#173650" : "#142f46";
+  const divisions = clamp(Math.round(size / 24), 8, 24);
+  return (
+    <group position={[center[0], center[1] - 4.2, center[2]]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+        <planeGeometry args={[size, size]} />
+        <meshStandardMaterial
+          color="#06101d"
+          emissive={accent}
+          emissiveIntensity={0.11}
+          transparent
+          opacity={0.18}
+          depthWrite={false}
+        />
+      </mesh>
+      <gridHelper args={[size, divisions, accent, secondary]} position={[0, 0.04, 0]} raycast={() => null} />
+      <Billboard position={[0, 1.8, -size * 0.46]}>
+        <Text
+          fontSize={3.4}
+          color="#7fd3fb"
+          fillOpacity={0.72}
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.11}
+          outlineColor="#06131f"
+        >
+          {sector?.label || "Uncategorized"}
+        </Text>
+      </Billboard>
+    </group>
+  );
+}
+
+function UniverseScene({
+  atoms,
+  bonds,
+  sectors,
+  atomPositions,
+  selectedPlanet,
+  defaultCameraPosition,
+  defaultCameraTarget,
+  defaultMinDistance,
+  defaultMaxDistance,
+  onSelectPlanet,
+  onClearSelection,
+  onHoverFlow,
+  onClearHoverFlow,
+}) {
   const controlsRef = useRef(null);
 
   return (
     <Canvas
       style={{ position: "absolute", inset: 0, zIndex: 0 }}
-      camera={{ position: DEFAULT_CAMERA_POSITION, fov: 55 }}
+      gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+      onCreated={({ gl }) => {
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = 1.2;
+      }}
+      camera={{ position: defaultCameraPosition, fov: 55 }}
       onPointerMissed={() => {
         if (onClearSelection) onClearSelection();
+        if (onClearHoverFlow) onClearHoverFlow();
       }}
     >
       <color attach="background" args={["#020205"]} />
+      <fog attach="fog" args={["#020205", 40, 170]} />
       <ambientLight intensity={0.25} />
       <pointLight position={[0, 10, 15]} intensity={1.2} color="#8fd6ff" />
       <pointLight position={[-12, -8, -10]} intensity={0.9} color="#ff6af0" />
 
       <CameraRig
         selectedPlanet={selectedPlanet}
-        defaultCameraPosition={DEFAULT_CAMERA_POSITION}
+        defaultCameraPosition={defaultCameraPosition}
+        defaultCameraTarget={defaultCameraTarget}
+        defaultMinDistance={defaultMinDistance}
         controlsRef={controlsRef}
       />
 
       <Stars radius={180} depth={80} count={6000} factor={2.8} saturation={0} fade speed={0.5} />
 
+      {(sectors || []).map((sector) => (
+        <SectorGridPlate key={sector.id} sector={sector} />
+      ))}
+
       {bonds.map((bond) => (
-        <Line
-          key={bond.id}
-          points={bond.points}
-          color="#6fdcff"
-          lineWidth={1.2}
-          transparent
-          opacity={typeof bond.opacity === "number" ? bond.opacity : 0.85}
-        />
+        <FlowLink key={bond.id} bond={bond} onHover={onHoverFlow} onLeave={onClearHoverFlow} />
       ))}
 
       {atoms.map((atom) => (
@@ -551,7 +905,14 @@ function UniverseScene({ atoms, bonds, atomPositions, selectedPlanet, onSelectPl
         <Bloom intensity={2.25} luminanceThreshold={0.08} luminanceSmoothing={0.22} />
       </EffectComposer>
 
-      <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.06} />
+      <OrbitControls
+        ref={controlsRef}
+        makeDefault
+        enableDamping
+        dampingFactor={0.06}
+        minDistance={defaultMinDistance}
+        maxDistance={defaultMaxDistance}
+      />
     </Canvas>
   );
 }
@@ -909,12 +1270,16 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [asOfInput, setAsOfInput] = useState("");
   const [selectedPlanetId, setSelectedPlanetId] = useState(null);
+  const [auditTargetId, setAuditTargetId] = useState(null);
+  const [hoveredFlow, setHoveredFlow] = useState(null);
   const [assistOpen, setAssistOpen] = useState(false);
+  const [assistPinned, setAssistPinned] = useState(false);
   const [commandFocused, setCommandFocused] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const commandInputRef = useRef(null);
+  const layoutStateRef = useRef({ signature: "", positions: new Map(), sectors: [] });
   const asOfIso = useMemo(() => toAsOfIso(asOfInput), [asOfInput]);
   const historicalMode = Boolean(asOfIso);
 
@@ -1092,7 +1457,9 @@ export default function App() {
       ...asteroid,
       metadata: safeMetadata(asteroid?.metadata),
       calculated_values:
-        asteroid?.calculated_values && typeof asteroid.calculated_values === "object" && !Array.isArray(asteroid.calculated_values)
+        asteroid?.calculated_values &&
+        typeof asteroid.calculated_values === "object" &&
+        !Array.isArray(asteroid.calculated_values)
           ? asteroid.calculated_values
           : {},
       active_alerts: Array.isArray(asteroid?.active_alerts) ? asteroid.active_alerts : [],
@@ -1101,27 +1468,156 @@ export default function App() {
     const sortedAsteroids = [...normalizedAsteroids].sort((a, b) => a.id.localeCompare(b.id));
     const sortedBonds = [...bonds].sort((a, b) => a.id.localeCompare(b.id));
     const physicsAsteroids = sortedAsteroids.map((asteroid) => {
-      const valueSignal = extractComputedValue(asteroid);
+      const metadata = safeMetadata(asteroid.metadata);
+      const calculatedValues =
+        asteroid?.calculated_values && typeof asteroid.calculated_values === "object" && !Array.isArray(asteroid.calculated_values)
+          ? asteroid.calculated_values
+          : {};
+      const formulaFields = extractFormulaFields(metadata);
+      const availableFields = new Set([...Object.keys(metadata), ...Object.keys(calculatedValues)]);
+      const valueSignal = extractComputedValue({ ...asteroid, metadata, calculated_values: calculatedValues });
       const physics = mapValueToPhysics(valueSignal);
       const category = inferCategory(asteroid);
+      const hashId = hashText(asteroid.id);
+      const hashVal = hashText(valueToLabel(asteroid.value));
+      const baseRadius = 0.8 + (hashId % 10) * 0.05;
       return {
         ...asteroid,
+        metadata,
+        calculated_values: calculatedValues,
+        formulaFields,
+        availableFields,
+        hashId,
+        hashVal,
+        baseRadius,
         category,
         mass: physics.mass,
         visualScale: physics.scale,
         physicsIntensity: physics.intensity,
+        collisionRadius: baseRadius * physics.scale + 1.8,
         isCategoryCore: Boolean(category),
       };
     });
 
-    const staticPositions = calculateStaticLayout(physicsAsteroids, sortedBonds, 150);
-    const positionById = new Map(staticPositions.map((pos) => [pos.id, [pos.x, pos.y, pos.z]]));
+    const asteroidById = new Map(physicsAsteroids.map((asteroid) => [asteroid.id, asteroid]));
+    const directedBonds = sortedBonds
+      .map((bond) => {
+        const source = asteroidById.get(bond.source_id);
+        const target = asteroidById.get(bond.target_id);
+        if (!source || !target) return null;
+
+        const sourceFormulaFields = source.formulaFields || new Set();
+        const targetFormulaFields = target.formulaFields || new Set();
+        const sourceAvailable = source.availableFields || new Set();
+        const targetAvailable = target.availableFields || new Set();
+
+        const forwardField = [...targetFormulaFields].find((field) => sourceAvailable.has(field));
+        const reverseField = [...sourceFormulaFields].find((field) => targetAvailable.has(field));
+
+        let flowSourceId = source.id;
+        let flowTargetId = target.id;
+        let flowField = null;
+
+        if (forwardField && !reverseField) {
+          flowSourceId = source.id;
+          flowTargetId = target.id;
+          flowField = forwardField;
+        } else if (!forwardField && reverseField) {
+          flowSourceId = target.id;
+          flowTargetId = source.id;
+          flowField = reverseField;
+        } else if (forwardField && reverseField) {
+          if (targetFormulaFields.size >= sourceFormulaFields.size) {
+            flowSourceId = source.id;
+            flowTargetId = target.id;
+            flowField = forwardField;
+          } else {
+            flowSourceId = target.id;
+            flowTargetId = source.id;
+            flowField = reverseField;
+          }
+        }
+
+        const flowSource = asteroidById.get(flowSourceId);
+        const transferValue =
+          flowField && flowSource
+            ? flowSource.calculated_values?.[flowField] ?? flowSource.metadata?.[flowField]
+            : null;
+        const flowLabel = flowField
+          ? `Přesun: ${valueToLabel(transferValue ?? "n/a")} (${flowField})`
+          : `Tok: ${valueToLabel(asteroidById.get(flowSourceId)?.value)} -> ${valueToLabel(asteroidById.get(flowTargetId)?.value)}`;
+
+        return {
+          ...bond,
+          flow_source_id: flowSourceId,
+          flow_target_id: flowTargetId,
+          flow_field: flowField || null,
+          flowLabel,
+        };
+      })
+      .filter(Boolean);
+
+    const layoutSignature = [
+      physicsAsteroids
+        .map((asteroid) => {
+          const formulaSignature = [...(asteroid.formulaFields || new Set())].sort().join(",");
+          return `${asteroid.id}:${Number(asteroid.mass || 1).toFixed(4)}:${Number(asteroid.collisionRadius || 1).toFixed(4)}:${formulaSignature}`;
+        })
+        .join("|"),
+      directedBonds
+        .map((bond) => `${bond.id}:${bond.flow_source_id}->${bond.flow_target_id}:${bond.flow_field || ""}`)
+        .join("|"),
+    ].join("::");
+
+    let positionById;
+    let sectorPlates;
+    if (layoutStateRef.current.signature === layoutSignature) {
+      positionById = new Map(layoutStateRef.current.positions);
+      sectorPlates = Array.isArray(layoutStateRef.current.sectors) ? layoutStateRef.current.sectors : [];
+    } else {
+      const sectorLayout = calculateSectorLayout({
+        nodes: physicsAsteroids,
+        edges: directedBonds,
+        previousPositions: layoutStateRef.current.positions,
+      });
+      positionById = new Map(sectorLayout.positions);
+      sectorPlates = Array.isArray(sectorLayout.sectors) ? sectorLayout.sectors : [];
+      layoutStateRef.current = {
+        signature: layoutSignature,
+        positions: new Map([...positionById.entries()].map(([id, p]) => [id, [p[0], p[1], p[2]]])),
+        sectors: sectorPlates,
+      };
+    }
+
+    const hasAudit = Boolean(auditTargetId);
     const hasFocus = Boolean(selectedPlanetId);
     const highlightedAtomIds = new Set();
     const highlightedBondIds = new Set();
-    if (hasFocus) {
+
+    if (hasAudit && asteroidById.has(auditTargetId)) {
+      const incomingByTarget = new Map();
+      directedBonds.forEach((bond) => {
+        if (!incomingByTarget.has(bond.flow_target_id)) {
+          incomingByTarget.set(bond.flow_target_id, []);
+        }
+        incomingByTarget.get(bond.flow_target_id)?.push(bond);
+      });
+      const stack = [auditTargetId];
+      highlightedAtomIds.add(auditTargetId);
+      while (stack.length) {
+        const targetId = stack.pop();
+        const incoming = incomingByTarget.get(targetId) || [];
+        incoming.forEach((bond) => {
+          highlightedBondIds.add(bond.id);
+          if (!highlightedAtomIds.has(bond.flow_source_id)) {
+            highlightedAtomIds.add(bond.flow_source_id);
+            stack.push(bond.flow_source_id);
+          }
+        });
+      }
+    } else if (hasFocus) {
       highlightedAtomIds.add(selectedPlanetId);
-      sortedBonds.forEach((bond) => {
+      directedBonds.forEach((bond) => {
         if (bond.source_id === selectedPlanetId) {
           highlightedAtomIds.add(bond.target_id);
           highlightedBondIds.add(bond.id);
@@ -1133,29 +1629,38 @@ export default function App() {
     }
 
     const enrichedAtoms = physicsAsteroids.map((asteroid) => {
-      const hashId = hashText(asteroid.id);
-      const hashVal = hashText(valueToLabel(asteroid.value));
-      const isHighlighted = !hasFocus || highlightedAtomIds.has(asteroid.id);
       const activeAlerts = Array.isArray(asteroid.active_alerts) ? asteroid.active_alerts : [];
       const isGuardianRed = activeAlerts.includes("color_red");
       const isGuardianHidden = activeAlerts.includes("hide");
-      const baseColor = PALETTE[hashVal % PALETTE.length];
+      const baseColor = PALETTE[asteroid.hashVal % PALETTE.length];
+      const isRelated = hasAudit || hasFocus ? highlightedAtomIds.has(asteroid.id) : true;
+      const opacity = isGuardianHidden
+        ? 0.04
+        : hasAudit
+          ? isRelated
+            ? 1
+            : 0.1
+          : hasFocus
+            ? isRelated
+              ? 1
+              : 0.15
+            : 1;
       return {
         ...asteroid,
         metadata: safeMetadata(asteroid.metadata),
         calculated_values: asteroid.calculated_values || {},
         active_alerts: activeAlerts,
         created_at: asteroid.created_at || null,
-        type: SHAPES[hashId % SHAPES.length],
+        type: SHAPES[asteroid.hashId % SHAPES.length],
         color: isGuardianRed ? "#ff2f3f" : baseColor,
-        radius: 0.8 + (hashId % 10) * 0.05,
-        orbitTilt: ((hashVal % 100) / 100 - 0.5) * 0.8,
+        radius: asteroid.baseRadius,
+        orbitTilt: ((asteroid.hashVal % 100) / 100 - 0.5) * 0.8,
         glowBoost: isGuardianRed
           ? Math.max(asteroid.physicsIntensity * 1.55, 2.2)
           : asteroid.isCategoryCore
             ? 1.55 * asteroid.physicsIntensity
             : asteroid.physicsIntensity,
-        opacity: isGuardianHidden ? 0.04 : isHighlighted ? 1 : 0.15,
+        opacity,
         selected: asteroid.id === selectedPlanetId
       };
     });
@@ -1165,26 +1670,33 @@ export default function App() {
       atomPositions[atom.id] = positionById.get(atom.id) || [0, 0, 0];
     });
 
-    const curvedBonds = sortedBonds
+    const curvedBonds = directedBonds
       .map((bond) => {
-        const start = atomPositions[bond.source_id];
-        const end = atomPositions[bond.target_id];
+        const start = atomPositions[bond.flow_source_id];
+        const end = atomPositions[bond.flow_target_id];
         if (!start || !end) return null;
+        const dx = end[0] - start[0];
+        const dy = end[1] - start[1];
+        const dz = end[2] - start[2];
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         const control = [
           (start[0] + end[0]) / 2,
-          (start[1] + end[1]) / 2 + 2.5,
+          (start[1] + end[1]) / 2 + clamp(1.9 + distance * 0.11, 1.9, 8.2),
           (start[2] + end[2]) / 2
         ];
+        const isRelated = highlightedBondIds.has(bond.id);
+        const opacity = hasAudit ? (isRelated ? 0.96 : 0.1) : hasFocus ? (isRelated ? 0.9 : 0.15) : 0.82;
         return {
           ...bond,
-          opacity: !hasFocus || highlightedBondIds.has(bond.id) ? 0.9 : 0.15,
+          opacity,
+          flow_highlight: hasAudit ? isRelated : false,
           points: curvePoints(start, control, end, 64)
         };
       })
       .filter(Boolean);
 
-    return { enrichedAtoms, atomPositions, curvedBonds };
-  }, [atoms, bonds, selectedPlanetId]);
+    return { enrichedAtoms, atomPositions, curvedBonds, sectorPlates };
+  }, [atoms, bonds, selectedPlanetId, auditTargetId]);
 
   const selectedPlanet = useMemo(() => {
     if (!selectedPlanetId) return null;
@@ -1193,6 +1705,54 @@ export default function App() {
     return { ...planet, position: visualData.atomPositions[planet.id] || [0, 0, 0] };
   }, [selectedPlanetId, visualData]);
 
+  const defaultUniverseView = useMemo(() => {
+    const nodes = visualData.enrichedAtoms;
+    if (!nodes.length) {
+      return {
+        position: [0, 90, 680],
+        target: [0, 0, 0],
+        minDistance: 12,
+        maxDistance: 5200,
+      };
+    }
+
+    let cx = 0;
+    let cy = 0;
+    let cz = 0;
+    nodes.forEach((node) => {
+      const p = visualData.atomPositions[node.id] || [0, 0, 0];
+      cx += p[0];
+      cy += p[1];
+      cz += p[2];
+    });
+    cx /= nodes.length;
+    cy /= nodes.length;
+    cz /= nodes.length;
+
+    let maxRadius = 0;
+    nodes.forEach((node) => {
+      const p = visualData.atomPositions[node.id] || [0, 0, 0];
+      const dx = p[0] - cx;
+      const dy = p[1] - cy;
+      const dz = p[2] - cz;
+      const distanceFromCenter = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const nodeRadius = (node.radius || 0.9) * (node.visualScale || 1) + 2.2;
+      maxRadius = Math.max(maxRadius, distanceFromCenter + nodeRadius);
+    });
+
+    const safeRadius = Math.max(maxRadius, 8);
+    const viewDistance = clamp(safeRadius * 1.85 + 120, 140, 5200);
+    const minDistance = clamp(safeRadius * 0.32 + 8, 10, 680);
+    const maxDistance = clamp(viewDistance * 3.8, 760, 14000);
+
+    return {
+      position: [cx, cy + safeRadius * 0.3 + 38, cz + viewDistance],
+      target: [cx, cy, cz],
+      minDistance,
+      maxDistance,
+    };
+  }, [visualData]);
+
   const selectedPlanetMetadata = useMemo(() => Object.entries(selectedPlanet?.metadata || {}), [selectedPlanet]);
 
   useEffect(() => {
@@ -1200,6 +1760,20 @@ export default function App() {
       setSelectedPlanetId(null);
     }
   }, [selectedPlanetId, selectedPlanet]);
+
+  useEffect(() => {
+    if (!auditTargetId) return;
+    const exists = visualData.enrichedAtoms.some((atom) => atom.id === auditTargetId);
+    if (!exists) {
+      setAuditTargetId(null);
+    }
+  }, [auditTargetId, visualData]);
+
+  useEffect(() => {
+    if (!assistPinned && assistOpen && selectedPlanet) {
+      setAssistOpen(false);
+    }
+  }, [assistPinned, assistOpen, selectedPlanet]);
 
   const runLocalFocus = useCallback(
     (targetText) => {
@@ -1214,6 +1788,8 @@ export default function App() {
       if (!found) return false;
 
       setSelectedPlanetId(found.id);
+      setAuditTargetId(null);
+      setHoveredFlow(null);
       setError("");
       return true;
     },
@@ -1306,6 +1882,83 @@ export default function App() {
     ];
   }, [historicalMode, atoms.length, selectedPlanet]);
 
+  const guidedActions = useMemo(() => {
+    const selectedLabel = selectedPlanet ? valueToLabel(selectedPlanet.value) : "Projekt";
+    if (historicalMode) {
+      return [
+        {
+          id: "guide-live",
+          title: "Přejdi do Live módu",
+          description: "V historickém módu jsou zápisy zamčené.",
+          action: "live",
+        },
+      ];
+    }
+
+    if (!atoms.length) {
+      return [
+        {
+          id: "guide-first",
+          title: "Vytvoř první asteroid",
+          description: "Začni jednou entitou.",
+          command: "Firma ACME",
+        },
+        {
+          id: "guide-second",
+          title: "Přidej druhý asteroid",
+          description: "Druhý uzel umožní vytvořit vazbu.",
+          command: "Produkt X",
+        },
+        {
+          id: "guide-link",
+          title: "Propoj je spolu",
+          description: "Vytvoř relation vazbu mezi uzly.",
+          command: "Firma ACME + Produkt X",
+        },
+      ];
+    }
+
+    if (atoms.length > 0 && !bonds.length) {
+      const fallbackA = valueToLabel(visualData.enrichedAtoms[0]?.value) || "A";
+      const fallbackB = valueToLabel(visualData.enrichedAtoms[1]?.value) || "B";
+      return [
+        {
+          id: "guide-link-existing",
+          title: "Vytvoř první vazbu",
+          description: "Vazby dají grafu strukturu.",
+          command: `${fallbackA} + ${fallbackB}`,
+        },
+        {
+          id: "guide-focus-existing",
+          title: "Najdi konkrétní asteroid",
+          description: "Lokální fokus bez API volání.",
+          command: `Ukaž : ${fallbackA}`,
+        },
+      ];
+    }
+
+    return [
+      {
+        id: "guide-focus",
+        title: "Fokus na objekt",
+        description: "Kamera doletí k cíli a otevře detail.",
+        command: `Ukaž : ${selectedLabel}`,
+      },
+      {
+        id: "guide-formula",
+        title: "Přidej výpočet",
+        description: "Ulož vzorec do metadat cíle.",
+        command: `Spočítej : ${selectedLabel}.celkem = SUM(cena)`,
+      },
+      {
+        id: "guide-soft-delete",
+        title: "Soft delete",
+        description: "Skryje objekt, data zůstanou v historii.",
+        command: `Delete : ${selectedLabel}`,
+      },
+    ];
+  }, [historicalMode, atoms.length, bonds.length, selectedPlanet, visualData]);
+
   useEffect(() => {
     const onKeyDown = (event) => {
       const activeElement = document.activeElement;
@@ -1339,6 +1992,8 @@ export default function App() {
 
       if (event.key === "Escape") {
         setSelectedPlanetId(null);
+        setAuditTargetId(null);
+        setHoveredFlow(null);
       }
     };
 
@@ -1351,69 +2006,105 @@ export default function App() {
     commandInputRef.current?.focus();
   }
 
+  const runCommand = useCallback(
+    async (rawCommand, options = {}) => {
+      const trimmed = String(rawCommand || "").trim();
+      const closeAssistOnSuccess = options.closeAssistOnSuccess !== false;
+      const clearInputOnSuccess = options.clearInputOnSuccess !== false;
+
+      if (!trimmed || busy || historicalMode) return false;
+      if (!selectedGalaxyId) {
+        setError("Nejprve vyber galaxii.");
+        return false;
+      }
+
+      const localFocusMatch = trimmed.match(/^(ukaž|ukaz|najdi)\s*:\s*(.+)$/i);
+      if (localFocusMatch) {
+        const focusTargetRaw = localFocusMatch[2].split("@")[0]?.trim() || "";
+        if (!focusTargetRaw) {
+          setError("Lokální fokus: chybí název asteroidu");
+          return false;
+        }
+
+        if (runLocalFocus(focusTargetRaw)) {
+          if (clearInputOnSuccess) {
+            setQuery("");
+          }
+          setError("");
+          if (closeAssistOnSuccess && !assistPinned) {
+            setAssistOpen(false);
+          }
+          return true;
+        }
+        setError(`Lokální fokus: asteroid "${focusTargetRaw}" nebyl nalezen`);
+        return false;
+      }
+
+      setBusy(true);
+      setError("");
+      try {
+        const res = await apiFetch(`${API_BASE}/parser/execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildParserPayload(trimmed, selectedGalaxyId)),
+        });
+        if (!res.ok) {
+          const msg = await parseApiError(res, `Execute failed: ${res.status}`);
+          throw new Error(msg);
+        }
+        const result = await res.json();
+        const pickedId =
+          result?.selected_asteroids?.[0]?.id ||
+          result?.asteroids?.[result?.asteroids?.length - 1]?.id ||
+          result?.selected_atoms?.[0]?.id ||
+          result?.atoms?.[result?.atoms?.length - 1]?.id ||
+          null;
+        if (pickedId) {
+          setSelectedPlanetId(pickedId);
+        }
+        if (clearInputOnSuccess) {
+          setQuery("");
+        }
+        await loadSnapshot();
+        if (closeAssistOnSuccess && !assistPinned) {
+          setAssistOpen(false);
+        }
+        return true;
+      } catch (err) {
+        setError(err.message || "Execution failed");
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [assistPinned, busy, historicalMode, loadSnapshot, runLocalFocus, selectedGalaxyId]
+  );
+
   async function executeCommand(e) {
     e.preventDefault();
     const trimmed = query.trim();
     if (!trimmed || busy || historicalMode) return;
-    if (!selectedGalaxyId) {
-      setError("Nejprve vyber galaxii.");
-      return;
-    }
-
-    const localFocusMatch = trimmed.match(/^(ukaž|ukaz|najdi)\s*:\s*(.+)$/i);
-    if (localFocusMatch) {
-      const focusTargetRaw = localFocusMatch[2].split("@")[0]?.trim() || "";
-      if (!focusTargetRaw) {
-        setError("Lokální fokus: chybí název asteroidu");
-        return;
-      }
-
-      if (runLocalFocus(focusTargetRaw)) {
-        setQuery("");
-        setError("");
-      } else {
-        setError(`Lokální fokus: asteroid "${focusTargetRaw}" nebyl nalezen`);
-      }
-      return;
-    }
-
-    setBusy(true);
-    setError("");
-    try {
-      const res = await apiFetch(`${API_BASE}/parser/execute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildParserPayload(trimmed, selectedGalaxyId)),
-      });
-      if (!res.ok) {
-        const msg = await parseApiError(res, `Execute failed: ${res.status}`);
-        throw new Error(msg);
-      }
-      const result = await res.json();
-      const pickedId =
-        result?.selected_asteroids?.[0]?.id ||
-        result?.asteroids?.[result?.asteroids?.length - 1]?.id ||
-        result?.selected_atoms?.[0]?.id ||
-        result?.atoms?.[result?.atoms?.length - 1]?.id ||
-        null;
-      if (pickedId) {
-        setSelectedPlanetId(pickedId);
-      }
-      setQuery("");
-      await loadSnapshot();
-    } catch (err) {
-      setError(err.message || "Execution failed");
-    } finally {
-      setBusy(false);
-    }
+    await runCommand(trimmed, { closeAssistOnSuccess: true, clearInputOnSuccess: true });
   }
 
   const handleSelectGalaxy = useCallback((galaxyId) => {
     if (!galaxyId) return;
     setSelectedGalaxyId(galaxyId);
     setSelectedPlanetId(null);
+    setAuditTargetId(null);
+    setHoveredFlow(null);
     setAsOfInput("");
     setError("");
+  }, []);
+
+  const highlightFlow = useCallback((targetId) => {
+    if (!targetId) {
+      setAuditTargetId(null);
+      return;
+    }
+    setSelectedPlanetId(targetId);
+    setAuditTargetId((prev) => (prev === targetId ? null : targetId));
+    setHoveredFlow(null);
   }, []);
 
   if (authLoading) {
@@ -1476,93 +2167,22 @@ export default function App() {
       <UniverseScene
         atoms={visualData.enrichedAtoms}
         bonds={visualData.curvedBonds}
+        sectors={visualData.sectorPlates}
         atomPositions={visualData.atomPositions}
         selectedPlanet={selectedPlanet}
+        defaultCameraPosition={defaultUniverseView.position}
+        defaultCameraTarget={defaultUniverseView.target}
+        defaultMinDistance={defaultUniverseView.minDistance}
+        defaultMaxDistance={defaultUniverseView.maxDistance}
         onSelectPlanet={setSelectedPlanetId}
-        onClearSelection={() => setSelectedPlanetId(null)}
-      />
-
-      <div
-        style={{
-          position: "absolute",
-          top: 14,
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 22,
-          width: "min(760px, 92vw)",
-          pointerEvents: "auto",
+        onClearSelection={() => {
+          setSelectedPlanetId(null);
+          setAuditTargetId(null);
+          setHoveredFlow(null);
         }}
-      >
-        <button
-          type="button"
-          onClick={() => setAssistOpen((prev) => !prev)}
-          style={{
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-            borderRadius: 14,
-            border: "1px solid rgba(110, 220, 255, 0.35)",
-            background: "linear-gradient(120deg, rgba(8,16,30,0.86), rgba(10,22,40,0.78))",
-            color: "#d7f9ff",
-            padding: "10px 14px",
-            fontSize: 13,
-            cursor: "pointer",
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          <span style={{ fontWeight: 700, letterSpacing: 0.4 }}>SMART ASSIST</span>
-          <span style={{ opacity: 0.86, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
-            {contextHints[0]}
-          </span>
-          <span style={{ opacity: 0.75 }}>{assistOpen ? "Hide" : "Show"}</span>
-        </button>
-
-        {assistOpen ? (
-          <div
-            style={{
-              marginTop: 8,
-              borderRadius: 14,
-              border: "1px solid rgba(107, 214, 255, 0.28)",
-              background: "rgba(7, 15, 28, 0.84)",
-              color: "#cef3ff",
-              padding: "12px 14px",
-              backdropFilter: "blur(8px)",
-              boxShadow: "0 0 24px rgba(96, 216, 255, 0.12)",
-            }}
-          >
-            <div style={{ fontSize: 12, opacity: 0.78, letterSpacing: 0.5 }}>KONTEXTOVÁ NÁPOVĚDA</div>
-            {contextHints.map((hint) => (
-              <div key={hint} style={{ marginTop: 6, fontSize: 13, opacity: 0.92 }}>
-                {hint}
-              </div>
-            ))}
-
-            <div style={{ marginTop: 12, fontSize: 12, opacity: 0.78, letterSpacing: 0.5 }}>RYCHLÉ PŘÍKAZY</div>
-            <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {smartTemplates.slice(0, 5).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => applySuggestion(item.command)}
-                  style={{
-                    border: "1px solid rgba(116, 216, 255, 0.35)",
-                    background: "rgba(8, 20, 34, 0.82)",
-                    color: "#d5f9ff",
-                    borderRadius: 999,
-                    padding: "7px 11px",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  {item.title}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
+        onHoverFlow={(payload) => setHoveredFlow(payload)}
+        onClearHoverFlow={() => setHoveredFlow(null)}
+      />
 
       <div
         style={{
@@ -1601,7 +2221,7 @@ export default function App() {
             <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>Uživatel: {user?.email || "n/a"}</div>
             <div style={{ marginTop: 6, fontSize: 14 }}>Asteroids: {atoms.length}</div>
             <div style={{ marginTop: 2, fontSize: 14 }}>Bonds: {bonds.length}</div>
-            <div style={{ marginTop: 2, fontSize: 12, opacity: 0.78 }}>Layout: Deterministic</div>
+            <div style={{ marginTop: 2, fontSize: 12, opacity: 0.78 }}>Layout: Patent Gravity</div>
             <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75, letterSpacing: 0.6 }}>GALAXY</div>
             <select
               value={selectedGalaxyId}
@@ -1729,8 +2349,149 @@ export default function App() {
             marginBottom: 8,
           }}
         >
+          <div
+            style={{
+              marginBottom: 8,
+              borderRadius: 12,
+              border: "1px solid rgba(103, 195, 233, 0.22)",
+              background: "rgba(6, 14, 26, 0.72)",
+              padding: "8px 10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 11, opacity: 0.74, letterSpacing: 0.5 }}>COMMAND COACH</div>
+              <div style={{ marginTop: 2, fontSize: 12, opacity: 0.92, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {contextHints[0]}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => setAssistOpen((prev) => !prev)}
+                style={{
+                  border: "1px solid rgba(112, 218, 255, 0.35)",
+                  background: "rgba(8, 20, 34, 0.82)",
+                  color: "#d7f8ff",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                {assistOpen ? "Skrýt kroky" : "Ukázat kroky"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssistPinned((prev) => !prev)}
+                style={{
+                  border: "1px solid rgba(112, 218, 255, 0.35)",
+                  background: assistPinned ? "rgba(34, 76, 108, 0.7)" : "rgba(8, 20, 34, 0.82)",
+                  color: "#d7f8ff",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                {assistPinned ? "Připnuto" : "Připnout"}
+              </button>
+            </div>
+          </div>
+
+          {assistOpen ? (
+            <div
+              style={{
+                marginBottom: 8,
+                borderRadius: 12,
+                border: "1px solid rgba(100, 188, 228, 0.2)",
+                background: "rgba(6, 14, 26, 0.82)",
+                padding: "9px 10px",
+              }}
+            >
+              <div style={{ display: "grid", gap: 6 }}>
+                {guidedActions.slice(0, 2).map((step, index) => (
+                  <div
+                    key={step.id}
+                    style={{
+                      border: "1px solid rgba(101, 187, 226, 0.16)",
+                      borderRadius: 10,
+                      padding: "7px 8px",
+                      background: "rgba(8, 18, 30, 0.74)",
+                    }}
+                  >
+                    <div style={{ fontSize: 11, opacity: 0.72 }}>Krok {index + 1}</div>
+                    <div style={{ marginTop: 1, fontSize: 13, fontWeight: 600 }}>{step.title}</div>
+                    <div style={{ marginTop: 2, fontSize: 12, opacity: 0.84 }}>{step.description}</div>
+                    {step.command ? (
+                      <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          onClick={() => applySuggestion(step.command)}
+                          style={{
+                            border: "1px solid rgba(116, 216, 255, 0.35)",
+                            background: "rgba(8, 20, 34, 0.82)",
+                            color: "#d5f9ff",
+                            borderRadius: 999,
+                            padding: "5px 9px",
+                            fontSize: 11,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Vložit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void runCommand(step.command, { closeAssistOnSuccess: true, clearInputOnSuccess: true });
+                          }}
+                          disabled={busy || historicalMode}
+                          style={{
+                            border: "1px solid rgba(110, 225, 255, 0.45)",
+                            background: busy || historicalMode
+                              ? "linear-gradient(120deg, rgba(63,95,110,0.7), rgba(48,66,80,0.7))"
+                              : "linear-gradient(120deg, #18b2e2, #36d6ff)",
+                            color: busy || historicalMode ? "#b9c8cf" : "#02121c",
+                            borderRadius: 999,
+                            padding: "5px 9px",
+                            fontSize: 11,
+                            cursor: busy || historicalMode ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          Spustit
+                        </button>
+                      </div>
+                    ) : null}
+                    {step.action === "live" ? (
+                      <div style={{ marginTop: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => setAsOfInput("")}
+                          style={{
+                            border: "1px solid rgba(110, 225, 255, 0.45)",
+                            background: "linear-gradient(120deg, #18b2e2, #36d6ff)",
+                            color: "#02121c",
+                            borderRadius: 999,
+                            padding: "5px 9px",
+                            fontSize: 11,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Přepnout na Live
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8, justifyContent: "center" }}>
-            {smartSuggestions.slice(0, 4).map((item) => (
+            {smartSuggestions.slice(0, 2).map((item) => (
               <button
                 key={`quick-${item.id}`}
                 type="button"
@@ -1898,6 +2659,30 @@ export default function App() {
         ))}
       </div>
 
+      {hoveredFlow ? (
+        <div
+          style={{
+            position: "absolute",
+            left: `${(hoveredFlow.x ?? 16) + 14}px`,
+            top: `${(hoveredFlow.y ?? 16) + 14}px`,
+            zIndex: 35,
+            pointerEvents: "none",
+            maxWidth: 300,
+            borderRadius: 10,
+            border: "1px solid rgba(114, 218, 255, 0.4)",
+            background: "rgba(6, 14, 26, 0.92)",
+            color: "#dbf8ff",
+            fontSize: 12,
+            lineHeight: 1.35,
+            padding: "7px 9px",
+            boxShadow: "0 0 18px rgba(72, 198, 255, 0.2)",
+            backdropFilter: "blur(6px)",
+          }}
+        >
+          {hoveredFlow.text || "Tok dat"}
+        </div>
+      ) : null}
+
       {selectedPlanet ? (
         <div
           style={{
@@ -1932,6 +2717,45 @@ export default function App() {
           </div>
           <div style={{ marginTop: 8, fontSize: 13, opacity: 0.82 }}>
             Created: {formatCreatedAt(selectedPlanet.created_at)}
+          </div>
+          <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => highlightFlow(selectedPlanet.id)}
+              style={{
+                border: "1px solid rgba(110, 225, 255, 0.42)",
+                background:
+                  auditTargetId === selectedPlanet.id
+                    ? "linear-gradient(120deg, #4fd2ff, #8ee4ff)"
+                    : "rgba(8, 20, 34, 0.82)",
+                color: auditTargetId === selectedPlanet.id ? "#03253a" : "#d5f9ff",
+                borderRadius: 999,
+                padding: "6px 10px",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              {auditTargetId === selectedPlanet.id ? "Vypnout Audit Flow" : "Audit Flow"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedPlanetId(null);
+                setAuditTargetId(null);
+                setHoveredFlow(null);
+              }}
+              style={{
+                border: "1px solid rgba(111, 206, 255, 0.28)",
+                background: "rgba(9, 18, 33, 0.7)",
+                color: "#cff5ff",
+                borderRadius: 999,
+                padding: "6px 10px",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              Zrušit fokus
+            </button>
           </div>
 
           {selectedPlanetMetadata.length > 0 ? (
