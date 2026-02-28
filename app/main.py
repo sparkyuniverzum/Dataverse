@@ -25,13 +25,21 @@ from app.schemas import (
     UniverseAsteroidSnapshot,
     UniverseBondSnapshot,
     UniverseSnapshotResponse,
+    UniverseTablesResponse,
     UserPublic,
 )
 from app.services.auth_service import AuthService, get_current_user
 from app.services.event_store_service import EventStoreService
 from app.services.parser_service import AtomicTask, ParserService
 from app.services.task_executor_service import TaskExecutionResult, TaskExecutorService
-from app.services.universe_service import ProjectedAsteroid, ProjectedBond, UniverseService
+from app.services.universe_service import (
+    DEFAULT_GALAXY_ID,
+    ProjectedAsteroid,
+    ProjectedBond,
+    UniverseService,
+    derive_table_id,
+    derive_table_name,
+)
 
 app = FastAPI(title="DataVerse API", version="0.3.0-auth-multitenant")
 app.add_middleware(
@@ -135,7 +143,11 @@ def execution_to_response(tasks: list[AtomicTask], execution: TaskExecutionResul
     )
 
 
-def universe_asteroid_to_snapshot(asteroid: ProjectedAsteroid | Mapping[str, Any]) -> UniverseAsteroidSnapshot:
+def universe_asteroid_to_snapshot(
+    asteroid: ProjectedAsteroid | Mapping[str, Any],
+    *,
+    galaxy_id: UUID = DEFAULT_GALAXY_ID,
+) -> UniverseAsteroidSnapshot:
     if isinstance(asteroid, Mapping):
         metadata = asteroid.get("metadata", {})
         if not isinstance(metadata, dict):
@@ -146,18 +158,31 @@ def universe_asteroid_to_snapshot(asteroid: ProjectedAsteroid | Mapping[str, Any
         active_alerts = asteroid.get("active_alerts", [])
         if not isinstance(active_alerts, list):
             active_alerts = []
+        table_name_raw = asteroid.get("table_name")
+        table_name = (
+            table_name_raw.strip()
+            if isinstance(table_name_raw, str) and table_name_raw.strip()
+            else derive_table_name(value=asteroid.get("value"), metadata=metadata)
+        )
+        table_id = asteroid.get("table_id")
+        table_uuid = table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
         return UniverseAsteroidSnapshot(
             id=asteroid["id"],
             value=asteroid.get("value"),
+            table_id=table_uuid,
+            table_name=table_name,
             metadata=metadata,
             calculated_values=calculated_values,
             active_alerts=[str(alert) for alert in active_alerts],
             created_at=asteroid["created_at"],
         )
 
+    table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
     return UniverseAsteroidSnapshot(
         id=asteroid.id,
         value=asteroid.value,
+        table_id=derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
+        table_name=table_name,
         metadata=asteroid.metadata,
         calculated_values={},
         active_alerts=[],
@@ -165,19 +190,38 @@ def universe_asteroid_to_snapshot(asteroid: ProjectedAsteroid | Mapping[str, Any
     )
 
 
-def universe_bond_to_snapshot(bond: ProjectedBond | Mapping[str, Any]) -> UniverseBondSnapshot:
+def universe_bond_to_snapshot(
+    bond: ProjectedBond | Mapping[str, Any],
+    *,
+    asteroid_table_index: Mapping[UUID, tuple[UUID, str]] | None = None,
+) -> UniverseBondSnapshot:
+    table_index = asteroid_table_index or {}
     if isinstance(bond, Mapping):
+        source_id = bond["source_id"]
+        target_id = bond["target_id"]
+        source_table_id, source_table_name = table_index.get(source_id, (DEFAULT_GALAXY_ID, "Unknown"))
+        target_table_id, target_table_name = table_index.get(target_id, (DEFAULT_GALAXY_ID, "Unknown"))
         return UniverseBondSnapshot(
             id=bond["id"],
-            source_id=bond["source_id"],
-            target_id=bond["target_id"],
+            source_id=source_id,
+            target_id=target_id,
             type=bond.get("type", "RELATION"),
+            source_table_id=source_table_id,
+            source_table_name=source_table_name,
+            target_table_id=target_table_id,
+            target_table_name=target_table_name,
         )
+    source_table_id, source_table_name = table_index.get(bond.source_id, (DEFAULT_GALAXY_ID, "Unknown"))
+    target_table_id, target_table_name = table_index.get(bond.target_id, (DEFAULT_GALAXY_ID, "Unknown"))
     return UniverseBondSnapshot(
         id=bond.id,
         source_id=bond.source_id,
         target_id=bond.target_id,
         type=bond.type,
+        source_table_id=source_table_id,
+        source_table_name=source_table_name,
+        target_table_id=target_table_id,
+        target_table_name=target_table_name,
     )
 
 
@@ -302,6 +346,7 @@ async def ingest_asteroid(
             tasks=tasks,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
+            manage_transaction=False,
         )
     await commit_if_active(session)
     if not execution.asteroids:
@@ -328,6 +373,7 @@ async def extinguish_asteroid(
             tasks=tasks,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
+            manage_transaction=False,
         )
     await commit_if_active(session)
     if asteroid_id not in execution.extinguished_asteroid_ids:
@@ -369,6 +415,7 @@ async def link_bond(
             tasks=tasks,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
+            manage_transaction=False,
         )
     await commit_if_active(session)
     if not execution.bonds:
@@ -397,6 +444,7 @@ async def parse_and_execute(
             tasks=tasks,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
+            manage_transaction=False,
         )
     await commit_if_active(session)
     return execution_to_response(tasks=tasks, execution=execution)
@@ -420,7 +468,44 @@ async def universe_snapshot(
         galaxy_id=target_galaxy_id,
         as_of=as_of,
     )
+
+    asteroid_snapshots = [
+        universe_asteroid_to_snapshot(asteroid, galaxy_id=target_galaxy_id)
+        for asteroid in active_asteroids
+    ]
+    table_index: dict[UUID, tuple[UUID, str]] = {
+        asteroid.id: (asteroid.table_id, asteroid.table_name)
+        for asteroid in asteroid_snapshots
+    }
+
     return UniverseSnapshotResponse(
-        asteroids=[universe_asteroid_to_snapshot(asteroid) for asteroid in active_asteroids],
-        bonds=[universe_bond_to_snapshot(bond) for bond in active_bonds],
+        asteroids=asteroid_snapshots,
+        bonds=[
+            universe_bond_to_snapshot(
+                bond,
+                asteroid_table_index=table_index,
+            )
+            for bond in active_bonds
+        ],
     )
+
+
+@app.get("/universe/tables", response_model=UniverseTablesResponse, status_code=status.HTTP_200_OK)
+async def universe_tables(
+    as_of: datetime | None = None,
+    galaxy_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> UniverseTablesResponse:
+    target_galaxy_id = await resolve_galaxy_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=galaxy_id,
+    )
+    tables = await universe_service.tables_snapshot(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+        as_of=as_of,
+    )
+    return UniverseTablesResponse(tables=tables)

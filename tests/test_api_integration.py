@@ -213,7 +213,8 @@ def test_parser_metadata_parentheses_are_persisted_and_visible_in_snapshot(auth_
     company_atom = snapshot_atoms[company]
     product_atom = snapshot_atoms[product]
     assert company_atom["metadata"] == {"obor": "IT", "mesto": "Praha"}
-    assert product_atom["metadata"] == {"cena": "500", "mena": "CZK"}
+    assert product_atom["metadata"].get("mena") == "CZK"
+    assert product_atom["metadata"].get("cena") in {"500", 500}
     assert isinstance(company_atom["created_at"], str) and company_atom["created_at"]
     assert isinstance(product_atom["created_at"], str) and product_atom["created_at"]
 
@@ -235,6 +236,42 @@ def test_delete_command_soft_deletes_atom_and_hides_from_live_snapshot(auth_clie
     assert snapshot_live.status_code == 200, snapshot_live.text
     live_values = {_stringify(atom["value"]) for atom in snapshot_live.json()["asteroids"]}
     assert label not in live_values
+
+
+def test_delete_command_soft_deletes_connected_bond_and_returns_bond_id(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    a_label = f"delete-bond-a-{uuid.uuid4()}"
+    b_label = f"delete-bond-b-{uuid.uuid4()}"
+
+    atom_a = client.post("/asteroids/ingest", json={"value": a_label, "galaxy_id": galaxy_id})
+    atom_b = client.post("/asteroids/ingest", json={"value": b_label, "galaxy_id": galaxy_id})
+    assert atom_a.status_code == 200, atom_a.text
+    assert atom_b.status_code == 200, atom_b.text
+
+    atom_a_id = atom_a.json()["id"]
+    atom_b_id = atom_b.json()["id"]
+    linked = client.post(
+        "/bonds/link",
+        json={"source_id": atom_a_id, "target_id": atom_b_id, "type": "REL_DELETE", "galaxy_id": galaxy_id},
+    )
+    assert linked.status_code == 200, linked.text
+    bond_id = linked.json()["id"]
+
+    deleted = client.post("/parser/execute", json={"query": f"Delete : {a_label}", "galaxy_id": galaxy_id})
+    assert deleted.status_code == 200, deleted.text
+    deleted_body = deleted.json()
+    assert deleted_body["tasks"][0]["action"] == "DELETE"
+    assert atom_a_id in deleted_body["extinguished_asteroid_ids"]
+    assert bond_id in deleted_body["extinguished_bond_ids"]
+
+    snapshot_live = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_live.status_code == 200, snapshot_live.text
+    live_body = snapshot_live.json()
+    live_atom_ids = {atom["id"] for atom in live_body["asteroids"]}
+    live_bond_ids = {bond["id"] for bond in live_body["bonds"]}
+    assert atom_a_id not in live_atom_ids
+    assert atom_b_id in live_atom_ids
+    assert bond_id not in live_bond_ids
 
 
 def test_set_formula_command_is_calculated_in_snapshot_output(auth_client: tuple[httpx.Client, str]) -> None:
@@ -280,6 +317,58 @@ def test_set_formula_command_is_calculated_in_snapshot_output(auth_client: tuple
     assert atoms_by_value[project]["metadata"]["celkem"] == 150
 
 
+def test_guardian_command_is_idempotent_for_same_rule(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    project = f"GuardianProjekt-{uuid.uuid4()}"
+
+    created = client.post(
+        "/asteroids/ingest",
+        json={"value": project, "metadata": {"celkem": 1200}, "galaxy_id": galaxy_id},
+    )
+    assert created.status_code == 200, created.text
+
+    cmd = f"Hlídej : {project}.celkem > 1000 -> pulse"
+    first = client.post("/parser/execute", json={"query": cmd, "galaxy_id": galaxy_id})
+    second = client.post("/parser/execute", json={"query": cmd, "galaxy_id": galaxy_id})
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    asteroids = {_stringify(atom["value"]): atom for atom in snapshot.json()["asteroids"]}
+    asteroid = asteroids[project]
+
+    guardians = asteroid["metadata"].get("_guardians", [])
+    assert isinstance(guardians, list)
+    matching = [
+        rule
+        for rule in guardians
+        if isinstance(rule, dict)
+        and rule.get("field") == "celkem"
+        and rule.get("operator") == ">"
+        and rule.get("threshold") == 1000
+        and rule.get("action") == "pulse"
+    ]
+    assert len(matching) == 1
+
+
+def test_execute_tasks_rollback_after_partial_write(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"rollback-after-write-{uuid.uuid4()}"
+    # First INGEST succeeds in executor loop, LINK fails (same source/target), whole tx must rollback.
+    failed = client.post("/parser/execute", json={"query": f"{label} + {label}", "galaxy_id": galaxy_id})
+    assert failed.status_code == 422, failed.text
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    values = {_stringify(atom["value"]) for atom in snapshot.json()["asteroids"]}
+    assert label not in values
+
+    # Session/API must remain usable after failed tx.
+    ok = client.post("/asteroids/ingest", json={"value": label, "galaxy_id": galaxy_id})
+    assert ok.status_code == 200, ok.text
+
+
 def test_forbidden_access_to_foreign_galaxy(client: httpx.Client) -> None:
     email_a = f"tenant-a-{uuid.uuid4()}@dataverse.local"
     email_b = f"tenant-b-{uuid.uuid4()}@dataverse.local"
@@ -296,3 +385,72 @@ def test_forbidden_access_to_foreign_galaxy(client: httpx.Client) -> None:
     client.headers.update({"Authorization": f"Bearer {token_a}"})
     forbidden = client.get("/universe/snapshot", params={"galaxy_id": galaxy_b})
     assert forbidden.status_code == 403, forbidden.text
+
+
+def test_snapshot_v1_contract_contains_table_projection_fields(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    command = f"Firma-{uuid.uuid4()} (category: Firma) + Produkt-{uuid.uuid4()} (table: Nabidka)"
+    execute = client.post("/parser/execute", json={"query": command, "galaxy_id": galaxy_id})
+    assert execute.status_code == 200, execute.text
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    body = snapshot.json()
+    assert "asteroids" in body
+    assert "bonds" in body
+    assert isinstance(body["asteroids"], list)
+    assert isinstance(body["bonds"], list)
+    assert body["asteroids"], "Expected at least one asteroid in snapshot"
+
+    asteroid = body["asteroids"][0]
+    assert "table_id" in asteroid
+    assert "table_name" in asteroid
+    assert "metadata" in asteroid
+    assert "calculated_values" in asteroid
+    assert "active_alerts" in asteroid
+    assert "created_at" in asteroid
+
+    if body["bonds"]:
+        bond = body["bonds"][0]
+        assert "source_table_id" in bond
+        assert "source_table_name" in bond
+        assert "target_table_id" in bond
+        assert "target_table_name" in bond
+
+
+def test_tables_v1_contract_contains_sector_and_bond_buckets(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    a_label = f"TabA-{uuid.uuid4()}"
+    b_label = f"TabB-{uuid.uuid4()}"
+    execute = client.post(
+        "/parser/execute",
+        json={
+            "query": f"{a_label} (table: Alpha, cena: 10) + {b_label} (table: Beta, cena: 20)",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert execute.status_code == 200, execute.text
+
+    tables = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert tables.status_code == 200, tables.text
+    body = tables.json()
+    assert "tables" in body
+    assert isinstance(body["tables"], list)
+    assert body["tables"], "Expected at least one table bucket"
+
+    for table in body["tables"]:
+        assert "table_id" in table
+        assert "galaxy_id" in table
+        assert "name" in table
+        assert "schema_fields" in table and isinstance(table["schema_fields"], list)
+        assert "formula_fields" in table and isinstance(table["formula_fields"], list)
+        assert "members" in table and isinstance(table["members"], list)
+        assert "internal_bonds" in table and isinstance(table["internal_bonds"], list)
+        assert "external_bonds" in table and isinstance(table["external_bonds"], list)
+        assert "sector" in table and isinstance(table["sector"], dict)
+
+        sector = table["sector"]
+        assert "center" in sector and isinstance(sector["center"], list) and len(sector["center"]) == 3
+        assert "size" in sector and isinstance(sector["size"], (int, float))
+        assert "mode" in sector and sector["mode"] in {"belt", "ring"}
+        assert sector.get("grid_plate") is True

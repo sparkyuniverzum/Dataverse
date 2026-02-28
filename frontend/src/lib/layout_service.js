@@ -1,10 +1,8 @@
-const SECTOR_SPACING = 500;
-const LINK_PULL_SAME_SECTOR = 0.022;
-const LINK_PULL_CROSS_SECTOR = 0.008;
-const CENTER_PULL = 0.018;
-const RING_PULL = 0.028;
-const COLLISION_PADDING = 6.5;
-const ITERATIONS = 160;
+const LINK_PULL_SAME_SECTOR = 0.024;
+const LINK_PULL_CROSS_SECTOR = 0.01;
+const CENTER_PULL = 0.02;
+const RING_PULL = 0.03;
+const BASE_COLLISION_PADDING = 5.2;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -35,17 +33,17 @@ function seededUnitVector(seedText) {
   return [Math.cos(theta) * radius, z, Math.sin(theta) * radius];
 }
 
-function getSectorCenter(index, total) {
+function getSectorCenter(index, total, spacing) {
   const cols = Math.max(1, Math.ceil(Math.sqrt(total)));
   const rows = Math.max(1, Math.ceil(total / cols));
   const col = index % cols;
   const row = Math.floor(index / cols);
-  const offsetX = ((cols - 1) * SECTOR_SPACING) / 2;
-  const offsetZ = ((rows - 1) * SECTOR_SPACING) / 2;
-  return [col * SECTOR_SPACING - offsetX, 0, row * SECTOR_SPACING - offsetZ];
+  const offsetX = ((cols - 1) * spacing) / 2;
+  const offsetZ = ((rows - 1) * spacing) / 2;
+  return [col * spacing - offsetX, 0, row * spacing - offsetZ];
 }
 
-function buildRingPlacement(node, localIndex, count, center, seedShift) {
+function buildRingPlacement(node, localIndex, center, seedShift) {
   const [cx, cy, cz] = center;
   let ringIndex = 0;
   let consumed = 0;
@@ -70,7 +68,7 @@ function buildRingPlacement(node, localIndex, count, center, seedShift) {
 function buildBeltPlacement(node, localIndex, count, center, seedShift) {
   const [cx, cy, cz] = center;
   const n = Math.max(1, count);
-  const beltRadius = clamp(42 + Math.sqrt(n) * 20, 48, 138);
+  const beltRadius = clamp(42 + Math.sqrt(n) * 20, 48, 154);
   const golden = Math.PI * (3 - Math.sqrt(5));
   const angle = seedShift + localIndex * golden;
   const radial = beltRadius * Math.sqrt((localIndex + 0.6) / n);
@@ -89,12 +87,54 @@ function resolveNodeIdentity(edge) {
   return [sourceId, targetId];
 }
 
+function enforceNoOverlap(points, padding, iterations) {
+  if (points.length < 2) return;
+  for (let pass = 0; pass < iterations; pass += 1) {
+    let moved = false;
+    for (let i = 0; i < points.length; i += 1) {
+      for (let j = i + 1; j < points.length; j += 1) {
+        const a = points[i];
+        const b = points[j];
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dz = a.z - b.z;
+        let dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist < 0.0001) {
+          const [nx, ny, nz] = seededUnitVector(`${a.id}|${b.id}|post-collision`);
+          dx = nx;
+          dy = ny;
+          dz = nz;
+          dist = 1;
+        }
+        const minDistance = a.collisionRadius + b.collisionRadius + padding;
+        if (dist >= minDistance) continue;
+        moved = true;
+        const overlap = (minDistance - dist) * 0.52;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const nz = dz / dist;
+        a.x += nx * overlap;
+        a.y += ny * overlap;
+        a.z += nz * overlap;
+        b.x -= nx * overlap;
+        b.y -= ny * overlap;
+        b.z -= nz * overlap;
+      }
+    }
+    if (!moved) break;
+  }
+}
+
 export function calculateSectorLayout({ nodes, edges, previousPositions }) {
   const safeNodes = Array.isArray(nodes) ? nodes : [];
   const safeEdges = Array.isArray(edges) ? edges : [];
   if (!safeNodes.length) {
     return { positions: new Map(), sectors: [] };
   }
+
+  const totalNodes = safeNodes.length;
+  const collisionPadding = BASE_COLLISION_PADDING + Math.sqrt(totalNodes) * 0.22;
+  const iterations = clamp(170 + totalNodes * 1.6, 170, 360);
 
   const sortedNodes = [...safeNodes].sort((a, b) => String(a.id).localeCompare(String(b.id)));
   const byCategory = new Map();
@@ -107,33 +147,44 @@ export function calculateSectorLayout({ nodes, edges, previousPositions }) {
   });
 
   const categoryNames = [...byCategory.keys()].sort((a, b) => a.localeCompare(b));
-  const sectorByCategory = new Map();
-  categoryNames.forEach((category, index) => {
+  const sectorDrafts = categoryNames.map((category) => {
     const members = byCategory.get(category) || [];
     const metadataFieldSet = new Set();
+    let maxCollisionRadius = 2.2;
     members.forEach((node) => {
       const metadata = node?.metadata && typeof node.metadata === "object" && !Array.isArray(node.metadata)
         ? node.metadata
         : {};
       Object.keys(metadata).forEach((key) => metadataFieldSet.add(key));
+      maxCollisionRadius = Math.max(maxCollisionRadius, Number(node.collisionRadius) || 2.2);
     });
+
     const mode = members.length > 5 || metadataFieldSet.size > 3 ? "ring" : "belt";
-    const center = getSectorCenter(index, categoryNames.length);
     const size = clamp(
-      210 + Math.sqrt(members.length || 1) * 34 + (mode === "ring" ? 70 : 22),
-      220,
-      420
+      220 + Math.sqrt(members.length || 1) * 34 + maxCollisionRadius * 9 + (mode === "ring" ? 72 : 24),
+      240,
+      620
     );
-    sectorByCategory.set(category, {
+
+    return {
       id: `sector-${hashText(category).toString(16)}`,
       label: category,
       category,
-      center,
       mode,
       size,
       metadataFieldCount: metadataFieldSet.size,
       asteroidCount: members.length,
-    });
+      center: [0, 0, 0],
+    };
+  });
+
+  const maxSectorSize = sectorDrafts.reduce((max, sector) => Math.max(max, sector.size), 260);
+  const spacing = clamp(maxSectorSize * 1.44 + 90, 320, 980);
+
+  const sectorByCategory = new Map();
+  sectorDrafts.forEach((sector, index) => {
+    sector.center = getSectorCenter(index, sectorDrafts.length, spacing);
+    sectorByCategory.set(sector.category, sector);
   });
 
   const points = sortedNodes.map((node) => {
@@ -144,15 +195,13 @@ export function calculateSectorLayout({ nodes, edges, previousPositions }) {
     const localIndex = localNodes.findIndex((item) => item.id === node.id);
     const seedShift = ((hashText(`${category}|${node.id}`) % 360) / 360) * Math.PI * 2;
     const fallback = sector.mode === "ring"
-      ? buildRingPlacement(node, Math.max(0, localIndex), localNodes.length, sector.center, seedShift)
+      ? buildRingPlacement(node, Math.max(0, localIndex), sector.center, seedShift)
       : buildBeltPlacement(node, Math.max(0, localIndex), localNodes.length, sector.center, seedShift);
-    const prev = previousPositions?.get(node.id);
-    const hasValidPrev =
-      Array.isArray(prev) &&
-      prev.length === 3 &&
-      prev.every((value) => Number.isFinite(value));
 
+    const prev = previousPositions?.get(node.id);
+    const hasValidPrev = Array.isArray(prev) && prev.length === 3 && prev.every((value) => Number.isFinite(value));
     const collisionRadius = Number(node.collisionRadius) || 2.2;
+
     return {
       id: node.id,
       category,
@@ -161,9 +210,6 @@ export function calculateSectorLayout({ nodes, edges, previousPositions }) {
       x: hasValidPrev ? prev[0] : fallback.x,
       y: hasValidPrev ? prev[1] : fallback.y,
       z: hasValidPrev ? prev[2] : fallback.z,
-      vx: 0,
-      vy: 0,
-      vz: 0,
       targetRadius: fallback.targetRadius,
       collisionRadius,
       mass: Number(node.mass) || 1,
@@ -171,8 +217,9 @@ export function calculateSectorLayout({ nodes, edges, previousPositions }) {
   });
 
   const indexById = new Map(points.map((point, index) => [point.id, index]));
-  for (let it = 0; it < ITERATIONS; it += 1) {
-    const alpha = 1 - it / ITERATIONS;
+
+  for (let it = 0; it < iterations; it += 1) {
+    const alpha = 1 - it / iterations;
 
     for (let i = 0; i < points.length; i += 1) {
       for (let j = i + 1; j < points.length; j += 1) {
@@ -189,8 +236,11 @@ export function calculateSectorLayout({ nodes, edges, previousPositions }) {
           dz = nz;
           dist = 1;
         }
-        const minDistance = a.collisionRadius + b.collisionRadius + COLLISION_PADDING;
+
+        const massFactor = 1 + Math.min(0.9, (a.mass + b.mass) * 0.04);
+        const minDistance = a.collisionRadius + b.collisionRadius + collisionPadding * massFactor;
         if (dist >= minDistance) continue;
+
         const overlap = (minDistance - dist) * 0.5 * alpha;
         const nx = dx / dist;
         const ny = dy / dist;
@@ -217,10 +267,12 @@ export function calculateSectorLayout({ nodes, edges, previousPositions }) {
       const dy = target.y - source.y;
       const dz = target.z - source.z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.01;
-      const ideal = source.collisionRadius + target.collisionRadius + 24;
-      if (dist <= ideal) return;
       const sameSector = source.category === target.category;
-      const pull = (sameSector ? LINK_PULL_SAME_SECTOR : LINK_PULL_CROSS_SECTOR) * alpha;
+      const ideal = source.collisionRadius + target.collisionRadius + (sameSector ? 24 : 34);
+      if (dist <= ideal) return;
+
+      const massPull = clamp((source.mass + target.mass) * 0.03, 0.45, 1.8);
+      const pull = (sameSector ? LINK_PULL_SAME_SECTOR : LINK_PULL_CROSS_SECTOR) * alpha * massPull;
       const force = (dist - ideal) * pull;
       source.x += (dx / dist) * force;
       source.y += (dy / dist) * force * 0.9;
@@ -236,14 +288,15 @@ export function calculateSectorLayout({ nodes, edges, previousPositions }) {
       const toCenterY = cy - point.y;
       const toCenterZ = cz - point.z;
       point.x += toCenterX * CENTER_PULL * alpha;
-      point.y += toCenterY * CENTER_PULL * alpha * 0.6;
+      point.y += toCenterY * CENTER_PULL * alpha * 0.58;
       point.z += toCenterZ * CENTER_PULL * alpha;
 
       if (point.mode === "ring") {
         const localX = point.x - cx;
         const localZ = point.z - cz;
         const localDist = Math.sqrt(localX * localX + localZ * localZ) || 0.01;
-        const radialDiff = (point.targetRadius || 46) - localDist;
+        const ringTarget = Math.max(point.targetRadius || 46, point.collisionRadius * 1.4 + 18);
+        const radialDiff = ringTarget - localDist;
         point.x += (localX / localDist) * radialDiff * RING_PULL * alpha;
         point.z += (localZ / localDist) * radialDiff * RING_PULL * alpha;
       }
@@ -261,6 +314,8 @@ export function calculateSectorLayout({ nodes, edges, previousPositions }) {
     });
   }
 
+  enforceNoOverlap(points, collisionPadding + 0.8, 42);
+
   const positions = new Map(points.map((point) => [point.id, [point.x, point.y, point.z]]));
   const sectors = categoryNames.map((category) => {
     const sector = sectorByCategory.get(category);
@@ -275,5 +330,6 @@ export function calculateSectorLayout({ nodes, edges, previousPositions }) {
       asteroidCount: sector.asteroidCount,
     };
   });
+
   return { positions, sectors };
 }

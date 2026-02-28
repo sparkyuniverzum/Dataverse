@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import math
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -16,6 +19,33 @@ from app.services.guardian_service import evaluate_guardians
 
 
 DEFAULT_GALAXY_ID = UUID("00000000-0000-0000-0000-000000000001")
+TABLE_PREFIX_RE = re.compile(r"^\s*([A-Za-zÀ-ž0-9 _-]{2,64})\s*:")
+
+
+def normalize_table_name(name: str | None) -> str:
+    text = str(name or "").strip()
+    return text if text else "Uncategorized"
+
+
+def derive_table_name(*, value: Any, metadata: Mapping[str, Any] | None) -> str:
+    data = metadata if isinstance(metadata, Mapping) else {}
+
+    for key in ("kategorie", "category", "typ", "type", "table", "table_name"):
+        direct = data.get(key)
+        if isinstance(direct, str) and direct.strip():
+            return normalize_table_name(direct)
+
+    if isinstance(value, str):
+        match = TABLE_PREFIX_RE.match(value)
+        if match:
+            return normalize_table_name(match.group(1))
+
+    return "Uncategorized"
+
+
+def derive_table_id(*, galaxy_id: UUID, table_name: str) -> UUID:
+    normalized = normalize_table_name(table_name).lower()
+    return uuid5(NAMESPACE_URL, f"dataverse:{galaxy_id}:{normalized}")
 
 
 @dataclass
@@ -111,6 +141,16 @@ class UniverseService:
             bond.is_deleted = True
             bond.deleted_at = event.timestamp
 
+    @staticmethod
+    def _sector_center(index: int, total: int, spacing: int = 500) -> tuple[float, float, float]:
+        cols = max(1, math.ceil(math.sqrt(max(total, 1))))
+        rows = max(1, math.ceil(total / cols))
+        col = index % cols
+        row = index // cols
+        offset_x = ((cols - 1) * spacing) / 2
+        offset_z = ((rows - 1) * spacing) / 2
+        return (col * spacing - offset_x, 0.0, row * spacing - offset_z)
+
     async def project_state(
         self,
         session: AsyncSession,
@@ -159,7 +199,22 @@ class UniverseService:
             ],
             active_bonds,
         )
-        guarded = evaluate_guardians(evaluated)
+        enriched: list[dict[str, Any]] = []
+        for asteroid in evaluated:
+            metadata = asteroid.get("metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
+            table_name = derive_table_name(value=asteroid.get("value"), metadata=metadata)
+            enriched.append(
+                {
+                    **asteroid,
+                    "metadata": metadata,
+                    "table_name": table_name,
+                    "table_id": derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
+                }
+            )
+
+        guarded = evaluate_guardians(enriched)
         return guarded, active_bonds
 
     async def snapshot(
@@ -177,3 +232,169 @@ class UniverseService:
             as_of=as_of,
             apply_calculations=True,
         )
+
+    async def tables_snapshot(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID = DEFAULT_GALAXY_ID,
+        as_of: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        asteroids, bonds = await self.snapshot(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            as_of=as_of,
+        )
+
+        asteroid_rows: list[dict[str, Any]] = []
+        for asteroid in asteroids:
+            if isinstance(asteroid, Mapping):
+                asteroid_id = asteroid.get("id")
+                if not isinstance(asteroid_id, UUID):
+                    continue
+                metadata = asteroid.get("metadata", {})
+                metadata_dict = metadata if isinstance(metadata, dict) else {}
+                table_name_raw = asteroid.get("table_name")
+                table_name = (
+                    normalize_table_name(table_name_raw)
+                    if isinstance(table_name_raw, str)
+                    else derive_table_name(value=asteroid.get("value"), metadata=metadata_dict)
+                )
+                table_id = asteroid.get("table_id")
+                table_uuid = table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
+                asteroid_rows.append(
+                    {
+                        "id": asteroid_id,
+                        "value": asteroid.get("value"),
+                        "metadata": metadata_dict,
+                        "created_at": asteroid.get("created_at"),
+                        "table_name": table_name,
+                        "table_id": table_uuid,
+                    }
+                )
+            elif isinstance(asteroid, ProjectedAsteroid):
+                table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+                asteroid_rows.append(
+                    {
+                        "id": asteroid.id,
+                        "value": asteroid.value,
+                        "metadata": asteroid.metadata,
+                        "created_at": asteroid.created_at,
+                        "table_name": table_name,
+                        "table_id": derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
+                    }
+                )
+
+        def _created_sort(row: dict[str, Any]) -> tuple[int, float, str]:
+            created_at = row.get("created_at")
+            if isinstance(created_at, datetime):
+                return (0, created_at.timestamp(), str(row["id"]))
+            return (1, 0.0, str(row["id"]))
+
+        asteroid_rows.sort(key=_created_sort)
+        asteroid_by_id: dict[UUID, dict[str, Any]] = {item["id"]: item for item in asteroid_rows}
+
+        table_buckets: dict[UUID, dict[str, Any]] = {}
+        for row in asteroid_rows:
+            table_id = row["table_id"]
+            table_name = row["table_name"]
+            bucket = table_buckets.setdefault(
+                table_id,
+                {
+                    "table_id": table_id,
+                    "galaxy_id": galaxy_id,
+                    "name": table_name,
+                    "schema_fields": set(),
+                    "formula_fields": set(),
+                    "members": [],
+                    "internal_bonds": [],
+                    "external_bonds": [],
+                },
+            )
+            metadata = row.get("metadata", {})
+            if isinstance(metadata, dict):
+                for key, value in metadata.items():
+                    if not key.startswith("_"):
+                        bucket["schema_fields"].add(key)
+                    if isinstance(value, str) and value.strip().startswith("="):
+                        bucket["formula_fields"].add(key)
+
+            bucket["members"].append(
+                {
+                    "id": row["id"],
+                    "value": row.get("value"),
+                    "created_at": row.get("created_at"),
+                }
+            )
+
+        for bond in bonds:
+            source = asteroid_by_id.get(bond.source_id)
+            target = asteroid_by_id.get(bond.target_id)
+            if source is None or target is None:
+                continue
+
+            source_table = table_buckets.get(source["table_id"])
+            target_table = table_buckets.get(target["table_id"])
+            if source_table is None or target_table is None:
+                continue
+
+            bond_payload = {
+                "id": bond.id,
+                "source_id": bond.source_id,
+                "target_id": bond.target_id,
+                "type": bond.type,
+            }
+            if source["table_id"] == target["table_id"]:
+                source_table["internal_bonds"].append(bond_payload)
+            else:
+                source_table["external_bonds"].append(
+                    {
+                        **bond_payload,
+                        "peer_table_id": target["table_id"],
+                        "peer_table_name": target["table_name"],
+                    }
+                )
+                target_table["external_bonds"].append(
+                    {
+                        **bond_payload,
+                        "peer_table_id": source["table_id"],
+                        "peer_table_name": source["table_name"],
+                    }
+                )
+
+        ordered_tables = sorted(
+            table_buckets.values(),
+            key=lambda item: (item["name"].lower(), str(item["table_id"])),
+        )
+        total = len(ordered_tables)
+        table_rows: list[dict[str, Any]] = []
+        for index, table in enumerate(ordered_tables):
+            members = sorted(table["members"], key=_created_sort)
+            schema_fields = sorted(table["schema_fields"])
+            formula_fields = sorted(table["formula_fields"])
+            mode = "ring" if (len(members) > 5 or len(schema_fields) > 3) else "belt"
+            center = self._sector_center(index, total)
+            size = max(260.0, min(460.0, 260.0 + math.sqrt(max(len(members), 1)) * 48.0 + (80.0 if mode == "ring" else 20.0)))
+
+            table_rows.append(
+                {
+                    "table_id": table["table_id"],
+                    "galaxy_id": table["galaxy_id"],
+                    "name": table["name"],
+                    "schema_fields": schema_fields,
+                    "formula_fields": formula_fields,
+                    "members": members,
+                    "internal_bonds": sorted(table["internal_bonds"], key=lambda item: str(item["id"])),
+                    "external_bonds": sorted(table["external_bonds"], key=lambda item: (str(item["peer_table_id"]), str(item["id"]))),
+                    "sector": {
+                        "center": [center[0], center[1], center[2]],
+                        "size": size,
+                        "mode": mode,
+                        "grid_plate": True,
+                    },
+                }
+            )
+
+        return table_rows

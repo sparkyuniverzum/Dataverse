@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
@@ -99,6 +100,7 @@ class TaskExecutorService:
         tasks: list[AtomicTask],
         user_id: UUID,
         galaxy_id: UUID = DEFAULT_GALAXY_ID,
+        manage_transaction: bool = True,
     ) -> TaskExecutionResult:
         result = TaskExecutionResult()
         context_asteroid_ids: list[UUID] = []
@@ -112,7 +114,19 @@ class TaskExecutorService:
         asteroids_by_id: dict[UUID, ProjectedAsteroid] = {a.id: a for a in active_asteroids}
         bonds_by_id: dict[UUID, ProjectedBond] = {b.id: b for b in active_bonds}
 
-        transaction_ctx = session.begin_nested() if session.in_transaction() else session.begin()
+        if not manage_transaction and not session.in_transaction():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="TaskExecutor requires an active transaction when manage_transaction=False",
+            )
+
+        @asynccontextmanager
+        async def _no_transaction():
+            yield
+
+        transaction_ctx = (
+            session.begin_nested() if session.in_transaction() else session.begin()
+        ) if manage_transaction else _no_transaction()
         async with transaction_ctx:
             for task in tasks:
                 action = task.action.upper()
@@ -277,15 +291,18 @@ class TaskExecutorService:
                             detail="Target asteroid not found",
                         )
 
-                    await self.event_store.append_event(
-                        session=session,
-                        user_id=user_id,
-                        galaxy_id=galaxy_id,
-                        entity_id=target_asteroid.id,
-                        event_type="METADATA_UPDATED",
-                        payload={"metadata": {str(field): str(formula)}},
-                    )
-                    target_asteroid.metadata = {**target_asteroid.metadata, str(field): str(formula)}
+                    field_name = str(field).strip()
+                    formula_value = str(formula).strip()
+                    if target_asteroid.metadata.get(field_name) != formula_value:
+                        await self.event_store.append_event(
+                            session=session,
+                            user_id=user_id,
+                            galaxy_id=galaxy_id,
+                            entity_id=target_asteroid.id,
+                            event_type="METADATA_UPDATED",
+                            payload={"metadata": {field_name: formula_value}},
+                        )
+                        target_asteroid.metadata = {**target_asteroid.metadata, field_name: formula_value}
                     result.asteroids.append(target_asteroid)
                     continue
 
@@ -323,21 +340,37 @@ class TaskExecutorService:
                         "threshold": threshold,
                         "action": str(action_name).strip(),
                     }
-                    guardian_rules.append(new_rule)
-
-                    await self.event_store.append_event(
-                        session=session,
-                        user_id=user_id,
-                        galaxy_id=galaxy_id,
-                        entity_id=target_asteroid.id,
-                        event_type="METADATA_UPDATED",
-                        payload={"metadata": {"_guardians": guardian_rules}},
+                    signature = (
+                        new_rule["field"],
+                        new_rule["operator"],
+                        new_rule["threshold"],
+                        new_rule["action"],
                     )
-
-                    target_asteroid.metadata = {
-                        **target_asteroid.metadata,
-                        "_guardians": guardian_rules,
+                    existing_signatures = {
+                        (
+                            str(rule.get("field", "")).strip(),
+                            str(rule.get("operator", "")).strip(),
+                            rule.get("threshold"),
+                            str(rule.get("action", "")).strip(),
+                        )
+                        for rule in guardian_rules
+                        if isinstance(rule, dict)
                     }
+
+                    if signature not in existing_signatures:
+                        guardian_rules.append(new_rule)
+                        await self.event_store.append_event(
+                            session=session,
+                            user_id=user_id,
+                            galaxy_id=galaxy_id,
+                            entity_id=target_asteroid.id,
+                            event_type="METADATA_UPDATED",
+                            payload={"metadata": {"_guardians": guardian_rules}},
+                        )
+                        target_asteroid.metadata = {
+                            **target_asteroid.metadata,
+                            "_guardians": guardian_rules,
+                        }
                     result.asteroids.append(target_asteroid)
                     continue
 
@@ -380,6 +413,7 @@ class TaskExecutorService:
                             detail="Target asteroid not found",
                         )
 
+                    processed_bond_ids: set[UUID] = set()
                     for asteroid in targets:
                         deleted_event = await self.event_store.append_event(
                             session=session,
@@ -394,6 +428,29 @@ class TaskExecutorService:
                         result.extinguished_asteroids.append(asteroid)
                         if asteroid.id not in result.extinguished_asteroid_ids:
                             result.extinguished_asteroid_ids.append(asteroid.id)
+
+                        connected_bonds = [
+                            bond
+                            for bond in bonds_by_id.values()
+                            if bond.id not in processed_bond_ids
+                            and (bond.source_id == asteroid.id or bond.target_id == asteroid.id)
+                        ]
+                        for bond in connected_bonds:
+                            bond_deleted_event = await self.event_store.append_event(
+                                session=session,
+                                user_id=user_id,
+                                galaxy_id=galaxy_id,
+                                entity_id=bond.id,
+                                event_type="BOND_SOFT_DELETED",
+                                payload={"asteroid_id": str(asteroid.id)},
+                            )
+                            bond.is_deleted = True
+                            bond.deleted_at = bond_deleted_event.timestamp
+                            processed_bond_ids.add(bond.id)
+                            if bond.id not in result.extinguished_bond_ids:
+                                result.extinguished_bond_ids.append(bond.id)
+                            bonds_by_id.pop(bond.id, None)
+
                         asteroids_by_id.pop(asteroid.id, None)
 
                     bonds_by_id = {

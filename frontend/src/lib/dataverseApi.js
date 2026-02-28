@@ -57,6 +57,17 @@ export function buildSnapshotUrl(apiBase, asOfIso = null, galaxyId = null) {
   return url.toString();
 }
 
+export function buildTablesUrl(apiBase, asOfIso = null, galaxyId = null) {
+  const url = new URL(`${apiBase}/universe/tables`);
+  if (asOfIso) {
+    url.searchParams.set("as_of", asOfIso);
+  }
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", galaxyId);
+  }
+  return url.toString();
+}
+
 export function normalizeSnapshot(data) {
   const asteroidSource = Array.isArray(data?.asteroids)
     ? data.asteroids

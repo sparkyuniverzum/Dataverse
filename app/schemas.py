@@ -91,6 +91,8 @@ class ParseCommandResponse(BaseModel):
 class UniverseAsteroidSnapshot(BaseModel):
     id: uuid.UUID
     value: Any
+    table_id: uuid.UUID
+    table_name: str
     metadata: dict[str, Any] = Field(default_factory=dict)
     calculated_values: dict[str, Any] = Field(default_factory=dict)
     active_alerts: list[str] = Field(default_factory=list)
@@ -102,6 +104,10 @@ class UniverseBondSnapshot(BaseModel):
     source_id: uuid.UUID
     target_id: uuid.UUID
     type: str
+    source_table_id: uuid.UUID
+    source_table_name: str
+    target_table_id: uuid.UUID
+    target_table_name: str
 
 
 class UniverseSnapshotResponse(BaseModel):
@@ -109,6 +115,46 @@ class UniverseSnapshotResponse(BaseModel):
 
     asteroids: list[UniverseAsteroidSnapshot] = Field(default_factory=list)
     bonds: list[UniverseBondSnapshot] = Field(default_factory=list)
+
+
+class UniverseTableMemberSnapshot(BaseModel):
+    id: uuid.UUID
+    value: Any
+    created_at: datetime | None
+
+
+class UniverseTableBondSnapshot(BaseModel):
+    id: uuid.UUID
+    source_id: uuid.UUID
+    target_id: uuid.UUID
+    type: str
+    peer_table_id: uuid.UUID | None = None
+    peer_table_name: str | None = None
+
+
+class UniverseTableSectorSnapshot(BaseModel):
+    center: list[float] = Field(default_factory=list)
+    size: float
+    mode: str
+    grid_plate: bool = True
+
+
+class UniverseTableSnapshot(BaseModel):
+    table_id: uuid.UUID
+    galaxy_id: uuid.UUID
+    name: str
+    schema_fields: list[str] = Field(default_factory=list)
+    formula_fields: list[str] = Field(default_factory=list)
+    members: list[UniverseTableMemberSnapshot] = Field(default_factory=list)
+    internal_bonds: list[UniverseTableBondSnapshot] = Field(default_factory=list)
+    external_bonds: list[UniverseTableBondSnapshot] = Field(default_factory=list)
+    sector: UniverseTableSectorSnapshot
+
+
+class UniverseTablesResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tables: list[UniverseTableSnapshot] = Field(default_factory=list)
 
 
 class UserPublic(BaseModel):

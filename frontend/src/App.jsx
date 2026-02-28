@@ -9,6 +9,7 @@ import {
   apiFetch,
   buildParserPayload,
   buildSnapshotUrl,
+  buildTablesUrl,
   normalizeSnapshot,
   toAsOfIso
 } from "./lib/dataverseApi";
@@ -27,6 +28,63 @@ const NAV_SHORTCUTS = [
   { key: "Esc", label: "zrušit fokus planety" },
   { key: "L", label: "zpět do současnosti" },
 ];
+const COMMAND_MODES = [
+  { id: "auto", label: "Auto", hint: "Použij parser přímo" },
+  { id: "create", label: "Create", hint: "Vytvoření asteroidů" },
+  { id: "link", label: "Link", hint: "Propojení dvou entit" },
+  { id: "type", label: "Type", hint: "Typování entity" },
+  { id: "find", label: "Find", hint: "Lokální fokus" },
+  { id: "formula", label: "Formula", hint: "Výpočet metadata" },
+  { id: "guardian", label: "Guardian", hint: "Hlídací pravidlo" },
+  { id: "delete", label: "Delete", hint: "Soft delete" },
+];
+const COMMAND_MODE_RULES = {
+  auto: {
+    format: "Přirozený příkaz parseru",
+    example: "Pavel + Audi",
+  },
+  create: {
+    format: "Název entity nebo věta",
+    example: "Firma ACME",
+  },
+  link: {
+    format: "A, B",
+    example: "Firma ACME, Produkt X",
+  },
+  type: {
+    format: "A, Typ",
+    example: "Pavel, Zaměstnanec",
+  },
+  find: {
+    format: "Název entity",
+    example: "Pavel",
+  },
+  formula: {
+    format: "Target.field = SUM(field) nebo SUM(field)",
+    example: "Projekt.celkem = SUM(cena)",
+  },
+  guardian: {
+    format: "Target.field > 1000 -> pulse",
+    example: "Projekt.celkem > 1000 -> pulse",
+  },
+  delete: {
+    format: "Název entity",
+    example: "Pavel",
+  },
+};
+
+function splitPairInput(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const separators = [",", "->", "=>", "|", ";", "+"];
+  for (const separator of separators) {
+    const parts = raw.split(separator).map((item) => item.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      return [parts[0], parts[1]];
+    }
+  }
+  return null;
+}
 
 function valueToLabel(value) {
   if (typeof value === "string") return value;
@@ -56,6 +114,63 @@ function normalizeSearchText(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function evaluateCommandReadiness({ mode, input, composed, historicalMode }) {
+  const raw = String(input || "").trim();
+  const cmd = String(composed || "").trim();
+  const modeRule = COMMAND_MODE_RULES[mode] || COMMAND_MODE_RULES.auto;
+  if (historicalMode) {
+    return {
+      status: "blocked",
+      message: "Historický mód je pouze pro čtení. Přepni na Live.",
+      executePath: "LOCKED",
+      ...modeRule,
+    };
+  }
+  if (!raw || !cmd) {
+    return {
+      status: "needs_input",
+      message: "Zadej příkaz.",
+      executePath: "N/A",
+      ...modeRule,
+    };
+  }
+
+  const localFocus = /^(ukaž|ukaz|najdi)\s*:\s*.+$/i.test(cmd);
+  const executePath = localFocus ? "LOCAL" : "API";
+  const ok = (message) => ({ status: "ready", message, executePath, ...modeRule });
+  const invalid = (message) => ({ status: "invalid", message, executePath, ...modeRule });
+
+  if (mode === "auto") return ok("Parser rozhodne automaticky.");
+  if (mode === "create") return ok("Vytvoření/ingest bude provedeno parserem.");
+  if (mode === "find") {
+    return localFocus ? ok("Lokální fokus bez volání API.") : invalid("Find režim očekává „Ukaž : Název“.");
+  }
+  if (mode === "delete") {
+    return /^(delete|zhasni|smaz|smaž)\s*:\s*.+$/i.test(cmd)
+      ? ok("Soft delete bude proveden přes event log.")
+      : invalid("Delete režim očekává cíl typu „Delete : Název“.");
+  }
+  if (mode === "link") {
+    const parts = cmd.split("+").map((p) => p.trim()).filter(Boolean);
+    return parts.length >= 2 ? ok("Vytvoří se RELATION vazba.") : invalid("Link režim očekává dvě entity.");
+  }
+  if (mode === "type") {
+    const parts = cmd.split(":").map((p) => p.trim()).filter(Boolean);
+    return parts.length >= 2 ? ok("Vytvoří se TYPE vazba.") : invalid("Type režim očekává „A : Typ“.");
+  }
+  if (mode === "formula") {
+    return /^(spočítej|spocitej|vypočítej|vypocitej)\s*:\s*[^.]+\.[^=\s]+\s*=\s*(SUM|AVG|MIN|MAX|COUNT)\s*\([^)]+\)\s*$/i.test(cmd)
+      ? ok("Vzorec bude uložen do metadata.")
+      : invalid("Formula režim očekává validní tvar Spočítej.");
+  }
+  if (mode === "guardian") {
+    return /^(hlídej|hlidej)\s*:\s*[^.]+\.[^\s]+\s*(>=|<=|==|>|<)\s*.+\s*->\s*[a-zA-Z_][\w-]*\s*$/i.test(cmd)
+      ? ok("Guardian pravidlo bude přidáno do metadata.")
+      : invalid("Guardian režim očekává „Hlídej : A.field > X -> action“.");
+  }
+  return ok("Příkaz je připraven.");
 }
 
 function toNumericValue(value) {
@@ -1267,13 +1382,17 @@ export default function App() {
   const [galaxyError, setGalaxyError] = useState("");
   const [atoms, setAtoms] = useState([]);
   const [bonds, setBonds] = useState([]);
+  const [tables, setTables] = useState([]);
+  const [commandMode, setCommandMode] = useState("auto");
   const [query, setQuery] = useState("");
   const [asOfInput, setAsOfInput] = useState("");
   const [selectedPlanetId, setSelectedPlanetId] = useState(null);
   const [auditTargetId, setAuditTargetId] = useState(null);
   const [hoveredFlow, setHoveredFlow] = useState(null);
+  const [flowCenterMinimized, setFlowCenterMinimized] = useState(false);
   const [assistOpen, setAssistOpen] = useState(false);
   const [assistPinned, setAssistPinned] = useState(false);
+  const [navHelpOpen, setNavHelpOpen] = useState(false);
   const [commandFocused, setCommandFocused] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -1301,6 +1420,7 @@ export default function App() {
     setGalaxyError("");
     setAtoms([]);
     setBonds([]);
+    setTables([]);
     setSelectedPlanetId(null);
     setError("");
   }, [isAuthenticated]);
@@ -1347,18 +1467,31 @@ export default function App() {
     if (!isAuthenticated || !selectedGalaxyId) {
       setAtoms([]);
       setBonds([]);
+      setTables([]);
       return;
     }
     setError("");
-    const res = await apiFetch(buildSnapshotUrl(API_BASE, asOfIso, selectedGalaxyId));
-    if (!res.ok) {
-      const message = await parseApiError(res, `Snapshot failed: ${res.status}`);
+    const [snapshotResponse, tablesResponse] = await Promise.all([
+      apiFetch(buildSnapshotUrl(API_BASE, asOfIso, selectedGalaxyId)),
+      apiFetch(buildTablesUrl(API_BASE, asOfIso, selectedGalaxyId)),
+    ]);
+
+    if (!snapshotResponse.ok) {
+      const message = await parseApiError(snapshotResponse, `Snapshot failed: ${snapshotResponse.status}`);
       throw new Error(message);
     }
-    const data = await res.json();
+    if (!tablesResponse.ok) {
+      const message = await parseApiError(tablesResponse, `Tables failed: ${tablesResponse.status}`);
+      throw new Error(message);
+    }
+
+    const data = await snapshotResponse.json();
+    const tablesPayload = await tablesResponse.json();
+    const nextTables = Array.isArray(tablesPayload?.tables) ? tablesPayload.tables : [];
     const { asteroids: nextAsteroids, bonds: nextBonds } = normalizeSnapshot(data);
     setAtoms(nextAsteroids);
     setBonds(nextBonds);
+    setTables(nextTables);
   }, [asOfIso, isAuthenticated, selectedGalaxyId]);
 
   useEffect(() => {
@@ -1441,6 +1574,7 @@ export default function App() {
           setSelectedGalaxyId("");
           setAtoms([]);
           setBonds([]);
+          setTables([]);
           setError("");
         }
       } catch (extinguishError) {
@@ -1477,7 +1611,9 @@ export default function App() {
       const availableFields = new Set([...Object.keys(metadata), ...Object.keys(calculatedValues)]);
       const valueSignal = extractComputedValue({ ...asteroid, metadata, calculated_values: calculatedValues });
       const physics = mapValueToPhysics(valueSignal);
-      const category = inferCategory(asteroid);
+      const category = typeof asteroid?.table_name === "string" && asteroid.table_name.trim()
+        ? asteroid.table_name.trim()
+        : inferCategory(asteroid);
       const hashId = hashText(asteroid.id);
       const hashVal = hashText(valueToLabel(asteroid.value));
       const baseRadius = 0.8 + (hashId % 10) * 0.05;
@@ -1705,48 +1841,85 @@ export default function App() {
     return { ...planet, position: visualData.atomPositions[planet.id] || [0, 0, 0] };
   }, [selectedPlanetId, visualData]);
 
+  const tableContracts = useMemo(() => {
+    const source = Array.isArray(tables) ? tables : [];
+    return source
+      .map((table) => ({
+        ...table,
+        name: String(table?.name || "Uncategorized"),
+        schema_fields: Array.isArray(table?.schema_fields) ? table.schema_fields : [],
+        formula_fields: Array.isArray(table?.formula_fields) ? table.formula_fields : [],
+        members: Array.isArray(table?.members) ? table.members : [],
+        internal_bonds: Array.isArray(table?.internal_bonds) ? table.internal_bonds : [],
+        external_bonds: Array.isArray(table?.external_bonds) ? table.external_bonds : [],
+        sector: table?.sector && typeof table.sector === "object" ? table.sector : null,
+      }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }, [tables]);
+
+  const activeTableContract = useMemo(() => {
+    if (!tableContracts.length) return null;
+    const selectedTableId = selectedPlanet?.table_id ? String(selectedPlanet.table_id) : null;
+    if (selectedTableId) {
+      const matched = tableContracts.find((table) => String(table.table_id) === selectedTableId);
+      if (matched) return matched;
+    }
+    return tableContracts[0];
+  }, [tableContracts, selectedPlanet]);
+
   const defaultUniverseView = useMemo(() => {
     const nodes = visualData.enrichedAtoms;
     if (!nodes.length) {
       return {
-        position: [0, 90, 680],
+        position: [0, 64, 460],
         target: [0, 0, 0],
-        minDistance: 12,
-        maxDistance: 5200,
+        minDistance: 10,
+        maxDistance: 3600,
       };
     }
 
-    let cx = 0;
-    let cy = 0;
-    let cz = 0;
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let minZ = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    let maxZ = Number.NEGATIVE_INFINITY;
     nodes.forEach((node) => {
       const p = visualData.atomPositions[node.id] || [0, 0, 0];
-      cx += p[0];
-      cy += p[1];
-      cz += p[2];
-    });
-    cx /= nodes.length;
-    cy /= nodes.length;
-    cz /= nodes.length;
-
-    let maxRadius = 0;
-    nodes.forEach((node) => {
-      const p = visualData.atomPositions[node.id] || [0, 0, 0];
-      const dx = p[0] - cx;
-      const dy = p[1] - cy;
-      const dz = p[2] - cz;
-      const distanceFromCenter = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      const nodeRadius = (node.radius || 0.9) * (node.visualScale || 1) + 2.2;
-      maxRadius = Math.max(maxRadius, distanceFromCenter + nodeRadius);
+      const radius = (node.radius || 0.9) * (node.visualScale || 1) + 2.8;
+      minX = Math.min(minX, p[0] - radius);
+      minY = Math.min(minY, p[1] - radius);
+      minZ = Math.min(minZ, p[2] - radius);
+      maxX = Math.max(maxX, p[0] + radius);
+      maxY = Math.max(maxY, p[1] + radius);
+      maxZ = Math.max(maxZ, p[2] + radius);
     });
 
-    const safeRadius = Math.max(maxRadius, 8);
-    const viewDistance = clamp(safeRadius * 1.85 + 120, 140, 5200);
-    const minDistance = clamp(safeRadius * 0.32 + 8, 10, 680);
-    const maxDistance = clamp(viewDistance * 3.8, 760, 14000);
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const cz = (minZ + maxZ) / 2;
+    const spanX = Math.max(8, maxX - minX);
+    const spanY = Math.max(8, maxY - minY);
+    const spanZ = Math.max(8, maxZ - minZ);
+
+    const fov = (55 * Math.PI) / 180;
+    const aspect = 16 / 9;
+    const fitHeight = spanY * 0.5;
+    const fitWidthAsHeight = (spanX / aspect) * 0.5;
+    const fitDepthAsHeight = (spanZ / aspect) * 0.5;
+    const requiredHalfHeight = Math.max(fitHeight, fitWidthAsHeight, fitDepthAsHeight);
+    const fitDistance = requiredHalfHeight / Math.tan(fov / 2);
+    const marginFactor = 1.24;
+    const viewDistance = clamp(fitDistance * marginFactor + spanZ * 0.18, 120, 6800);
+
+    const diagonal = Math.sqrt(spanX * spanX + spanY * spanY + spanZ * spanZ);
+    const minDistance = clamp(diagonal * 0.18 + 8, 8, 900);
+    const maxDistance = clamp(viewDistance * 6.2, 680, 22000);
+
+    const dir = new THREE.Vector3(0.32, 0.24, 1).normalize();
 
     return {
-      position: [cx, cy + safeRadius * 0.3 + 38, cz + viewDistance],
+      position: [cx + dir.x * viewDistance, cy + dir.y * viewDistance, cz + dir.z * viewDistance],
       target: [cx, cy, cz],
       minDistance,
       maxDistance,
@@ -1959,6 +2132,75 @@ export default function App() {
     ];
   }, [historicalMode, atoms.length, bonds.length, selectedPlanet, visualData]);
 
+  const hasFormulaConfigured = useMemo(() => {
+    return visualData.enrichedAtoms.some((asteroid) =>
+      Object.values(safeMetadata(asteroid.metadata)).some(
+        (item) => typeof item === "string" && item.trim().startsWith("=")
+      )
+    );
+  }, [visualData]);
+
+  const workflowStages = useMemo(() => {
+    const stages = [
+      {
+        id: "seed",
+        title: "Seed Data",
+        detail: "Vytvoř první asteroidy",
+        done: atoms.length > 0,
+      },
+      {
+        id: "links",
+        title: "Connect Graph",
+        detail: "Propoj entity vazbami",
+        done: bonds.length > 0,
+      },
+      {
+        id: "calc",
+        title: "Compute",
+        detail: "Nastav vzorec nebo guardian",
+        done: hasFormulaConfigured,
+      },
+      {
+        id: "audit",
+        title: "Audit Flow",
+        detail: "Zaměř cílový tok dat",
+        done: Boolean(auditTargetId || selectedPlanetId),
+      },
+    ];
+    return stages;
+  }, [atoms.length, bonds.length, hasFormulaConfigured, auditTargetId, selectedPlanetId]);
+
+  const workflowProgress = useMemo(() => {
+    if (!workflowStages.length) return 0;
+    const done = workflowStages.filter((stage) => stage.done).length;
+    return Math.round((done / workflowStages.length) * 100);
+  }, [workflowStages]);
+
+  const orderedPlaybook = useMemo(() => {
+    const selectedLabel = selectedPlanet ? valueToLabel(selectedPlanet.value) : "Projekt";
+    if (!atoms.length) {
+      return [
+        { id: "pb-1", label: "1. Vytvoř", command: "Firma ACME" },
+        { id: "pb-2", label: "2. Přidej", command: "Produkt X" },
+        { id: "pb-3", label: "3. Propoj", command: "Firma ACME + Produkt X" },
+      ];
+    }
+    if (atoms.length > 0 && !bonds.length) {
+      const a = valueToLabel(visualData.enrichedAtoms[0]?.value) || "A";
+      const b = valueToLabel(visualData.enrichedAtoms[1]?.value) || "B";
+      return [
+        { id: "pb-1", label: "1. Propoj", command: `${a} + ${b}` },
+        { id: "pb-2", label: "2. Zaměř", command: `Ukaž : ${a}` },
+        { id: "pb-3", label: "3. Spočítej", command: `Spočítej : ${a}.celkem = SUM(cena)` },
+      ];
+    }
+    return [
+      { id: "pb-1", label: "1. Fokus", command: `Ukaž : ${selectedLabel}` },
+      { id: "pb-2", label: "2. Formula", command: `Spočítej : ${selectedLabel}.celkem = SUM(cena)` },
+      { id: "pb-3", label: "3. Audit", command: `Hlídej : ${selectedLabel}.celkem > 100000 -> pulse` },
+    ];
+  }, [atoms.length, bonds.length, selectedPlanet, visualData]);
+
   useEffect(() => {
     const onKeyDown = (event) => {
       const activeElement = document.activeElement;
@@ -1980,7 +2222,7 @@ export default function App() {
 
       if (event.key === "?" && !isTextInput) {
         event.preventDefault();
-        setAssistOpen((prev) => !prev);
+        setNavHelpOpen((prev) => !prev);
         return;
       }
 
@@ -2006,9 +2248,90 @@ export default function App() {
     commandInputRef.current?.focus();
   }
 
+  const composeCommand = useCallback(
+    (rawCommand) => {
+      const raw = String(rawCommand || "").trim();
+      if (!raw) return "";
+
+      const selectedLabel = selectedPlanet ? valueToLabel(selectedPlanet.value) : "Projekt";
+      const lower = raw.toLowerCase();
+      const keepAsIs =
+        /^(ukaž|ukaz|najdi|delete|zhasni|smaz|smaž|hlídej|hlidej|spočítej|spocitej|vypočítej|vypocitej)\s*:/.test(lower) ||
+        raw.includes("+") ||
+        raw.includes(" : ");
+      if (commandMode === "auto" || keepAsIs) {
+        return raw;
+      }
+
+      if (commandMode === "find") {
+        return `Ukaž : ${raw}`;
+      }
+      if (commandMode === "delete") {
+        return `Delete : ${raw}`;
+      }
+      if (commandMode === "link") {
+        const pair = splitPairInput(raw);
+        return pair ? `${pair[0]} + ${pair[1]}` : raw;
+      }
+      if (commandMode === "type") {
+        const pair = splitPairInput(raw);
+        return pair ? `${pair[0]} : ${pair[1]}` : raw;
+      }
+      if (commandMode === "formula") {
+        if (raw.includes(".") && raw.includes("=")) {
+          const match = raw.match(/^([^.=]+?)\s*\.\s*([^=\s]+)\s*=\s*(.+)$/);
+          if (match) {
+            const target = match[1].trim();
+            const field = match[2].trim();
+            const rhs = match[3].trim().replace(/^=/, "");
+            return `Spočítej : ${target}.${field} = ${rhs}`;
+          }
+        }
+        if (/^(SUM|AVG|MIN|MAX|COUNT)\s*\(/i.test(raw)) {
+          return `Spočítej : ${selectedLabel}.celkem = ${raw.replace(/^=/, "")}`;
+        }
+        return raw;
+      }
+      if (commandMode === "guardian") {
+        if (raw.includes("->") && raw.includes(".")) {
+          return `Hlídej : ${raw}`;
+        }
+        return raw;
+      }
+      return raw;
+    },
+    [commandMode, selectedPlanet]
+  );
+
+  const effectiveCommandPreview = useMemo(() => composeCommand(query), [composeCommand, query]);
+  const activeCommandMode = useMemo(
+    () => COMMAND_MODES.find((mode) => mode.id === commandMode) || COMMAND_MODES[0],
+    [commandMode]
+  );
+  const commandReadiness = useMemo(
+    () =>
+      evaluateCommandReadiness({
+        mode: commandMode,
+        input: query,
+        composed: effectiveCommandPreview,
+        historicalMode,
+      }),
+    [commandMode, query, effectiveCommandPreview, historicalMode]
+  );
+  const commandPlaceholder = useMemo(() => {
+    if (commandMode === "link") return "A, B  (vytvoří A + B)";
+    if (commandMode === "type") return "A, Typ  (vytvoří A : Typ)";
+    if (commandMode === "find") return "Název asteroidu";
+    if (commandMode === "delete") return "Název asteroidu pro soft delete";
+    if (commandMode === "formula") return "Projekt.celkem = SUM(cena)  nebo  SUM(cena)";
+    if (commandMode === "guardian") return "Projekt.celkem > 100000 -> pulse";
+    if (commandMode === "create") return "Nový asteroid nebo přirozený příkaz";
+    return 'Např. "Pavel + Audi", "Spočítej : Projekt.celkem = SUM(cena)" nebo "Ukaž : Pavel"';
+  }, [commandMode]);
+
   const runCommand = useCallback(
     async (rawCommand, options = {}) => {
-      const trimmed = String(rawCommand || "").trim();
+      const trimmed = composeCommand(rawCommand).trim();
       const closeAssistOnSuccess = options.closeAssistOnSuccess !== false;
       const clearInputOnSuccess = options.clearInputOnSuccess !== false;
 
@@ -2077,19 +2400,24 @@ export default function App() {
         setBusy(false);
       }
     },
-    [assistPinned, busy, historicalMode, loadSnapshot, runLocalFocus, selectedGalaxyId]
+    [assistPinned, busy, composeCommand, historicalMode, loadSnapshot, runLocalFocus, selectedGalaxyId]
   );
 
   async function executeCommand(e) {
     e.preventDefault();
     const trimmed = query.trim();
     if (!trimmed || busy || historicalMode) return;
+    if (commandReadiness.status !== "ready") {
+      setError(commandReadiness.message || "Příkaz není ve validním formátu pro vybraný režim.");
+      return;
+    }
     await runCommand(trimmed, { closeAssistOnSuccess: true, clearInputOnSuccess: true });
   }
 
   const handleSelectGalaxy = useCallback((galaxyId) => {
     if (!galaxyId) return;
     setSelectedGalaxyId(galaxyId);
+    setTables([]);
     setSelectedPlanetId(null);
     setAuditTargetId(null);
     setHoveredFlow(null);
@@ -2105,6 +2433,26 @@ export default function App() {
     setSelectedPlanetId(targetId);
     setAuditTargetId((prev) => (prev === targetId ? null : targetId));
     setHoveredFlow(null);
+  }, []);
+
+  const resetDesk = useCallback(() => {
+    setSelectedPlanetId(null);
+    setAuditTargetId(null);
+    setHoveredFlow(null);
+    setQuery("");
+    setCommandMode("auto");
+    setAssistOpen(false);
+    setError("");
+  }, []);
+
+  const focusTable = useCallback((table) => {
+    const members = Array.isArray(table?.members) ? table.members : [];
+    const first = members[0];
+    if (!first?.id) return;
+    setSelectedPlanetId(first.id);
+    setAuditTargetId(null);
+    setHoveredFlow(null);
+    setError("");
   }, []);
 
   if (authLoading) {
@@ -2203,6 +2551,7 @@ export default function App() {
             justifyContent: "space-between",
             alignItems: "flex-start",
             gap: 14,
+            flexWrap: "wrap",
           }}
         >
           <div
@@ -2221,7 +2570,8 @@ export default function App() {
             <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>Uživatel: {user?.email || "n/a"}</div>
             <div style={{ marginTop: 6, fontSize: 14 }}>Asteroids: {atoms.length}</div>
             <div style={{ marginTop: 2, fontSize: 14 }}>Bonds: {bonds.length}</div>
-            <div style={{ marginTop: 2, fontSize: 12, opacity: 0.78 }}>Layout: Patent Gravity</div>
+            <div style={{ marginTop: 2, fontSize: 14 }}>Tables: {tableContracts.length}</div>
+            <div style={{ marginTop: 2, fontSize: 12, opacity: 0.78 }}>Layout: Sector Tables</div>
             <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75, letterSpacing: 0.6 }}>GALAXY</div>
             <select
               value={selectedGalaxyId}
@@ -2283,6 +2633,238 @@ export default function App() {
             </div>
             {galaxyError ? <div style={{ marginTop: 8, color: "#ff8fa3", fontSize: 12 }}>{galaxyError}</div> : null}
             {error ? <div style={{ marginTop: 8, color: "#ff8fa3", fontSize: 12 }}>{error}</div> : null}
+          </div>
+
+          <div
+            style={{
+              pointerEvents: "auto",
+              flex: 1,
+              maxWidth: 760,
+              background: "rgba(8, 12, 20, 0.72)",
+              border: "1px solid rgba(120, 198, 255, 0.35)",
+              borderRadius: 12,
+              padding: "12px 14px",
+              color: "#c9f3ff",
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.75, letterSpacing: 0.6 }}>FLOW COMMAND CENTER</div>
+                <div style={{ marginTop: 3, fontSize: 12, opacity: 0.86 }}>
+                  {historicalMode
+                    ? "Historie je zamčená pro zápis. Přepni na Live a pokračuj podle kroků."
+                    : "Jednoznačný postup: data -> vazby -> výpočet -> audit."}
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#9de9ff" }}>{workflowProgress}% READY</div>
+                <button
+                  type="button"
+                  onClick={() => setFlowCenterMinimized((prev) => !prev)}
+                  style={{
+                    border: "1px solid rgba(116, 216, 255, 0.35)",
+                    background: "rgba(8, 20, 34, 0.82)",
+                    color: "#d5f9ff",
+                    borderRadius: 999,
+                    padding: "5px 9px",
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  {flowCenterMinimized ? "Rozbalit" : "Minimalizovat"}
+                </button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 8,
+                width: "100%",
+                height: 6,
+                borderRadius: 999,
+                overflow: "hidden",
+                background: "rgba(70, 120, 145, 0.3)",
+              }}
+            >
+              <div
+                style={{
+                  width: `${workflowProgress}%`,
+                  height: "100%",
+                  background: "linear-gradient(90deg, #2bbbe4, #78e9ff)",
+                  transition: "width 260ms ease",
+                }}
+              />
+            </div>
+
+            {flowCenterMinimized ? (
+              <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ fontSize: 12, opacity: 0.82 }}>
+                  Aktivní tabulka: <strong>{activeTableContract?.name || "n/a"}</strong>
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.72 }}>
+                  Asteroids {atoms.length} / Bonds {bonds.length} / Tables {tableContracts.length}
+                </div>
+                <button
+                  type="button"
+                  onClick={resetDesk}
+                  style={{
+                    border: "1px solid rgba(255, 154, 177, 0.4)",
+                    background: "rgba(34, 10, 18, 0.72)",
+                    color: "#ffc8d7",
+                    borderRadius: 999,
+                    padding: "5px 9px",
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  Vyčistit plochu
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+                  {workflowStages.map((stage, index) => (
+                    <div
+                      key={stage.id}
+                      style={{
+                        border: "1px solid rgba(104, 188, 228, 0.2)",
+                        background: stage.done ? "rgba(18, 53, 72, 0.58)" : "rgba(7, 18, 30, 0.72)",
+                        borderRadius: 10,
+                        padding: "7px 8px",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                        <span
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: 999,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: stage.done ? "#05273a" : "#a8d5e2",
+                            background: stage.done ? "#83f0ff" : "rgba(118, 176, 199, 0.3)",
+                          }}
+                        >
+                          {index + 1}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{stage.title}</span>
+                      </div>
+                      <div style={{ marginTop: 3, fontSize: 11, opacity: 0.76 }}>{stage.detail}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {orderedPlaybook.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => applySuggestion(item.command)}
+                      disabled={historicalMode}
+                      style={{
+                        border: "1px solid rgba(116, 216, 255, 0.35)",
+                        background: historicalMode ? "rgba(36,45,58,0.8)" : "rgba(8, 20, 34, 0.82)",
+                        color: historicalMode ? "#8ea0aa" : "#d5f9ff",
+                        borderRadius: 999,
+                        padding: "6px 10px",
+                        fontSize: 11,
+                        cursor: historicalMode ? "not-allowed" : "pointer",
+                      }}
+                      title={item.command}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={resetDesk}
+                    style={{
+                      border: "1px solid rgba(255, 154, 177, 0.4)",
+                      background: "rgba(34, 10, 18, 0.72)",
+                      color: "#ffc8d7",
+                      borderRadius: 999,
+                      padding: "6px 10px",
+                      fontSize: 11,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Vyčistit plochu
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 10,
+                    borderRadius: 10,
+                    border: "1px solid rgba(104, 188, 228, 0.2)",
+                    background: "rgba(7, 18, 30, 0.72)",
+                    padding: "9px 10px",
+                  }}
+                >
+                  <div style={{ fontSize: 11, opacity: 0.76, letterSpacing: 0.45 }}>TABLE CONTRACT (KANON)</div>
+                  <div style={{ marginTop: 4, fontSize: 12, opacity: 0.9 }}>
+                    1 tabulka = 1 sektor v galaxii. Řádek = asteroid. Buňka = metadata[field].
+                  </div>
+
+                  {activeTableContract ? (
+                    <>
+                      <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: "#dcf8ff" }}>
+                        {activeTableContract.name}
+                      </div>
+                      <div style={{ marginTop: 3, fontSize: 11, opacity: 0.78, wordBreak: "break-all" }}>
+                        id: {String(activeTableContract.table_id)}
+                      </div>
+                      <div style={{ marginTop: 6, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+                        <div style={{ fontSize: 11, opacity: 0.84 }}>Řádky: {activeTableContract.members.length}</div>
+                        <div style={{ fontSize: 11, opacity: 0.84 }}>Pole: {activeTableContract.schema_fields.length}</div>
+                        <div style={{ fontSize: 11, opacity: 0.84 }}>Vzorce: {activeTableContract.formula_fields.length}</div>
+                      </div>
+                      <div style={{ marginTop: 5, fontSize: 11, opacity: 0.8 }}>
+                        Vazby: {activeTableContract.internal_bonds.length} interní / {activeTableContract.external_bonds.length} externí
+                      </div>
+                      {activeTableContract.sector ? (
+                        <div style={{ marginTop: 4, fontSize: 11, opacity: 0.74 }}>
+                          Sektor: [{(activeTableContract.sector.center?.[0] ?? 0).toFixed(1)}, {(activeTableContract.sector.center?.[1] ?? 0).toFixed(1)}, {(activeTableContract.sector.center?.[2] ?? 0).toFixed(1)}],{" "}
+                          {activeTableContract.sector.mode}, size {Number(activeTableContract.sector.size || 0).toFixed(1)}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.74 }}>Tabulka zatím není vytvořená.</div>
+                  )}
+
+                  {tableContracts.length ? (
+                    <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {tableContracts.slice(0, 8).map((table) => (
+                        <button
+                          key={String(table.table_id)}
+                          type="button"
+                          onClick={() => focusTable(table)}
+                          style={{
+                            border: "1px solid rgba(116, 216, 255, 0.28)",
+                            background:
+                              activeTableContract && String(activeTableContract.table_id) === String(table.table_id)
+                                ? "rgba(38, 89, 122, 0.74)"
+                                : "rgba(8, 20, 34, 0.82)",
+                            color: "#d5f9ff",
+                            borderRadius: 999,
+                            padding: "5px 9px",
+                            fontSize: 11,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {table.name}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            )}
           </div>
 
           <div
@@ -2386,6 +2968,21 @@ export default function App() {
               </button>
               <button
                 type="button"
+                onClick={() => setNavHelpOpen((prev) => !prev)}
+                style={{
+                  border: "1px solid rgba(112, 218, 255, 0.35)",
+                  background: navHelpOpen ? "rgba(34, 76, 108, 0.7)" : "rgba(8, 20, 34, 0.82)",
+                  color: "#d7f8ff",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                {navHelpOpen ? "Skrýt klávesy" : "Klávesy"}
+              </button>
+              <button
+                type="button"
                 onClick={() => setAssistPinned((prev) => !prev)}
                 style={{
                   border: "1px solid rgba(112, 218, 255, 0.35)",
@@ -2413,7 +3010,7 @@ export default function App() {
               }}
             >
               <div style={{ display: "grid", gap: 6 }}>
-                {guidedActions.slice(0, 2).map((step, index) => (
+                {guidedActions.slice(0, 1).map((step, index) => (
                   <div
                     key={step.id}
                     style={{
@@ -2513,6 +3110,85 @@ export default function App() {
             ))}
           </div>
 
+          <div
+            style={{
+              marginBottom: 8,
+              borderRadius: 12,
+              border: "1px solid rgba(101, 190, 228, 0.22)",
+              background: "rgba(6, 14, 26, 0.78)",
+              padding: "8px 9px",
+            }}
+          >
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {COMMAND_MODES.map((mode) => {
+                const selected = mode.id === commandMode;
+                return (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => setCommandMode(mode.id)}
+                    style={{
+                      border: "1px solid rgba(116, 216, 255, 0.34)",
+                      background: selected ? "rgba(38, 89, 122, 0.74)" : "rgba(8, 20, 34, 0.82)",
+                      color: "#d5f9ff",
+                      borderRadius: 999,
+                      padding: "5px 10px",
+                      fontSize: 11,
+                      cursor: "pointer",
+                    }}
+                    title={mode.hint}
+                  >
+                    {mode.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 11, opacity: 0.82 }}>
+              Režim: <strong>{activeCommandMode.label}</strong> - {activeCommandMode.hint}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 11, opacity: 0.78 }}>
+              Formát: <strong>{commandReadiness.format}</strong> | Příklad: <strong>{commandReadiness.example}</strong>
+            </div>
+            {query.trim() ? (
+              <div style={{ marginTop: 3, fontSize: 11, opacity: 0.72, wordBreak: "break-word" }}>
+                Odeslat: {effectiveCommandPreview || query}
+              </div>
+            ) : null}
+            <div
+              style={{
+                marginTop: 4,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 11,
+                borderRadius: 999,
+                padding: "3px 8px",
+                border:
+                  commandReadiness.status === "ready"
+                    ? "1px solid rgba(118, 240, 182, 0.5)"
+                    : commandReadiness.status === "blocked"
+                      ? "1px solid rgba(255, 177, 128, 0.45)"
+                      : "1px solid rgba(255, 146, 171, 0.45)",
+                background:
+                  commandReadiness.status === "ready"
+                    ? "rgba(13, 50, 40, 0.7)"
+                    : commandReadiness.status === "blocked"
+                      ? "rgba(56, 34, 18, 0.72)"
+                      : "rgba(52, 20, 30, 0.72)",
+                color:
+                  commandReadiness.status === "ready"
+                    ? "#baf8dc"
+                    : commandReadiness.status === "blocked"
+                      ? "#ffd6b6"
+                      : "#ffd1dc",
+              }}
+            >
+              <span>Path: {commandReadiness.executePath}</span>
+              <span>|</span>
+              <span>{commandReadiness.message}</span>
+            </div>
+          </div>
+
           <form
             onSubmit={executeCommand}
             style={{
@@ -2553,7 +3229,7 @@ export default function App() {
                   }
                 }}
                 disabled={historicalMode || busy}
-                placeholder='Např. "Pavel + Audi", "Spočítej : Projekt.celkem = SUM(cena)" nebo "Ukaž : Pavel"'
+                placeholder={commandPlaceholder}
                 style={{
                   width: "100%",
                   border: "1px solid rgba(132, 216, 255, 0.25)",
@@ -2613,22 +3289,28 @@ export default function App() {
 
             <button
               type="submit"
-              disabled={busy || historicalMode}
+              disabled={busy || historicalMode || commandReadiness.status !== "ready"}
               style={{
                 border: "1px solid rgba(110, 225, 255, 0.5)",
-                background: busy || historicalMode
+                background: busy || historicalMode || commandReadiness.status !== "ready"
                   ? "linear-gradient(120deg, rgba(63,95,110,0.7), rgba(48,66,80,0.7))"
                   : "linear-gradient(120deg, #18b2e2, #36d6ff)",
-                color: busy || historicalMode ? "#b9c8cf" : "#02121c",
+                color: busy || historicalMode || commandReadiness.status !== "ready" ? "#b9c8cf" : "#02121c",
                 borderRadius: 10,
                 fontWeight: 700,
                 letterSpacing: 0.3,
                 padding: "0 18px",
                 minWidth: 124,
-                cursor: busy || historicalMode ? "not-allowed" : "pointer",
+                cursor: busy || historicalMode || commandReadiness.status !== "ready" ? "not-allowed" : "pointer",
               }}
             >
-              {historicalMode ? "HISTORICAL LOCK" : busy ? "RUNNING..." : "EXECUTE"}
+              {historicalMode
+                ? "HISTORICAL LOCK"
+                : busy
+                  ? "RUNNING..."
+                  : commandReadiness.status !== "ready"
+                    ? "CHECK INPUT"
+                    : `EXECUTE ${commandReadiness.executePath}`}
             </button>
           </form>
         </div>
@@ -2641,22 +3323,48 @@ export default function App() {
           right: 18,
           bottom: 18,
           zIndex: 23,
-          pointerEvents: "none",
-          borderRadius: 12,
-          border: "1px solid rgba(113, 210, 245, 0.25)",
-          background: "rgba(8, 14, 26, 0.72)",
-          color: "#c7eefb",
-          padding: "9px 11px",
-          fontSize: 11,
-          backdropFilter: "blur(6px)",
+          pointerEvents: "auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: 8,
         }}
       >
-        {NAV_SHORTCUTS.map((item) => (
-          <div key={item.key} style={{ display: "flex", gap: 6, marginTop: 3 }}>
-            <span style={{ opacity: 0.86, minWidth: 46 }}>{item.key}</span>
-            <span style={{ opacity: 0.72 }}>{item.label}</span>
+        <button
+          type="button"
+          onClick={() => setNavHelpOpen((prev) => !prev)}
+          style={{
+            border: "1px solid rgba(112, 218, 255, 0.35)",
+            background: navHelpOpen ? "rgba(34, 76, 108, 0.7)" : "rgba(8, 20, 34, 0.82)",
+            color: "#d7f8ff",
+            borderRadius: 999,
+            padding: "6px 10px",
+            fontSize: 11,
+            cursor: "pointer",
+          }}
+        >
+          {navHelpOpen ? "Skrýt nápovědu (?)" : "Nápověda (?)"}
+        </button>
+        {navHelpOpen ? (
+          <div
+            style={{
+              borderRadius: 12,
+              border: "1px solid rgba(113, 210, 245, 0.25)",
+              background: "rgba(8, 14, 26, 0.72)",
+              color: "#c7eefb",
+              padding: "9px 11px",
+              fontSize: 11,
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            {NAV_SHORTCUTS.map((item) => (
+              <div key={item.key} style={{ display: "flex", gap: 6, marginTop: 3 }}>
+                <span style={{ opacity: 0.86, minWidth: 46 }}>{item.key}</span>
+                <span style={{ opacity: 0.72 }}>{item.label}</span>
+              </div>
+            ))}
           </div>
-        ))}
+        ) : null}
       </div>
 
       {hoveredFlow ? (

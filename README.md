@@ -16,6 +16,7 @@ Co se stane:
 
 1. `docker compose up -d db`
 2. `docker compose run --rm migrate`
+3. `docker compose run --rm --entrypoint alembic migrate current` (ověření aktuální revize)
 
 ## 3. Lokální spuštění bez Dockeru
 
@@ -30,8 +31,11 @@ Pokud už máš na hostu obsazený port `55432`, změň `POSTGRES_PORT` v `.env`
 
 - `make up` spustí vše v Dockeru
 - `make migrate` spustí pouze migraci v Dockeru
+- `make migrate-status` vypíše aktuální Alembic revizi v Dockeru
+- `make migrate-check` provede `upgrade head` + `current` v Dockeru
 - `make migrate-local` spustí migraci lokálně
 - `make run-local` spustí API lokálně
+- `make wait-api` čeká na dostupnost API (`/openapi.json`)
 
 ## 5. Poznámka k mazání dat
 
@@ -78,16 +82,36 @@ Frontend:
 
 ## 8. Testy
 
-Backend (integrační API testy):
+Backend:
 1. `./.venv/bin/pip install -r requirements-dev.txt`
-2. `./.venv/bin/pytest tests -q`
+2. Unit testy: `./.venv/bin/pytest -q tests/test_parser_service.py tests/test_calc_service.py`
+3. Integrační testy: `./.venv/bin/pytest -q tests/test_api_integration.py`
 
 Frontend (unit testy helper logiky):
 1. `cd frontend`
-2. `npm install`
+2. `npm ci`
 3. `npm test`
 
 Makefile shortcut:
+- `make test-backend-unit`
+- `make test-backend-integration`
 - `make test-backend`
 - `make test-frontend`
+- `make test-contracts`
 - `make test`
+
+Ops smoke (docker + migrace + API + contract/reliability subset):
+- `make ops-smoke`
+
+Release hardening gate:
+- `make v1-release-gate`
+- `make v1-release-full`
+
+## 9. CI
+
+Repo obsahuje workflow:
+- `.github/workflows/ci.yml`
+
+Pipeline běží:
+- backend: migrace + unit + integrační smoke
+- frontend: test + build
