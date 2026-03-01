@@ -1,149 +1,206 @@
- Celkový stav
-  Projekt je teď funkční end-to-end jako „DataVerse atomární vesmír“: backend (FastAPI + PostgreSQL + Alembic), parser a
-  task executor v jedné transakci, snapshot pro 3D frontend, frontend ve Vite + React Three Fiber s fyzikálním layoutem
-  přes d3-force-3d, command bar a live refresh po execute.
+# DataVerse Architecture
 
-  Základní principy, které jsou dodržené
+Aktualizace: 2026-02-28  
+Stav dokumentu: odpovídá aktuální implementaci v repozitáři.
 
-  - Žádný hard delete v aplikační logice.
-  - DB-level ochrana proti hard delete (BEFORE DELETE triggery).
-  - Soft-delete všude přes is_deleted + deleted_at.
-  - Data model jako graf (atoms, bonds), ne tabulky ve smyslu Excelu.
-  - Parser vrací atomické tasky a executor je provádí v jedné DB transakci.
+## 1. Cíl systému
 
-  Kde je co v kódu
+DataVerse je grafově orientovaný datový systém, který nahrazuje tabulkový mindset:
 
-  - Manifest/architektura: DataVerse_Master_Plan.md (/mnt/c/Projekty/Dataverse/DataVerse_Master_Plan.md)
-  - Backend app: app/main.py (/mnt/c/Projekty/Dataverse/app/main.py)
-  - DB připojení: app/db.py (/mnt/c/Projekty/Dataverse/app/db.py)
-  - ORM modely: app/models.py (/mnt/c/Projekty/Dataverse/app/models.py)
-  - API schémata: app/schemas.py (/mnt/c/Projekty/Dataverse/app/schemas.py)
-  - Atom service: app/services/atom_service.py (/mnt/c/Projekty/Dataverse/app/services/atom_service.py)
-  - Bond service: app/services/bond_service.py (/mnt/c/Projekty/Dataverse/app/services/bond_service.py)
-  - Parser service: app/services/parser_service.py (/mnt/c/Projekty/Dataverse/app/services/parser_service.py)
-  - Task executor (jedna transakce): app/services/task_executor_service.py (/mnt/c/Projekty/Dataverse/app/services/
-    task_executor_service.py)
-  - Universe snapshot service: app/services/universe_service.py (/mnt/c/Projekty/Dataverse/app/services/
-    universe_service.py)
-  - Alembic config: alembic.ini (/mnt/c/Projekty/Dataverse/alembic.ini)
-  - Alembic env: alembic/env.py (/mnt/c/Projekty/Dataverse/alembic/env.py)
-  - Initial migrace: alembic/versions/20260227_0001_init_atoms_bonds.py (/mnt/c/Projekty/Dataverse/alembic/
-    versions/20260227_0001_init_atoms_bonds.py)
-  - Dockerfile: Dockerfile (/mnt/c/Projekty/Dataverse/Dockerfile)
-  - Docker compose: docker-compose.yml (/mnt/c/Projekty/Dataverse/docker-compose.yml)
-  - Projektové příkazy: Makefile (/mnt/c/Projekty/Dataverse/Makefile)
-  - Runbook: README.md (/mnt/c/Projekty/Dataverse/README.md)
-  - Frontend app: frontend/src/App.jsx (/mnt/c/Projekty/Dataverse/frontend/src/App.jsx)
-  - Frontend package: frontend/package.json (/mnt/c/Projekty/Dataverse/frontend/package.json)
-  - Frontend entry: frontend/src/main.jsx (/mnt/c/Projekty/Dataverse/frontend/src/main.jsx)
-  - Frontend Vite config: frontend/vite.config.js (/mnt/c/Projekty/Dataverse/frontend/vite.config.js)
+- `Asteroid` = datová entita (dříve atom).
+- `Bond` = vazba mezi entitami.
+- `Galaxy` = tenant/workspace uživatele.
+- Zdroj pravdy je neměnný event log (`events`), nikoliv přímý mutable stav.
 
-  Databáze a migrace
+## 2. Neměnné zákony
 
-  - Tabulka atoms obsahuje id (UUID), value (JSONB), metadata (JSONB), is_deleted, created_at, deleted_at.
-  - Tabulka bonds obsahuje id, source_id, target_id, type, is_deleted, created_at, deleted_at.
-  - CHECK constrainty hlídají konzistenci soft-delete.
-  - CHECK source_id <> target_id na bonds.
-  - Trigger funkce prevent_hard_delete() hází výjimku při DELETE.
-  - Triggery trg_atoms_no_delete a trg_bonds_no_delete blokují hard delete.
-  - Migrace jsou připravené jako primární způsob správy schématu.
+1. `HARD DELETE` je zakázán.
+2. Odstraňování se děje pouze soft-delete událostmi (`ASTEROID_SOFT_DELETED`, `BOND_SOFT_DELETED`) nebo `deleted_at` u user/galaxy.
+3. Snapshot je projekce nad event logem, ne primární zapisovatelný model.
+4. Všechny zápisy parser tasků běží atomicky v jedné DB transakci.
 
-  Backend API endpointy
+## 3. Runtime topologie
 
-  - POST /atoms/ingest
-  - PATCH /atoms/{atom_id}/extinguish
-  - POST /bonds/link
-  - PATCH /bonds/{bond_id}/extinguish
-  - POST /parser/execute
-  - GET /universe/snapshot
+- Frontend: React + React Three Fiber (`frontend/`)
+- Backend API: FastAPI (`app/main.py`)
+- DB: PostgreSQL 16
+- Migrace: Alembic (`alembic/`)
+- Orchestrace: Docker Compose (`db`, `migrate`, `api`)
 
-  Parser + transakční executor
+## 4. Datový model
 
-  - Parser mapuje text na tasky typu INGEST, LINK, SELECT, EXTINGUISH.
-  - Podpora:
-  - : operátor (např. Pavel Novák : Zaměstnanec)
-  - + operátor (např. Pavel + Audi)
-  - Triple-shot styl (Ukaž : Pavel @ podmínka)
-  - Executor spouští celý seznam tasků v jednom session.begin().
-  - Při chybě proběhne rollback.
-  - Ověřeno i prakticky na failure scénáři (self-link) s následnou kontrolou, že data nezůstala zapsaná.
+### Primární tabulky
 
-  Universe snapshot pro 3D
+- `users`
+  - `id`, `email`, `hashed_password`, `created_at`, `is_active`, `deleted_at`
+- `galaxies`
+  - `id`, `name`, `owner_id`, `created_at`, `deleted_at`
+- `events` (immutable event store)
+  - `id`, `user_id`, `galaxy_id`, `entity_id`, `event_type`, `payload` (JSONB), `timestamp`
 
-  - GET /universe/snapshot vrací:
-  - atoms: [{ id, value }]
-  - bonds: [{ id, source_id, target_id, type }]
-  - Vrací jen aktivní data (is_deleted = false).
-  - Bonds se navíc filtrují tak, aby oba endpoint atomy byly aktivní.
+### Legacy/read-model tabulky
 
-  Frontend (React Three Fiber)
+- `atoms`, `bonds` jsou v modelu stále přítomné kvůli kompatibilitě, ale aktivní zápisový tok běží přes `events`.
 
-  - 3D scéna má:
-  - černé pozadí #020205
-  - Stars
-  - OrbitControls
-  - neonové koule (Sphere) pro atomy
-  - labely přes Billboard + Text
-  - neon hrany mezi atomy
-  - Bloom přes postprocessing
-  - 2D overlay má:
-  - status panel vlevo nahoře (počet atomů a bonds)
-  - command bar dole uprostřed (EXECUTE)
-  - Po submitu:
-  - POST /parser/execute
-  - potom refresh GET /universe/snapshot
-  - input se vyčistí
+### Ochrana proti hard delete
 
-  Fyzikální layout (vyřešené překryvy)
+- DB triggery (`prevent_hard_delete`) jsou zavedené pro historické tabulky + event-store tabulky, takže fyzický `DELETE` je blokovaný i na DB vrstvě.
 
-  - Náhodné fixní pozice byly nahrazené d3-force-3d.
-  - Simulace:
-  - odpudivost: forceManyBody
-  - přitažlivost vazeb: forceLink
-  - centering: forceCenter + forceX/Y/Z
-  - antikolize: forceCollide
-  - Pozice se updatují plynule ve useFrame.
-  - Atomy „přilétají“ do stabilního uspořádání.
-  - Hrany se renderují dynamicky podle aktuálních pozic uzlů.
+## 5. Event Sourcing
 
-  CORS a FE↔BE komunikace
+### Event typy používané executorem
 
-  - Backend má CORS pro:
-  - http://127.0.0.1:5173
-  - http://localhost:5173
-  - FE posílá payload jako { query, text }, takže funguje s tvou FE specifikací i aktuálním backendem.
+- `ASTEROID_CREATED`
+- `METADATA_UPDATED`
+- `BOND_FORMED`
+- `ASTEROID_SOFT_DELETED`
+- `BOND_SOFT_DELETED`
 
-  Docker / spuštění
+### Zápisový tok
 
-  - docker compose up --build rozjede DB, migraci i API.
-  - DB běží defaultně na host portu 55432.
-  - API na 8000.
-  - migrate service dělá alembic upgrade head.
-  - Makefile má zkratky pro up, migrate, run-local, migrate-local atd.
+1. API přijme command (nebo explicitní endpoint ingest/link/extinguish).
+2. Parser vytvoří `AtomicTask[]`.
+3. `TaskExecutorService` zpracuje tasky sekvenčně.
+4. Každá změna je append do `events` přes `EventStoreService.append_event(...)`.
+5. Žádné přímé `INSERT/UPDATE/DELETE` do asteroid read-modelu.
 
-  Frontend balíček a install
+### Čtecí tok (projekce)
 
-  - Frontend má kompletní Vite skeleton.
-  - Instalace:
-  - cd /mnt/c/Projekty/Dataverse/frontend
-  - npm install
-  - npm run dev
-  - Přidaná knihovna pro fyziku: d3-force-3d.
+`UniverseService.project_state(...)`:
 
-  Co bylo ověřené během implementace
+1. Ověří přístup uživatele k galaxii.
+2. Načte eventy `ORDER BY timestamp,id` (volitelně `as_of`).
+3. Složí aktuální stav asteroidů a bondů aplikací eventů.
+4. Filtruje soft-deleted entity.
+5. Nad aktivním stavem provede:
+   - `calc_service.evaluate_universe(...)`
+   - `guardian_service.evaluate_guardians(...)`
+6. Vrátí snapshot pro frontend.
 
-  - Python soubory: py_compile bez chyb.
-  - Alembic migrace: proběhly úspěšně.
-  - Existence tabulek a triggerů: ověřeno SQL dotazy.
-  - Hard delete: ověřeno, že DB vrací chybu HARD DELETE is forbidden....
-  - API endpointy: otestované ingest, link, extinguish, parser/execute, universe/snapshot.
-  - Frontend build: vite build úspěšný.
-  - CORS header: ověřen v response.
+## 6. Parser a task model
 
-  Aktuální provozní obraz
+Parser (`app/services/parser_service.py`) podporuje:
 
-  - Backend i DB běží přes Docker compose.
-  - Frontend je připravený a buildovatelný.
-  - Snapshot endpoint dodává data pro Three.js.
-  - Parser workflow funguje transakčně.
-  - Soft-delete zákon je vynucen aplikačně i na DB úrovni.
+- Vytváření vazeb:
+  - `A + B` -> `INGEST`, `INGEST`, `LINK(type=RELATION)`
+  - `A : Typ` -> `INGEST`, `INGEST`, `LINK(type=TYPE)`
+- Triple-shot:
+  - `Ukaž : Cíl @ podmínka` -> `SELECT`
+- Soft delete příkazy:
+  - `Zhasni : X`, `Smaž : X`, `Delete : X` -> `DELETE`
+- Vzorce:
+  - `Spočítej : Projekt.celkem = SUM(cena)` -> `SET_FORMULA`
+- Guardiany:
+  - `Hlídej : Projekt.celkem > 1000 -> pulse` -> `ADD_GUARDIAN`
+- Human-friendly metadata:
+  - `Firma (obor: IT, score=9)`
+
+Executor (`app/services/task_executor_service.py`) řeší:
+
+- idempotent ingest dle hodnoty,
+- linkování mezi context asteroidy nebo explicitními ID,
+- metadata update přes event `METADATA_UPDATED`,
+- soft delete asteroidu + automatické soft delete navázaných bondů.
+
+## 7. Výpočetní engine
+
+`app/services/calc_service.py`:
+
+- Rekurzivní vyhodnocení formulek `=SUM/AVG/MIN/MAX/COUNT(field)`.
+- Prochází graf přes adjacency list bondů.
+- Detekce cyklu přes `visited_set` -> `#CIRC!`.
+- Memoizace výsledků pro výkon.
+- Výpočet je pouze in-memory nad snapshotem (DB zůstává beze změn).
+
+## 8. Guardian engine
+
+`app/services/guardian_service.py`:
+
+- Čte pravidla z `metadata._guardians`.
+- Podporované operátory: `>`, `<`, `==`, `>=`, `<=`.
+- Porovnává proti `calculated_values`.
+- Zapisuje aktivní vizuální signály do `active_alerts` (např. `color_red`, `pulse`, `hide`) pro frontend.
+
+## 9. API surface (aktuální)
+
+### Auth
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /auth/me`
+- `PATCH /auth/me/extinguish`
+
+### Galaxies
+
+- `GET /galaxies`
+- `POST /galaxies`
+- `PATCH /galaxies/{galaxy_id}/extinguish`
+
+### Domain write
+
+- `POST /asteroids/ingest`
+- `PATCH /asteroids/{asteroid_id}/extinguish`
+- `POST /bonds/link`
+- `POST /parser/execute`
+
+### Domain read
+
+- `GET /universe/snapshot?galaxy_id=&as_of=`
+- `GET /universe/tables?galaxy_id=&as_of=`
+
+## 10. Multi-tenancy a security
+
+- JWT (`python-jose`) v `Authorization: Bearer <token>`.
+- Hesla hashována přes `passlib[bcrypt]`.
+- Každý event nese `user_id` + `galaxy_id`.
+- Snapshot i execute jsou striktně scopeované na přihlášeného uživatele.
+- Přístup do cizí galaxie vrací `403`.
+
+## 11. Frontend architektura
+
+### Moduly
+
+- `frontend/src/context/AuthContext.jsx`
+  - login/register/logout, token persistence, `/auth/me` validace, unauthorized handling.
+- `frontend/src/lib/dataverseApi.js`
+  - API helpery, auth injection, URL builders pro snapshot/tables.
+- `frontend/src/lib/layout_service.js`
+  - sektorový layout kategorií s anti-overlap pravidly.
+- `frontend/src/App.jsx`
+  - 3D scéna, command center, smart asistence, flow audit, time machine, galaxy selector.
+
+### 3D a UX principy
+
+- R3F + Drei + postprocessing bloom.
+- Force simulation (`d3-force-3d`) + sektorová stabilizace layoutem.
+- Audit mode/highlight flow, tooltipy, holografický detail panel.
+- Historický mód (`as_of`) je read-only (command execution je blokován v UI).
+
+## 12. Transakce a konzistence
+
+- API používá `transactional_context(session)`:
+  - `session.begin()` pokud není transakce aktivní,
+  - `session.begin_nested()` pokud už aktivní je.
+- `TaskExecutorService.execute_tasks(..., manage_transaction=False)` očekává aktivní transakci z API vrstvy.
+- Cíl: celé zpracování parser commandu je atomické.
+
+## 13. Build, migrace, testy
+
+- Docker:
+  - `db` -> PostgreSQL
+  - `migrate` -> `alembic upgrade head`
+  - `api` -> uvicorn
+- Alembic revize:
+  - `20260227_0001_init_atoms_bonds`
+  - `20260228_0002_event_store`
+  - `20260228_0003_multi_tenancy_auth`
+- Backend testy:
+  - parser, calc, guardian, integrační API
+- Frontend testy:
+  - API helper + layout service
+
+## 14. Důležité poznámky pro další vývoj
+
+1. Nové write use-casy implementovat jako nové event typy + projektor v `UniverseService`, ne přímým update tabulek.
+2. Zachovat soft-delete invariant i při nových entitách (účty, galaxie, asteroidy, bondy).
+3. Udržovat kompatibilitu snapshot kontraktů (`/universe/snapshot`, `/universe/tables`) kvůli 3D klientovi.

@@ -1358,6 +1358,250 @@ function GalaxySelector({
   );
 }
 
+function LayeredNavigationPanel({
+  userEmail,
+  galaxies,
+  selectedGalaxyId,
+  activeGalaxy,
+  onSelectGalaxy,
+  onOpenGalaxyOverview,
+  onRefreshGalaxies,
+  onLogout,
+  galaxyLoading,
+  galaxyBusy,
+  galaxyError,
+  appError,
+  atomsCount,
+  bondsCount,
+  tableCount,
+  tableContracts,
+  activeTableId,
+  onSelectTable,
+  onClearTableFocus,
+  activeTableAsteroids,
+  selectedPlanetId,
+  onSelectPlanet,
+}) {
+  return (
+    <aside
+      style={{
+        pointerEvents: "auto",
+        width: "min(360px, 96vw)",
+        background: "rgba(8, 12, 20, 0.76)",
+        border: "1px solid rgba(120, 198, 255, 0.35)",
+        borderRadius: 14,
+        padding: "12px 12px 10px",
+        color: "#c9f3ff",
+        backdropFilter: "blur(8px)",
+        boxShadow: "0 0 24px rgba(73, 185, 238, 0.14)",
+      }}
+    >
+      <div style={{ fontSize: 11, opacity: 0.75, letterSpacing: 0.7 }}>NAVIGATION LAYERS</div>
+      <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>Uživatel: {userEmail || "n/a"}</div>
+      <div style={{ marginTop: 6, fontSize: 13, opacity: 0.88 }}>
+        Asteroids {atomsCount} | Bonds {bondsCount} | Tables {tableCount}
+      </div>
+
+      <div
+        style={{
+          marginTop: 10,
+          borderRadius: 10,
+          border: "1px solid rgba(104, 188, 228, 0.22)",
+          background: "rgba(7, 18, 30, 0.74)",
+          padding: "9px 10px",
+        }}
+      >
+        <div style={{ fontSize: 11, opacity: 0.76, letterSpacing: 0.45 }}>L1 / GALAXIES</div>
+        <div style={{ marginTop: 5, fontSize: 13, fontWeight: 700 }}>{activeGalaxy?.name || "Bez výběru"}</div>
+        <div style={{ marginTop: 4, maxHeight: 96, overflowY: "auto", display: "grid", gap: 6 }}>
+          {galaxies.map((galaxy) => {
+            const selected = galaxy.id === selectedGalaxyId;
+            return (
+              <button
+                key={galaxy.id}
+                type="button"
+                onClick={() => onSelectGalaxy(galaxy.id)}
+                style={{
+                  border: "1px solid rgba(116, 216, 255, 0.28)",
+                  background: selected ? "rgba(38, 89, 122, 0.74)" : "rgba(8, 20, 34, 0.82)",
+                  color: "#d5f9ff",
+                  borderRadius: 8,
+                  padding: "6px 8px",
+                  fontSize: 12,
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                {galaxy.name}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
+          <button
+            type="button"
+            onClick={onOpenGalaxyOverview}
+            style={{
+              flex: 1,
+              border: "1px solid rgba(116, 216, 255, 0.32)",
+              background: "rgba(8, 20, 34, 0.82)",
+              color: "#d5f9ff",
+              borderRadius: 8,
+              padding: "6px 8px",
+              fontSize: 11,
+              cursor: "pointer",
+            }}
+          >
+            Přehled galaxií
+          </button>
+          <button
+            type="button"
+            onClick={onRefreshGalaxies}
+            disabled={galaxyLoading || galaxyBusy}
+            style={{
+              flex: 1,
+              border: "1px solid rgba(111, 206, 255, 0.32)",
+              background: "rgba(9, 18, 33, 0.7)",
+              color: "#cff5ff",
+              borderRadius: 8,
+              padding: "6px 8px",
+              fontSize: 11,
+              cursor: galaxyLoading || galaxyBusy ? "not-allowed" : "pointer",
+            }}
+          >
+            Obnovit
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            style={{
+              flex: 1,
+              border: "1px solid rgba(255, 120, 150, 0.45)",
+              background: "rgba(40, 13, 22, 0.75)",
+              color: "#ffc7d5",
+              borderRadius: 8,
+              padding: "6px 8px",
+              fontSize: 11,
+              cursor: "pointer",
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          borderRadius: 10,
+          border: "1px solid rgba(104, 188, 228, 0.22)",
+          background: "rgba(7, 18, 30, 0.74)",
+          padding: "9px 10px",
+        }}
+      >
+        <div style={{ fontSize: 11, opacity: 0.76, letterSpacing: 0.45 }}>L2 / TABLES (SECTORS)</div>
+        <div style={{ marginTop: 4, maxHeight: 132, overflowY: "auto", display: "grid", gap: 6 }}>
+          {tableContracts.length ? (
+            tableContracts.map((table) => {
+              const selected = String(table.table_id) === String(activeTableId);
+              return (
+                <button
+                  key={String(table.table_id)}
+                  type="button"
+                  onClick={() => onSelectTable(String(table.table_id))}
+                  style={{
+                    border: "1px solid rgba(116, 216, 255, 0.28)",
+                    background: selected ? "rgba(38, 89, 122, 0.74)" : "rgba(8, 20, 34, 0.82)",
+                    color: "#d5f9ff",
+                    borderRadius: 8,
+                    padding: "6px 8px",
+                    fontSize: 12,
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontWeight: 600 }}>{table.name}</div>
+                  <div style={{ marginTop: 2, fontSize: 11, opacity: 0.76 }}>
+                    Rows {table.members.length} | Fields {table.schema_fields.length}
+                  </div>
+                </button>
+              );
+            })
+          ) : (
+            <div style={{ fontSize: 12, opacity: 0.74 }}>Tabulky zatím nejsou k dispozici.</div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onClearTableFocus}
+          disabled={!activeTableId}
+          style={{
+            marginTop: 6,
+            width: "100%",
+            border: "1px solid rgba(116, 216, 255, 0.24)",
+            background: activeTableId ? "rgba(8, 20, 34, 0.82)" : "rgba(48, 60, 72, 0.6)",
+            color: activeTableId ? "#d5f9ff" : "#9caab2",
+            borderRadius: 8,
+            padding: "6px 8px",
+            fontSize: 11,
+            cursor: activeTableId ? "pointer" : "not-allowed",
+          }}
+        >
+          Zrušit fokus tabulky
+        </button>
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          borderRadius: 10,
+          border: "1px solid rgba(104, 188, 228, 0.22)",
+          background: "rgba(7, 18, 30, 0.74)",
+          padding: "9px 10px",
+        }}
+      >
+        <div style={{ fontSize: 11, opacity: 0.76, letterSpacing: 0.45 }}>L3 / ASTEROIDS</div>
+        <div style={{ marginTop: 4, maxHeight: 196, overflowY: "auto", display: "grid", gap: 6 }}>
+          {activeTableAsteroids.length ? (
+            activeTableAsteroids.map((asteroid) => {
+              const selected = asteroid.id === selectedPlanetId;
+              return (
+                <button
+                  key={asteroid.id}
+                  type="button"
+                  onClick={() => onSelectPlanet(asteroid.id)}
+                  style={{
+                    border: "1px solid rgba(116, 216, 255, 0.25)",
+                    background: selected ? "rgba(49, 101, 134, 0.78)" : "rgba(8, 20, 34, 0.82)",
+                    color: "#e2fbff",
+                    borderRadius: 8,
+                    padding: "6px 8px",
+                    fontSize: 12,
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontWeight: 600 }}>{valueToLabel(asteroid.value)}</div>
+                  <div style={{ marginTop: 2, fontSize: 11, opacity: 0.74 }}>
+                    Created {formatCreatedAt(asteroid.created_at)}
+                  </div>
+                </button>
+              );
+            })
+          ) : (
+            <div style={{ fontSize: 12, opacity: 0.74 }}>
+              {activeTableId ? "Vybraná tabulka neobsahuje asteroidy." : "Vyber tabulku v L2."}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {galaxyError ? <div style={{ marginTop: 8, color: "#ff8fa3", fontSize: 12 }}>{galaxyError}</div> : null}
+      {appError ? <div style={{ marginTop: 4, color: "#ff8fa3", fontSize: 12 }}>{appError}</div> : null}
+    </aside>
+  );
+}
+
 export default function App() {
   const {
     user,
@@ -1383,6 +1627,7 @@ export default function App() {
   const [atoms, setAtoms] = useState([]);
   const [bonds, setBonds] = useState([]);
   const [tables, setTables] = useState([]);
+  const [activeTableId, setActiveTableId] = useState("");
   const [commandMode, setCommandMode] = useState("auto");
   const [query, setQuery] = useState("");
   const [asOfInput, setAsOfInput] = useState("");
@@ -1421,6 +1666,7 @@ export default function App() {
     setAtoms([]);
     setBonds([]);
     setTables([]);
+    setActiveTableId("");
     setSelectedPlanetId(null);
     setError("");
   }, [isAuthenticated]);
@@ -1468,6 +1714,7 @@ export default function App() {
       setAtoms([]);
       setBonds([]);
       setTables([]);
+      setActiveTableId("");
       return;
     }
     setError("");
@@ -1575,6 +1822,7 @@ export default function App() {
           setAtoms([]);
           setBonds([]);
           setTables([]);
+          setActiveTableId("");
           setError("");
         }
       } catch (extinguishError) {
@@ -1727,6 +1975,18 @@ export default function App() {
 
     const hasAudit = Boolean(auditTargetId);
     const hasFocus = Boolean(selectedPlanetId);
+    const normalizedActiveTableId = activeTableId ? String(activeTableId) : "";
+    const hasTableFocus = Boolean(normalizedActiveTableId);
+    const tableFocusedAtomIds = new Set(
+      physicsAsteroids
+        .filter((asteroid) => String(asteroid.table_id || "") === normalizedActiveTableId)
+        .map((asteroid) => asteroid.id)
+    );
+    const tableFocusedBondIds = new Set(
+      directedBonds
+        .filter((bond) => tableFocusedAtomIds.has(bond.source_id) && tableFocusedAtomIds.has(bond.target_id))
+        .map((bond) => bond.id)
+    );
     const highlightedAtomIds = new Set();
     const highlightedBondIds = new Set();
 
@@ -1770,6 +2030,7 @@ export default function App() {
       const isGuardianHidden = activeAlerts.includes("hide");
       const baseColor = PALETTE[asteroid.hashVal % PALETTE.length];
       const isRelated = hasAudit || hasFocus ? highlightedAtomIds.has(asteroid.id) : true;
+      const inActiveTable = hasTableFocus ? tableFocusedAtomIds.has(asteroid.id) : true;
       const opacity = isGuardianHidden
         ? 0.04
         : hasAudit
@@ -1780,6 +2041,10 @@ export default function App() {
             ? isRelated
               ? 1
               : 0.15
+            : hasTableFocus
+              ? inActiveTable
+                ? 1
+                : 0.18
             : 1;
       return {
         ...asteroid,
@@ -1821,7 +2086,14 @@ export default function App() {
           (start[2] + end[2]) / 2
         ];
         const isRelated = highlightedBondIds.has(bond.id);
-        const opacity = hasAudit ? (isRelated ? 0.96 : 0.1) : hasFocus ? (isRelated ? 0.9 : 0.15) : 0.82;
+        const inActiveTable = hasTableFocus ? tableFocusedBondIds.has(bond.id) : true;
+        const opacity = hasAudit
+          ? (isRelated ? 0.96 : 0.1)
+          : hasFocus
+            ? (isRelated ? 0.9 : 0.15)
+            : hasTableFocus
+              ? (inActiveTable ? 0.9 : 0.16)
+              : 0.82;
         return {
           ...bond,
           opacity,
@@ -1832,7 +2104,7 @@ export default function App() {
       .filter(Boolean);
 
     return { enrichedAtoms, atomPositions, curvedBonds, sectorPlates };
-  }, [atoms, bonds, selectedPlanetId, auditTargetId]);
+  }, [atoms, bonds, selectedPlanetId, auditTargetId, activeTableId]);
 
   const selectedPlanet = useMemo(() => {
     if (!selectedPlanetId) return null;
@@ -1857,15 +2129,40 @@ export default function App() {
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }, [tables]);
 
+  const activeGalaxy = useMemo(
+    () => galaxies.find((galaxy) => galaxy.id === selectedGalaxyId) || null,
+    [galaxies, selectedGalaxyId]
+  );
+
   const activeTableContract = useMemo(() => {
     if (!tableContracts.length) return null;
+    if (activeTableId) {
+      const byLayer = tableContracts.find((table) => String(table.table_id) === String(activeTableId));
+      if (byLayer) return byLayer;
+    }
     const selectedTableId = selectedPlanet?.table_id ? String(selectedPlanet.table_id) : null;
     if (selectedTableId) {
       const matched = tableContracts.find((table) => String(table.table_id) === selectedTableId);
       if (matched) return matched;
     }
     return tableContracts[0];
-  }, [tableContracts, selectedPlanet]);
+  }, [tableContracts, selectedPlanet, activeTableId]);
+
+  const activeTableAsteroids = useMemo(() => {
+    if (!activeTableContract) return [];
+    const contractMemberIds = new Set(
+      (Array.isArray(activeTableContract.members) ? activeTableContract.members : [])
+        .map((member) => member?.id)
+        .filter(Boolean)
+    );
+    return visualData.enrichedAtoms
+      .filter((asteroid) => {
+        const belongsByTable = String(asteroid.table_id || "") === String(activeTableContract.table_id);
+        const belongsByMember = contractMemberIds.has(asteroid.id);
+        return belongsByTable || belongsByMember;
+      })
+      .sort((a, b) => valueToLabel(a.value).localeCompare(valueToLabel(b.value)));
+  }, [activeTableContract, visualData]);
 
   const defaultUniverseView = useMemo(() => {
     const nodes = visualData.enrichedAtoms;
@@ -1927,6 +2224,27 @@ export default function App() {
   }, [visualData]);
 
   const selectedPlanetMetadata = useMemo(() => Object.entries(selectedPlanet?.metadata || {}), [selectedPlanet]);
+
+  useEffect(() => {
+    if (!tableContracts.length) {
+      if (activeTableId) {
+        setActiveTableId("");
+      }
+      return;
+    }
+    if (activeTableId && tableContracts.some((table) => String(table.table_id) === String(activeTableId))) {
+      return;
+    }
+    setActiveTableId(String(tableContracts[0].table_id));
+  }, [tableContracts, activeTableId]);
+
+  useEffect(() => {
+    if (!selectedPlanet?.table_id) return;
+    const nextTableId = String(selectedPlanet.table_id);
+    if (nextTableId && nextTableId !== activeTableId) {
+      setActiveTableId(nextTableId);
+    }
+  }, [selectedPlanet, activeTableId]);
 
   useEffect(() => {
     if (selectedPlanetId && !selectedPlanet) {
@@ -2417,6 +2735,7 @@ export default function App() {
   const handleSelectGalaxy = useCallback((galaxyId) => {
     if (!galaxyId) return;
     setSelectedGalaxyId(galaxyId);
+    setActiveTableId("");
     setTables([]);
     setSelectedPlanetId(null);
     setAuditTargetId(null);
@@ -2439,6 +2758,7 @@ export default function App() {
     setSelectedPlanetId(null);
     setAuditTargetId(null);
     setHoveredFlow(null);
+    setActiveTableId("");
     setQuery("");
     setCommandMode("auto");
     setAssistOpen(false);
@@ -2446,6 +2766,9 @@ export default function App() {
   }, []);
 
   const focusTable = useCallback((table) => {
+    if (table?.table_id) {
+      setActiveTableId(String(table.table_id));
+    }
     const members = Array.isArray(table?.members) ? table.members : [];
     const first = members[0];
     if (!first?.id) return;
@@ -2554,86 +2877,40 @@ export default function App() {
             flexWrap: "wrap",
           }}
         >
-          <div
-            style={{
-              pointerEvents: "auto",
-              background: "rgba(8, 12, 20, 0.72)",
-              border: "1px solid rgba(120, 198, 255, 0.35)",
-              borderRadius: 12,
-              padding: "12px 14px",
-              color: "#c9f3ff",
-              minWidth: 170,
-              backdropFilter: "blur(6px)",
+          <LayeredNavigationPanel
+            userEmail={user?.email || ""}
+            galaxies={galaxies}
+            selectedGalaxyId={selectedGalaxyId}
+            activeGalaxy={activeGalaxy}
+            onSelectGalaxy={handleSelectGalaxy}
+            onOpenGalaxyOverview={() => {
+              setSelectedGalaxyId("");
+              setActiveTableId("");
+              setSelectedPlanetId(null);
+              setAuditTargetId(null);
+              setHoveredFlow(null);
             }}
-          >
-            <div style={{ fontSize: 12, opacity: 0.75, letterSpacing: 0.6 }}>UNIVERSE STATUS</div>
-            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>Uživatel: {user?.email || "n/a"}</div>
-            <div style={{ marginTop: 6, fontSize: 14 }}>Asteroids: {atoms.length}</div>
-            <div style={{ marginTop: 2, fontSize: 14 }}>Bonds: {bonds.length}</div>
-            <div style={{ marginTop: 2, fontSize: 14 }}>Tables: {tableContracts.length}</div>
-            <div style={{ marginTop: 2, fontSize: 12, opacity: 0.78 }}>Layout: Sector Tables</div>
-            <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75, letterSpacing: 0.6 }}>GALAXY</div>
-            <select
-              value={selectedGalaxyId}
-              onChange={(e) => handleSelectGalaxy(e.target.value)}
-              style={{
-                marginTop: 6,
-                width: "100%",
-                border: "1px solid rgba(132, 216, 255, 0.25)",
-                background: "rgba(4, 8, 16, 0.9)",
-                color: "#d9f8ff",
-                borderRadius: 10,
-                fontSize: 13,
-                padding: "8px 10px",
-                outline: "none",
-              }}
-            >
-              {galaxies.map((galaxy) => (
-                <option key={galaxy.id} value={galaxy.id}>
-                  {galaxy.name}
-                </option>
-              ))}
-            </select>
-            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                onClick={loadGalaxies}
-                disabled={galaxyLoading || galaxyBusy}
-                style={{
-                  flex: 1,
-                  border: "1px solid rgba(111, 206, 255, 0.32)",
-                  background: "rgba(9, 18, 33, 0.7)",
-                  color: "#cff5ff",
-                  borderRadius: 10,
-                  fontWeight: 600,
-                  fontSize: 12,
-                  padding: "7px 8px",
-                  cursor: galaxyLoading || galaxyBusy ? "not-allowed" : "pointer",
-                }}
-              >
-                Obnovit
-              </button>
-              <button
-                type="button"
-                onClick={logout}
-                style={{
-                  flex: 1,
-                  border: "1px solid rgba(255, 120, 150, 0.45)",
-                  background: "rgba(40, 13, 22, 0.75)",
-                  color: "#ffc7d5",
-                  borderRadius: 10,
-                  fontWeight: 600,
-                  fontSize: 12,
-                  padding: "7px 8px",
-                  cursor: "pointer",
-                }}
-              >
-                Logout
-              </button>
-            </div>
-            {galaxyError ? <div style={{ marginTop: 8, color: "#ff8fa3", fontSize: 12 }}>{galaxyError}</div> : null}
-            {error ? <div style={{ marginTop: 8, color: "#ff8fa3", fontSize: 12 }}>{error}</div> : null}
-          </div>
+            onRefreshGalaxies={loadGalaxies}
+            onLogout={logout}
+            galaxyLoading={galaxyLoading}
+            galaxyBusy={galaxyBusy}
+            galaxyError={galaxyError}
+            appError={error}
+            atomsCount={atoms.length}
+            bondsCount={bonds.length}
+            tableCount={tableContracts.length}
+            tableContracts={tableContracts}
+            activeTableId={activeTableId}
+            onSelectTable={setActiveTableId}
+            onClearTableFocus={() => setActiveTableId("")}
+            activeTableAsteroids={activeTableAsteroids}
+            selectedPlanetId={selectedPlanetId}
+            onSelectPlanet={(planetId) => {
+              setSelectedPlanetId(planetId);
+              setAuditTargetId(null);
+              setHoveredFlow(null);
+            }}
+          />
 
           <div
             style={{
@@ -2926,8 +3203,8 @@ export default function App() {
         <div
           style={{
             pointerEvents: "auto",
-            alignSelf: "center",
-            width: "min(920px, 96vw)",
+            alignSelf: "flex-end",
+            width: "min(920px, max(340px, calc(100vw - 430px)))",
             marginBottom: 8,
           }}
         >

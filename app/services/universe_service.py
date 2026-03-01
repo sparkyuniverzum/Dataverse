@@ -9,10 +9,10 @@ from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Event, Galaxy
+from app.models import Atom, Bond, Event, Galaxy
 from app.services.calc_service import evaluate_universe
 from app.services.event_store_service import EventStoreService
 from app.services.guardian_service import evaluate_guardians
@@ -151,16 +151,83 @@ class UniverseService:
         offset_z = ((rows - 1) * spacing) / 2
         return (col * spacing - offset_x, 0.0, row * spacing - offset_z)
 
-    async def project_state(
+    async def _project_state_from_read_model(
         self,
         session: AsyncSession,
         *,
         user_id: UUID,
-        galaxy_id: UUID = DEFAULT_GALAXY_ID,
-        as_of: datetime | None = None,
-        apply_calculations: bool = True,
-    ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond]]:
-        await self._ensure_galaxy_access(session, user_id=user_id, galaxy_id=galaxy_id)
+        galaxy_id: UUID,
+    ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+        asteroid_rows = list(
+            (
+                await session.execute(
+                    select(Atom)
+                    .where(
+                        and_(
+                            Atom.user_id == user_id,
+                            Atom.galaxy_id == galaxy_id,
+                            Atom.is_deleted.is_(False),
+                        )
+                    )
+                    .order_by(Atom.created_at.asc(), Atom.id.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        active_asteroids = [
+            ProjectedAsteroid(
+                id=asteroid.id,
+                value=asteroid.value,
+                metadata=asteroid.metadata_ if isinstance(asteroid.metadata_, dict) else {},
+                is_deleted=asteroid.is_deleted,
+                created_at=asteroid.created_at,
+                deleted_at=asteroid.deleted_at,
+            )
+            for asteroid in asteroid_rows
+        ]
+        active_ids = {asteroid.id for asteroid in active_asteroids}
+
+        bond_rows = list(
+            (
+                await session.execute(
+                    select(Bond)
+                    .where(
+                        and_(
+                            Bond.user_id == user_id,
+                            Bond.galaxy_id == galaxy_id,
+                            Bond.is_deleted.is_(False),
+                        )
+                    )
+                    .order_by(Bond.created_at.asc(), Bond.id.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        active_bonds = [
+            ProjectedBond(
+                id=bond.id,
+                source_id=bond.source_id,
+                target_id=bond.target_id,
+                type=bond.type,
+                is_deleted=bond.is_deleted,
+                created_at=bond.created_at,
+                deleted_at=bond.deleted_at,
+            )
+            for bond in bond_rows
+            if bond.source_id in active_ids and bond.target_id in active_ids
+        ]
+        return active_asteroids, active_bonds
+
+    async def _project_state_from_events(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        as_of: datetime | None,
+    ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
         events = await self.event_store.list_events(
             session=session,
             user_id=user_id,
@@ -183,6 +250,39 @@ class UniverseService:
             if not bond.is_deleted and bond.source_id in active_ids and bond.target_id in active_ids
         ]
         active_bonds.sort(key=lambda item: (item.created_at, str(item.id)))
+        return active_asteroids, active_bonds
+
+    async def project_state(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID = DEFAULT_GALAXY_ID,
+        as_of: datetime | None = None,
+        apply_calculations: bool = True,
+    ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond]]:
+        await self._ensure_galaxy_access(session, user_id=user_id, galaxy_id=galaxy_id)
+        if as_of is None:
+            active_asteroids, active_bonds = await self._project_state_from_read_model(
+                session=session,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+            )
+            # Fallback for galaxies not yet backfilled into read model.
+            if not active_asteroids and not active_bonds:
+                active_asteroids, active_bonds = await self._project_state_from_events(
+                    session=session,
+                    user_id=user_id,
+                    galaxy_id=galaxy_id,
+                    as_of=as_of,
+                )
+        else:
+            active_asteroids, active_bonds = await self._project_state_from_events(
+                session=session,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+                as_of=as_of,
+            )
 
         if not apply_calculations:
             return active_asteroids, active_bonds

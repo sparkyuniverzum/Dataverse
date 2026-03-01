@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.event_store_service import EventStoreService
 from app.services.parser_service import AtomicTask
+from app.services.read_model_projector import ReadModelProjector
 from app.services.universe_service import DEFAULT_GALAXY_ID, ProjectedAsteroid, ProjectedBond, UniverseService
 
 
@@ -28,9 +29,11 @@ class TaskExecutorService:
         *,
         event_store: EventStoreService | None = None,
         universe_service: UniverseService | None = None,
+        read_model_projector: ReadModelProjector | None = None,
     ) -> None:
         self.event_store = event_store or EventStoreService()
         self.universe_service = universe_service or UniverseService(event_store=self.event_store)
+        self.read_model_projector = read_model_projector or ReadModelProjector()
 
     @staticmethod
     def _value_to_text(value: object) -> str:
@@ -124,6 +127,23 @@ class TaskExecutorService:
         async def _no_transaction():
             yield
 
+        async def append_and_project_event(
+            *,
+            entity_id: UUID,
+            event_type: str,
+            payload: dict,
+        ):
+            event = await self.event_store.append_event(
+                session=session,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+                entity_id=entity_id,
+                event_type=event_type,
+                payload=payload,
+            )
+            await self.read_model_projector.apply_event(session=session, event=event)
+            return event
+
         transaction_ctx = (
             session.begin_nested() if session.in_transaction() else session.begin()
         ) if manage_transaction else _no_transaction()
@@ -152,10 +172,7 @@ class TaskExecutorService:
 
                     if existing is None:
                         asteroid_id = uuid4()
-                        created_event = await self.event_store.append_event(
-                            session=session,
-                            user_id=user_id,
-                            galaxy_id=galaxy_id,
+                        created_event = await append_and_project_event(
                             entity_id=asteroid_id,
                             event_type="ASTEROID_CREATED",
                             payload={"value": value, "metadata": metadata},
@@ -173,10 +190,7 @@ class TaskExecutorService:
                         asteroid = existing
                         metadata_update = {k: v for k, v in metadata.items() if asteroid.metadata.get(k) != v}
                         if metadata_update:
-                            await self.event_store.append_event(
-                                session=session,
-                                user_id=user_id,
-                                galaxy_id=galaxy_id,
+                            await append_and_project_event(
                                 entity_id=asteroid.id,
                                 event_type="METADATA_UPDATED",
                                 payload={"metadata": metadata_update},
@@ -234,10 +248,7 @@ class TaskExecutorService:
                     if isinstance(raw_bond_metadata, dict) and raw_bond_metadata:
                         bond_payload["metadata"] = raw_bond_metadata
 
-                    bond_event = await self.event_store.append_event(
-                        session=session,
-                        user_id=user_id,
-                        galaxy_id=galaxy_id,
+                    bond_event = await append_and_project_event(
                         entity_id=bond_id,
                         event_type="BOND_FORMED",
                         payload=bond_payload,
@@ -294,10 +305,7 @@ class TaskExecutorService:
                     field_name = str(field).strip()
                     formula_value = str(formula).strip()
                     if target_asteroid.metadata.get(field_name) != formula_value:
-                        await self.event_store.append_event(
-                            session=session,
-                            user_id=user_id,
-                            galaxy_id=galaxy_id,
+                        await append_and_project_event(
                             entity_id=target_asteroid.id,
                             event_type="METADATA_UPDATED",
                             payload={"metadata": {field_name: formula_value}},
@@ -359,10 +367,7 @@ class TaskExecutorService:
 
                     if signature not in existing_signatures:
                         guardian_rules.append(new_rule)
-                        await self.event_store.append_event(
-                            session=session,
-                            user_id=user_id,
-                            galaxy_id=galaxy_id,
+                        await append_and_project_event(
                             entity_id=target_asteroid.id,
                             event_type="METADATA_UPDATED",
                             payload={"metadata": {"_guardians": guardian_rules}},
@@ -415,10 +420,7 @@ class TaskExecutorService:
 
                     processed_bond_ids: set[UUID] = set()
                     for asteroid in targets:
-                        deleted_event = await self.event_store.append_event(
-                            session=session,
-                            user_id=user_id,
-                            galaxy_id=galaxy_id,
+                        deleted_event = await append_and_project_event(
                             entity_id=asteroid.id,
                             event_type="ASTEROID_SOFT_DELETED",
                             payload={},
@@ -436,10 +438,7 @@ class TaskExecutorService:
                             and (bond.source_id == asteroid.id or bond.target_id == asteroid.id)
                         ]
                         for bond in connected_bonds:
-                            bond_deleted_event = await self.event_store.append_event(
-                                session=session,
-                                user_id=user_id,
-                                galaxy_id=galaxy_id,
+                            bond_deleted_event = await append_and_project_event(
                                 entity_id=bond.id,
                                 event_type="BOND_SOFT_DELETED",
                                 payload={"asteroid_id": str(asteroid.id)},

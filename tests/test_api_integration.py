@@ -454,3 +454,40 @@ def test_tables_v1_contract_contains_sector_and_bond_buckets(auth_client: tuple[
         assert "size" in sector and isinstance(sector["size"], (int, float))
         assert "mode" in sector and sector["mode"] in {"belt", "ring"}
         assert sector.get("grid_plate") is True
+
+
+def test_csv_import_commit_creates_asteroids_and_metadata(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    a_label = f"CSV-A-{uuid.uuid4()}"
+    b_label = f"CSV-B-{uuid.uuid4()}"
+    csv_payload = f"value,cena,mena\n{a_label},100,CZK\n{b_label},250,EUR\n"
+
+    imported = client.post(
+        "/io/imports",
+        data={"mode": "commit", "strict": "true", "galaxy_id": galaxy_id},
+        files={"file": ("import.csv", csv_payload.encode("utf-8"), "text/csv")},
+    )
+    assert imported.status_code == 200, imported.text
+    body = imported.json()
+    assert body["job"]["status"] in {"COMPLETED", "COMPLETED_WITH_ERRORS"}
+    assert body["job"]["processed_rows"] == 2
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    by_value = {_stringify(atom["value"]): atom for atom in snapshot.json()["asteroids"]}
+    assert by_value[a_label]["metadata"].get("cena") == "100"
+    assert by_value[a_label]["metadata"].get("mena") == "CZK"
+    assert by_value[b_label]["metadata"].get("cena") == "250"
+
+
+def test_csv_export_snapshot_returns_csv(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"CSV-Export-{uuid.uuid4()}"
+    created = client.post("/asteroids/ingest", json={"value": label, "metadata": {"kategorie": "Test"}, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+
+    exported = client.get("/io/exports/snapshot", params={"format": "csv", "galaxy_id": galaxy_id})
+    assert exported.status_code == 200, exported.text
+    assert exported.headers.get("content-type", "").startswith("text/csv")
+    assert "record_type,id,value" in exported.text
+    assert label in exported.text

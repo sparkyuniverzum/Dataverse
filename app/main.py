@@ -3,12 +3,13 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import Galaxy, User
+from app.models import Galaxy, ImportError, ImportJob, User
 from app.schemas import (
     AsteroidIngestRequest,
     AsteroidResponse,
@@ -17,6 +18,11 @@ from app.schemas import (
     BondResponse,
     GalaxyCreateRequest,
     GalaxyPublic,
+    ImportErrorsResponse,
+    ImportJobPublic,
+    ImportModeSchema,
+    ImportRunResponse,
+    ImportErrorPublic,
     LoginRequest,
     ParseCommandRequest,
     ParseCommandResponse,
@@ -30,6 +36,7 @@ from app.schemas import (
 )
 from app.services.auth_service import AuthService, get_current_user
 from app.services.event_store_service import EventStoreService
+from app.services.io_service import ImportExportService, ImportMode
 from app.services.parser_service import AtomicTask, ParserService
 from app.services.task_executor_service import TaskExecutionResult, TaskExecutorService
 from app.services.universe_service import (
@@ -55,6 +62,7 @@ universe_service = UniverseService(event_store=event_store)
 parser_service = ParserService()
 task_executor_service = TaskExecutorService(event_store=event_store, universe_service=universe_service)
 auth_service = AuthService()
+io_service = ImportExportService(task_executor=task_executor_service, universe_service=universe_service)
 
 
 def user_to_public(user: User) -> UserPublic:
@@ -74,6 +82,37 @@ def galaxy_to_public(galaxy: Galaxy) -> GalaxyPublic:
         owner_id=galaxy.owner_id,
         created_at=galaxy.created_at,
         deleted_at=galaxy.deleted_at,
+    )
+
+
+def import_job_to_public(job: ImportJob) -> ImportJobPublic:
+    return ImportJobPublic(
+        id=job.id,
+        user_id=job.user_id,
+        galaxy_id=job.galaxy_id,
+        filename=job.filename,
+        file_hash=job.file_hash,
+        mode=job.mode,
+        status=job.status,
+        total_rows=job.total_rows,
+        processed_rows=job.processed_rows,
+        errors_count=job.errors_count,
+        summary=job.summary if isinstance(job.summary, dict) else {},
+        created_at=job.created_at,
+        finished_at=job.finished_at,
+    )
+
+
+def import_error_to_public(error: ImportError) -> ImportErrorPublic:
+    return ImportErrorPublic(
+        id=error.id,
+        job_id=error.job_id,
+        row_number=error.row_number,
+        column_name=error.column_name,
+        code=error.code,
+        message=error.message,
+        raw_value=error.raw_value,
+        created_at=error.created_at,
     )
 
 
@@ -509,3 +548,115 @@ async def universe_tables(
         as_of=as_of,
     )
     return UniverseTablesResponse(tables=tables)
+
+
+@app.post("/io/imports", response_model=ImportRunResponse, status_code=status.HTTP_200_OK)
+async def run_import_csv(
+    file: UploadFile = File(...),
+    mode: ImportModeSchema = Form(default=ImportModeSchema.commit),
+    strict: bool = Form(default=True),
+    galaxy_id: UUID | None = Form(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> ImportRunResponse:
+    if not file.filename:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Missing filename")
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Phase 1 import supports CSV only",
+        )
+
+    payload = await file.read()
+    if not payload:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is empty")
+
+    target_galaxy_id = await resolve_galaxy_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=galaxy_id,
+    )
+    result = await io_service.import_csv(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+        filename=file.filename,
+        file_bytes=payload,
+        mode=ImportMode(mode.value),
+        strict=bool(strict),
+    )
+    return ImportRunResponse(job=import_job_to_public(result.job))
+
+
+@app.get("/io/imports/{job_id}", response_model=ImportJobPublic, status_code=status.HTTP_200_OK)
+async def get_import_job(
+    job_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> ImportJobPublic:
+    job = await io_service.get_job_for_user(session=session, user_id=current_user.id, job_id=job_id)
+    return import_job_to_public(job)
+
+
+@app.get("/io/imports/{job_id}/errors", response_model=ImportErrorsResponse, status_code=status.HTTP_200_OK)
+async def get_import_job_errors(
+    job_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> ImportErrorsResponse:
+    errors = await io_service.get_job_errors(session=session, user_id=current_user.id, job_id=job_id)
+    return ImportErrorsResponse(errors=[import_error_to_public(error) for error in errors])
+
+
+@app.get("/io/exports/snapshot", status_code=status.HTTP_200_OK)
+async def export_snapshot_csv(
+    format: str = Query(default="csv"),
+    as_of: datetime | None = None,
+    galaxy_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    if format.lower() != "csv":
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Phase 1 export supports CSV only")
+    target_galaxy_id = await resolve_galaxy_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=galaxy_id,
+    )
+    csv_payload = await io_service.export_snapshot_csv(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+        as_of=as_of,
+    )
+    headers = {
+        "Content-Disposition": f'attachment; filename="snapshot-{target_galaxy_id}.csv"',
+    }
+    return StreamingResponse(iter([csv_payload]), media_type="text/csv", headers=headers)
+
+
+@app.get("/io/exports/tables", status_code=status.HTTP_200_OK)
+async def export_tables_csv(
+    format: str = Query(default="csv"),
+    as_of: datetime | None = None,
+    galaxy_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    if format.lower() != "csv":
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Phase 1 export supports CSV only")
+    target_galaxy_id = await resolve_galaxy_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=galaxy_id,
+    )
+    csv_payload = await io_service.export_tables_csv(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+        as_of=as_of,
+    )
+    headers = {
+        "Content-Disposition": f'attachment; filename="tables-{target_galaxy_id}.csv"',
+    }
+    return StreamingResponse(iter([csv_payload]), media_type="text/csv", headers=headers)

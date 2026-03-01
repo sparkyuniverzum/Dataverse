@@ -1,0 +1,473 @@
+from __future__ import annotations
+
+import csv
+import hashlib
+import io
+import json
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any
+from uuid import UUID
+
+from fastapi import HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import ImportError, ImportJob
+from app.services.parser_service import AtomicTask
+from app.services.task_executor_service import TaskExecutorService
+from app.services.universe_service import UniverseService
+
+
+class ImportMode(str, Enum):
+    PREVIEW = "preview"
+    COMMIT = "commit"
+
+
+class ImportStatus(str, Enum):
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    COMPLETED_WITH_ERRORS = "COMPLETED_WITH_ERRORS"
+    FAILED = "FAILED"
+
+
+class ImportExecutionResult(BaseModel):
+    job: ImportJob
+    summary: dict[str, Any] = Field(default_factory=dict)
+
+
+class ImportErrorRow(BaseModel):
+    row_number: int
+    column_name: str | None = None
+    code: str
+    message: str
+    raw_value: str | None = None
+
+
+RESERVED_COLUMNS = {
+    "value",
+    "source",
+    "target",
+    "source_id",
+    "target_id",
+    "bond_type",
+    "type",
+}
+
+
+class ImportExportService:
+    def __init__(
+        self,
+        *,
+        task_executor: TaskExecutorService,
+        universe_service: UniverseService,
+    ) -> None:
+        self.task_executor = task_executor
+        self.universe_service = universe_service
+
+    @staticmethod
+    def _decode_csv_bytes(file_bytes: bytes) -> str:
+        try:
+            return file_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="CSV must be UTF-8 encoded",
+            ) from exc
+
+    @staticmethod
+    def _normalize_row(raw_row: dict[str, Any]) -> dict[str, str]:
+        row: dict[str, str] = {}
+        for key, value in raw_row.items():
+            normalized_key = str(key or "").strip()
+            if not normalized_key:
+                continue
+            normalized_value = str(value or "").strip()
+            row[normalized_key] = normalized_value
+        return row
+
+    @staticmethod
+    def _metadata_from_row(row: dict[str, str]) -> dict[str, str]:
+        metadata: dict[str, str] = {}
+        for key, value in row.items():
+            if key in RESERVED_COLUMNS:
+                continue
+            if not value:
+                continue
+            metadata[key] = value
+        return metadata
+
+    @staticmethod
+    def _parse_uuid(value: str) -> UUID:
+        try:
+            return UUID(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid UUID: {value}") from exc
+
+    @classmethod
+    def _tasks_from_csv_row(cls, row: dict[str, str]) -> list[AtomicTask]:
+        if not any(row.values()):
+            return []
+
+        source_id = row.get("source_id")
+        target_id = row.get("target_id")
+        source = row.get("source")
+        target = row.get("target")
+        bond_type = row.get("bond_type") or row.get("type") or "RELATION"
+
+        if source_id or target_id or source or target:
+            if source_id and target_id:
+                source_uuid = cls._parse_uuid(source_id)
+                target_uuid = cls._parse_uuid(target_id)
+                return [
+                    AtomicTask(
+                        action="LINK",
+                        params={
+                            "source_id": str(source_uuid),
+                            "target_id": str(target_uuid),
+                            "type": bond_type,
+                        },
+                    )
+                ]
+
+            if source and target:
+                return [
+                    AtomicTask(action="INGEST", params={"value": source, "metadata": {}}),
+                    AtomicTask(action="INGEST", params={"value": target, "metadata": {}}),
+                    AtomicTask(action="LINK", params={"type": bond_type}),
+                ]
+
+            raise ValueError("Row defines partial bond columns; provide source+target or source_id+target_id")
+
+        value = row.get("value")
+        if not value:
+            raise ValueError("Row requires 'value' column")
+
+        return [
+            AtomicTask(
+                action="INGEST",
+                params={
+                    "value": value,
+                    "metadata": cls._metadata_from_row(row),
+                },
+            )
+        ]
+
+    async def _create_import_job(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        filename: str,
+        file_hash: str,
+        mode: ImportMode,
+        strict: bool,
+    ) -> ImportJob:
+        job = ImportJob(
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            filename=filename,
+            file_hash=file_hash,
+            mode=mode.value,
+            status=ImportStatus.RUNNING.value,
+            total_rows=0,
+            processed_rows=0,
+            errors_count=0,
+            summary={"strict": strict},
+        )
+        session.add(job)
+        await session.flush()
+        await session.refresh(job)
+        return job
+
+    async def get_job_for_user(self, session: AsyncSession, *, user_id: UUID, job_id: UUID) -> ImportJob:
+        job = (
+            await session.execute(
+                select(ImportJob).where(
+                    and_(
+                        ImportJob.id == job_id,
+                        ImportJob.user_id == user_id,
+                        ImportJob.deleted_at.is_(None),
+                    )
+                )
+            )
+        ).scalar_one_or_none()
+        if job is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import job not found")
+        return job
+
+    async def get_job_errors(self, session: AsyncSession, *, user_id: UUID, job_id: UUID) -> list[ImportError]:
+        _ = await self.get_job_for_user(session=session, user_id=user_id, job_id=job_id)
+        return list(
+            (
+                await session.execute(
+                    select(ImportError)
+                    .join(ImportJob, ImportJob.id == ImportError.job_id)
+                    .where(
+                        and_(
+                            ImportError.job_id == job_id,
+                            ImportJob.user_id == user_id,
+                            ImportJob.deleted_at.is_(None),
+                        )
+                    )
+                    .order_by(ImportError.row_number.asc(), ImportError.id.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    async def import_csv(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        filename: str,
+        file_bytes: bytes,
+        mode: ImportMode,
+        strict: bool,
+    ) -> ImportExecutionResult:
+        decoded = self._decode_csv_bytes(file_bytes)
+        file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+        job = await self._create_import_job(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            filename=filename or "import.csv",
+            file_hash=file_hash,
+            mode=mode,
+            strict=strict,
+        )
+        await session.commit()
+        await session.refresh(job)
+
+        stream = io.StringIO(decoded)
+        reader = csv.DictReader(stream)
+        if not reader.fieldnames:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="CSV must include a header row")
+
+        total_rows = 0
+        processed_rows = 0
+        errors_count = 0
+        planned_tasks = 0
+
+        for row_number, raw_row in enumerate(reader, start=2):
+            total_rows += 1
+            row = self._normalize_row(raw_row)
+            try:
+                tasks = self._tasks_from_csv_row(row)
+                if not tasks:
+                    continue
+                planned_tasks += len(tasks)
+
+                if mode == ImportMode.COMMIT:
+                    # Row-level transaction keeps strong consistency and lets lenient mode continue.
+                    async with session.begin():
+                        await self.task_executor.execute_tasks(
+                            session=session,
+                            tasks=tasks,
+                            user_id=user_id,
+                            galaxy_id=galaxy_id,
+                            manage_transaction=False,
+                        )
+                processed_rows += 1
+            except Exception as exc:
+                errors_count += 1
+                async with session.begin():
+                    session.add(
+                        ImportError(
+                            job_id=job.id,
+                            row_number=row_number,
+                            code="ROW_EXECUTION_ERROR",
+                            message=str(exc),
+                            raw_value=json.dumps(row, ensure_ascii=False),
+                        )
+                    )
+                if strict:
+                    async with session.begin():
+                        job.status = ImportStatus.FAILED.value
+                        job.total_rows = total_rows
+                        job.processed_rows = processed_rows
+                        job.errors_count = errors_count
+                        job.finished_at = datetime.now(timezone.utc)
+                        job.summary = {
+                            "strict": strict,
+                            "planned_tasks": planned_tasks,
+                            "mode": mode.value,
+                            "failure_row": row_number,
+                        }
+                    await session.refresh(job)
+                    return ImportExecutionResult(job=job, summary=job.summary)
+
+        final_status = ImportStatus.COMPLETED.value
+        if errors_count > 0:
+            final_status = ImportStatus.COMPLETED_WITH_ERRORS.value
+
+        async with session.begin():
+            job.status = final_status
+            job.total_rows = total_rows
+            job.processed_rows = processed_rows
+            job.errors_count = errors_count
+            job.finished_at = datetime.now(timezone.utc)
+            job.summary = {
+                "strict": strict,
+                "planned_tasks": planned_tasks,
+                "mode": mode.value,
+            }
+        await session.refresh(job)
+
+        return ImportExecutionResult(job=job, summary=job.summary)
+
+    async def export_snapshot_csv(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        as_of: datetime | None,
+    ) -> str:
+        asteroids, bonds = await self.universe_service.snapshot(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            as_of=as_of,
+        )
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(
+            [
+                "record_type",
+                "id",
+                "value",
+                "metadata",
+                "calculated_values",
+                "active_alerts",
+                "created_at",
+                "source_id",
+                "target_id",
+                "bond_type",
+            ]
+        )
+
+        for asteroid in asteroids:
+            if isinstance(asteroid, dict):
+                asteroid_id = asteroid.get("id")
+                value = asteroid.get("value")
+                metadata = asteroid.get("metadata", {})
+                calculated_values = asteroid.get("calculated_values", {})
+                alerts = asteroid.get("active_alerts", [])
+                created_at = asteroid.get("created_at")
+            else:
+                asteroid_id = asteroid.id
+                value = asteroid.value
+                metadata = asteroid.metadata
+                calculated_values = {}
+                alerts = []
+                created_at = asteroid.created_at
+            writer.writerow(
+                [
+                    "asteroid",
+                    str(asteroid_id),
+                    value,
+                    json.dumps(metadata, ensure_ascii=False, sort_keys=True),
+                    json.dumps(calculated_values, ensure_ascii=False, sort_keys=True),
+                    json.dumps(alerts, ensure_ascii=False),
+                    created_at.isoformat() if isinstance(created_at, datetime) else "",
+                    "",
+                    "",
+                    "",
+                ]
+            )
+
+        for bond in bonds:
+            writer.writerow(
+                [
+                    "bond",
+                    str(bond.id),
+                    "",
+                    "",
+                    "",
+                    "",
+                    bond.created_at.isoformat(),
+                    str(bond.source_id),
+                    str(bond.target_id),
+                    bond.type,
+                ]
+            )
+
+        return output.getvalue()
+
+    async def export_tables_csv(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        as_of: datetime | None,
+    ) -> str:
+        tables = await self.universe_service.tables_snapshot(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            as_of=as_of,
+        )
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(
+            [
+                "table_id",
+                "table_name",
+                "schema_fields",
+                "formula_fields",
+                "member_id",
+                "member_value",
+                "member_created_at",
+                "sector_mode",
+                "sector_center",
+                "sector_size",
+            ]
+        )
+
+        for table in tables:
+            members = table.get("members", [])
+            if not members:
+                writer.writerow(
+                    [
+                        str(table.get("table_id")),
+                        table.get("name", ""),
+                        json.dumps(table.get("schema_fields", []), ensure_ascii=False),
+                        json.dumps(table.get("formula_fields", []), ensure_ascii=False),
+                        "",
+                        "",
+                        "",
+                        table.get("sector", {}).get("mode", ""),
+                        json.dumps(table.get("sector", {}).get("center", []), ensure_ascii=False),
+                        table.get("sector", {}).get("size", ""),
+                    ]
+                )
+                continue
+
+            for member in members:
+                created_at = member.get("created_at")
+                writer.writerow(
+                    [
+                        str(table.get("table_id")),
+                        table.get("name", ""),
+                        json.dumps(table.get("schema_fields", []), ensure_ascii=False),
+                        json.dumps(table.get("formula_fields", []), ensure_ascii=False),
+                        str(member.get("id", "")),
+                        member.get("value", ""),
+                        created_at.isoformat() if isinstance(created_at, datetime) else "",
+                        table.get("sector", {}).get("mode", ""),
+                        json.dumps(table.get("sector", {}).get("center", []), ensure_ascii=False),
+                        table.get("sector", {}).get("size", ""),
+                    ]
+                )
+
+        return output.getvalue()
