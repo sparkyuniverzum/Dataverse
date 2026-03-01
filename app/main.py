@@ -1,14 +1,16 @@
+import asyncio
+import json
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import get_session
+from app.db import AsyncSessionLocal, get_session
 from app.models import Branch, Galaxy, ImportError, ImportJob, TableContract, User
 from app.schemas import (
     AsteroidIngestRequest,
@@ -16,6 +18,7 @@ from app.schemas import (
     AsteroidResponse,
     AuthResponse,
     BranchCreateRequest,
+    BranchPromoteResponse,
     BranchPublic,
     BondCreateRequest,
     BondSummaryPublic,
@@ -306,6 +309,16 @@ def transactional_context(session: AsyncSession):
 async def commit_if_active(session: AsyncSession) -> None:
     if session.in_transaction():
         await session.commit()
+
+
+def sse_frame(*, event: str, data: Mapping[str, Any], event_id: int | None = None) -> str:
+    lines = []
+    if event_id is not None:
+        lines.append(f"id: {event_id}")
+    lines.append(f"event: {event}")
+    payload = json.dumps(dict(data), ensure_ascii=False, separators=(",", ":"))
+    lines.append(f"data: {payload}")
+    return "\n".join(lines) + "\n\n"
 
 
 def asteroid_to_response(asteroid: ProjectedAsteroid | Mapping[str, Any]) -> AsteroidResponse:
@@ -656,6 +669,121 @@ async def galaxy_activity(
     return GalaxyActivityResponse(items=[galaxy_activity_to_public(item) for item in items])
 
 
+@app.get("/galaxies/{galaxy_id}/events/stream", status_code=status.HTTP_200_OK)
+async def galaxy_events_stream(
+    galaxy_id: UUID,
+    request: Request,
+    branch_id: UUID | None = Query(default=None),
+    last_event_seq: int | None = Query(default=None, ge=0),
+    poll_ms: int = Query(default=1200, ge=300, le=10000),
+    heartbeat_sec: int = Query(default=15, ge=5, le=60),
+    batch_size: int = Query(default=64, ge=1, le=256),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    async with AsyncSessionLocal() as bootstrap_session:
+        target_galaxy = await auth_service.resolve_user_galaxy(
+            session=bootstrap_session,
+            user_id=current_user.id,
+            galaxy_id=galaxy_id,
+        )
+        target_branch_id = await resolve_branch_id_for_user(
+            session=bootstrap_session,
+            user=current_user,
+            galaxy_id=target_galaxy.id,
+            branch_id=branch_id,
+        )
+        initial_cursor = (
+            int(last_event_seq)
+            if last_event_seq is not None
+            else await event_store.latest_event_seq(
+                session=bootstrap_session,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy.id,
+                branch_id=target_branch_id,
+            )
+        )
+
+    poll_seconds = max(0.3, poll_ms / 1000.0)
+    heartbeat_ticks = max(1, int(round(heartbeat_sec / poll_seconds)))
+
+    async def event_generator():
+        cursor = max(0, initial_cursor)
+        idle_ticks = 0
+
+        yield sse_frame(
+            event="ready",
+            event_id=cursor if cursor > 0 else None,
+            data={
+                "last_event_seq": cursor,
+                "poll_ms": poll_ms,
+                "heartbeat_sec": heartbeat_sec,
+            },
+        )
+
+        try:
+            while True:
+                if request is not None and await request.is_disconnected():
+                    break
+
+                async with AsyncSessionLocal() as stream_session:
+                    events = await event_store.list_events_after(
+                        session=stream_session,
+                        user_id=current_user.id,
+                        galaxy_id=target_galaxy.id,
+                        branch_id=target_branch_id,
+                        after_event_seq=cursor,
+                        limit=batch_size,
+                    )
+
+                if events:
+                    cursor = int(events[-1].event_seq)
+                    event_types = sorted({str(event.event_type or "") for event in events if event.event_type})
+                    entity_ids = sorted({str(event.entity_id) for event in events if event.entity_id is not None})
+                    serialized_events = [
+                        {
+                            "event_seq": int(event.event_seq),
+                            "event_type": str(event.event_type or ""),
+                            "entity_id": str(event.entity_id),
+                            "payload": event.payload if isinstance(event.payload, dict) else {},
+                            "timestamp": event.timestamp.isoformat(),
+                        }
+                        for event in events
+                    ]
+                    yield sse_frame(
+                        event="update",
+                        event_id=cursor,
+                        data={
+                            "last_event_seq": cursor,
+                            "events_count": len(events),
+                            "event_types": event_types,
+                            "entity_ids": entity_ids[:24],
+                            "events": serialized_events,
+                        },
+                    )
+                    idle_ticks = 0
+                    continue
+
+                idle_ticks += 1
+                if idle_ticks >= heartbeat_ticks:
+                    yield sse_frame(
+                        event="keepalive",
+                        event_id=cursor if cursor > 0 else None,
+                        data={"last_event_seq": cursor},
+                    )
+                    idle_ticks = 0
+
+                await asyncio.sleep(poll_seconds)
+        except asyncio.CancelledError:
+            return
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(event_generator(), media_type="text/event-stream", headers=headers)
+
+
 @app.get("/galaxies/{galaxy_id}/constellations", response_model=ConstellationSummaryResponse, status_code=status.HTTP_200_OK)
 async def galaxy_constellations(
     galaxy_id: UUID,
@@ -802,6 +930,24 @@ async def create_branch(
         )
     await commit_if_active(session)
     return branch_to_public(branch)
+
+
+@app.post("/branches/{branch_id}/promote", response_model=BranchPromoteResponse, status_code=status.HTTP_200_OK)
+async def promote_branch(
+    branch_id: UUID,
+    galaxy_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> BranchPromoteResponse:
+    async with transactional_context(session):
+        branch, promoted_events_count = await cosmos_service.promote_branch(
+            session=session,
+            user_id=current_user.id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+        )
+    await commit_if_active(session)
+    return BranchPromoteResponse(branch=branch_to_public(branch), promoted_events_count=promoted_events_count)
 
 
 @app.patch("/branches/{branch_id}/extinguish", response_model=BranchPublic, status_code=status.HTTP_200_OK)
@@ -1075,11 +1221,17 @@ async def universe_snapshot(
         user=current_user,
         galaxy_id=galaxy_id,
     )
+    target_branch_id = await resolve_branch_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=target_galaxy_id,
+        branch_id=branch_id,
+    )
     active_asteroids, active_bonds = await universe_service.snapshot(
         session=session,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
-        branch_id=branch_id,
+        branch_id=target_branch_id,
         as_of=as_of,
     )
 
@@ -1122,11 +1274,17 @@ async def universe_tables(
         user=current_user,
         galaxy_id=galaxy_id,
     )
+    target_branch_id = await resolve_branch_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=target_galaxy_id,
+        branch_id=branch_id,
+    )
     tables = await universe_service.tables_snapshot(
         session=session,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
-        branch_id=branch_id,
+        branch_id=target_branch_id,
         as_of=as_of,
     )
     normalized_tables: list[dict[str, Any]] = []
@@ -1148,6 +1306,7 @@ async def run_import_csv(
     mode: ImportModeSchema = Form(default=ImportModeSchema.commit),
     strict: bool = Form(default=True),
     galaxy_id: UUID | None = Form(default=None),
+    branch_id: UUID | None = Form(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> ImportRunResponse:
@@ -1169,10 +1328,17 @@ async def run_import_csv(
             user=current_user,
             galaxy_id=galaxy_id,
         )
+        target_branch_id = await resolve_branch_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=target_galaxy_id,
+            branch_id=branch_id,
+        )
         result = await io_service.import_csv(
             session=session,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
             filename=file.filename,
             file_bytes=payload,
             mode=ImportMode(mode.value),
@@ -1207,6 +1373,7 @@ async def export_snapshot_csv(
     format: str = Query(default="csv"),
     as_of: datetime | None = None,
     galaxy_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
@@ -1217,10 +1384,17 @@ async def export_snapshot_csv(
         user=current_user,
         galaxy_id=galaxy_id,
     )
+    target_branch_id = await resolve_branch_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=target_galaxy_id,
+        branch_id=branch_id,
+    )
     csv_payload = await io_service.export_snapshot_csv(
         session=session,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
+        branch_id=target_branch_id,
         as_of=as_of,
     )
     headers = {
@@ -1234,6 +1408,7 @@ async def export_tables_csv(
     format: str = Query(default="csv"),
     as_of: datetime | None = None,
     galaxy_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
@@ -1244,10 +1419,17 @@ async def export_tables_csv(
         user=current_user,
         galaxy_id=galaxy_id,
     )
+    target_branch_id = await resolve_branch_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=target_galaxy_id,
+        branch_id=branch_id,
+    )
     csv_payload = await io_service.export_tables_csv(
         session=session,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
+        branch_id=target_branch_id,
         as_of=as_of,
     )
     headers = {

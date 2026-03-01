@@ -137,6 +137,8 @@ export function calculateHierarchyLayout({
   tables,
   selectedTableId,
   asteroidById,
+  tablePhysicsById = null,
+  asteroidPhysicsById = null,
   previous = null,
 }) {
   const safeTables = Array.isArray(tables) ? [...tables] : [];
@@ -153,13 +155,20 @@ export function calculateHierarchyLayout({
 
   const previousTablePositions = previous?.tablePositions instanceof Map ? previous.tablePositions : new Map();
   const previousAsteroidPositions = previous?.asteroidPositions instanceof Map ? previous.asteroidPositions : new Map();
+  const safeTablePhysicsById = tablePhysicsById instanceof Map ? tablePhysicsById : new Map();
+  const safeAsteroidPhysicsById = asteroidPhysicsById instanceof Map ? asteroidPhysicsById : new Map();
 
   const tableNodes = safeTables
     .map((table) => {
       const id = String(table.table_id);
       const memberCount = Array.isArray(table.members) ? table.members.length : 0;
-      const radius = clamp(16 + Math.sqrt(Math.max(1, memberCount)) * 3.8, 16, 46);
-      const mass = clamp(1 + memberCount * 0.18, 1, 18);
+      const baseRadius = clamp(16 + Math.sqrt(Math.max(1, memberCount)) * 3.8, 16, 46);
+      const baseMass = clamp(1 + memberCount * 0.18, 1, 18);
+      const physics = safeTablePhysicsById.get(id) || null;
+      const radiusFactor = clamp(Number(physics?.radiusFactor) || 1, 0.85, 1.35);
+      const massFactor = clamp(Number(physics?.massFactor) || 1, 0.8, 1.9);
+      const radius = clamp(baseRadius * radiusFactor, 14, 52);
+      const mass = clamp(baseMass * massFactor, 1, 24);
       const prev = previousTablePositions.get(id);
       const sectorCenter = Array.isArray(table?.sector?.center) ? table.sector.center : [0, 0, 0];
       const [x, y, z] = Array.isArray(prev) ? prev : sectorCenter;
@@ -226,6 +235,9 @@ export function calculateHierarchyLayout({
     .map((member, index) => {
       const id = String(member.id);
       const asteroid = asteroidById.get(id) || { id, value: id, metadata: {} };
+      const physics = safeAsteroidPhysicsById.get(id) || null;
+      const radiusFactor = clamp(Number(physics?.radiusFactor) || 1, 0.84, 1.32);
+      const massFactor = clamp(Number(physics?.massFactor) || 1, 0.82, 1.75);
       const prev = previousAsteroidPositions.get(id);
       const seeded = orbitalSeedPosition(index, members.length, tableCenter, 86 + (hashText(id) % 28));
       const x = Array.isArray(prev) ? prev[0] : seeded.x;
@@ -238,7 +250,8 @@ export function calculateHierarchyLayout({
         entityName: selectedSemantic.entityName,
         planetName: selectedSemantic.planetName,
         asteroid,
-        radius: 6.2,
+        radius: clamp(6.2 * radiusFactor, 5.4, 8.6),
+        mass: clamp(1 * massFactor, 0.82, 1.75),
         x,
         y,
         z,
@@ -264,14 +277,14 @@ export function calculateHierarchyLayout({
   }));
 
   const asteroidSim = forceSimulation(asteroidNodes)
-    .force("charge", forceManyBody().strength(-190))
-    .force("collision", forceCollide().radius((node) => node.radius + 5.4).iterations(2))
+    .force("charge", forceManyBody().strength((node) => -150 - node.mass * 95))
+    .force("collision", forceCollide().radius((node) => node.radius + 5.4 + node.mass * 0.9).iterations(2))
     .force(
       "link",
       forceLink(asteroidLinksForLayout)
         .id((node) => node.id)
-        .distance(34)
-        .strength(0.35)
+        .distance((link) => 34 + Math.min(16, Number(link.weight || 1) * 4))
+        .strength((link) => clamp(0.28 + Number(link.weight || 1) * 0.07, 0.28, 0.72))
     )
     .force("x", forceX(tableCenter[0]).strength(0.07))
     .force("y", forceY(tableCenter[1]).strength(0.09))

@@ -4,6 +4,7 @@ import { Billboard, OrbitControls, Stars, Text } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { API_BASE, apiFetch } from "../../lib/dataverseApi";
+import { GALAXY_GUIDE, MODEL_PATH_LABEL } from "../../lib/onboarding";
 
 function hashText(input) {
   const text = String(input || "");
@@ -568,7 +569,7 @@ export default function GalaxySelector3D({
         }}
       >
         <div style={{ fontSize: 11, letterSpacing: 0.8, opacity: 0.74 }}>FLEET CONTROL</div>
-        <div style={{ fontSize: 12, opacity: 0.78 }}>Hierarchie: Galaxie / Souhvezdi / Planety / Mesice / Bunky</div>
+        <div style={{ fontSize: 12, opacity: 0.78 }}>Hierarchie: {MODEL_PATH_LABEL}</div>
 
         <div style={{ fontSize: 13 }}>
           {selectedGalaxy ? (
@@ -625,6 +626,24 @@ export default function GalaxySelector3D({
 
         <div style={{ fontSize: 12, opacity: 0.8 }}>
           Tip: dvojklik na galaxii = okamžitý vstup.
+        </div>
+
+        <div
+          style={{
+            border: "1px solid rgba(98, 190, 222, 0.28)",
+            borderRadius: 10,
+            background: "rgba(4, 11, 20, 0.76)",
+            padding: 10,
+            display: "grid",
+            gap: 6,
+          }}
+        >
+          <div style={{ fontSize: 11, letterSpacing: 0.7, opacity: 0.78 }}>JAK POKRACOVAT BEZ VAHANI</div>
+          {GALAXY_GUIDE.map((item) => (
+            <div key={item} style={{ fontSize: 12, opacity: 0.88 }}>
+              - {item}
+            </div>
+          ))}
         </div>
 
         <div

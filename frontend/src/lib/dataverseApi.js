@@ -27,7 +27,7 @@ export async function apiFetch(input, init = {}) {
   return response;
 }
 
-export function buildParserPayload(command, galaxyId = null) {
+export function buildParserPayload(command, galaxyId = null, branchId = null) {
   const trimmed = typeof command === "string" ? command.trim() : "";
   const payload = {
     query: trimmed,
@@ -35,6 +35,9 @@ export function buildParserPayload(command, galaxyId = null) {
   };
   if (galaxyId) {
     payload.galaxy_id = galaxyId;
+  }
+  if (branchId) {
+    payload.branch_id = branchId;
   }
   return payload;
 }
@@ -46,7 +49,7 @@ export function toAsOfIso(value) {
   return date.toISOString();
 }
 
-export function buildSnapshotUrl(apiBase, asOfIso = null, galaxyId = null) {
+export function buildSnapshotUrl(apiBase, asOfIso = null, galaxyId = null, branchId = null) {
   const url = new URL(`${apiBase}/universe/snapshot`);
   if (asOfIso) {
     url.searchParams.set("as_of", asOfIso);
@@ -54,10 +57,13 @@ export function buildSnapshotUrl(apiBase, asOfIso = null, galaxyId = null) {
   if (galaxyId) {
     url.searchParams.set("galaxy_id", galaxyId);
   }
+  if (branchId) {
+    url.searchParams.set("branch_id", branchId);
+  }
   return url.toString();
 }
 
-export function buildTablesUrl(apiBase, asOfIso = null, galaxyId = null) {
+export function buildTablesUrl(apiBase, asOfIso = null, galaxyId = null, branchId = null) {
   const url = new URL(`${apiBase}/universe/tables`);
   if (asOfIso) {
     url.searchParams.set("as_of", asOfIso);
@@ -65,27 +71,98 @@ export function buildTablesUrl(apiBase, asOfIso = null, galaxyId = null) {
   if (galaxyId) {
     url.searchParams.set("galaxy_id", galaxyId);
   }
+  if (branchId) {
+    url.searchParams.set("branch_id", branchId);
+  }
   return url.toString();
 }
 
-export function buildGalaxyPlanetsUrl(apiBase, galaxyId, asOfIso = null) {
+export function buildGalaxyPlanetsUrl(apiBase, galaxyId, asOfIso = null, branchId = null) {
   const url = new URL(`${apiBase}/galaxies/${galaxyId}/planets`);
   if (asOfIso) {
     url.searchParams.set("as_of", asOfIso);
   }
+  if (branchId) {
+    url.searchParams.set("branch_id", branchId);
+  }
   return url.toString();
 }
 
-export function buildGalaxyMoonsUrl(apiBase, galaxyId, asOfIso = null) {
+export function buildGalaxyMoonsUrl(apiBase, galaxyId, asOfIso = null, branchId = null) {
   const url = new URL(`${apiBase}/galaxies/${galaxyId}/moons`);
+  if (asOfIso) {
+    url.searchParams.set("as_of", asOfIso);
+  }
+  if (branchId) {
+    url.searchParams.set("branch_id", branchId);
+  }
+  return url.toString();
+}
+
+export function buildGalaxyBondsUrl(apiBase, galaxyId, asOfIso = null, branchId = null) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/bonds`);
+  if (asOfIso) {
+    url.searchParams.set("as_of", asOfIso);
+  }
+  if (branchId) {
+    url.searchParams.set("branch_id", branchId);
+  }
+  return url.toString();
+}
+
+export function buildGalaxyEventsStreamUrl(apiBase, galaxyId, { branchId = null, lastEventSeq = null, pollMs = 1200, heartbeatSec = 15 } = {}) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/events/stream`);
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  if (Number.isFinite(lastEventSeq) && Number(lastEventSeq) >= 0) {
+    url.searchParams.set("last_event_seq", String(Math.floor(Number(lastEventSeq))));
+  }
+  if (Number.isFinite(pollMs)) {
+    url.searchParams.set("poll_ms", String(Math.max(300, Math.floor(Number(pollMs)))));
+  }
+  if (Number.isFinite(heartbeatSec)) {
+    url.searchParams.set("heartbeat_sec", String(Math.max(5, Math.floor(Number(heartbeatSec)))));
+  }
+  return url.toString();
+}
+
+export function buildImportRunUrl(apiBase) {
+  return `${apiBase}/io/imports`;
+}
+
+export function buildImportJobUrl(apiBase, jobId) {
+  return `${apiBase}/io/imports/${jobId}`;
+}
+
+export function buildImportJobErrorsUrl(apiBase, jobId) {
+  return `${apiBase}/io/imports/${jobId}/errors`;
+}
+
+export function buildSnapshotExportUrl(apiBase, { format = "csv", galaxyId = null, branchId = null, asOfIso = null } = {}) {
+  const url = new URL(`${apiBase}/io/exports/snapshot`);
+  url.searchParams.set("format", String(format || "csv"));
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", galaxyId);
+  }
+  if (branchId) {
+    url.searchParams.set("branch_id", branchId);
+  }
   if (asOfIso) {
     url.searchParams.set("as_of", asOfIso);
   }
   return url.toString();
 }
 
-export function buildGalaxyBondsUrl(apiBase, galaxyId, asOfIso = null) {
-  const url = new URL(`${apiBase}/galaxies/${galaxyId}/bonds`);
+export function buildTablesExportUrl(apiBase, { format = "csv", galaxyId = null, branchId = null, asOfIso = null } = {}) {
+  const url = new URL(`${apiBase}/io/exports/tables`);
+  url.searchParams.set("format", String(format || "csv"));
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", galaxyId);
+  }
+  if (branchId) {
+    url.searchParams.set("branch_id", branchId);
+  }
   if (asOfIso) {
     url.searchParams.set("as_of", asOfIso);
   }

@@ -9,6 +9,7 @@ Date: 2026-02-28
 - Data scope is always per `user_id + galaxy_id`.
 - `galaxy_id` query/body is optional on many endpoints; if omitted, first active user galaxy is used.
 - Time machine is supported via `as_of` on read endpoints.
+- If table contract exists for resolved table, all effective writes are validated against it before events are appended.
 
 ## Auth
 ### `POST /auth/register`
@@ -47,6 +48,32 @@ Date: 2026-02-28
 - Response `200`: `GalaxyPublic`.
 - Errors: `404` not found, `403` foreign galaxy.
 
+## Branches (git-like timelines)
+### `GET /branches`
+- Auth required.
+- Query: `galaxy_id?: uuid`.
+- Response `200`: `BranchPublic[]` (active branches for galaxy).
+
+### `POST /branches`
+- Auth required.
+- Request: `{ "name": string(1..120), "galaxy_id"?: uuid, "as_of"?: datetime }`
+- Response `201`: `BranchPublic`.
+- Behavior: branch base snapshot is pinned to main timeline at creation time (`as_of` optional).
+- Naming guard: within one galaxy, active branch names are unique by normalized form `trim(name).casefold()`.
+- Errors: `409` when normalized name already exists.
+
+### `POST /branches/{branch_id}/promote`
+- Auth required.
+- Query: `galaxy_id?: uuid`.
+- Response `200`: `{ "branch": BranchPublic, "promoted_events_count": number }`.
+- Behavior: replays branch events into main timeline in-order and then closes branch (`deleted_at` set).
+- Errors: `404` branch not found/deleted, `403` foreign branch access.
+
+### `PATCH /branches/{branch_id}/extinguish`
+- Auth required.
+- Query: `galaxy_id?: uuid`.
+- Response `200`: `BranchPublic` (`deleted_at` set).
+
 ## Asteroids and bonds
 ### `POST /asteroids/ingest`
 - Auth required.
@@ -65,6 +92,7 @@ Date: 2026-02-28
 - Auth required.
 - Request: `{ "source_id": uuid, "target_id": uuid, "type": string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
 - Response `200`: `BondResponse`.
+- `RELATION` semantics: canonical undirected pair (A-B equals B-A), reverse direction reuses existing active bond.
 - Errors: `422` same source/target or invalid context, `404` endpoint asteroid missing.
 
 ## Parser execution
@@ -96,6 +124,44 @@ Date: 2026-02-28
 - Query: `galaxy_id?: uuid`, `as_of?: datetime`, `branch_id?: uuid`.
 - Response `200`: `{ tables: UniverseTableSnapshot[] }`.
 - Each table contains schema/formula summary, members, bonds, and sector projection.
+- Access errors: `403` foreign galaxy/branch, `404` galaxy or branch not found/deleted.
+
+## IO (CSV import/export, Phase 1)
+### `POST /io/imports`
+- Auth required.
+- Multipart form fields:
+- `file` (required, `.csv`, UTF-8)
+- `mode` (`preview|commit`, default `commit`)
+- `strict` (`true|false`, default `true`)
+- `galaxy_id?` (uuid; if omitted, default active user galaxy)
+- `branch_id?` (uuid; if provided, import writes into selected branch timeline)
+- Response `200`: `{ job: ImportJobPublic }`
+- Validation errors: `422` missing/empty file, non-CSV file, invalid CSV encoding.
+- Behavior:
+- `preview`: validates/parses rows, writes import job + errors, no domain writes.
+- `commit`: executes row tasks; with `strict=false` continues after row errors; with `strict=true` stops on first row error.
+
+### `GET /io/imports/{job_id}`
+- Auth required.
+- Response `200`: `ImportJobPublic`.
+- Errors: `404` if job is missing or belongs to another user.
+
+### `GET /io/imports/{job_id}/errors`
+- Auth required.
+- Response `200`: `{ errors: ImportErrorPublic[] }`.
+- Errors: `404` if job is missing or belongs to another user.
+
+### `GET /io/exports/snapshot`
+- Auth required.
+- Query: `format=csv` (only supported), `galaxy_id?`, `branch_id?`, `as_of?`.
+- Response `200`: downloadable CSV (`text/csv`).
+- Validation errors: `422` for unsupported export format.
+
+### `GET /io/exports/tables`
+- Auth required.
+- Query: `format=csv` (only supported), `galaxy_id?`, `branch_id?`, `as_of?`.
+- Response `200`: downloadable CSV (`text/csv`).
+- Validation errors: `422` for unsupported export format.
 
 ## Event-store event types used by executor
 - `ASTEROID_CREATED`

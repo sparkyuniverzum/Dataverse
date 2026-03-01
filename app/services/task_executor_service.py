@@ -3,17 +3,25 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from hashlib import blake2b
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select, text as sql_text
+from sqlalchemy import and_, func, or_, select, text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Bond
+from app.models import Bond, TableContract
 from app.services.event_store_service import EventStoreService
 from app.services.parser_service import AtomicTask
 from app.services.read_model_projector import ReadModelProjector
-from app.services.universe_service import DEFAULT_GALAXY_ID, ProjectedAsteroid, ProjectedBond, UniverseService
+from app.services.universe_service import (
+    DEFAULT_GALAXY_ID,
+    ProjectedAsteroid,
+    ProjectedBond,
+    UniverseService,
+    derive_table_id,
+    derive_table_name,
+)
 
 
 @dataclass
@@ -126,6 +134,246 @@ class TaskExecutorService:
             selected.append(asteroid)
         return selected
 
+    @staticmethod
+    def _canonical_relation_pair(source_id: UUID, target_id: UUID) -> tuple[UUID, UUID]:
+        if source_id.hex <= target_id.hex:
+            return source_id, target_id
+        return target_id, source_id
+
+    @staticmethod
+    def _extract_contract_field(*, value: Any, metadata: dict[str, Any], field: str) -> Any:
+        key = str(field).strip()
+        if not key:
+            return None
+        if key == "value":
+            return value
+        return metadata.get(key)
+
+    @staticmethod
+    def _coerce_number(value: Any) -> float | None:
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            normalized = value.strip().replace("\u00A0", "").replace(" ", "").replace(",", ".")
+            if not normalized:
+                return None
+            try:
+                return float(normalized)
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _matches_expected_type(expected: str, value: Any) -> bool:
+        expected_type = str(expected).strip().lower()
+        if expected_type in {"string", "str", "text"}:
+            return isinstance(value, str)
+        if expected_type in {"number", "float", "double", "decimal"}:
+            return TaskExecutorService._coerce_number(value) is not None
+        if expected_type in {"int", "integer"}:
+            number = TaskExecutorService._coerce_number(value)
+            return number is not None and float(number).is_integer()
+        if expected_type in {"bool", "boolean"}:
+            if isinstance(value, bool):
+                return True
+            if isinstance(value, str):
+                return value.strip().lower() in {"true", "false", "1", "0", "yes", "no"}
+            return False
+        if expected_type in {"object", "dict", "map"}:
+            return isinstance(value, dict)
+        if expected_type in {"array", "list"}:
+            return isinstance(value, list)
+        if expected_type in {"json", "any"}:
+            return True
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Table contract uses unsupported field type '{expected_type}'",
+        )
+
+    @staticmethod
+    def _normalize_unique_value(value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, (int, float, bool)) or value is None:
+            return value
+        if isinstance(value, (dict, list)):
+            return repr(value)
+        return str(value)
+
+    @staticmethod
+    def _passes_validator(*, operator: str, field_value: Any, expected_value: Any) -> bool:
+        op = str(operator).strip()
+        left_number = TaskExecutorService._coerce_number(field_value)
+        right_number = TaskExecutorService._coerce_number(expected_value)
+
+        if op in {">", ">=", "<", "<="}:
+            if left_number is None or right_number is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Table contract validator '{op}' requires numeric values",
+                )
+            if op == ">":
+                return left_number > right_number
+            if op == ">=":
+                return left_number >= right_number
+            if op == "<":
+                return left_number < right_number
+            return left_number <= right_number
+
+        if op in {"==", "="}:
+            return TaskExecutorService._normalize_unique_value(field_value) == TaskExecutorService._normalize_unique_value(expected_value)
+        if op == "!=":
+            return TaskExecutorService._normalize_unique_value(field_value) != TaskExecutorService._normalize_unique_value(expected_value)
+
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Table contract uses unsupported validator operator '{op}'",
+        )
+
+    async def _load_latest_table_contract(
+        self,
+        *,
+        session: AsyncSession,
+        galaxy_id: UUID,
+        table_id: UUID,
+        cache: dict[UUID, TableContract | None],
+    ) -> TableContract | None:
+        if table_id in cache:
+            return cache[table_id]
+
+        contract = (
+            await session.execute(
+                select(TableContract)
+                .where(
+                    and_(
+                        TableContract.galaxy_id == galaxy_id,
+                        TableContract.table_id == table_id,
+                        TableContract.deleted_at.is_(None),
+                    )
+                )
+                .order_by(TableContract.version.desc(), TableContract.created_at.desc(), TableContract.id.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        cache[table_id] = contract
+        return contract
+
+    async def _validate_table_contract_write(
+        self,
+        *,
+        session: AsyncSession,
+        galaxy_id: UUID,
+        asteroid_id: UUID | None,
+        value: Any,
+        metadata: dict[str, Any],
+        asteroids_by_id: dict[UUID, ProjectedAsteroid],
+        contract_cache: dict[UUID, TableContract | None],
+    ) -> None:
+        metadata_dict = metadata if isinstance(metadata, dict) else {}
+        table_name = derive_table_name(value=value, metadata=metadata_dict)
+        table_id = derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
+        contract = await self._load_latest_table_contract(
+            session=session,
+            galaxy_id=galaxy_id,
+            table_id=table_id,
+            cache=contract_cache,
+        )
+        if contract is None:
+            return
+
+        required_fields = contract.required_fields if isinstance(contract.required_fields, list) else []
+        for required_field in required_fields:
+            field_name = str(required_field).strip()
+            if not field_name:
+                continue
+            field_value = self._extract_contract_field(value=value, metadata=metadata_dict, field=field_name)
+            if field_value is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Table contract violation [{table_name}]: required field '{field_name}' is missing",
+                )
+            if isinstance(field_value, str) and not field_value.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Table contract violation [{table_name}]: required field '{field_name}' is empty",
+                )
+
+        field_types = contract.field_types if isinstance(contract.field_types, dict) else {}
+        for raw_field, raw_type in field_types.items():
+            field_name = str(raw_field).strip()
+            if not field_name:
+                continue
+            field_value = self._extract_contract_field(value=value, metadata=metadata_dict, field=field_name)
+            if field_value is None:
+                continue
+            if not self._matches_expected_type(str(raw_type), field_value):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Table contract violation [{table_name}]: field '{field_name}' must be '{str(raw_type).strip().lower()}'",
+                )
+
+        validators = contract.validators if isinstance(contract.validators, list) else []
+        for rule in validators:
+            if not isinstance(rule, dict):
+                continue
+            field_name = str(rule.get("field", "")).strip()
+            operator = str(rule.get("operator", "")).strip()
+            if not field_name or not operator:
+                continue
+            expected_value = rule["value"] if "value" in rule else rule.get("threshold")
+            field_value = self._extract_contract_field(value=value, metadata=metadata_dict, field=field_name)
+            if field_value is None:
+                continue
+            if not self._passes_validator(operator=operator, field_value=field_value, expected_value=expected_value):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Table contract violation [{table_name}]: validator failed for field '{field_name}'",
+                )
+
+        unique_rules = contract.unique_rules if isinstance(contract.unique_rules, list) else []
+        for rule in unique_rules:
+            if not isinstance(rule, dict):
+                continue
+            raw_fields = rule.get("fields")
+            if isinstance(raw_fields, str):
+                fields = [raw_fields]
+            elif isinstance(raw_fields, list):
+                fields = [str(item).strip() for item in raw_fields if str(item).strip()]
+            else:
+                fields = []
+            if not fields:
+                continue
+
+            candidate_signature = tuple(
+                self._normalize_unique_value(
+                    self._extract_contract_field(value=value, metadata=metadata_dict, field=field_name)
+                )
+                for field_name in fields
+            )
+
+            for other in asteroids_by_id.values():
+                if asteroid_id is not None and other.id == asteroid_id:
+                    continue
+
+                other_table_name = derive_table_name(value=other.value, metadata=other.metadata)
+                other_table_id = derive_table_id(galaxy_id=galaxy_id, table_name=other_table_name)
+                if other_table_id != table_id:
+                    continue
+
+                other_signature = tuple(
+                    self._normalize_unique_value(
+                        self._extract_contract_field(value=other.value, metadata=other.metadata, field=field_name)
+                    )
+                    for field_name in fields
+                )
+                if other_signature == candidate_signature:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Table contract violation [{table_name}]: unique rule {fields} already exists",
+                    )
+
     async def execute_tasks(
         self,
         session: AsyncSession,
@@ -148,6 +396,7 @@ class TaskExecutorService:
         )
         asteroids_by_id: dict[UUID, ProjectedAsteroid] = {a.id: a for a in active_asteroids}
         bonds_by_id: dict[UUID, ProjectedBond] = {b.id: b for b in active_bonds}
+        contract_cache: dict[UUID, TableContract | None] = {}
 
         if not manage_transaction and not session.in_transaction():
             raise HTTPException(
@@ -205,6 +454,15 @@ class TaskExecutorService:
                     )
 
                     if existing is None:
+                        await self._validate_table_contract_write(
+                            session=session,
+                            galaxy_id=galaxy_id,
+                            asteroid_id=None,
+                            value=value,
+                            metadata=dict(metadata),
+                            asteroids_by_id=asteroids_by_id,
+                            contract_cache=contract_cache,
+                        )
                         asteroid_id = uuid4()
                         created_event = await append_and_project_event(
                             entity_id=asteroid_id,
@@ -224,12 +482,22 @@ class TaskExecutorService:
                         asteroid = existing
                         metadata_update = {k: v for k, v in metadata.items() if asteroid.metadata.get(k) != v}
                         if metadata_update:
+                            next_metadata = {**asteroid.metadata, **metadata_update}
+                            await self._validate_table_contract_write(
+                                session=session,
+                                galaxy_id=galaxy_id,
+                                asteroid_id=asteroid.id,
+                                value=asteroid.value,
+                                metadata=next_metadata,
+                                asteroids_by_id=asteroids_by_id,
+                                contract_cache=contract_cache,
+                            )
                             await append_and_project_event(
                                 entity_id=asteroid.id,
                                 event_type="METADATA_UPDATED",
                                 payload={"metadata": metadata_update},
                             )
-                            asteroid.metadata = {**asteroid.metadata, **metadata_update}
+                            asteroid.metadata = next_metadata
 
                     context_asteroid_ids.append(asteroid.id)
                     result.asteroids.append(asteroid)
@@ -259,12 +527,23 @@ class TaskExecutorService:
                     if target_uuid not in asteroids_by_id:
                         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target asteroid not found")
 
-                    bond_type = str(task.params.get("type", "RELATION"))
+                    bond_type = str(task.params.get("type", "RELATION")).strip().upper() or "RELATION"
+                    is_relation = bond_type == "RELATION"
+                    if is_relation:
+                        source_uuid, target_uuid = self._canonical_relation_pair(source_uuid, target_uuid)
                     existing_bond = next(
                         (
                             bond
                             for bond in bonds_by_id.values()
-                            if bond.source_id == source_uuid and bond.target_id == target_uuid and bond.type == bond_type
+                            if str(bond.type or "").upper() == bond_type
+                            and (
+                                (bond.source_id == source_uuid and bond.target_id == target_uuid)
+                                or (
+                                    is_relation
+                                    and bond.source_id == target_uuid
+                                    and bond.target_id == source_uuid
+                                )
+                            )
                         ),
                         None,
                     )
@@ -282,17 +561,31 @@ class TaskExecutorService:
                     )
                     await session.execute(sql_text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
 
+                    bond_match_predicate = and_(
+                        Bond.user_id == user_id,
+                        Bond.galaxy_id == galaxy_id,
+                        func.upper(Bond.type) == bond_type,
+                        Bond.is_deleted.is_(False),
+                    )
+                    if is_relation:
+                        bond_match_predicate = and_(
+                            bond_match_predicate,
+                            or_(
+                                and_(Bond.source_id == source_uuid, Bond.target_id == target_uuid),
+                                and_(Bond.source_id == target_uuid, Bond.target_id == source_uuid),
+                            ),
+                        )
+                    else:
+                        bond_match_predicate = and_(
+                            bond_match_predicate,
+                            Bond.source_id == source_uuid,
+                            Bond.target_id == target_uuid,
+                        )
+
                     persisted_bond = (
                         await session.execute(
                             select(Bond).where(
-                                and_(
-                                    Bond.user_id == user_id,
-                                    Bond.galaxy_id == galaxy_id,
-                                    Bond.source_id == source_uuid,
-                                    Bond.target_id == target_uuid,
-                                    Bond.type == bond_type,
-                                    Bond.is_deleted.is_(False),
-                                )
+                                bond_match_predicate
                             )
                         )
                     ).scalar_one_or_none()
@@ -362,27 +655,18 @@ class TaskExecutorService:
                         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target asteroid not found")
 
                     has_change = False
+                    next_value = asteroid.value
+                    next_metadata = dict(asteroid.metadata)
                     if "value" in task.params:
                         next_value = task.params.get("value")
                         if asteroid.value != next_value:
-                            await append_and_project_event(
-                                entity_id=asteroid.id,
-                                event_type="ASTEROID_VALUE_UPDATED",
-                                payload={"value": next_value},
-                            )
-                            asteroid.value = next_value
                             has_change = True
 
                     raw_metadata = task.params.get("metadata")
                     if isinstance(raw_metadata, dict) and raw_metadata:
                         metadata_update = {k: v for k, v in raw_metadata.items() if asteroid.metadata.get(k) != v}
                         if metadata_update:
-                            await append_and_project_event(
-                                entity_id=asteroid.id,
-                                event_type="METADATA_UPDATED",
-                                payload={"metadata": metadata_update},
-                            )
-                            asteroid.metadata = {**asteroid.metadata, **metadata_update}
+                            next_metadata = {**next_metadata, **metadata_update}
                             has_change = True
 
                     if not has_change:
@@ -390,6 +674,39 @@ class TaskExecutorService:
                             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="No effective update for asteroid",
                         )
+
+                    await self._validate_table_contract_write(
+                        session=session,
+                        galaxy_id=galaxy_id,
+                        asteroid_id=asteroid.id,
+                        value=next_value,
+                        metadata=next_metadata,
+                        asteroids_by_id=asteroids_by_id,
+                        contract_cache=contract_cache,
+                    )
+
+                    if asteroid.value != next_value:
+                        await append_and_project_event(
+                            entity_id=asteroid.id,
+                            event_type="ASTEROID_VALUE_UPDATED",
+                            payload={"value": next_value},
+                        )
+                        asteroid.value = next_value
+
+                    if asteroid.metadata != next_metadata:
+                        metadata_update = {
+                            key: value
+                            for key, value in next_metadata.items()
+                            if asteroid.metadata.get(key) != value
+                        }
+                        if metadata_update:
+                            await append_and_project_event(
+                                entity_id=asteroid.id,
+                                event_type="METADATA_UPDATED",
+                                payload={"metadata": metadata_update},
+                            )
+                            asteroid.metadata = next_metadata
+
                     result.asteroids.append(asteroid)
                     continue
 
@@ -413,12 +730,22 @@ class TaskExecutorService:
                     field_name = str(field).strip()
                     formula_value = str(formula).strip()
                     if target_asteroid.metadata.get(field_name) != formula_value:
+                        next_metadata = {**target_asteroid.metadata, field_name: formula_value}
+                        await self._validate_table_contract_write(
+                            session=session,
+                            galaxy_id=galaxy_id,
+                            asteroid_id=target_asteroid.id,
+                            value=target_asteroid.value,
+                            metadata=next_metadata,
+                            asteroids_by_id=asteroids_by_id,
+                            contract_cache=contract_cache,
+                        )
                         await append_and_project_event(
                             entity_id=target_asteroid.id,
                             event_type="METADATA_UPDATED",
                             payload={"metadata": {field_name: formula_value}},
                         )
-                        target_asteroid.metadata = {**target_asteroid.metadata, field_name: formula_value}
+                        target_asteroid.metadata = next_metadata
                     result.asteroids.append(target_asteroid)
                     continue
 
@@ -474,6 +801,19 @@ class TaskExecutorService:
                     }
 
                     if signature not in existing_signatures:
+                        next_metadata = {
+                            **target_asteroid.metadata,
+                            "_guardians": [*guardian_rules, new_rule],
+                        }
+                        await self._validate_table_contract_write(
+                            session=session,
+                            galaxy_id=galaxy_id,
+                            asteroid_id=target_asteroid.id,
+                            value=target_asteroid.value,
+                            metadata=next_metadata,
+                            asteroids_by_id=asteroids_by_id,
+                            contract_cache=contract_cache,
+                        )
                         guardian_rules.append(new_rule)
                         await append_and_project_event(
                             entity_id=target_asteroid.id,

@@ -1,3 +1,5 @@
+import { GALAXY_GUIDE, MODEL_PATH_LABEL } from "../../lib/onboarding";
+
 export default function GalaxySelectorScreen({
   user,
   galaxies,
@@ -30,6 +32,7 @@ export default function GalaxySelectorScreen({
             <div style={{ fontSize: 12, opacity: 0.72 }}>LEVEL 1 / GALAXY WORKSPACES</div>
             <h2 style={{ margin: "4px 0 0", fontSize: 30 }}>Vyber galaxii</h2>
             <div style={{ marginTop: 4, fontSize: 14, opacity: 0.82 }}>Uživatel: {user?.email || "n/a"}</div>
+            <div style={{ marginTop: 4, fontSize: 12, opacity: 0.74 }}>Hierarchie: {MODEL_PATH_LABEL}</div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
@@ -71,6 +74,25 @@ export default function GalaxySelectorScreen({
             </button>
           </div>
           {error ? <div style={{ marginTop: 8, color: "#ffb4c7", fontSize: 12 }}>{error}</div> : null}
+        </section>
+
+        <section
+          style={{
+            marginTop: 12,
+            border: "1px solid rgba(95, 189, 220, 0.22)",
+            borderRadius: 12,
+            background: "rgba(4, 10, 19, 0.72)",
+            padding: 12,
+            display: "grid",
+            gap: 5,
+          }}
+        >
+          <div style={{ fontSize: 11, letterSpacing: 0.6, opacity: 0.74 }}>JAK POKRACOVAT BEZ VAHANI</div>
+          {GALAXY_GUIDE.map((item) => (
+            <div key={item} style={{ fontSize: 12, opacity: 0.87 }}>
+              - {item}
+            </div>
+          ))}
         </section>
 
         <section style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>

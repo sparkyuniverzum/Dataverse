@@ -362,6 +362,11 @@ class BranchPublic(BaseModel):
     deleted_at: datetime | None
 
 
+class BranchPromoteResponse(BaseModel):
+    branch: BranchPublic
+    promoted_events_count: int
+
+
 class TableContractUpsertRequest(BaseModel):
     galaxy_id: uuid.UUID
     required_fields: list[str] = Field(default_factory=list)

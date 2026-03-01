@@ -12,12 +12,12 @@ const DEFAULT_PANELS = {
   command: {
     title: "Navigace, Akce a Prikazy",
     rect: { x: 28, y: 28, width: 460, height: 460 },
-    collapsed: false,
+    collapsed: true,
   },
   inspector: {
     title: "Mesic a Tezba Bunek",
     rect: { x: 28, y: 236, width: 420, height: 330 },
-    collapsed: false,
+    collapsed: true,
   },
   grid: {
     title: "Tabulkovy Prurez",
@@ -27,22 +27,22 @@ const DEFAULT_PANELS = {
   constellations: {
     title: "Souhvezdi V1",
     rect: { x: 460, y: 28, width: 360, height: 340 },
-    collapsed: false,
+    collapsed: true,
   },
   planets: {
     title: "Planety V1",
     rect: { x: 840, y: 28, width: 360, height: 340 },
-    collapsed: false,
+    collapsed: true,
   },
   moons: {
     title: "Mesice V1",
     rect: { x: 1220, y: 28, width: 340, height: 340 },
-    collapsed: false,
+    collapsed: true,
   },
   bonds: {
     title: "Vazby V1",
     rect: { x: 1560, y: 28, width: 360, height: 340 },
-    collapsed: false,
+    collapsed: true,
   },
 };
 

@@ -4,15 +4,29 @@ import {
   API_BASE,
   apiFetch,
   buildGalaxyBondsUrl,
+  buildGalaxyEventsStreamUrl,
   buildGalaxyMoonsUrl,
   buildGalaxyPlanetsUrl,
+  buildImportJobErrorsUrl,
+  buildImportJobUrl,
+  buildImportRunUrl,
   buildParserPayload,
   buildSnapshotUrl,
   buildTablesUrl,
   normalizeSnapshot,
   toAsOfIso,
 } from "../../lib/dataverseApi";
+import { MODEL_PATH_LABEL, WORKSPACE_GUIDE } from "../../lib/onboarding";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
+import {
+  DEFAULT_NODE_PHYSICS,
+  deriveAsteroidBondDensityMap,
+  deriveLinkPhysics,
+  deriveMoonPhysics,
+  derivePlanetPhysics,
+  deriveTableBondDensity,
+  normalizePhysicsKey,
+} from "../../lib/physics_laws";
 import { useUniverseStore } from "../../store/useUniverseStore";
 import FloatingPanel from "../ui/FloatingPanel";
 import ContextMenu from "../ui/ContextMenu";
@@ -46,6 +60,59 @@ function resolveTableForAsteroid(tables, asteroidId) {
     }
   }
   return null;
+}
+
+function resolveLinkEndpointValue(value) {
+  if (!value) return "";
+  if (typeof value === "object") {
+    return String(value.id || value.source_id || value.target_id || "");
+  }
+  return String(value);
+}
+
+function parseSseMessage(block) {
+  const text = String(block || "").replace(/\r\n/g, "\n");
+  const lines = text.split("\n");
+  let event = "message";
+  const dataLines = [];
+  lines.forEach((line) => {
+    if (!line || line.startsWith(":")) return;
+    const colonIndex = line.indexOf(":");
+    const field = colonIndex >= 0 ? line.slice(0, colonIndex) : line;
+    const rawValue = colonIndex >= 0 ? line.slice(colonIndex + 1) : "";
+    const value = rawValue.startsWith(" ") ? rawValue.slice(1) : rawValue;
+    if (field === "event") {
+      event = value || "message";
+      return;
+    }
+    if (field === "data") {
+      dataLines.push(value);
+    }
+  });
+  if (!dataLines.length) return null;
+  const rawData = dataLines.join("\n");
+  try {
+    return { event, data: JSON.parse(rawData) };
+  } catch {
+    return { event, data: null };
+  }
+}
+
+const TABLE_PREFIX_RE = /^\s*([A-Za-zÀ-ž0-9 _-]{2,64})\s*:/;
+
+function deriveTableNameFromEvent(value, metadata) {
+  const data = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
+  for (const key of ["kategorie", "category", "typ", "type", "table", "table_name"]) {
+    const candidate = data[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  if (typeof value === "string") {
+    const match = value.match(TABLE_PREFIX_RE);
+    if (match?.[1]) return match[1].trim();
+  }
+  return "Uncategorized";
 }
 
 function splitEntityAndPlanetName(table) {
@@ -147,11 +214,81 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
   const [quickGuardianThreshold, setQuickGuardianThreshold] = useState("1000");
   const [quickGuardianAction, setQuickGuardianAction] = useState("ALERT");
   const [quickDeleteTargetId, setQuickDeleteTargetId] = useState("");
+  const [branches, setBranches] = useState([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchesError, setBranchesError] = useState("");
+  const [branchBusy, setBranchBusy] = useState(false);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [draftBranchName, setDraftBranchName] = useState("staging");
+  const [importFile, setImportFile] = useState(null);
+  const [importMode, setImportMode] = useState("preview");
+  const [importStrict, setImportStrict] = useState(true);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importInfo, setImportInfo] = useState("");
+  const [lastImportJob, setLastImportJob] = useState(null);
+  const [importErrors, setImportErrors] = useState([]);
+  const [streamState, setStreamState] = useState("OFF");
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
+  const streamCursorRef = useRef(null);
+  const streamRefreshTimeoutRef = useRef(null);
+  const tablesRef = useRef(tables);
 
   const asOfIso = useMemo(() => toAsOfIso(asOfInput), [asOfInput]);
   const historicalMode = Boolean(asOfIso);
+  const activeBranchId = selectedBranchId || null;
+  const selectedBranch = useMemo(
+    () => branches.find((item) => String(item.id) === String(selectedBranchId || "")) || null,
+    [branches, selectedBranchId]
+  );
+  const activeWorkspaceLabel = selectedBranch ? `branch:${selectedBranch.name}` : "main";
+
+  useEffect(() => {
+    tablesRef.current = tables;
+  }, [tables]);
+
+  useEffect(() => {
+    streamCursorRef.current = null;
+  }, [activeBranchId, galaxy?.id, historicalMode]);
+
+  const loadBranches = useCallback(async () => {
+    if (!galaxy?.id) return;
+    setBranchesLoading(true);
+    setBranchesError("");
+    try {
+      const url = new URL(`${API_BASE}/branches`);
+      url.searchParams.set("galaxy_id", String(galaxy.id));
+      const response = await apiFetch(url.toString());
+      if (!response.ok) {
+        throw new Error(`Branches failed: ${response.status}`);
+      }
+      const body = await response.json();
+      const items = Array.isArray(body) ? body : [];
+      setBranches(items);
+      setSelectedBranchId((previous) => {
+        if (!previous) return "";
+        const exists = items.some((branch) => String(branch?.id || "") === String(previous));
+        return exists ? previous : "";
+      });
+    } catch (loadError) {
+      setBranchesError(loadError.message || "Branches load failed");
+    } finally {
+      setBranchesLoading(false);
+    }
+  }, [galaxy?.id]);
+
+  useEffect(() => {
+    setImportFile(null);
+    setImportInfo("");
+    setLastImportJob(null);
+    setImportErrors([]);
+    setImportMode("preview");
+    setImportStrict(true);
+    setSelectedBranchId("");
+    setBranches([]);
+    setBranchesError("");
+    setDraftBranchName("staging");
+  }, [galaxy?.id]);
 
   const loadUniverse = useCallback(async () => {
     if (!galaxy?.id) return;
@@ -159,8 +296,8 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     setError("");
     try {
       const [snapshotRes, tablesRes] = await Promise.all([
-        apiFetch(buildSnapshotUrl(API_BASE, asOfIso, galaxy.id)),
-        apiFetch(buildTablesUrl(API_BASE, asOfIso, galaxy.id)),
+        apiFetch(buildSnapshotUrl(API_BASE, asOfIso, galaxy.id, activeBranchId)),
+        apiFetch(buildTablesUrl(API_BASE, asOfIso, galaxy.id, activeBranchId)),
       ]);
 
       if (!snapshotRes.ok) throw new Error(`Snapshot failed: ${snapshotRes.status}`);
@@ -178,11 +315,320 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     } finally {
       setLoading(false);
     }
-  }, [asOfIso, galaxy?.id]);
+  }, [activeBranchId, asOfIso, galaxy?.id]);
+  const refreshDerivedData = useCallback(async () => {
+    if (!galaxy?.id) return;
+    try {
+      const constellationsUrl = new URL(`${API_BASE}/galaxies/${galaxy.id}/constellations`);
+      const planetsUrl = new URL(buildGalaxyPlanetsUrl(API_BASE, galaxy.id, asOfIso, activeBranchId));
+      const moonsUrl = new URL(buildGalaxyMoonsUrl(API_BASE, galaxy.id, asOfIso, activeBranchId));
+      const bondsUrl = new URL(buildGalaxyBondsUrl(API_BASE, galaxy.id, asOfIso, activeBranchId));
+      if (asOfIso) {
+        constellationsUrl.searchParams.set("as_of", asOfIso);
+      }
+      if (activeBranchId) {
+        constellationsUrl.searchParams.set("branch_id", String(activeBranchId));
+      }
+
+      const [tablesRes, constellationsRes, planetsRes, moonsRes, bondsRes] = await Promise.all([
+        apiFetch(buildTablesUrl(API_BASE, asOfIso, galaxy.id, activeBranchId)),
+        apiFetch(constellationsUrl.toString()),
+        apiFetch(planetsUrl.toString()),
+        apiFetch(moonsUrl.toString()),
+        apiFetch(bondsUrl.toString()),
+      ]);
+
+      if (tablesRes.ok) {
+        const body = await tablesRes.json();
+        setTables(Array.isArray(body?.tables) ? body.tables : []);
+      }
+      if (constellationsRes.ok) {
+        const body = await constellationsRes.json();
+        setConstellations(Array.isArray(body?.items) ? body.items : []);
+      }
+      if (planetsRes.ok) {
+        const body = await planetsRes.json();
+        setPlanets(Array.isArray(body?.items) ? body.items : []);
+      }
+      if (moonsRes.ok) {
+        const body = await moonsRes.json();
+        setMoons(Array.isArray(body?.items) ? body.items : []);
+      }
+      if (bondsRes.ok) {
+        const body = await bondsRes.json();
+        setBondsV1(Array.isArray(body?.items) ? body.items : []);
+      }
+    } catch {
+      // Keep stream alive even when a refresh round fails.
+    }
+  }, [activeBranchId, asOfIso, galaxy?.id]);
+  const refreshDerivedDataRef = useRef(refreshDerivedData);
+  useEffect(() => {
+    refreshDerivedDataRef.current = refreshDerivedData;
+  }, [refreshDerivedData]);
+
+  const applyStreamDelta = useCallback((events) => {
+    const safeEvents = Array.isArray(events) ? events : [];
+    if (!safeEvents.length) return;
+
+    setSnapshot((prev) => {
+      const asteroidsById = new Map((Array.isArray(prev?.asteroids) ? prev.asteroids : []).map((item) => [String(item.id), { ...item }]));
+      const bondsById = new Map((Array.isArray(prev?.bonds) ? prev.bonds : []).map((item) => [String(item.id), { ...item }]));
+      const tablesByName = new Map(
+        (Array.isArray(tablesRef.current) ? tablesRef.current : []).map((table) => [String(table?.name || "").trim().toLowerCase(), table])
+      );
+
+      const removeBondsByAsteroid = (asteroidId) => {
+        const asteroidKey = String(asteroidId || "");
+        if (!asteroidKey) return;
+        for (const [bondId, bond] of bondsById.entries()) {
+          if (String(bond?.source_id || "") === asteroidKey || String(bond?.target_id || "") === asteroidKey) {
+            bondsById.delete(bondId);
+          }
+        }
+      };
+
+      const resolveTableIdentity = (value, metadata) => {
+        const tableName = deriveTableNameFromEvent(value, metadata);
+        const byName = tablesByName.get(tableName.toLowerCase());
+        const semantic = splitEntityAndPlanetName(byName || { name: tableName });
+        return {
+          tableName,
+          tableId: String(byName?.table_id || byName?.id || `pending:${tableName.toLowerCase()}`),
+          constellationName: String(byName?.constellation_name || semantic.entityName || "Uncategorized"),
+          planetName: String(byName?.planet_name || semantic.planetName || "Planet"),
+        };
+      };
+
+      safeEvents.forEach((event) => {
+        const eventType = String(event?.event_type || "").toUpperCase();
+        const entityId = String(event?.entity_id || "");
+        const payload = event?.payload && typeof event.payload === "object" && !Array.isArray(event.payload) ? event.payload : {};
+        const timestamp = String(event?.timestamp || new Date().toISOString());
+
+        if (eventType === "ASTEROID_CREATED") {
+          if (!entityId) return;
+          const metadata = payload.metadata && typeof payload.metadata === "object" && !Array.isArray(payload.metadata) ? payload.metadata : {};
+          const value = payload.value ?? null;
+          const tableIdentity = resolveTableIdentity(value, metadata);
+          asteroidsById.set(entityId, {
+            id: entityId,
+            value,
+            table_id: tableIdentity.tableId,
+            table_name: tableIdentity.tableName,
+            constellation_name: tableIdentity.constellationName,
+            planet_name: tableIdentity.planetName,
+            metadata,
+            calculated_values: {},
+            active_alerts: [],
+            created_at: timestamp,
+          });
+          return;
+        }
+
+        if (eventType === "ASTEROID_VALUE_UPDATED") {
+          const asteroid = asteroidsById.get(entityId);
+          if (!asteroid) return;
+          const nextValue = payload.value;
+          const tableIdentity = resolveTableIdentity(nextValue, asteroid.metadata);
+          asteroidsById.set(entityId, {
+            ...asteroid,
+            value: nextValue,
+            table_id: tableIdentity.tableId,
+            table_name: tableIdentity.tableName,
+            constellation_name: tableIdentity.constellationName,
+            planet_name: tableIdentity.planetName,
+          });
+          return;
+        }
+
+        if (eventType === "METADATA_UPDATED") {
+          const asteroid = asteroidsById.get(entityId);
+          if (!asteroid) return;
+          const metadataPatch = payload.metadata && typeof payload.metadata === "object" && !Array.isArray(payload.metadata) ? payload.metadata : {};
+          const mergedMetadata = { ...(asteroid.metadata || {}), ...metadataPatch };
+          const tableIdentity = resolveTableIdentity(asteroid.value, mergedMetadata);
+          asteroidsById.set(entityId, {
+            ...asteroid,
+            metadata: mergedMetadata,
+            table_id: tableIdentity.tableId,
+            table_name: tableIdentity.tableName,
+            constellation_name: tableIdentity.constellationName,
+            planet_name: tableIdentity.planetName,
+          });
+          return;
+        }
+
+        if (eventType === "ASTEROID_SOFT_DELETED") {
+          asteroidsById.delete(entityId);
+          removeBondsByAsteroid(entityId);
+          return;
+        }
+
+        if (eventType === "BOND_FORMED") {
+          const sourceId = String(payload.source_id || "");
+          const targetId = String(payload.target_id || "");
+          if (!entityId || !sourceId || !targetId || sourceId === targetId) return;
+          const sourceAsteroid = asteroidsById.get(sourceId);
+          const targetAsteroid = asteroidsById.get(targetId);
+          if (!sourceAsteroid || !targetAsteroid) return;
+          bondsById.set(entityId, {
+            id: entityId,
+            source_id: sourceId,
+            target_id: targetId,
+            type: String(payload.type || "RELATION"),
+            source_table_id: String(sourceAsteroid.table_id || ""),
+            source_table_name: String(sourceAsteroid.table_name || "Unknown"),
+            source_constellation_name: String(sourceAsteroid.constellation_name || "Unknown"),
+            source_planet_name: String(sourceAsteroid.planet_name || "Unknown"),
+            target_table_id: String(targetAsteroid.table_id || ""),
+            target_table_name: String(targetAsteroid.table_name || "Unknown"),
+            target_constellation_name: String(targetAsteroid.constellation_name || "Unknown"),
+            target_planet_name: String(targetAsteroid.planet_name || "Unknown"),
+          });
+          return;
+        }
+
+        if (eventType === "BOND_SOFT_DELETED") {
+          bondsById.delete(entityId);
+        }
+      });
+
+      const nextAsteroids = [...asteroidsById.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      const asteroidIdSet = new Set(nextAsteroids.map((item) => String(item.id)));
+      const nextBonds = [...bondsById.values()]
+        .filter(
+          (bond) =>
+            asteroidIdSet.has(String(bond?.source_id || "")) &&
+            asteroidIdSet.has(String(bond?.target_id || ""))
+        )
+        .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+      return {
+        asteroids: nextAsteroids,
+        bonds: nextBonds,
+      };
+    });
+  }, []);
+
+  const scheduleStreamRefresh = useCallback(() => {
+    if (streamRefreshTimeoutRef.current) return;
+    streamRefreshTimeoutRef.current = window.setTimeout(() => {
+      streamRefreshTimeoutRef.current = null;
+      refreshDerivedDataRef.current?.();
+    }, 260);
+  }, []);
 
   useEffect(() => {
     loadUniverse();
   }, [loadUniverse]);
+
+  useEffect(() => {
+    loadBranches();
+  }, [loadBranches]);
+
+  useEffect(
+    () => () => {
+      if (streamRefreshTimeoutRef.current) {
+        window.clearTimeout(streamRefreshTimeoutRef.current);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!galaxy?.id || historicalMode) {
+      setStreamState("OFF");
+      return;
+    }
+
+    let active = true;
+    let reconnectTimer = null;
+    let controller = null;
+
+    const consumeStream = async () => {
+      controller = new AbortController();
+      setStreamState("CONNECTING");
+
+      const url = buildGalaxyEventsStreamUrl(API_BASE, galaxy.id, {
+        branchId: activeBranchId,
+        lastEventSeq: Number.isFinite(streamCursorRef.current) ? streamCursorRef.current : null,
+        pollMs: 1200,
+        heartbeatSec: 15,
+      });
+      const response = await apiFetch(url, {
+        signal: controller.signal,
+        headers: {
+          Accept: "text/event-stream",
+        },
+      });
+      if (!response.ok || !response.body) {
+        throw new Error(`Events stream failed: ${response.status}`);
+      }
+
+      setStreamState("LIVE");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (active) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+
+        let delimiterIndex = buffer.indexOf("\n\n");
+        while (delimiterIndex >= 0) {
+          const chunk = buffer.slice(0, delimiterIndex);
+          buffer = buffer.slice(delimiterIndex + 2);
+          delimiterIndex = buffer.indexOf("\n\n");
+          const parsed = parseSseMessage(chunk);
+          if (!parsed || !parsed.data || typeof parsed.data !== "object") continue;
+          const nextSeq = Number(parsed.data.last_event_seq);
+          if (Number.isFinite(nextSeq) && nextSeq >= 0) {
+            streamCursorRef.current = Math.floor(nextSeq);
+          }
+          if (parsed.event === "update") {
+            const events = Array.isArray(parsed.data.events) ? parsed.data.events : [];
+            if (events.length) {
+              applyStreamDelta(events);
+            }
+            scheduleStreamRefresh();
+          }
+        }
+      }
+
+      reader.releaseLock();
+      if (active) {
+        throw new Error("Events stream closed");
+      }
+    };
+
+    const connect = async () => {
+      try {
+        await consumeStream();
+      } catch (streamError) {
+        if (!active) return;
+        if (controller?.signal?.aborted) return;
+        setStreamState("RETRY");
+        reconnectTimer = window.setTimeout(() => {
+          connect();
+        }, 1400);
+      }
+    };
+
+    connect();
+
+    return () => {
+      active = false;
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      if (controller) controller.abort();
+      if (streamRefreshTimeoutRef.current) {
+        window.clearTimeout(streamRefreshTimeoutRef.current);
+        streamRefreshTimeoutRef.current = null;
+      }
+      setStreamState("OFF");
+    };
+  }, [activeBranchId, applyStreamDelta, galaxy?.id, historicalMode, scheduleStreamRefresh]);
 
   useEffect(() => {
     if (!galaxy?.id) return;
@@ -194,6 +640,9 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         const url = new URL(`${API_BASE}/galaxies/${galaxy.id}/constellations`);
         if (asOfIso) {
           url.searchParams.set("as_of", asOfIso);
+        }
+        if (activeBranchId) {
+          url.searchParams.set("branch_id", String(activeBranchId));
         }
         const response = await apiFetch(url.toString());
         if (!response.ok) {
@@ -213,7 +662,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     return () => {
       active = false;
     };
-  }, [galaxy?.id, asOfIso]);
+  }, [activeBranchId, galaxy?.id, asOfIso]);
 
   useEffect(() => {
     if (!galaxy?.id) return;
@@ -222,7 +671,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
       setBondsV1Loading(true);
       setBondsV1Error("");
       try {
-        const response = await apiFetch(buildGalaxyBondsUrl(API_BASE, galaxy.id, asOfIso));
+        const response = await apiFetch(buildGalaxyBondsUrl(API_BASE, galaxy.id, asOfIso, activeBranchId));
         if (!response.ok) {
           throw new Error(`Bonds failed: ${response.status}`);
         }
@@ -240,7 +689,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     return () => {
       active = false;
     };
-  }, [galaxy?.id, asOfIso]);
+  }, [activeBranchId, galaxy?.id, asOfIso]);
 
   useEffect(() => {
     if (!galaxy?.id) return;
@@ -249,7 +698,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
       setPlanetsLoading(true);
       setPlanetsError("");
       try {
-        const response = await apiFetch(buildGalaxyPlanetsUrl(API_BASE, galaxy.id, asOfIso));
+        const response = await apiFetch(buildGalaxyPlanetsUrl(API_BASE, galaxy.id, asOfIso, activeBranchId));
         if (!response.ok) {
           throw new Error(`Planets failed: ${response.status}`);
         }
@@ -267,7 +716,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     return () => {
       active = false;
     };
-  }, [galaxy?.id, asOfIso]);
+  }, [activeBranchId, galaxy?.id, asOfIso]);
 
   useEffect(() => {
     if (!galaxy?.id) return;
@@ -276,7 +725,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
       setMoonsLoading(true);
       setMoonsError("");
       try {
-        const response = await apiFetch(buildGalaxyMoonsUrl(API_BASE, galaxy.id, asOfIso));
+        const response = await apiFetch(buildGalaxyMoonsUrl(API_BASE, galaxy.id, asOfIso, activeBranchId));
         if (!response.ok) {
           throw new Error(`Moons failed: ${response.status}`);
         }
@@ -294,7 +743,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     return () => {
       active = false;
     };
-  }, [galaxy?.id, asOfIso]);
+  }, [activeBranchId, galaxy?.id, asOfIso]);
 
   useEffect(() => {
     if (!selectedTableId) return;
@@ -345,12 +794,62 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     });
     return map;
   }, [bondsV1]);
+  const constellationMetricsByName = useMemo(() => {
+    const map = new Map();
+    constellations.forEach((item) => {
+      const key = normalizePhysicsKey(item?.name);
+      if (!key) return;
+      map.set(key, item);
+    });
+    return map;
+  }, [constellations]);
+  const asteroidBondDensityById = useMemo(() => deriveAsteroidBondDensityMap(snapshot.bonds), [snapshot.bonds]);
+  const tablePhysicsById = useMemo(() => {
+    const map = new Map();
+    tables.forEach((table) => {
+      const tableId = String(table?.table_id || "");
+      if (!tableId) return;
+      const semantic = splitEntityAndPlanetName(table);
+      const constellationKey = normalizePhysicsKey(table?.constellation_name || semantic.entityName);
+      const planetMetric = planetMetricsByTableId.get(tableId) || null;
+      const constellationMetric = constellationMetricsByName.get(constellationKey) || null;
+      const bondDensity = deriveTableBondDensity(table);
+      map.set(
+        tableId,
+        derivePlanetPhysics({
+          planetMetrics: planetMetric,
+          constellationMetrics: constellationMetric,
+          bondDensity,
+        })
+      );
+    });
+    return map;
+  }, [constellationMetricsByName, planetMetricsByTableId, tables]);
+  const asteroidPhysicsById = useMemo(() => {
+    const map = new Map();
+    snapshot.asteroids.forEach((asteroid) => {
+      const asteroidId = String(asteroid?.id || "");
+      if (!asteroidId) return;
+      const moonMetric = moonMetricsByAsteroidId.get(asteroidId) || null;
+      const bondDensity = asteroidBondDensityById.get(asteroidId) || 0;
+      map.set(
+        asteroidId,
+        deriveMoonPhysics({
+          moonMetrics: moonMetric,
+          bondDensity,
+        })
+      );
+    });
+    return map;
+  }, [asteroidBondDensityById, moonMetricsByAsteroidId, snapshot.asteroids]);
 
   const layout = useMemo(() => {
     const next = calculateHierarchyLayout({
       tables,
       selectedTableId,
       asteroidById,
+      tablePhysicsById,
+      asteroidPhysicsById,
       previous: layoutRef.current,
     });
     layoutRef.current = {
@@ -358,7 +857,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
       asteroidPositions: next.asteroidPositions,
     };
     return next;
-  }, [tables, selectedTableId, asteroidById]);
+  }, [tables, selectedTableId, asteroidById, tablePhysicsById, asteroidPhysicsById]);
 
   const tableNodes = useMemo(
     () =>
@@ -366,8 +865,9 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         ...node,
         position: layout.tablePositions.get(node.id) || [0, 0, 0],
         v1: planetMetricsByTableId.get(node.id) || null,
+        physics: tablePhysicsById.get(node.id) || DEFAULT_NODE_PHYSICS,
       })),
-    [layout, planetMetricsByTableId]
+    [layout, planetMetricsByTableId, tablePhysicsById]
   );
 
   const asteroidNodes = useMemo(
@@ -376,8 +876,28 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         ...node,
         position: layout.asteroidPositions.get(node.id) || [0, 0, 0],
         v1: moonMetricsByAsteroidId.get(node.id) || null,
+        physics: asteroidPhysicsById.get(node.id) || DEFAULT_NODE_PHYSICS,
       })),
-    [layout, moonMetricsByAsteroidId]
+    [layout, moonMetricsByAsteroidId, asteroidPhysicsById]
+  );
+  const tableNodeById = useMemo(() => new Map(tableNodes.map((node) => [node.id, node])), [tableNodes]);
+  const enrichedTableLinks = useMemo(
+    () =>
+      layout.tableLinks.map((link) => {
+        const sourceId = resolveLinkEndpointValue(link.source);
+        const targetId = resolveLinkEndpointValue(link.target);
+        const sourceNode = tableNodeById.get(sourceId);
+        const targetNode = tableNodeById.get(targetId);
+        return {
+          ...link,
+          physics: deriveLinkPhysics({
+            link,
+            sourcePhysics: sourceNode?.physics,
+            targetPhysics: targetNode?.physics,
+          }),
+        };
+      }),
+    [layout.tableLinks, tableNodeById]
   );
   const enrichedAsteroidLinks = useMemo(
     () =>
@@ -385,9 +905,22 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         const snapshotBond = snapshotBondById.get(String(link.id));
         const metric = bondMetricsById.get(String(link.id));
         const merged = snapshotBond ? { ...link, ...snapshotBond } : link;
-        return metric ? { ...merged, v1: metric } : merged;
+        const sourceId = resolveLinkEndpointValue(merged.source || merged.source_id);
+        const targetId = resolveLinkEndpointValue(merged.target || merged.target_id);
+        const sourcePhysics = asteroidPhysicsById.get(sourceId);
+        const targetPhysics = asteroidPhysicsById.get(targetId);
+        const linked = metric ? { ...merged, v1: metric } : merged;
+        return {
+          ...linked,
+          physics: deriveLinkPhysics({
+            link: linked,
+            bondMetrics: metric,
+            sourcePhysics,
+            targetPhysics,
+          }),
+        };
       }),
-    [bondMetricsById, layout.asteroidLinks, snapshotBondById]
+    [asteroidPhysicsById, bondMetricsById, layout.asteroidLinks, snapshotBondById]
   );
 
   const selectedTable = useMemo(
@@ -543,7 +1076,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         const response = await apiFetch(`${API_BASE}/parser/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildParserPayload(normalized, galaxy.id)),
+          body: JSON.stringify(buildParserPayload(normalized, galaxy.id, activeBranchId)),
         });
         if (!response.ok) {
           throw new Error(`Parser failed: ${response.status}`);
@@ -560,27 +1093,193 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         setBusy(false);
       }
     },
-    [busy, galaxy.id, historicalMode, loadUniverse]
+    [activeBranchId, busy, galaxy.id, historicalMode, loadUniverse]
   );
+
+  const handleCreateBranch = useCallback(async () => {
+    if (!galaxy?.id) return;
+    const name = draftBranchName.trim();
+    if (!name) {
+      setError("Vypln nazev branch.");
+      return;
+    }
+    setBranchBusy(true);
+    setError("");
+    try {
+      const payload = { name, galaxy_id: galaxy.id };
+      if (asOfIso) {
+        payload.as_of = asOfIso;
+      }
+      const response = await apiFetch(`${API_BASE}/branches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error(`Branch create failed: ${response.status}`);
+      }
+      const created = await response.json();
+      await loadBranches();
+      setSelectedBranchId(String(created?.id || ""));
+      setDraftBranchName(name);
+      setImportInfo(`Branch vytvorena: ${created?.name || name}`);
+      await loadUniverse();
+    } catch (branchError) {
+      setError(branchError.message || "Branch create failed");
+    } finally {
+      setBranchBusy(false);
+    }
+  }, [asOfIso, draftBranchName, galaxy?.id, loadBranches, loadUniverse]);
+
+  const handlePromoteBranch = useCallback(async () => {
+    if (!galaxy?.id || !activeBranchId) return;
+    setBranchBusy(true);
+    setError("");
+    try {
+      const response = await apiFetch(`${API_BASE}/branches/${activeBranchId}/promote?galaxy_id=${galaxy.id}`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error(`Branch promote failed: ${response.status}`);
+      }
+      const body = await response.json();
+      setImportInfo(
+        `Promote hotov: ${body?.branch?.name || activeBranchId} · events ${body?.promoted_events_count ?? 0}`
+      );
+      setSelectedBranchId("");
+      await loadBranches();
+      await loadUniverse();
+    } catch (promoteError) {
+      setError(promoteError.message || "Branch promote failed");
+    } finally {
+      setBranchBusy(false);
+    }
+  }, [activeBranchId, galaxy?.id, loadBranches, loadUniverse]);
+
+  const loadImportErrors = useCallback(async (jobId) => {
+    if (!jobId) {
+      setImportErrors([]);
+      return [];
+    }
+    const response = await apiFetch(buildImportJobErrorsUrl(API_BASE, jobId));
+    if (!response.ok) {
+      throw new Error(`Import errors failed: ${response.status}`);
+    }
+    const body = await response.json();
+    const rows = Array.isArray(body?.errors) ? body.errors : [];
+    setImportErrors(rows);
+    return rows;
+  }, []);
+
+  const refreshImportJob = useCallback(async () => {
+    if (!lastImportJob?.id) return;
+    setImportBusy(true);
+    setError("");
+    try {
+      const response = await apiFetch(buildImportJobUrl(API_BASE, lastImportJob.id));
+      if (!response.ok) {
+        throw new Error(`Import job refresh failed: ${response.status}`);
+      }
+      const body = await response.json();
+      setLastImportJob(body);
+      if (Number(body?.errors_count || 0) > 0) {
+        await loadImportErrors(body.id);
+      } else {
+        setImportErrors([]);
+      }
+      setImportInfo(
+        `Import ${body.mode} · ${body.status} · radky ${body.processed_rows}/${body.total_rows} · chyby ${body.errors_count}`
+      );
+    } catch (jobError) {
+      setError(jobError.message || "Import job refresh failed");
+    } finally {
+      setImportBusy(false);
+    }
+  }, [lastImportJob, loadImportErrors]);
+
+  const handleCsvImport = useCallback(async () => {
+    if (historicalMode) {
+      setError("Historicky mod je jen pro cteni.");
+      return;
+    }
+    if (!galaxy?.id) {
+      setError("Vyber aktivni galaxii.");
+      return;
+    }
+    if (!importFile) {
+      setError("Vyber CSV soubor pro import.");
+      return;
+    }
+    const filename = String(importFile.name || "");
+    if (!filename.toLowerCase().endsWith(".csv")) {
+      setError("Import podporuje jen CSV soubor.");
+      return;
+    }
+
+    setImportBusy(true);
+    setError("");
+    setImportInfo("");
+    try {
+      const formData = new FormData();
+      formData.append("file", importFile, filename || "import.csv");
+      formData.append("mode", importMode);
+      formData.append("strict", importStrict ? "true" : "false");
+      formData.append("galaxy_id", String(galaxy.id));
+      if (activeBranchId) {
+        formData.append("branch_id", String(activeBranchId));
+      }
+
+      const response = await apiFetch(buildImportRunUrl(API_BASE), {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error(`Import failed: ${response.status}`);
+      }
+      const body = await response.json();
+      const job = body?.job || null;
+      if (!job?.id) {
+        throw new Error("Import failed: missing job payload");
+      }
+      setLastImportJob(job);
+      if (Number(job.errors_count || 0) > 0) {
+        await loadImportErrors(job.id);
+      } else {
+        setImportErrors([]);
+      }
+      setImportInfo(`Import ${job.mode} · ${job.status} · radky ${job.processed_rows}/${job.total_rows} · chyby ${job.errors_count}`);
+      if (importMode === "commit" && String(job.status || "").toUpperCase() !== "FAILED") {
+        await loadUniverse();
+      }
+    } catch (importError) {
+      setError(importError.message || "Import failed");
+    } finally {
+      setImportBusy(false);
+    }
+  }, [activeBranchId, galaxy?.id, historicalMode, importFile, importMode, importStrict, loadImportErrors, loadUniverse]);
 
   const mutateAsteroid = useCallback(
     async (asteroidId, payload) => {
       const response = await apiFetch(`${API_BASE}/asteroids/${asteroidId}/mutate`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, galaxy_id: galaxy.id }),
+        body: JSON.stringify({ ...payload, galaxy_id: galaxy.id, branch_id: activeBranchId }),
       });
       if (!response.ok) {
         throw new Error(`Mutate failed: ${response.status}`);
       }
       await loadUniverse();
     },
-    [galaxy.id, loadUniverse]
+    [activeBranchId, galaxy.id, loadUniverse]
   );
 
   const extinguishAsteroid = useCallback(
     async (asteroidId) => {
-      const response = await apiFetch(`${API_BASE}/asteroids/${asteroidId}/extinguish?galaxy_id=${galaxy.id}`, {
+      const query = new URLSearchParams({ galaxy_id: String(galaxy.id) });
+      if (activeBranchId) {
+        query.set("branch_id", String(activeBranchId));
+      }
+      const response = await apiFetch(`${API_BASE}/asteroids/${asteroidId}/extinguish?${query.toString()}`, {
         method: "PATCH",
       });
       if (!response.ok) {
@@ -588,7 +1287,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
       }
       await loadUniverse();
     },
-    [galaxy.id, loadUniverse]
+    [activeBranchId, galaxy.id, loadUniverse]
   );
 
   const handleCommand = useCallback(
@@ -631,7 +1330,13 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         const response = await apiFetch(`${API_BASE}/bonds/link`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source_id: sourceId, target_id: targetId, type: relationType, galaxy_id: galaxy.id }),
+          body: JSON.stringify({
+            source_id: sourceId,
+            target_id: targetId,
+            type: relationType,
+            galaxy_id: galaxy.id,
+            branch_id: activeBranchId,
+          }),
         });
         if (!response.ok) {
           throw new Error(`Link failed: ${response.status}`);
@@ -641,7 +1346,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         setError(linkError.message || "Link creation failed");
       }
     },
-    [galaxy.id, historicalMode, loadUniverse]
+    [activeBranchId, galaxy.id, historicalMode, loadUniverse]
   );
 
   const handleQuickCreate = useCallback(async () => {
@@ -803,6 +1508,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
       title: panels[panelId]?.title || panelId,
     }))
     .filter((item) => Boolean(item.id));
+  const importDisabled = importBusy || busy || branchBusy || historicalMode;
 
   return (
     <main style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#020205" }}>
@@ -810,7 +1516,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         level={level}
         tableNodes={tableNodes}
         asteroidNodes={asteroidNodes}
-        tableLinks={layout.tableLinks}
+        tableLinks={enrichedTableLinks}
         asteroidLinks={enrichedAsteroidLinks}
         cameraState={camera}
         selectedTableId={selectedTableId}
@@ -860,7 +1566,38 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         <span style={{ opacity: 0.85 }}>{breadcrumb}</span>
         {historicalMode ? <span style={{ color: "#ffd9a4" }}>Historical</span> : null}
         {loading ? <span style={{ color: "#9de7ff" }}>Loading...</span> : null}
-        <span style={{ opacity: 0.8 }}>Model: Galaxie / Souhvezdi / Planety / Mesice / Bunky</span>
+        {!historicalMode ? (
+          <span
+            style={{
+              color: streamState === "LIVE" ? "#9affd7" : streamState === "RETRY" ? "#ffd58f" : "#9ec9ff",
+            }}
+          >
+            Stream: {streamState}
+          </span>
+        ) : null}
+        <span style={{ opacity: 0.82 }}>
+          Workspace: <strong style={{ color: activeBranchId ? "#8affde" : "#d9f8ff" }}>{activeWorkspaceLabel}</strong>
+        </span>
+        <select
+          value={selectedBranchId}
+          onChange={(event) => setSelectedBranchId(event.target.value)}
+          disabled={branchBusy || branchesLoading}
+          style={{
+            ...selectStyle,
+            width: 180,
+            fontSize: 11,
+            padding: "4px 7px",
+            borderRadius: 999,
+          }}
+        >
+          <option value="">Main</option>
+          {branches.map((branch) => (
+            <option key={branch.id} value={branch.id}>
+              {branch.name}
+            </option>
+          ))}
+        </select>
+        <span style={{ opacity: 0.8 }}>Model: {MODEL_PATH_LABEL}</span>
         <span style={{ opacity: 0.78 }}>
           Vazby:
           <span style={{ marginLeft: 5, color: "#58d2ff" }}>RELATION</span>
@@ -929,22 +1666,149 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
           </button>
         </div>
         <div style={guideSectionStyle}>
+          <div style={guideTitleStyle}>BRANCH / STAGING WORKFLOW</div>
+          <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+            Aktivni workspace: <strong>{activeWorkspaceLabel}</strong>. Main = produkcni timeline, branch = izolovana sandbox vrstva.
+          </div>
+          <select
+            value={selectedBranchId}
+            onChange={(event) => setSelectedBranchId(event.target.value)}
+            disabled={branchBusy || branchesLoading}
+            style={selectStyle}
+          >
+            <option value="">Main (live timeline)</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 6 }}>
+            <input
+              value={draftBranchName}
+              onChange={(event) => setDraftBranchName(event.target.value)}
+              placeholder="Nazev branch (napr. staging)"
+              style={inputStyle}
+              disabled={branchBusy}
+            />
+            <button type="button" onClick={handleCreateBranch} disabled={branchBusy || !draftBranchName.trim()} style={ghostButtonStyle}>
+              {branchBusy ? "..." : "Create"}
+            </button>
+            <button type="button" onClick={loadBranches} disabled={branchBusy || branchesLoading} style={ghostButtonStyle}>
+              Refresh
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={handlePromoteBranch}
+              disabled={branchBusy || historicalMode || !activeBranchId}
+              style={{ ...actionButtonStyle, background: "linear-gradient(120deg, #4dd7b6, #8affde)" }}
+            >
+              Promote do main
+            </button>
+            {historicalMode ? <div style={{ fontSize: 11, opacity: 0.75 }}>Promote je v historical modu uzamcen.</div> : null}
+          </div>
+          {branchesLoading ? <div style={{ fontSize: 11, color: "#9de7ff" }}>Nacitam branche...</div> : null}
+          {branchesError ? <div style={{ fontSize: 11, color: "#ffb7c9" }}>{branchesError}</div> : null}
+        </div>
+        <div style={guideSectionStyle}>
+          <div style={guideTitleStyle}>CSV IMPORT (PREVIEW / COMMIT)</div>
+          <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+            1) Vyber CSV soubor. 2) Zvol preview (bez zapisu) nebo commit (zapis). 3) Strict urcuje stop na prvni chybe.
+          </div>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(event) => setImportFile(event.target.files?.[0] || null)}
+            disabled={importDisabled}
+            style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }}
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6, alignItems: "center" }}>
+            <select
+              value={importMode}
+              onChange={(event) => setImportMode(event.target.value)}
+              disabled={importDisabled}
+              style={selectStyle}
+            >
+              <option value="preview">Preview (bez zapisu)</option>
+              <option value="commit">Commit (zapsat data)</option>
+            </select>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.88 }}>
+              <input
+                type="checkbox"
+                checked={importStrict}
+                onChange={(event) => setImportStrict(event.target.checked)}
+                disabled={importDisabled}
+              />
+              Strict
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button type="button" onClick={handleCsvImport} disabled={importDisabled || !importFile} style={actionButtonStyle}>
+              {importBusy ? "..." : "Spustit import"}
+            </button>
+            <button type="button" onClick={refreshImportJob} disabled={importBusy || !lastImportJob?.id} style={ghostButtonStyle}>
+              Refresh job
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!lastImportJob?.id) return;
+                loadImportErrors(lastImportJob.id).catch((importErrorsError) =>
+                  setError(importErrorsError.message || "Import errors load failed")
+                );
+              }}
+              disabled={importBusy || !lastImportJob?.id}
+              style={ghostButtonStyle}
+            >
+              Nacist chyby
+            </button>
+          </div>
+          {importFile ? (
+            <div style={{ fontSize: 11, opacity: 0.82 }}>
+              Soubor: <strong>{importFile.name}</strong>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, opacity: 0.72 }}>Soubor zatim neni vybran.</div>
+          )}
+          {importInfo ? <div style={{ fontSize: 12, color: "#9de7ff" }}>{importInfo}</div> : null}
+          {lastImportJob ? (
+            <div style={{ fontSize: 11, opacity: 0.84 }}>
+              Job {lastImportJob.id} · mode {lastImportJob.mode} · status {lastImportJob.status}
+            </div>
+          ) : null}
+          {importErrors.length ? (
+            <div style={{ display: "grid", gap: 4 }}>
+              {importErrors.slice(0, 6).map((item) => (
+                <div
+                  key={item.id}
+                  style={{
+                    fontSize: 11,
+                    border: "1px solid rgba(255, 148, 176, 0.28)",
+                    borderRadius: 8,
+                    background: "rgba(42, 9, 19, 0.45)",
+                    color: "#ffd4e0",
+                    padding: "5px 7px",
+                    lineHeight: 1.35,
+                  }}
+                >
+                  Radek {item.row_number}: {item.message}
+                </div>
+              ))}
+              {importErrors.length > 6 ? (
+                <div style={{ fontSize: 11, opacity: 0.74 }}>Zobrazeno 6/{importErrors.length} chyb.</div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        <div style={guideSectionStyle}>
           <div style={guideTitleStyle}>KDE CO UDELAS (bez vahani)</div>
-          <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.4 }}>
-            1) Nova Entita + Hvezda/Planeta + Mesic: formulare niz.
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.4 }}>
-            2) Propojeni dvou Mesicu: "Rychla vazba" nebo `Shift + drag` v 3D.
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.4 }}>
-            3) Editace bunek: panel "Tabulkovy Prurez" nebo "Mesic a Tezba Bunek".
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.4 }}>
-            4) Formula/Guardian/Delete: formulare niz, prikaz se doplni automaticky.
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.4 }}>
-            5) Najit objekt: "Fokus na Mesic" nebo prikaz `Ukaz : ...`.
-          </div>
+          {WORKSPACE_GUIDE.map((item, index) => (
+            <div key={item} style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.4 }}>
+              {index + 1}) {item}
+            </div>
+          ))}
         </div>
         <div style={guideSectionStyle}>
           <div style={guideTitleStyle}>RYCHLE ZALOZENI (nova hvezda/planeta i mesic)</div>
@@ -1688,6 +2552,11 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
                 {hoveredLink.v1Status}
               </strong>{" "}
               ({hoveredLink.v1Quality}/100)
+            </div>
+          ) : null}
+          {Number.isFinite(hoveredLink.physicsStress) ? (
+            <div style={{ marginTop: 2, opacity: 0.82 }}>
+              Fyzika: stres {Math.round(hoveredLink.physicsStress * 100)}% · tok {Math.round((hoveredLink.physicsFlow || 0) * 100)}%
             </div>
           ) : null}
           <div style={{ marginTop: 2, opacity: 0.78 }}>{hoveredLink.description}</div>

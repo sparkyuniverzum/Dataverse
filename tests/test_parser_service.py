@@ -39,6 +39,16 @@ def test_triple_shot_select_stays_compatible() -> None:
     assert tasks[0].params["condition"] == "z Prahy"
 
 
+def test_triple_shot_show_alias_maps_to_select() -> None:
+    parser = ParserService()
+    tasks = parser.parse("show : customers @ active")
+
+    assert len(tasks) == 1
+    assert tasks[0].action == "SELECT"
+    assert tasks[0].params["target_asteroid"] == "customers"
+    assert tasks[0].params["condition"] == "active"
+
+
 def test_delete_command_is_mapped_to_delete_task() -> None:
     parser = ParserService()
     tasks = parser.parse("Zhasni : Pavel")
@@ -83,6 +93,15 @@ def test_plus_chain_creates_sequential_links() -> None:
     assert [task.action for task in tasks] == ["INGEST", "INGEST", "INGEST", "LINK", "LINK"]
     assert tasks[3].params["type"] == "RELATION"
     assert tasks[4].params["type"] == "RELATION"
+
+
+def test_colon_chain_creates_sequential_type_links() -> None:
+    parser = ParserService()
+    tasks = parser.parse("A : B : C")
+
+    assert [task.action for task in tasks] == ["INGEST", "INGEST", "INGEST", "LINK", "LINK"]
+    assert tasks[3].params["type"] == "TYPE"
+    assert tasks[4].params["type"] == "TYPE"
 
 
 def test_plus_operator_inside_metadata_is_not_split() -> None:
@@ -189,3 +208,21 @@ def test_legacy_parse_keeps_compatibility_and_returns_empty_for_invalid() -> Non
     tasks = parser.parse("Smaz Pavel")
 
     assert tasks == []
+
+
+def test_empty_input_behavior_is_stable_for_diagnostics_and_legacy_parse() -> None:
+    parser = ParserService()
+    diagnostics = parser.parse_with_diagnostics("   ")
+    assert diagnostics.tasks == []
+    assert diagnostics.errors == ["Command is empty."]
+    assert parser.parse("   ") == []
+
+
+def test_parser_contract_doc_mentions_current_parser_semantics() -> None:
+    contract = Path(__file__).resolve().parents[1] / "docs" / "contracts" / "parser-v1.md"
+    text = contract.read_text(encoding="utf-8")
+
+    assert "Command is empty." in text
+    assert "`spoj` command" in text
+    assert "ukaz/ukaž/najdi/show/find -> SELECT" in text
+    assert "A : B : C" in text

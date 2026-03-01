@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LANDING_GUIDE, MODEL_PATH_LABEL } from "../../lib/onboarding";
 
 export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
   const [mode, setMode] = useState("login");
@@ -65,7 +66,9 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
           <div style={{ marginTop: 5, fontSize: 13, opacity: 0.76 }}>Kokpit průzkumníka AURORA-01</div>
 
           <p style={{ marginTop: 12, maxWidth: 620, fontSize: 15, opacity: 0.86 }}>
-            Priprav se na vstup do datoveho vesmiru. Po odemceni kokpitu prochazis pres Galaxie (workspace), Souhvezdi/Entity, Planety, Mesice a Bunky tezby.
+            Priprav se na vstup do datoveho vesmiru. Po odemceni kokpitu jedes podle jednotne mapy:
+            {" "}
+            {MODEL_PATH_LABEL}.
           </p>
 
           <div
@@ -80,10 +83,9 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
             }}
           >
             <div style={{ fontSize: 12, letterSpacing: 0.7, opacity: 0.72 }}>PŘEDLETOVÝ CHECKLIST</div>
-            <ChecklistItem text="Vyber galaxii (workspace)." />
-            <ChecklistItem text="Vstup do souhvezdi (entita)." />
-            <ChecklistItem text="Na orbite pracuj s planetami a mesici." />
-            <ChecklistItem text="Bunky jsou nerosty/suroviny pro tezbu dat." />
+            {LANDING_GUIDE.map((item) => (
+              <ChecklistItem key={item} text={item} />
+            ))}
           </div>
 
           <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>

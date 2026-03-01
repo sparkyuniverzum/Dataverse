@@ -228,6 +228,7 @@ class ImportExportService:
         *,
         user_id: UUID,
         galaxy_id: UUID,
+        branch_id: UUID | None,
         filename: str,
         file_bytes: bytes,
         mode: ImportMode,
@@ -283,6 +284,7 @@ class ImportExportService:
                             tasks=tasks,
                             user_id=user_id,
                             galaxy_id=galaxy_id,
+                            branch_id=branch_id,
                             manage_transaction=False,
                         )
                 processed_rows += 1
@@ -310,6 +312,7 @@ class ImportExportService:
                             "planned_tasks": planned_tasks,
                             "mode": mode.value,
                             "failure_row": row_number,
+                            "branch_id": str(branch_id) if branch_id is not None else None,
                         }
                     await session.refresh(job)
                     return ImportExecutionResult(job=job, summary=job.summary)
@@ -328,6 +331,7 @@ class ImportExportService:
                 "strict": strict,
                 "planned_tasks": planned_tasks,
                 "mode": mode.value,
+                "branch_id": str(branch_id) if branch_id is not None else None,
             }
         await session.refresh(job)
 
@@ -339,12 +343,14 @@ class ImportExportService:
         *,
         user_id: UUID,
         galaxy_id: UUID,
+        branch_id: UUID | None,
         as_of: datetime | None,
     ) -> str:
         asteroids, bonds = await self.universe_service.snapshot(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
+            branch_id=branch_id,
             as_of=as_of,
         )
 
@@ -419,12 +425,14 @@ class ImportExportService:
         *,
         user_id: UUID,
         galaxy_id: UUID,
+        branch_id: UUID | None,
         as_of: datetime | None,
     ) -> str:
         tables = await self.universe_service.tables_snapshot(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
+            branch_id=branch_id,
             as_of=as_of,
         )
 

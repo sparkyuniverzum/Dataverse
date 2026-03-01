@@ -1,10 +1,19 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Billboard, Line, OrbitControls, Stars, Text } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import * as THREE from "three";
 
 import CameraPilot from "./CameraPilot";
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function setBodyCursor(cursor) {
+  if (typeof document === "undefined" || !document.body) return;
+  document.body.style.cursor = cursor;
+}
 
 function curvePoints(start, end, arc = 0.24, segments = 40) {
   const control = [
@@ -286,13 +295,94 @@ function samplePath(points, t) {
   ];
 }
 
+const FALLBACK_NODE_PHYSICS = Object.freeze({
+  quality: 1,
+  stress: 0,
+  alertPressure: 0,
+  bondDensity: 0,
+  massFactor: 1,
+  radiusFactor: 1,
+  spinFactor: 1,
+  emissiveBoost: 0,
+  auraFactor: 1,
+  pulseFactor: 1,
+});
+
+const FALLBACK_LINK_PHYSICS = Object.freeze({
+  stress: 0,
+  flow: 0,
+  widthFactor: 1,
+  speedFactor: 1,
+  opacityFactor: 1,
+  pulseSizeFactor: 1,
+});
+
+function MouseGuideOverlay({ level, hoveredNode }) {
+  const isTablesLevel = level < 3;
+  const title = isTablesLevel ? "L2 objekty: Souhvezdi / Entity" : "L3 objekty: Mesice";
+  const lines = isTablesLevel
+    ? [
+        "LMB klik na Souhvezdi: vstup do Planety.",
+        "RMB klik na Souhvezdi: menu (Vstoupit / Zpet).",
+        "Drag pozadi: orbit kamery, kolecko: zoom.",
+      ]
+    : [
+        "LMB klik na Mesic: fokus.",
+        "RMB klik na Mesic: menu (Upravit / Zhasnout).",
+        "RMB drag Mesic -> Mesic: nova vazba (alternativa Shift + LMB drag).",
+      ];
+
+  const hoverTip = hoveredNode
+    ? hoveredNode.kind === "table"
+      ? `Objekt ${hoveredNode.label}: LMB vstup, RMB menu.`
+      : `Objekt ${hoveredNode.label}: LMB fokus, RMB menu, RMB drag pro vazbu.`
+    : isTablesLevel
+      ? "Najed mysi na Souhvezdi a hned vidis jeho primarni akce."
+      : "Propojeni vytvoris pretazenim mezi dvema Mesici.";
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left: 12,
+        bottom: 12,
+        zIndex: 32,
+        width: "min(460px, calc(100vw - 24px))",
+        pointerEvents: "none",
+        borderRadius: 12,
+        border: "1px solid rgba(109, 209, 241, 0.36)",
+        background: "rgba(4, 12, 22, 0.84)",
+        color: "#dcf8ff",
+        padding: "8px 10px",
+        boxShadow: "0 0 20px rgba(53, 164, 214, 0.22)",
+        backdropFilter: "blur(7px)",
+      }}
+    >
+      <div style={{ fontSize: 11, letterSpacing: 0.6, opacity: 0.86 }}>{title}</div>
+      {lines.map((item) => (
+        <div key={item} style={{ fontSize: 12, marginTop: 3, opacity: 0.92, lineHeight: 1.35 }}>
+          {item}
+        </div>
+      ))}
+      <div style={{ fontSize: 12, marginTop: 6, color: "#9fe6ff", lineHeight: 1.35 }}>{hoverTip}</div>
+    </div>
+  );
+}
+
 function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHoverLink, onLeaveLink }) {
   const pulseRef = useRef(null);
   const pulse2Ref = useRef(null);
+  const linkPhysics = link?.physics || FALLBACK_LINK_PHYSICS;
+  const stress = clamp(Number(linkPhysics?.stress) || 0, 0, 1);
+  const flow = clamp(Number(linkPhysics?.flow) || 0, 0, 1);
+  const widthFactor = clamp(Number(linkPhysics?.widthFactor) || 1, 0.9, 2.35);
+  const speedFactor = clamp(Number(linkPhysics?.speedFactor) || 1, 0.82, 2.5);
+  const opacityFactor = clamp(Number(linkPhysics?.opacityFactor) || 1, 0.9, 1.18);
+  const pulseSizeFactor = clamp(Number(linkPhysics?.pulseSizeFactor) || 1, 0.9, 2.3);
   const points = useMemo(() => {
-    const arc = emphasized ? 0.1 : 0.08;
+    const arc = (emphasized ? 0.1 : 0.08) + stress * 0.04 + flow * 0.02;
     return curvePoints(sourceNode.position, targetNode.position, arc, 40);
-  }, [sourceNode, targetNode, emphasized]);
+  }, [sourceNode, targetNode, emphasized, flow, stress]);
 
   const color = resolveLinkColor(link.type);
   const semantics = resolveLinkSemantic(link.type);
@@ -302,10 +392,10 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
   const baseColor = new THREE.Color(color);
   const statusColor = new THREE.Color(resolveStatusTint(v1Status));
   const mixedColor = baseColor.clone().lerp(statusColor, 0.34).getStyle();
-  const opacity = dimmed ? 0.14 : emphasized ? 0.94 : 0.74;
-  const lineWidth = dimmed ? 0.3 : emphasized ? 1.8 : v1Status === "RED" ? 1.55 : v1Status === "YELLOW" ? 1.25 : 1.05;
+  const opacity = clamp((dimmed ? 0.14 : emphasized ? 0.94 : 0.74) * opacityFactor, 0.12, 0.98);
+  const lineWidth = (dimmed ? 0.3 : emphasized ? 1.8 : v1Status === "RED" ? 1.55 : v1Status === "YELLOW" ? 1.25 : 1.05) * widthFactor;
   const pulseColor = new THREE.Color(mixedColor).lerp(new THREE.Color("#ffffff"), 0.35).getStyle();
-  const speed = dimmed ? 0.12 : emphasized ? 0.34 : 0.22;
+  const speed = (dimmed ? 0.12 : emphasized ? 0.34 : 0.22) * speedFactor;
   const weight = Number(link.weight || 1);
   const sourceConstellation = String(link.source_constellation_name || sourceNode.entityName || "Unknown");
   const sourcePlanet = String(link.source_planet_name || sourceNode.planetName || sourceNode.label || "Unknown");
@@ -338,6 +428,7 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
         opacity={opacity}
         onPointerOver={(event) => {
           event.stopPropagation();
+          setBodyCursor("pointer");
           onHoverLink?.({
             id: link.id,
             type: String(link.type || "RELATION"),
@@ -352,23 +443,26 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
             description: semantics.description,
             v1Status,
             v1Quality,
+            physicsStress: stress,
+            physicsFlow: flow,
             x: event.nativeEvent.clientX,
             y: event.nativeEvent.clientY,
           });
         }}
         onPointerOut={(event) => {
           event.stopPropagation();
+          setBodyCursor("auto");
           onLeaveLink?.();
         }}
       />
       {!dimmed ? (
         <>
           <mesh ref={pulseRef}>
-            <sphereGeometry args={[emphasized ? 1.2 : 0.86, 12, 12]} />
+            <sphereGeometry args={[(emphasized ? 1.2 : 0.86) * pulseSizeFactor, 12, 12]} />
             <meshBasicMaterial color={pulseColor} transparent opacity={0.95} />
           </mesh>
           <mesh ref={pulse2Ref}>
-            <sphereGeometry args={[0.56, 10, 10]} />
+            <sphereGeometry args={[0.56 * pulseSizeFactor, 10, 10]} />
             <meshBasicMaterial color={pulseColor} transparent opacity={0.72} />
           </mesh>
         </>
@@ -377,26 +471,41 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
   );
 }
 
-function TableNode({ node, selected, onPointerDownNode, onPointerUpNode, onSelectNode, onContextNode }) {
+function TableNode({
+  node,
+  selected,
+  onPointerDownNode,
+  onPointerUpNode,
+  onSelectNode,
+  onContextNode,
+  onHoverNode,
+  onLeaveNode,
+}) {
   const groupRef = useRef(null);
   const visual = useMemo(() => buildConstellationVisual(node), [node.id, node.entityName, node.memberCount, node.radius, node.label]);
   const targetScaleRef = useRef(selected ? 1.16 : 1);
   const v1Style = resolvePlanetV1Style(node.v1);
   const hasV1 = Boolean(node.v1);
+  const physics = node.physics || FALLBACK_NODE_PHYSICS;
+  const stress = clamp(Number(physics?.stress) || 0, 0, 1);
+  const spinFactor = clamp(Number(physics?.spinFactor) || 1, 0.82, 2.1);
+  const emissiveBoost = clamp(Number(physics?.emissiveBoost) || 0, 0, 0.9);
+  const auraFactor = clamp(Number(physics?.auraFactor) || 1, 0.9, 2.2);
+  const alertPressure = clamp(Number(physics?.alertPressure) || 0, 0, 1);
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
-    targetScaleRef.current = selected ? 1.16 : 1;
+    targetScaleRef.current = selected ? 1.16 + stress * 0.04 : 1 + stress * 0.06;
     const nextScale = THREE.MathUtils.damp(groupRef.current.scale.x, targetScaleRef.current, 7, delta);
     groupRef.current.scale.set(nextScale, nextScale, nextScale);
-    groupRef.current.rotation.y += delta * visual.spinSpeed;
+    groupRef.current.rotation.y += delta * visual.spinSpeed * spinFactor;
   });
 
   const coreMaterial = (
     <meshStandardMaterial
       color={selected ? "#f4fbff" : visual.coreColor}
       emissive={selected ? "#b3eaff" : v1Style.emissive}
-      emissiveIntensity={selected ? 1.25 : 0.62}
+      emissiveIntensity={selected ? 1.25 : 0.62 + emissiveBoost}
       roughness={0.28}
       metalness={0.52}
       transparent
@@ -434,7 +543,7 @@ function TableNode({ node, selected, onPointerDownNode, onPointerUpNode, onSelec
             vertexColors
             transparent
             depthWrite={false}
-            opacity={selected ? 0.95 : 0.78}
+            opacity={selected ? 0.95 : clamp(0.76 + alertPressure * 0.2, 0.76, 0.98)}
             blending={THREE.AdditiveBlending}
           />
         </points>
@@ -452,7 +561,7 @@ function TableNode({ node, selected, onPointerDownNode, onPointerUpNode, onSelec
               <meshStandardMaterial
                 color={visual.rimColor}
                 emissive={selected ? visual.rimColor : v1Style.rim}
-                emissiveIntensity={selected ? 0.98 : 0.58}
+                emissiveIntensity={selected ? 0.98 : 0.58 + emissiveBoost * 0.72}
                 transparent
                 opacity={0.64 - idx * 0.12}
               />
@@ -465,7 +574,7 @@ function TableNode({ node, selected, onPointerDownNode, onPointerUpNode, onSelec
           <meshBasicMaterial
             color={selected ? visual.glowColor : v1Style.emissive}
             transparent
-            opacity={selected ? 0.18 : v1Style.auraOpacity}
+            opacity={selected ? 0.18 : clamp(v1Style.auraOpacity * auraFactor, 0.11, 0.42)}
             depthWrite={false}
           />
         </mesh>
@@ -474,6 +583,16 @@ function TableNode({ node, selected, onPointerDownNode, onPointerUpNode, onSelec
       <mesh
         onPointerDown={(event) => onPointerDownNode(event, node)}
         onPointerUp={(event) => onPointerUpNode(event, node)}
+        onPointerOver={(event) => {
+          event.stopPropagation();
+          setBodyCursor("pointer");
+          onHoverNode?.(node);
+        }}
+        onPointerOut={(event) => {
+          event.stopPropagation();
+          setBodyCursor("auto");
+          onLeaveNode?.(node);
+        }}
         onClick={(event) => {
           event.stopPropagation();
           onSelectNode(node);
@@ -503,34 +622,78 @@ function TableNode({ node, selected, onPointerDownNode, onPointerUpNode, onSelec
   );
 }
 
-function AsteroidNode({ node, selected, onPointerDownNode, onPointerUpNode, onSelectNode, onContextNode }) {
+function AsteroidNode({
+  node,
+  selected,
+  onPointerDownNode,
+  onPointerUpNode,
+  onSelectNode,
+  onContextNode,
+  onHoverNode,
+  onLeaveNode,
+}) {
+  const groupRef = useRef(null);
   const v1Style = resolveMoonV1Style(node.v1);
   const hasV1 = Boolean(node.v1);
+  const physics = node.physics || FALLBACK_NODE_PHYSICS;
+  const stress = clamp(Number(physics?.stress) || 0, 0, 1);
+  const pulseFactor = clamp(Number(physics?.pulseFactor) || 1, 0.9, 2.35);
+  const emissiveBoost = clamp(Number(physics?.emissiveBoost) || 0, 0, 0.95);
+  const auraFactor = clamp(Number(physics?.auraFactor) || 1, 0.9, 2.2);
+  const phase = useMemo(() => ((hashText(node.id) % 360) / 180) * Math.PI, [node.id]);
+
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+    const wave = Math.sin(state.clock.elapsedTime * (0.9 + pulseFactor * 0.64) + phase);
+    const targetScale = (selected ? 1.08 : 1) + wave * 0.028 * (0.3 + stress * 0.7);
+    const nextScale = THREE.MathUtils.damp(groupRef.current.scale.x, targetScale, 7, delta);
+    groupRef.current.scale.set(nextScale, nextScale, nextScale);
+  });
+
   return (
-    <group position={node.position}>
-      <mesh
-        onPointerDown={(event) => onPointerDownNode(event, node)}
-        onPointerUp={(event) => onPointerUpNode(event, node)}
-        onClick={(event) => {
-          event.stopPropagation();
-          onSelectNode(node);
-        }}
-        onContextMenu={(event) => onContextNode(event, node)}
-      >
+    <group ref={groupRef} position={node.position}>
+      <mesh>
         <icosahedronGeometry args={[node.radius, 1]} />
         <meshStandardMaterial
           color={selected ? "#ffc27b" : v1Style.color}
           emissive={selected ? "#ff8d42" : v1Style.emissive}
-          emissiveIntensity={selected ? 1.25 : 0.7}
+          emissiveIntensity={selected ? 1.25 : 0.7 + emissiveBoost}
           roughness={0.35}
           metalness={0.2}
           transparent
           opacity={0.96}
         />
       </mesh>
+      <mesh
+        onPointerDown={(event) => onPointerDownNode(event, node)}
+        onPointerUp={(event) => onPointerUpNode(event, node)}
+        onPointerOver={(event) => {
+          event.stopPropagation();
+          setBodyCursor("grab");
+          onHoverNode?.(node);
+        }}
+        onPointerOut={(event) => {
+          event.stopPropagation();
+          setBodyCursor("auto");
+          onLeaveNode?.(node);
+        }}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelectNode(node);
+        }}
+        onContextMenu={(event) => onContextNode(event, node)}
+      >
+        <sphereGeometry args={[node.radius * 1.38, 18, 18]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
       <mesh>
-        <sphereGeometry args={[node.radius * 1.45, 20, 20]} />
-        <meshBasicMaterial color={v1Style.aura} transparent opacity={selected ? 0.2 : 0.12} depthWrite={false} />
+        <sphereGeometry args={[node.radius * (1.45 + stress * 0.2), 20, 20]} />
+        <meshBasicMaterial
+          color={v1Style.aura}
+          transparent
+          opacity={selected ? 0.2 : clamp(0.12 * auraFactor, 0.1, 0.4)}
+          depthWrite={false}
+        />
       </mesh>
       <Billboard position={[0, node.radius + 4.2, 0]}>
         <Text fontSize={3.2} color="#e6fbff" anchorX="center" anchorY="middle" maxWidth={54}>
@@ -568,6 +731,8 @@ export default function UniverseCanvas({
 }) {
   const controlsRef = useRef(null);
   const dragRef = useRef(null);
+  const suppressContextMenuUntilRef = useRef(0);
+  const [hoveredNode, setHoveredNode] = useState(null);
   const interactionPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), []);
 
   const tableById = useMemo(() => new Map(tableNodes.map((node) => [node.id, node])), [tableNodes]);
@@ -575,6 +740,30 @@ export default function UniverseCanvas({
 
   const selectedTableNode = selectedTableId ? tableById.get(selectedTableId) || null : null;
   const selectedAsteroidNode = selectedAsteroidId ? asteroidById.get(selectedAsteroidId) || null : null;
+
+  useEffect(() => () => setBodyCursor("auto"), []);
+  useEffect(() => {
+    setHoveredNode(null);
+  }, [level]);
+
+  const isDragLinkGesture = (event, node) => {
+    if (level < 3) return false;
+    if (!node || node.kind !== "asteroid") return false;
+    if (event.button === 2) return true;
+    if (event.button === 0 && event.shiftKey) return true;
+    return false;
+  };
+
+  const releaseDragState = ({ suppressContextMenu = false } = {}) => {
+    dragRef.current = null;
+    if (controlsRef.current) {
+      controlsRef.current.enabled = true;
+    }
+    if (suppressContextMenu) {
+      suppressContextMenuUntilRef.current = Date.now() + 320;
+    }
+    onLinkCancel();
+  };
 
   const resolveLinePoint = (event) => {
     const out = new THREE.Vector3();
@@ -584,14 +773,16 @@ export default function UniverseCanvas({
   };
 
   const beginNodeDrag = (event, node) => {
-    if (event.button !== 0) return;
-    if (level < 3) return;
-    if (node.kind !== "asteroid") return;
-    if (!event.shiftKey) return;
+    if (!isDragLinkGesture(event, node)) return;
     event.stopPropagation();
+    event.preventDefault();
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false;
+    }
     dragRef.current = {
       sourceId: node.id,
       sourceKind: node.kind,
+      sourceButton: event.button,
       moved: false,
       startX: event.clientX,
       startY: event.clientY,
@@ -601,10 +792,11 @@ export default function UniverseCanvas({
   };
 
   const endNodeDrag = (event, node) => {
-    if (event.button !== 0) return;
     const draft = dragRef.current;
     if (!draft || draft.sourceId !== linkDraft?.sourceId) return;
+    if (event.button !== draft.sourceButton) return;
     event.stopPropagation();
+    event.preventDefault();
     if (draft.moved && draft.sourceId !== node.id && draft.sourceKind === "asteroid" && node.kind === "asteroid") {
       onLinkComplete({
         sourceId: draft.sourceId,
@@ -613,9 +805,7 @@ export default function UniverseCanvas({
         targetKind: node.kind,
       });
     }
-
-    dragRef.current = null;
-    onLinkCancel();
+    releaseDragState({ suppressContextMenu: draft.sourceButton === 2 && draft.moved });
   };
 
   const onBackgroundMove = (event) => {
@@ -630,11 +820,12 @@ export default function UniverseCanvas({
   };
 
   const onBackgroundUp = (event) => {
-    if (event.button !== 0) return;
-    if (dragRef.current) {
-      dragRef.current = null;
-      onLinkCancel();
-    }
+    const draft = dragRef.current;
+    if (!draft) return;
+    if (event.button !== draft.sourceButton) return;
+    event.stopPropagation();
+    event.preventDefault();
+    releaseDragState({ suppressContextMenu: draft.sourceButton === 2 && draft.moved });
   };
 
   const resolveLinkEndpoint = (value) => {
@@ -644,33 +835,37 @@ export default function UniverseCanvas({
   };
 
   return (
-    <Canvas
-      camera={{
-        position: cameraState.position,
-        fov: 54,
-        near: 0.1,
-        far: 8000,
-      }}
-      gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.18 }}
-      style={{ width: "100vw", height: "100vh", background: "#020205" }}
-      onPointerMove={onBackgroundMove}
-      onPointerUp={onBackgroundUp}
-      onPointerMissed={() => {
-        dragRef.current = null;
-        onLinkCancel();
-      }}
-    >
-      <color attach="background" args={["#020205"]} />
-      <fog attach="fog" args={["#020205", 260, 1600]} />
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <Canvas
+        camera={{
+          position: cameraState.position,
+          fov: 54,
+          near: 0.1,
+          far: 8000,
+        }}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.18 }}
+        style={{ width: "100%", height: "100%", background: "#020205" }}
+        onPointerMove={onBackgroundMove}
+        onPointerUp={onBackgroundUp}
+        onContextMenu={(event) => {
+          event.preventDefault();
+        }}
+        onPointerMissed={() => {
+          releaseDragState();
+          setBodyCursor("auto");
+        }}
+      >
+        <color attach="background" args={["#020205"]} />
+        <fog attach="fog" args={["#020205", 260, 1600]} />
 
-      <ambientLight intensity={0.46} />
-      <directionalLight position={[240, 220, 200]} intensity={1.1} color="#b5e8ff" />
-      <directionalLight position={[-220, -120, -180]} intensity={0.38} color="#6fa5ff" />
+        <ambientLight intensity={0.46} />
+        <directionalLight position={[240, 220, 200]} intensity={1.1} color="#b5e8ff" />
+        <directionalLight position={[-220, -120, -180]} intensity={0.38} color="#6fa5ff" />
 
-      <Stars radius={2200} depth={900} count={8200} factor={8} saturation={0} fade speed={0.1} />
+        <Stars radius={2200} depth={900} count={8200} factor={8} saturation={0} fade speed={0.1} />
 
-      {level < 3
-        ? tableLinks.map((link) => {
+        {level < 3
+          ? tableLinks.map((link) => {
             const sourceId = resolveLinkEndpoint(link.source);
             const targetId = resolveLinkEndpoint(link.target);
             const sourceNode = tableById.get(sourceId);
@@ -691,10 +886,10 @@ export default function UniverseCanvas({
                 onLeaveLink={onLeaveLink}
               />
             );
-          })
-        : null}
-      {level >= 3
-        ? asteroidLinks.map((link) => {
+            })
+          : null}
+        {level >= 3
+          ? asteroidLinks.map((link) => {
             const sourceId = resolveLinkEndpoint(link.source);
             const targetId = resolveLinkEndpoint(link.target);
             const sourceNode = asteroidById.get(sourceId);
@@ -715,85 +910,97 @@ export default function UniverseCanvas({
                 onLeaveLink={onLeaveLink}
               />
             );
-          })
-        : null}
+            })
+          : null}
 
-      {tableNodes.map((node) => (
-        <TableNode
-          key={node.id}
-          node={node}
-          selected={node.id === selectedTableId}
-          onPointerDownNode={beginNodeDrag}
-          onPointerUpNode={endNodeDrag}
-          onSelectNode={(current) => onSelectTable(current.id)}
-          onContextNode={(event, current) => {
-            event.stopPropagation();
-            event.preventDefault();
-            onOpenContext({
-              kind: "table",
-              id: current.id,
-              label: current.label,
-              x: event.nativeEvent.clientX,
-              y: event.nativeEvent.clientY,
-            });
-          }}
+        {tableNodes.map((node) => (
+          <TableNode
+            key={node.id}
+            node={node}
+            selected={node.id === selectedTableId}
+            onPointerDownNode={beginNodeDrag}
+            onPointerUpNode={endNodeDrag}
+            onSelectNode={(current) => onSelectTable(current.id)}
+            onHoverNode={(current) => setHoveredNode({ kind: "table", id: current.id, label: current.label })}
+            onLeaveNode={(current) =>
+              setHoveredNode((prev) => (prev && prev.kind === "table" && prev.id === current.id ? null : prev))
+            }
+            onContextNode={(event, current) => {
+              event.stopPropagation();
+              event.preventDefault();
+              if (Date.now() < suppressContextMenuUntilRef.current) return;
+              onOpenContext({
+                kind: "table",
+                id: current.id,
+                label: current.label,
+                x: event.nativeEvent.clientX,
+                y: event.nativeEvent.clientY,
+              });
+            }}
+          />
+        ))}
+
+        {level >= 3
+          ? asteroidNodes.map((node) => (
+              <AsteroidNode
+                key={node.id}
+                node={node}
+                selected={node.id === selectedAsteroidId}
+                onPointerDownNode={beginNodeDrag}
+                onPointerUpNode={endNodeDrag}
+                onSelectNode={(current) => onSelectAsteroid(current.id)}
+                onHoverNode={(current) => setHoveredNode({ kind: "asteroid", id: current.id, label: current.label })}
+                onLeaveNode={(current) =>
+                  setHoveredNode((prev) => (prev && prev.kind === "asteroid" && prev.id === current.id ? null : prev))
+                }
+                onContextNode={(event, current) => {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  if (Date.now() < suppressContextMenuUntilRef.current) return;
+                  onOpenContext({
+                    kind: "asteroid",
+                    id: current.id,
+                    label: current.label,
+                    x: event.nativeEvent.clientX,
+                    y: event.nativeEvent.clientY,
+                  });
+                }}
+              />
+            ))
+          : null}
+
+        {linkDraft?.from && linkDraft?.to ? (
+          <Line
+            points={curvePoints(linkDraft.from, linkDraft.to, 0.03, 20)}
+            color="#9de8ff"
+            lineWidth={2}
+            transparent
+            opacity={0.88}
+          />
+        ) : null}
+
+        <EffectComposer>
+          <Bloom intensity={0.62} luminanceThreshold={0.1} luminanceSmoothing={0.34} mipmapBlur />
+        </EffectComposer>
+
+        <OrbitControls
+          ref={controlsRef}
+          makeDefault
+          enableDamping
+          dampingFactor={0.08}
+          minDistance={cameraState.minDistance}
+          maxDistance={cameraState.maxDistance}
         />
-      ))}
-
-      {level >= 3
-        ? asteroidNodes.map((node) => (
-            <AsteroidNode
-              key={node.id}
-              node={node}
-              selected={node.id === selectedAsteroidId}
-              onPointerDownNode={beginNodeDrag}
-              onPointerUpNode={endNodeDrag}
-              onSelectNode={(current) => onSelectAsteroid(current.id)}
-              onContextNode={(event, current) => {
-                event.stopPropagation();
-                event.preventDefault();
-                onOpenContext({
-                  kind: "asteroid",
-                  id: current.id,
-                  label: current.label,
-                  x: event.nativeEvent.clientX,
-                  y: event.nativeEvent.clientY,
-                });
-              }}
-            />
-          ))
-        : null}
-
-      {linkDraft?.from && linkDraft?.to ? (
-        <Line
-          points={curvePoints(linkDraft.from, linkDraft.to, 0.03, 20)}
-          color="#9de8ff"
-          lineWidth={2}
-          transparent
-          opacity={0.88}
+        <CameraPilot
+          controlsRef={controlsRef}
+          cameraState={cameraState}
+          tableNodes={tableNodes}
+          selectedTableNode={selectedTableNode}
+          selectedAsteroidNode={selectedAsteroidNode}
+          focusKey={`${level}:${selectedTableId || "-"}:${selectedAsteroidId || "-"}`}
         />
-      ) : null}
-
-      <EffectComposer>
-        <Bloom intensity={0.62} luminanceThreshold={0.1} luminanceSmoothing={0.34} mipmapBlur />
-      </EffectComposer>
-
-      <OrbitControls
-        ref={controlsRef}
-        makeDefault
-        enableDamping
-        dampingFactor={0.08}
-        minDistance={cameraState.minDistance}
-        maxDistance={cameraState.maxDistance}
-      />
-      <CameraPilot
-        controlsRef={controlsRef}
-        cameraState={cameraState}
-        tableNodes={tableNodes}
-        selectedTableNode={selectedTableNode}
-        selectedAsteroidNode={selectedAsteroidNode}
-        focusKey={`${level}:${selectedTableId || "-"}:${selectedAsteroidId || "-"}`}
-      />
-    </Canvas>
+      </Canvas>
+      <MouseGuideOverlay level={level} hoveredNode={hoveredNode} />
+    </div>
   );
 }

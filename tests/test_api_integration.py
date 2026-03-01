@@ -703,6 +703,70 @@ def test_csv_import_commit_creates_asteroids_and_metadata(auth_client: tuple[htt
     assert by_value[b_label]["metadata"].get("cena") in {"250", 250}
 
 
+def test_csv_import_preview_does_not_mutate_snapshot(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    preview_label = f"CSV-Preview-{uuid.uuid4()}"
+    csv_payload = f"value,cena,mena\n{preview_label},333,CZK\n"
+
+    imported = client.post(
+        "/io/imports",
+        data={"mode": "preview", "strict": "true", "galaxy_id": galaxy_id},
+        files={"file": ("preview.csv", csv_payload.encode("utf-8"), "text/csv")},
+    )
+    assert imported.status_code == 200, imported.text
+    job = imported.json()["job"]
+    assert job["mode"] == "preview"
+    assert job["processed_rows"] == 1
+    assert job["errors_count"] == 0
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    values = {_stringify(atom["value"]) for atom in snapshot.json()["asteroids"]}
+    assert preview_label not in values
+
+
+def test_csv_import_lenient_mode_persists_valid_rows_and_exposes_errors(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    ok_a = f"CSV-Lenient-A-{uuid.uuid4()}"
+    ok_b = f"CSV-Lenient-B-{uuid.uuid4()}"
+    csv_payload = f"value,source,target,cena\n{ok_a},,,10\n,ONLY_SOURCE,,\n{ok_b},,,20\n"
+
+    imported = client.post(
+        "/io/imports",
+        data={"mode": "commit", "strict": "false", "galaxy_id": galaxy_id},
+        files={"file": ("lenient.csv", csv_payload.encode("utf-8"), "text/csv")},
+    )
+    assert imported.status_code == 200, imported.text
+    job = imported.json()["job"]
+    job_id = job["id"]
+    assert job["status"] == "COMPLETED_WITH_ERRORS"
+    assert job["total_rows"] == 3
+    assert job["processed_rows"] == 2
+    assert job["errors_count"] == 1
+
+    job_detail = client.get(f"/io/imports/{job_id}")
+    assert job_detail.status_code == 200, job_detail.text
+    detail = job_detail.json()
+    assert detail["id"] == job_id
+    assert detail["errors_count"] == 1
+    assert detail["processed_rows"] == 2
+
+    errors = client.get(f"/io/imports/{job_id}/errors")
+    assert errors.status_code == 200, errors.text
+    error_items = errors.json()["errors"]
+    assert len(error_items) == 1
+    assert error_items[0]["row_number"] == 3
+    assert error_items[0]["code"] == "ROW_EXECUTION_ERROR"
+    assert "partial bond columns" in error_items[0]["message"]
+    assert "ONLY_SOURCE" in (error_items[0]["raw_value"] or "")
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    values = {_stringify(atom["value"]) for atom in snapshot.json()["asteroids"]}
+    assert ok_a in values
+    assert ok_b in values
+
+
 def test_csv_export_snapshot_returns_csv(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     label = f"CSV-Export-{uuid.uuid4()}"
@@ -714,6 +778,71 @@ def test_csv_export_snapshot_returns_csv(auth_client: tuple[httpx.Client, str]) 
     assert exported.headers.get("content-type", "").startswith("text/csv")
     assert "record_type,id,value" in exported.text
     assert label in exported.text
+
+
+def test_csv_export_tables_with_branch_id_respects_branch_timeline(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    main_label = f"Tables-Main-{uuid.uuid4()}"
+    branch_label = f"Tables-Branch-{uuid.uuid4()}"
+    csv_payload = f"value,cena\n{branch_label},700\n"
+
+    created_main = client.post("/asteroids/ingest", json={"value": main_label, "galaxy_id": galaxy_id})
+    assert created_main.status_code == 200, created_main.text
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"TablesExportBranch-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    imported = client.post(
+        "/io/imports",
+        data={"mode": "commit", "strict": "true", "galaxy_id": galaxy_id, "branch_id": branch_id},
+        files={"file": ("branch-tables.csv", csv_payload.encode("utf-8"), "text/csv")},
+    )
+    assert imported.status_code == 200, imported.text
+    assert imported.json()["job"]["processed_rows"] == 1
+
+    exported_main = client.get("/io/exports/tables", params={"format": "csv", "galaxy_id": galaxy_id})
+    assert exported_main.status_code == 200, exported_main.text
+    assert main_label in exported_main.text
+    assert branch_label not in exported_main.text
+
+    exported_branch = client.get(
+        "/io/exports/tables",
+        params={"format": "csv", "galaxy_id": galaxy_id, "branch_id": branch_id},
+    )
+    assert exported_branch.status_code == 200, exported_branch.text
+    assert branch_label in exported_branch.text
+
+
+def test_branch_create_rejects_duplicate_normalized_name(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    first = client.post(
+        "/branches",
+        json={"name": "  Scenario A  ", "galaxy_id": galaxy_id},
+    )
+    assert first.status_code == 201, first.text
+
+    duplicate = client.post(
+        "/branches",
+        json={"name": "scenario a", "galaxy_id": galaxy_id},
+    )
+    assert duplicate.status_code == 409, duplicate.text
+    assert "same normalized name" in duplicate.text
+
+    extinguished = client.patch(
+        f"/branches/{first.json()['id']}/extinguish",
+        params={"galaxy_id": galaxy_id},
+    )
+    assert extinguished.status_code == 200, extinguished.text
+
+    recreated = client.post(
+        "/branches",
+        json={"name": "SCENARIO A", "galaxy_id": galaxy_id},
+    )
+    assert recreated.status_code == 201, recreated.text
 
 
 def test_branch_snapshot_isolated_from_new_main_events(auth_client: tuple[httpx.Client, str]) -> None:
@@ -816,6 +945,223 @@ def test_branch_extinguish_does_not_delete_main_timeline(auth_client: tuple[http
     assert label not in branch_values
 
 
+def test_branch_read_endpoints_reject_foreign_branch_id(client: httpx.Client) -> None:
+    owner_email = f"owner-{uuid.uuid4()}@dataverse.local"
+    owner_password = "Passw0rd123!"
+    owner_register = client.post(
+        "/auth/register",
+        json={"email": owner_email, "password": owner_password, "galaxy_name": "Owner Galaxy"},
+    )
+    assert owner_register.status_code == 201, owner_register.text
+    owner_body = owner_register.json()
+    owner_token = owner_body["access_token"]
+    owner_galaxy_id = owner_body["default_galaxy"]["id"]
+
+    foreign_email = f"foreign-{uuid.uuid4()}@dataverse.local"
+    foreign_password = "Passw0rd123!"
+    foreign_register = client.post(
+        "/auth/register",
+        json={"email": foreign_email, "password": foreign_password, "galaxy_name": "Foreign Galaxy"},
+    )
+    assert foreign_register.status_code == 201, foreign_register.text
+    foreign_body = foreign_register.json()
+    foreign_token = foreign_body["access_token"]
+    foreign_galaxy_id = foreign_body["default_galaxy"]["id"]
+
+    client.headers.update({"Authorization": f"Bearer {foreign_token}"})
+    foreign_branch = client.post(
+        "/branches",
+        json={"name": f"ForeignBranch-{uuid.uuid4()}", "galaxy_id": foreign_galaxy_id},
+    )
+    assert foreign_branch.status_code == 201, foreign_branch.text
+    foreign_branch_id = foreign_branch.json()["id"]
+
+    client.headers.update({"Authorization": f"Bearer {owner_token}"})
+    snapshot = client.get(
+        "/universe/snapshot",
+        params={"galaxy_id": owner_galaxy_id, "branch_id": foreign_branch_id},
+    )
+    assert snapshot.status_code == 403, snapshot.text
+    assert "Forbidden branch access" in snapshot.text
+
+    tables = client.get(
+        "/universe/tables",
+        params={"galaxy_id": owner_galaxy_id, "branch_id": foreign_branch_id},
+    )
+    assert tables.status_code == 403, tables.text
+    assert "Forbidden branch access" in tables.text
+
+
+def test_branch_promote_replays_branch_events_into_main(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    branch_label = f"branch-promote-{uuid.uuid4()}"
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"PromoteScenario-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    created_branch = client.post(
+        "/asteroids/ingest",
+        json={"value": branch_label, "galaxy_id": galaxy_id, "branch_id": branch_id},
+    )
+    assert created_branch.status_code == 200, created_branch.text
+
+    snapshot_main_before = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_main_before.status_code == 200, snapshot_main_before.text
+    main_before_values = {_stringify(atom["value"]) for atom in snapshot_main_before.json()["asteroids"]}
+    assert branch_label not in main_before_values
+
+    promoted = client.post(f"/branches/{branch_id}/promote", params={"galaxy_id": galaxy_id})
+    assert promoted.status_code == 200, promoted.text
+    promoted_body = promoted.json()
+    assert promoted_body["promoted_events_count"] >= 1
+    assert promoted_body["branch"]["id"] == branch_id
+    assert promoted_body["branch"]["deleted_at"] is not None
+
+    snapshot_main_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_main_after.status_code == 200, snapshot_main_after.text
+    main_after_values = {_stringify(atom["value"]) for atom in snapshot_main_after.json()["asteroids"]}
+    assert branch_label in main_after_values
+
+    snapshot_branch_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id, "branch_id": branch_id})
+    assert snapshot_branch_after.status_code == 404
+
+
+def test_branch_promote_after_branch_import_replays_into_main(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    branch_label = f"BranchImportPromote-{uuid.uuid4()}"
+    csv_payload = f"value,cena\n{branch_label},845\n"
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"PromoteAfterImport-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    imported = client.post(
+        "/io/imports",
+        data={"mode": "commit", "strict": "true", "galaxy_id": galaxy_id, "branch_id": branch_id},
+        files={"file": ("promote-after-import.csv", csv_payload.encode("utf-8"), "text/csv")},
+    )
+    assert imported.status_code == 200, imported.text
+    assert imported.json()["job"]["processed_rows"] == 1
+
+    snapshot_main_before = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_main_before.status_code == 200, snapshot_main_before.text
+    main_before_values = {_stringify(atom["value"]) for atom in snapshot_main_before.json()["asteroids"]}
+    assert branch_label not in main_before_values
+
+    promoted = client.post(f"/branches/{branch_id}/promote", params={"galaxy_id": galaxy_id})
+    assert promoted.status_code == 200, promoted.text
+    promoted_body = promoted.json()
+    assert promoted_body["promoted_events_count"] >= 1
+    assert promoted_body["branch"]["id"] == branch_id
+    assert promoted_body["branch"]["deleted_at"] is not None
+
+    snapshot_main_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_main_after.status_code == 200, snapshot_main_after.text
+    main_after_values = {_stringify(atom["value"]) for atom in snapshot_main_after.json()["asteroids"]}
+    assert branch_label in main_after_values
+
+
+def test_csv_import_commit_with_branch_id_writes_only_to_branch(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    branch_label = f"CSV-Branch-{uuid.uuid4()}"
+    csv_payload = f"value,cena\n{branch_label},700\n"
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"ImportBranch-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    imported = client.post(
+        "/io/imports",
+        data={"mode": "commit", "strict": "true", "galaxy_id": galaxy_id, "branch_id": branch_id},
+        files={"file": ("branch-import.csv", csv_payload.encode("utf-8"), "text/csv")},
+    )
+    assert imported.status_code == 200, imported.text
+    job = imported.json()["job"]
+    assert job["status"] in {"COMPLETED", "COMPLETED_WITH_ERRORS"}
+    assert job["processed_rows"] == 1
+
+    snapshot_main = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_main.status_code == 200, snapshot_main.text
+    main_values = {_stringify(atom["value"]) for atom in snapshot_main.json()["asteroids"]}
+    assert branch_label not in main_values
+
+    snapshot_branch = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id, "branch_id": branch_id})
+    assert snapshot_branch.status_code == 200, snapshot_branch.text
+    branch_values = {_stringify(atom["value"]) for atom in snapshot_branch.json()["asteroids"]}
+    assert branch_label in branch_values
+
+
+def test_csv_import_contract_violation_strict_mode_stops_processing(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    table_name = f"ImportStrictContract-{uuid.uuid4()}"
+    valid_label = f"StrictImportOk-{uuid.uuid4()}"
+    invalid_label = f"StrictImportBad-{uuid.uuid4()}"
+
+    seeded = client.post(
+        "/asteroids/ingest",
+        json={"value": f"SeedStrict-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": 10, "sku": "S-001"}, "galaxy_id": galaxy_id},
+    )
+    assert seeded.status_code == 200, seeded.text
+    seeded_id = seeded.json()["id"]
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    seeded_atom = next((item for item in snapshot.json()["asteroids"] if item["id"] == seeded_id), None)
+    assert seeded_atom is not None
+    table_id = seeded_atom["table_id"]
+
+    contract = client.post(
+        f"/contracts/{table_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "required_fields": ["cena", "sku"],
+            "field_types": {"cena": "number", "sku": "string"},
+            "validators": [{"field": "cena", "operator": ">", "value": 0}],
+        },
+    )
+    assert contract.status_code == 201, contract.text
+
+    csv_payload = (
+        "value,table,cena,sku\n"
+        f"{invalid_label},{table_name},abc,S-010\n"
+        f"{valid_label},{table_name},45,S-011\n"
+    )
+    imported = client.post(
+        "/io/imports",
+        data={"mode": "commit", "strict": "true", "galaxy_id": galaxy_id},
+        files={"file": ("strict-contract-import.csv", csv_payload.encode("utf-8"), "text/csv")},
+    )
+    assert imported.status_code == 200, imported.text
+    job = imported.json()["job"]
+    assert job["status"] == "FAILED"
+    assert job["processed_rows"] == 0
+    assert job["errors_count"] == 1
+    assert job["summary"].get("failure_row") == 2
+
+    errors = client.get(f"/io/imports/{job['id']}/errors")
+    assert errors.status_code == 200, errors.text
+    error_items = errors.json()["errors"]
+    assert len(error_items) == 1
+    assert error_items[0]["row_number"] == 2
+    assert "Table contract violation" in error_items[0]["message"]
+
+    snapshot_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_after.status_code == 200, snapshot_after.text
+    values = {_stringify(atom["value"]) for atom in snapshot_after.json()["asteroids"]}
+    assert invalid_label not in values
+    assert valid_label not in values
+
+
 def test_table_contract_versioning_returns_latest(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     table_name = f"Contract-{uuid.uuid4()}"
@@ -866,3 +1212,158 @@ def test_table_contract_versioning_returns_latest(auth_client: tuple[httpx.Clien
     assert body["version"] == 2
     assert body["field_types"]["mena"] == "string"
     assert "mena" in body["required_fields"]
+
+
+def test_table_contract_is_enforced_for_ingest_and_mutate(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    table_name = f"ContractGuard-{uuid.uuid4()}"
+
+    seeded = client.post(
+        "/asteroids/ingest",
+        json={"value": f"Seed-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": 10, "sku": "S-001"}, "galaxy_id": galaxy_id},
+    )
+    assert seeded.status_code == 200, seeded.text
+    seeded_id = seeded.json()["id"]
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    seeded_atom = next((item for item in snapshot.json()["asteroids"] if item["id"] == seeded_id), None)
+    assert seeded_atom is not None
+    table_id = seeded_atom["table_id"]
+
+    contract = client.post(
+        f"/contracts/{table_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "required_fields": ["cena", "sku"],
+            "field_types": {"cena": "number", "sku": "string"},
+            "unique_rules": [{"fields": ["sku"]}],
+            "validators": [{"field": "cena", "operator": ">", "value": 0}],
+        },
+    )
+    assert contract.status_code == 201, contract.text
+
+    missing_required = client.post(
+        "/asteroids/ingest",
+        json={"value": f"Missing-{uuid.uuid4()}", "metadata": {"table": table_name, "sku": "S-002"}, "galaxy_id": galaxy_id},
+    )
+    assert missing_required.status_code == 422, missing_required.text
+    assert "required field 'cena'" in missing_required.text
+
+    invalid_type = client.post(
+        "/asteroids/ingest",
+        json={"value": f"Type-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": "abc", "sku": "S-003"}, "galaxy_id": galaxy_id},
+    )
+    assert invalid_type.status_code == 422, invalid_type.text
+    assert "must be 'number'" in invalid_type.text
+
+    unique_violation = client.post(
+        "/asteroids/ingest",
+        json={"value": f"Unique-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": 20, "sku": "S-001"}, "galaxy_id": galaxy_id},
+    )
+    assert unique_violation.status_code == 422, unique_violation.text
+    assert "unique rule" in unique_violation.text
+
+    invalid_mutate = client.patch(
+        f"/asteroids/{seeded_id}/mutate",
+        json={"metadata": {"cena": -5}, "galaxy_id": galaxy_id},
+    )
+    assert invalid_mutate.status_code == 422, invalid_mutate.text
+    assert "validator failed" in invalid_mutate.text
+
+
+def test_csv_import_contract_violation_is_reported_per_row(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    table_name = f"ImportContract-{uuid.uuid4()}"
+    valid_label = f"ImportOk-{uuid.uuid4()}"
+    invalid_label = f"ImportBad-{uuid.uuid4()}"
+
+    seeded = client.post(
+        "/asteroids/ingest",
+        json={"value": f"SeedImport-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": 10, "sku": "I-001"}, "galaxy_id": galaxy_id},
+    )
+    assert seeded.status_code == 200, seeded.text
+    seeded_id = seeded.json()["id"]
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    seeded_atom = next((item for item in snapshot.json()["asteroids"] if item["id"] == seeded_id), None)
+    assert seeded_atom is not None
+    table_id = seeded_atom["table_id"]
+
+    contract = client.post(
+        f"/contracts/{table_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "required_fields": ["cena", "sku"],
+            "field_types": {"cena": "number", "sku": "string"},
+            "validators": [{"field": "cena", "operator": ">", "value": 0}],
+        },
+    )
+    assert contract.status_code == 201, contract.text
+
+    csv_payload = (
+        "value,table,cena,sku\n"
+        f"{invalid_label},{table_name},abc,I-010\n"
+        f"{valid_label},{table_name},45,I-011\n"
+    )
+    imported = client.post(
+        "/io/imports",
+        data={"mode": "commit", "strict": "false", "galaxy_id": galaxy_id},
+        files={"file": ("contract-import.csv", csv_payload.encode("utf-8"), "text/csv")},
+    )
+    assert imported.status_code == 200, imported.text
+    job = imported.json()["job"]
+    assert job["status"] == "COMPLETED_WITH_ERRORS"
+    assert job["processed_rows"] == 1
+    assert job["errors_count"] == 1
+
+    errors = client.get(f"/io/imports/{job['id']}/errors")
+    assert errors.status_code == 200, errors.text
+    items = errors.json()["errors"]
+    assert len(items) == 1
+    assert items[0]["row_number"] == 2
+    assert "Table contract violation" in items[0]["message"]
+
+    snapshot_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_after.status_code == 200, snapshot_after.text
+    values = {_stringify(atom["value"]) for atom in snapshot_after.json()["asteroids"]}
+    assert valid_label in values
+    assert invalid_label not in values
+
+
+def test_relation_link_reverse_direction_reuses_same_bond(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    left = f"RelA-{uuid.uuid4()}"
+    right = f"RelB-{uuid.uuid4()}"
+
+    left_created = client.post("/asteroids/ingest", json={"value": left, "galaxy_id": galaxy_id})
+    right_created = client.post("/asteroids/ingest", json={"value": right, "galaxy_id": galaxy_id})
+    assert left_created.status_code == 200, left_created.text
+    assert right_created.status_code == 200, right_created.text
+    left_id = left_created.json()["id"]
+    right_id = right_created.json()["id"]
+
+    forward = client.post(
+        "/bonds/link",
+        json={"source_id": left_id, "target_id": right_id, "type": "RELATION", "galaxy_id": galaxy_id},
+    )
+    assert forward.status_code == 200, forward.text
+    bond_id = forward.json()["id"]
+
+    reverse = client.post(
+        "/bonds/link",
+        json={"source_id": right_id, "target_id": left_id, "type": "RELATION", "galaxy_id": galaxy_id},
+    )
+    assert reverse.status_code == 200, reverse.text
+    assert reverse.json()["id"] == bond_id
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    rel_bonds = [
+        bond
+        for bond in snapshot.json()["bonds"]
+        if str(bond.get("type", "")).upper() == "RELATION"
+        and {bond.get("source_id"), bond.get("target_id")} == {left_id, right_id}
+    ]
+    assert len(rel_bonds) == 1

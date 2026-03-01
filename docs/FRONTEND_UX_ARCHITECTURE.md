@@ -46,7 +46,13 @@
   - Metadata = buňky
 
 ## Drag & Drop Bonding
-- Začátek: `pointerDown` na uzlu vytvoří `linkDraft`.
+- L2 (Souhvezdi/Entity):
+  - `LMB click` = vstup do vybrane Planety.
+  - `RMB click` = kontext menu (focus/back).
+- L3 (Mesice):
+  - `LMB click` = fokus na Mesic.
+  - `RMB click` = kontext menu (focus/edit/soft delete).
+  - `RMB drag` nebo `Shift + LMB drag` z Mesice spusti `linkDraft`.
 - Pohyb: `pointerMove` aktualizuje cílový bod linky.
 - Konec:
   - drop na jiný uzel => `POST /bonds/link`
