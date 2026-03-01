@@ -18,6 +18,7 @@ from app.models import Galaxy, User
 JWT_SECRET_KEY = os.getenv("DATAVERSE_JWT_SECRET", "dataverse-dev-insecure-change-me")
 JWT_ALGORITHM = os.getenv("DATAVERSE_JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("DATAVERSE_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+MAX_BCRYPT_PASSWORD_BYTES = 72
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -29,12 +30,26 @@ class AuthService:
         return email.strip().lower()
 
     @staticmethod
+    def _validate_password_length(password: str) -> None:
+        # bcrypt accepts at most 72 bytes; enforce this explicitly to avoid runtime ValueError.
+        if len(password.encode("utf-8")) > MAX_BCRYPT_PASSWORD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Password is too long (max {MAX_BCRYPT_PASSWORD_BYTES} bytes for bcrypt).",
+            )
+
+    @staticmethod
     def hash_password(password: str) -> str:
+        AuthService._validate_password_length(password)
         return pwd_context.hash(password)
 
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        return pwd_context.verify(plain_password, hashed_password)
+        try:
+            return pwd_context.verify(plain_password, hashed_password)
+        except ValueError:
+            # Keep auth flow deterministic for too-long plaintext passwords.
+            return False
 
     @staticmethod
     def create_access_token(user_id: UUID) -> str:

@@ -13,4 +13,23 @@ body,
 
 body {
   background: #020205;
+  color: #d9f8ff;
+  font-family: "Segoe UI", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #8fb8cb;
+  opacity: 1;
+}
+
+input[type="datetime-local"] {
+  color-scheme: dark;
 }

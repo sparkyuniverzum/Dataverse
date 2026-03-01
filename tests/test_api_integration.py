@@ -435,6 +435,8 @@ def test_snapshot_v1_contract_contains_table_projection_fields(auth_client: tupl
     asteroid = body["asteroids"][0]
     assert "table_id" in asteroid
     assert "table_name" in asteroid
+    assert "constellation_name" in asteroid and isinstance(asteroid["constellation_name"], str) and asteroid["constellation_name"]
+    assert "planet_name" in asteroid and isinstance(asteroid["planet_name"], str) and asteroid["planet_name"]
     assert "metadata" in asteroid
     assert "calculated_values" in asteroid
     assert "active_alerts" in asteroid
@@ -444,8 +446,197 @@ def test_snapshot_v1_contract_contains_table_projection_fields(auth_client: tupl
         bond = body["bonds"][0]
         assert "source_table_id" in bond
         assert "source_table_name" in bond
+        assert "source_constellation_name" in bond
+        assert "source_planet_name" in bond
         assert "target_table_id" in bond
         assert "target_table_name" in bond
+        assert "target_constellation_name" in bond
+        assert "target_planet_name" in bond
+
+
+def test_galaxy_dashboard_v1_endpoints_return_read_model_views(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    execute = client.post(
+        "/parser/execute",
+        json={
+            "query": f"DashA-{uuid.uuid4()} (table: EntitaA > Planeta1, cena: 10) + DashB-{uuid.uuid4()} (table: EntitaB > Planeta2, cena: 20)",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert execute.status_code == 200, execute.text
+
+    summary = client.get(f"/galaxies/{galaxy_id}/summary")
+    assert summary.status_code == 200, summary.text
+    summary_body = summary.json()
+    assert summary_body["galaxy_id"] == galaxy_id
+    assert summary_body["moons_count"] >= 2
+    assert summary_body["bonds_count"] >= 1
+    assert summary_body["constellations_count"] >= 1
+    assert summary_body["planets_count"] >= 1
+
+    health = client.get(f"/galaxies/{galaxy_id}/health")
+    assert health.status_code == 200, health.text
+    health_body = health.json()
+    assert health_body["galaxy_id"] == galaxy_id
+    assert health_body["status"] in {"GREEN", "YELLOW", "RED"}
+    assert isinstance(health_body["quality_score"], int)
+
+    activity = client.get(f"/galaxies/{galaxy_id}/activity", params={"limit": 10})
+    assert activity.status_code == 200, activity.text
+    activity_body = activity.json()
+    assert "items" in activity_body and isinstance(activity_body["items"], list)
+    assert activity_body["items"], "Expected activity rows after parser execution"
+    first = activity_body["items"][0]
+    assert "event_id" in first
+    assert "event_type" in first
+    assert "event_seq" in first
+    assert "happened_at" in first
+
+
+def test_constellation_layer_v1_endpoint_returns_l2_group_metrics(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    execute = client.post(
+        "/parser/execute",
+        json={
+            "query": (
+                f"L2A-{uuid.uuid4()} (table: Kancelar > PlanetA, cena: 10) + "
+                f"L2B-{uuid.uuid4()} (table: Kancelar > PlanetB, cena: 20)"
+            ),
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert execute.status_code == 200, execute.text
+
+    response = client.get(f"/galaxies/{galaxy_id}/constellations")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert "items" in body and isinstance(body["items"], list)
+    assert body["items"], "Expected at least one constellation row"
+
+    row = body["items"][0]
+    assert "name" in row
+    assert "planets_count" in row
+    assert "planet_names" in row and isinstance(row["planet_names"], list)
+    assert "moons_count" in row
+    assert "formula_fields_count" in row
+    assert "internal_bonds_count" in row
+    assert "external_bonds_count" in row
+    assert "guardian_rules_count" in row
+    assert "alerted_moons_count" in row
+    assert "circular_fields_count" in row
+    assert "quality_score" in row
+    assert row["status"] in {"GREEN", "YELLOW", "RED"}
+
+
+def test_planet_layer_v1_endpoint_returns_l3_planet_metrics(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    execute = client.post(
+        "/parser/execute",
+        json={
+            "query": (
+                f"L3A-{uuid.uuid4()} (table: Finance > Orion, cena: 10) + "
+                f"L3B-{uuid.uuid4()} (table: Finance > Orion, naklad: 7)"
+            ),
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert execute.status_code == 200, execute.text
+
+    response = client.get(f"/galaxies/{galaxy_id}/planets")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert "items" in body and isinstance(body["items"], list)
+    assert body["items"], "Expected at least one planet row"
+
+    row = body["items"][0]
+    assert "table_id" in row
+    assert "name" in row
+    assert "constellation_name" in row
+    assert "moons_count" in row
+    assert "schema_fields_count" in row
+    assert "formula_fields_count" in row
+    assert "internal_bonds_count" in row
+    assert "external_bonds_count" in row
+    assert "guardian_rules_count" in row
+    assert "alerted_moons_count" in row
+    assert "circular_fields_count" in row
+    assert "quality_score" in row
+    assert row["status"] in {"GREEN", "YELLOW", "RED"}
+    assert row["sector_mode"] in {"belt", "ring"}
+
+
+def test_moon_layer_v1_endpoint_returns_l4_moon_metrics(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"L4A-{uuid.uuid4()}"
+    execute = client.post(
+        "/parser/execute",
+        json={
+            "query": f"{label} (table: Finance > Orion, cena: 10, marze: =SUM(cena))",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert execute.status_code == 200, execute.text
+
+    response = client.get(f"/galaxies/{galaxy_id}/moons")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert "items" in body and isinstance(body["items"], list)
+    assert body["items"], "Expected at least one moon row"
+
+    row = body["items"][0]
+    assert "asteroid_id" in row
+    assert "label" in row
+    assert "table_id" in row
+    assert "table_name" in row
+    assert "constellation_name" in row
+    assert "planet_name" in row
+    assert "metadata_fields_count" in row
+    assert "calculated_fields_count" in row
+    assert "guardian_rules_count" in row
+    assert "active_alerts_count" in row
+    assert "circular_fields_count" in row
+    assert "quality_score" in row
+    assert row["status"] in {"GREEN", "YELLOW", "RED"}
+    assert "created_at" in row
+
+
+def test_bond_layer_v1_endpoint_returns_flow_quality_metrics(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    execute = client.post(
+        "/parser/execute",
+        json={
+            "query": f"FlowA-{uuid.uuid4()} (table: Finance > Orion, cena: 10) + FlowB-{uuid.uuid4()} (table: Finance > Orion, cena: 20)",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert execute.status_code == 200, execute.text
+
+    response = client.get(f"/galaxies/{galaxy_id}/bonds")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert "items" in body and isinstance(body["items"], list)
+    assert body["items"], "Expected at least one bond row"
+
+    row = body["items"][0]
+    assert "bond_id" in row
+    assert "type" in row
+    assert "directional" in row and isinstance(row["directional"], bool)
+    assert row["flow_direction"] in {"source_to_target", "bidirectional"}
+    assert "source_id" in row
+    assert "target_id" in row
+    assert "source_label" in row
+    assert "target_label" in row
+    assert "source_table_id" in row
+    assert "target_table_id" in row
+    assert "source_constellation_name" in row
+    assert "source_planet_name" in row
+    assert "target_constellation_name" in row
+    assert "target_planet_name" in row
+    assert "active_alerts_count" in row
+    assert "circular_fields_count" in row
+    assert "quality_score" in row
+    assert row["status"] in {"GREEN", "YELLOW", "RED"}
+    assert "created_at" in row
 
 
 def test_tables_v1_contract_contains_sector_and_bond_buckets(auth_client: tuple[httpx.Client, str]) -> None:
@@ -472,6 +663,8 @@ def test_tables_v1_contract_contains_sector_and_bond_buckets(auth_client: tuple[
         assert "table_id" in table
         assert "galaxy_id" in table
         assert "name" in table
+        assert "constellation_name" in table and isinstance(table["constellation_name"], str) and table["constellation_name"]
+        assert "planet_name" in table and isinstance(table["planet_name"], str) and table["planet_name"]
         assert "schema_fields" in table and isinstance(table["schema_fields"], list)
         assert "formula_fields" in table and isinstance(table["formula_fields"], list)
         assert "members" in table and isinstance(table["members"], list)

@@ -129,6 +129,25 @@ def test_single_ingest_with_metadata_fallback() -> None:
     assert tasks[0].params["metadata"] == {"obor": "IT", "mesto": "Praha"}
 
 
+def test_spoj_command_translates_to_valid_relation_tasks() -> None:
+    parser = ParserService()
+    tasks = parser.parse("Spoj : Pavel, Audi")
+
+    assert [task.action for task in tasks] == ["INGEST", "INGEST", "LINK"]
+    assert tasks[0].params["value"] == "Pavel"
+    assert tasks[1].params["value"] == "Audi"
+    assert tasks[2].params["type"] == "RELATION"
+
+
+def test_spoj_chain_translates_to_sequential_links() -> None:
+    parser = ParserService()
+    tasks = parser.parse("Spoj : A + B + C")
+
+    assert [task.action for task in tasks] == ["INGEST", "INGEST", "INGEST", "LINK", "LINK"]
+    assert tasks[3].params["type"] == "RELATION"
+    assert tasks[4].params["type"] == "RELATION"
+
+
 def test_diagnostics_detect_mixed_top_level_operators() -> None:
     parser = ParserService()
     result = parser.parse_with_diagnostics("A : B + C")
@@ -150,6 +169,15 @@ def test_diagnostics_detect_empty_operand_in_chain() -> None:
 def test_diagnostics_detect_missing_colon_for_known_verb() -> None:
     parser = ParserService()
     result = parser.parse_with_diagnostics("Smaz Pavel")
+
+    assert result.tasks == []
+    assert result.errors
+    assert "Missing ':'" in result.errors[0]
+
+
+def test_diagnostics_detect_missing_colon_for_spoj() -> None:
+    parser = ParserService()
+    result = parser.parse_with_diagnostics("Spoj Pavel, Audi")
 
     assert result.tasks == []
     assert result.errors

@@ -45,7 +45,6 @@ class ParserService:
             "smaž": "EXTINGUISH",
             "zhasni": "EXTINGUISH",
             "delete": "EXTINGUISH",
-            "spoj": "LINK",
         }
         self.relation_operators = {"+": "RELATION", ":": "TYPE"}
         self.requires_colon_verbs = {
@@ -64,6 +63,7 @@ class ParserService:
             "spočítej",
             "vypocitej",
             "vypočítej",
+            "spoj",
         }
 
     @staticmethod
@@ -289,6 +289,40 @@ class ParserService:
 
         return [AtomicTask(action=action, params={"target_asteroid": target, "condition": condition})]
 
+    def _parse_spoj(self, normalized: str) -> list[AtomicTask] | None:
+        lower = normalized.lower()
+        if not lower.startswith("spoj"):
+            return None
+
+        match = re.match(r"^spoj\s*:\s*(?P<body>.+)$", normalized, re.IGNORECASE)
+        if not match:
+            return []
+
+        body = match.group("body").strip()
+        if not body:
+            return []
+
+        comma_parts = self._split_top_level(body, ",")
+        plus_parts = self._split_top_level(body, "+")
+
+        raw_parts: list[str]
+        if len(comma_parts) >= 2:
+            raw_parts = comma_parts
+        elif len(plus_parts) >= 2:
+            raw_parts = plus_parts
+        else:
+            return []
+
+        if any(not item.strip() for item in raw_parts):
+            return []
+
+        parsed_parts = [self._parse_atom_token(part) for part in raw_parts]
+        parsed_parts = [(value, metadata) for value, metadata in parsed_parts if value]
+        if len(parsed_parts) < 2:
+            return []
+
+        return self._build_link_tasks(parsed_parts, relation_type="RELATION")
+
     def _parse_binary_chain_result(self, normalized: str, operator: str) -> ParseResult:
         parts = self._split_top_level(normalized, operator)
         if len(parts) < 2:
@@ -319,6 +353,7 @@ class ParserService:
             self._parse_delete,
             self._parse_guardian,
             self._parse_formula,
+            self._parse_spoj,
             self._parse_triple_shot,
         ):
             parsed = strategy(normalized)

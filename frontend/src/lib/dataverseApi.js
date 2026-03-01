@@ -68,6 +68,30 @@ export function buildTablesUrl(apiBase, asOfIso = null, galaxyId = null) {
   return url.toString();
 }
 
+export function buildGalaxyPlanetsUrl(apiBase, galaxyId, asOfIso = null) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/planets`);
+  if (asOfIso) {
+    url.searchParams.set("as_of", asOfIso);
+  }
+  return url.toString();
+}
+
+export function buildGalaxyMoonsUrl(apiBase, galaxyId, asOfIso = null) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/moons`);
+  if (asOfIso) {
+    url.searchParams.set("as_of", asOfIso);
+  }
+  return url.toString();
+}
+
+export function buildGalaxyBondsUrl(apiBase, galaxyId, asOfIso = null) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/bonds`);
+  if (asOfIso) {
+    url.searchParams.set("as_of", asOfIso);
+  }
+  return url.toString();
+}
+
 export function normalizeSnapshot(data) {
   const asteroidSource = Array.isArray(data?.asteroids)
     ? data.asteroids

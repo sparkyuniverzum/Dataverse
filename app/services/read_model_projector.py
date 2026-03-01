@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
+import re
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import and_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Atom, Bond, Event
+from app.models import Atom, Bond, Event, GalaxyActivityRM, GalaxyHealthRM, GalaxySummaryRM
+from app.services.calc_service import evaluate_universe
+from app.services.guardian_service import evaluate_guardians
 
 
 class AsteroidCreatedPayload(BaseModel):
@@ -31,55 +34,95 @@ class BondFormedPayload(BaseModel):
     type: str = "RELATION"
 
 
+TABLE_PREFIX_RE = re.compile(r"^\s*([A-Za-zÀ-ž0-9 _-]{2,64})\s*:")
+
+
 class ReadModelProjector:
     """Projects immutable events into mutable read-model tables.
 
     Concurrency:
     - UPSERT (`INSERT ... ON CONFLICT`) is used for create/form events so replays are idempotent.
     - `SELECT ... FOR UPDATE` is used for metadata patches to serialize concurrent updates on one asteroid row
-      and avoid lost updates while still keeping one DB transaction boundary.
+    and avoid lost updates while still keeping one DB transaction boundary.
     """
 
     async def apply_events(self, session: AsyncSession, events: list[Event]) -> None:
+        affected_pairs: set[tuple[UUID, UUID]] = set()
         for event in events:
-            await self.apply_event(session=session, event=event)
+            touched = await self._apply_event_without_rollups(session=session, event=event)
+            if touched is not None:
+                affected_pairs.add(touched)
+
+        for user_id, galaxy_id in affected_pairs:
+            await self._refresh_galaxy_rollups(session=session, user_id=user_id, galaxy_id=galaxy_id)
 
     async def apply_event(self, session: AsyncSession, event: Event) -> None:
+        touched = await self._apply_event_without_rollups(session=session, event=event)
+        if touched is not None:
+            await self._refresh_galaxy_rollups(session=session, user_id=touched[0], galaxy_id=touched[1])
+
+    async def refresh_galaxy(self, session: AsyncSession, *, user_id: UUID, galaxy_id: UUID) -> None:
+        await self._refresh_galaxy_rollups(session=session, user_id=user_id, galaxy_id=galaxy_id)
+
+    async def _apply_event_without_rollups(
+        self,
+        *,
+        session: AsyncSession,
+        event: Event,
+    ) -> tuple[UUID, UUID] | None:
+        if event.branch_id is not None:
+            # Branches are replayed on-read and do not mutate shared read-model projections.
+            return None
+
         event_type = event.event_type.upper()
         payload = event.payload if isinstance(event.payload, dict) else {}
+        projected = False
 
         if event_type == "ASTEROID_CREATED":
+            try:
+                created_payload = AsteroidCreatedPayload.model_validate(payload)
+            except ValidationError:
+                created_payload = AsteroidCreatedPayload(value=payload.get("value"), metadata={})
             await self._project_asteroid_created(
                 session=session,
                 user_id=event.user_id,
                 galaxy_id=event.galaxy_id,
                 asteroid_id=event.entity_id,
-                payload=AsteroidCreatedPayload.model_validate(payload),
+                payload=created_payload,
                 happened_at=event.timestamp,
             )
-            return
+            projected = True
 
-        if event_type == "METADATA_UPDATED":
+        elif event_type == "METADATA_UPDATED":
+            try:
+                metadata_payload = MetadataUpdatedPayload.model_validate(payload)
+            except ValidationError:
+                metadata_payload = MetadataUpdatedPayload(metadata={})
             await self._project_metadata_updated(
                 session=session,
                 user_id=event.user_id,
                 galaxy_id=event.galaxy_id,
                 asteroid_id=event.entity_id,
-                payload=MetadataUpdatedPayload.model_validate(payload),
+                payload=metadata_payload,
             )
-            return
+            projected = True
 
-        if event_type == "ASTEROID_VALUE_UPDATED":
-            await self._project_asteroid_value_updated(
-                session=session,
-                user_id=event.user_id,
-                galaxy_id=event.galaxy_id,
-                asteroid_id=event.entity_id,
-                payload=AsteroidValueUpdatedPayload.model_validate(payload),
-            )
-            return
+        elif event_type == "ASTEROID_VALUE_UPDATED":
+            try:
+                value_payload = AsteroidValueUpdatedPayload.model_validate(payload)
+            except ValidationError:
+                value_payload = None
+            if value_payload is not None:
+                await self._project_asteroid_value_updated(
+                    session=session,
+                    user_id=event.user_id,
+                    galaxy_id=event.galaxy_id,
+                    asteroid_id=event.entity_id,
+                    payload=value_payload,
+                )
+                projected = True
 
-        if event_type == "ASTEROID_SOFT_DELETED":
+        elif event_type == "ASTEROID_SOFT_DELETED":
             await self._project_asteroid_soft_deleted(
                 session=session,
                 user_id=event.user_id,
@@ -87,20 +130,25 @@ class ReadModelProjector:
                 asteroid_id=event.entity_id,
                 happened_at=event.timestamp,
             )
-            return
+            projected = True
 
-        if event_type == "BOND_FORMED":
-            await self._project_bond_formed(
-                session=session,
-                user_id=event.user_id,
-                galaxy_id=event.galaxy_id,
-                bond_id=event.entity_id,
-                payload=BondFormedPayload.model_validate(payload),
-                happened_at=event.timestamp,
-            )
-            return
+        elif event_type == "BOND_FORMED":
+            try:
+                bond_payload = BondFormedPayload.model_validate(payload)
+            except ValidationError:
+                bond_payload = None
+            if bond_payload is not None:
+                await self._project_bond_formed(
+                    session=session,
+                    user_id=event.user_id,
+                    galaxy_id=event.galaxy_id,
+                    bond_id=event.entity_id,
+                    payload=bond_payload,
+                    happened_at=event.timestamp,
+                )
+                projected = True
 
-        if event_type == "BOND_SOFT_DELETED":
+        elif event_type == "BOND_SOFT_DELETED":
             await self._project_bond_soft_deleted(
                 session=session,
                 user_id=event.user_id,
@@ -108,6 +156,221 @@ class ReadModelProjector:
                 bond_id=event.entity_id,
                 happened_at=event.timestamp,
             )
+            projected = True
+
+        await self._project_activity(
+            session=session,
+            user_id=event.user_id,
+            galaxy_id=event.galaxy_id,
+            event=event,
+        )
+
+        if projected:
+            return (event.user_id, event.galaxy_id)
+        return None
+
+    @staticmethod
+    def _normalize_table_name(name: str | None) -> str:
+        text = str(name or "").strip()
+        return text if text else "Uncategorized"
+
+    @classmethod
+    def _derive_table_name(cls, *, value: Any, metadata: dict[str, Any] | None) -> str:
+        data = metadata if isinstance(metadata, dict) else {}
+        for key in ("table", "table_name", "category", "kategorie", "type", "typ"):
+            candidate = data.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                return cls._normalize_table_name(candidate)
+
+        if isinstance(value, str):
+            match = TABLE_PREFIX_RE.match(value)
+            if match:
+                return cls._normalize_table_name(match.group(1))
+        return "Uncategorized"
+
+    @classmethod
+    def _split_constellation_and_planet_name(cls, table_name: str | None) -> tuple[str, str]:
+        normalized = cls._normalize_table_name(table_name)
+        for separator in (">", "/", "::", "|"):
+            if separator not in normalized:
+                continue
+            parts = [part.strip() for part in normalized.split(separator) if part.strip()]
+            if len(parts) >= 2:
+                return parts[0], " / ".join(parts[1:])
+        return normalized, normalized
+
+    async def _project_activity(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: UUID,
+        galaxy_id: UUID,
+        event: Event,
+    ) -> None:
+        stmt = insert(GalaxyActivityRM).values(
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            event_id=event.id,
+            event_seq=event.event_seq,
+            event_type=event.event_type,
+            entity_id=event.entity_id,
+            payload=event.payload if isinstance(event.payload, dict) else {},
+            happened_at=event.timestamp,
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=[GalaxyActivityRM.event_id])
+        await session.execute(stmt)
+
+    async def _refresh_galaxy_rollups(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: UUID,
+        galaxy_id: UUID,
+    ) -> None:
+        atoms = list(
+            (
+                await session.execute(
+                    select(Atom).where(
+                        and_(
+                            Atom.user_id == user_id,
+                            Atom.galaxy_id == galaxy_id,
+                            Atom.is_deleted.is_(False),
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        active_ids = {atom.id for atom in atoms}
+        bonds = list(
+            (
+                await session.execute(
+                    select(Bond).where(
+                        and_(
+                            Bond.user_id == user_id,
+                            Bond.galaxy_id == galaxy_id,
+                            Bond.is_deleted.is_(False),
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        active_bonds = [
+            bond
+            for bond in bonds
+            if bond.source_id in active_ids and bond.target_id in active_ids
+        ]
+
+        table_names = [
+            self._derive_table_name(value=atom.value, metadata=(atom.metadata_ if isinstance(atom.metadata_, dict) else {}))
+            for atom in atoms
+        ]
+        planets_count = len(set(table_names))
+        constellations_count = len({self._split_constellation_and_planet_name(name)[0] for name in table_names})
+
+        formula_fields_count = 0
+        guardian_rules_count = 0
+        atoms_payload: list[dict[str, Any]] = []
+        for atom in atoms:
+            metadata = atom.metadata_ if isinstance(atom.metadata_, dict) else {}
+            formula_fields_count += sum(1 for value in metadata.values() if isinstance(value, str) and value.strip().startswith("="))
+            guardians = metadata.get("_guardians")
+            if isinstance(guardians, list):
+                guardian_rules_count += len([rule for rule in guardians if isinstance(rule, dict)])
+            atoms_payload.append(
+                {
+                    "id": atom.id,
+                    "value": atom.value,
+                    "metadata": dict(metadata),
+                    "created_at": atom.created_at,
+                }
+            )
+
+        bonds_payload = [
+            {
+                "id": bond.id,
+                "source_id": bond.source_id,
+                "target_id": bond.target_id,
+                "type": bond.type,
+            }
+            for bond in active_bonds
+        ]
+
+        evaluated = evaluate_universe(atoms_payload, bonds_payload)
+        guarded = evaluate_guardians(evaluated)
+
+        circular_fields_count = 0
+        alerted_asteroids_count = 0
+        for asteroid in guarded:
+            calculated = asteroid.get("calculated_values", {})
+            if isinstance(calculated, dict):
+                circular_fields_count += sum(1 for value in calculated.values() if value == "#CIRC!")
+            alerts = asteroid.get("active_alerts", [])
+            if isinstance(alerts, list) and alerts:
+                alerted_asteroids_count += 1
+
+        quality_penalty = circular_fields_count * 15 + alerted_asteroids_count * 8
+        quality_score = max(0, 100 - quality_penalty)
+        status = "GREEN"
+        if quality_score < 60:
+            status = "RED"
+        elif quality_score < 85:
+            status = "YELLOW"
+
+        now = datetime.now(timezone.utc)
+
+        summary_stmt = insert(GalaxySummaryRM).values(
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            constellations_count=constellations_count,
+            planets_count=planets_count,
+            moons_count=len(atoms),
+            bonds_count=len(active_bonds),
+            formula_fields_count=formula_fields_count,
+            updated_at=now,
+        )
+        summary_stmt = summary_stmt.on_conflict_do_update(
+            index_elements=[GalaxySummaryRM.user_id, GalaxySummaryRM.galaxy_id],
+            set_={
+                "constellations_count": constellations_count,
+                "planets_count": planets_count,
+                "moons_count": len(atoms),
+                "bonds_count": len(active_bonds),
+                "formula_fields_count": formula_fields_count,
+                "updated_at": now,
+            },
+        )
+        await session.execute(summary_stmt)
+
+        health_stmt = insert(GalaxyHealthRM).values(
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            guardian_rules_count=guardian_rules_count,
+            alerted_asteroids_count=alerted_asteroids_count,
+            circular_fields_count=circular_fields_count,
+            quality_score=quality_score,
+            status=status,
+            updated_at=now,
+        )
+        health_stmt = health_stmt.on_conflict_do_update(
+            index_elements=[GalaxyHealthRM.user_id, GalaxyHealthRM.galaxy_id],
+            set_={
+                "guardian_rules_count": guardian_rules_count,
+                "alerted_asteroids_count": alerted_asteroids_count,
+                "circular_fields_count": circular_fields_count,
+                "quality_score": quality_score,
+                "status": status,
+                "updated_at": now,
+            },
+        )
+        await session.execute(health_stmt)
+
+        # keep soft-delete behavior for bonds mirrored in read model
+        # (already handled via BOND_SOFT_DELETED / ASTEROID_SOFT_DELETED projection paths)
+        return
 
     async def _project_asteroid_created(
         self,
@@ -251,18 +514,8 @@ class ReadModelProjector:
             created_at=happened_at,
             deleted_at=None,
         )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[Bond.id],
-            set_={
-                "user_id": user_id,
-                "galaxy_id": galaxy_id,
-                "source_id": payload.source_id,
-                "target_id": payload.target_id,
-                "type": payload.type,
-                "is_deleted": False,
-                "deleted_at": None,
-            },
-        )
+        # Ignore duplicates on replay/retry; read-model keeps one active edge record.
+        stmt = stmt.on_conflict_do_nothing()
         await session.execute(stmt)
 
     async def _project_bond_soft_deleted(

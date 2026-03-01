@@ -48,6 +48,20 @@ def derive_table_id(*, galaxy_id: UUID, table_name: str) -> UUID:
     return uuid5(NAMESPACE_URL, f"dataverse:{galaxy_id}:{normalized}")
 
 
+def split_constellation_and_planet_name(table_name: str | None) -> tuple[str, str]:
+    normalized = normalize_table_name(table_name)
+    separators = (">", "/", "::", "|")
+    for separator in separators:
+        if separator not in normalized:
+            continue
+        parts = [part.strip() for part in normalized.split(separator) if part.strip()]
+        if len(parts) >= 2:
+            constellation = parts[0]
+            planet = " / ".join(parts[1:])
+            return constellation, planet
+    return normalized, normalized
+
+
 @dataclass
 class ProjectedAsteroid:
     id: UUID
@@ -566,12 +580,15 @@ class UniverseService:
             mode = "ring" if (len(members) > 5 or len(schema_fields) > 3) else "belt"
             center = self._sector_center(index, total)
             size = max(260.0, min(460.0, 260.0 + math.sqrt(max(len(members), 1)) * 48.0 + (80.0 if mode == "ring" else 20.0)))
+            constellation_name, planet_name = split_constellation_and_planet_name(table["name"])
 
             table_rows.append(
                 {
                     "table_id": table["table_id"],
                     "galaxy_id": table["galaxy_id"],
                     "name": table["name"],
+                    "constellation_name": constellation_name,
+                    "planet_name": planet_name,
                     "schema_fields": schema_fields,
                     "formula_fields": formula_fields,
                     "members": members,

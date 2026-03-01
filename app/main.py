@@ -18,17 +18,29 @@ from app.schemas import (
     BranchCreateRequest,
     BranchPublic,
     BondCreateRequest,
+    BondSummaryPublic,
+    BondSummaryResponse,
     BondResponse,
+    ConstellationSummaryPublic,
+    ConstellationSummaryResponse,
     GalaxyCreateRequest,
+    GalaxyActivityPublic,
+    GalaxyActivityResponse,
+    GalaxyHealthPublic,
     GalaxyPublic,
+    GalaxySummaryPublic,
     ImportErrorsResponse,
     ImportJobPublic,
     ImportModeSchema,
     ImportRunResponse,
     ImportErrorPublic,
     LoginRequest,
+    MoonSummaryPublic,
+    MoonSummaryResponse,
     ParseCommandRequest,
     ParseCommandResponse,
+    PlanetSummaryPublic,
+    PlanetSummaryResponse,
     RegisterRequest,
     TableContractPublic,
     TableContractUpsertRequest,
@@ -40,10 +52,15 @@ from app.schemas import (
     UserPublic,
 )
 from app.services.auth_service import AuthService, get_current_user
+from app.services.bond_dashboard_service import BondDashboardService
 from app.services.cosmos_service import CosmosService
+from app.services.constellation_dashboard_service import ConstellationDashboardService
 from app.services.event_store_service import EventStoreService
+from app.services.galaxy_dashboard_service import GalaxyDashboardService
 from app.services.io_service import ImportExportService, ImportMode
+from app.services.moon_dashboard_service import MoonDashboardService
 from app.services.parser_service import AtomicTask, ParserService
+from app.services.planet_dashboard_service import PlanetDashboardService
 from app.services.task_executor_service import TaskExecutionResult, TaskExecutorService
 from app.services.universe_service import (
     DEFAULT_GALAXY_ID,
@@ -52,6 +69,7 @@ from app.services.universe_service import (
     UniverseService,
     derive_table_id,
     derive_table_name,
+    split_constellation_and_planet_name,
 )
 
 app = FastAPI(title="DataVerse API", version="0.3.0-auth-multitenant")
@@ -70,6 +88,11 @@ task_executor_service = TaskExecutorService(event_store=event_store, universe_se
 auth_service = AuthService()
 io_service = ImportExportService(task_executor=task_executor_service, universe_service=universe_service)
 cosmos_service = CosmosService()
+galaxy_dashboard_service = GalaxyDashboardService(projector=task_executor_service.read_model_projector)
+constellation_dashboard_service = ConstellationDashboardService(universe_service=universe_service)
+planet_dashboard_service = PlanetDashboardService(universe_service=universe_service)
+moon_dashboard_service = MoonDashboardService(universe_service=universe_service)
+bond_dashboard_service = BondDashboardService(universe_service=universe_service)
 
 
 def user_to_public(user: User) -> UserPublic:
@@ -89,6 +112,126 @@ def galaxy_to_public(galaxy: Galaxy) -> GalaxyPublic:
         owner_id=galaxy.owner_id,
         created_at=galaxy.created_at,
         deleted_at=galaxy.deleted_at,
+    )
+
+
+def galaxy_summary_to_public(summary) -> GalaxySummaryPublic:
+    return GalaxySummaryPublic(
+        user_id=summary.user_id,
+        galaxy_id=summary.galaxy_id,
+        constellations_count=summary.constellations_count,
+        planets_count=summary.planets_count,
+        moons_count=summary.moons_count,
+        bonds_count=summary.bonds_count,
+        formula_fields_count=summary.formula_fields_count,
+        updated_at=summary.updated_at,
+    )
+
+
+def galaxy_health_to_public(health) -> GalaxyHealthPublic:
+    return GalaxyHealthPublic(
+        user_id=health.user_id,
+        galaxy_id=health.galaxy_id,
+        guardian_rules_count=health.guardian_rules_count,
+        alerted_asteroids_count=health.alerted_asteroids_count,
+        circular_fields_count=health.circular_fields_count,
+        quality_score=health.quality_score,
+        status=health.status,
+        updated_at=health.updated_at,
+    )
+
+
+def galaxy_activity_to_public(item) -> GalaxyActivityPublic:
+    return GalaxyActivityPublic(
+        id=item.id,
+        user_id=item.user_id,
+        galaxy_id=item.galaxy_id,
+        event_id=item.event_id,
+        event_seq=item.event_seq,
+        event_type=item.event_type,
+        entity_id=item.entity_id,
+        payload=item.payload if isinstance(item.payload, dict) else {},
+        happened_at=item.happened_at,
+        created_at=item.created_at,
+    )
+
+
+def constellation_summary_to_public(item: Mapping[str, Any]) -> ConstellationSummaryPublic:
+    return ConstellationSummaryPublic(
+        name=str(item.get("name") or "Uncategorized"),
+        planets_count=int(item.get("planets_count") or 0),
+        planet_names=[str(value) for value in (item.get("planet_names") or [])],
+        moons_count=int(item.get("moons_count") or 0),
+        formula_fields_count=int(item.get("formula_fields_count") or 0),
+        internal_bonds_count=int(item.get("internal_bonds_count") or 0),
+        external_bonds_count=int(item.get("external_bonds_count") or 0),
+        guardian_rules_count=int(item.get("guardian_rules_count") or 0),
+        alerted_moons_count=int(item.get("alerted_moons_count") or 0),
+        circular_fields_count=int(item.get("circular_fields_count") or 0),
+        quality_score=int(item.get("quality_score") or 0),
+        status=str(item.get("status") or "GREEN"),
+    )
+
+
+def planet_summary_to_public(item: Mapping[str, Any]) -> PlanetSummaryPublic:
+    return PlanetSummaryPublic(
+        table_id=item["table_id"],
+        name=str(item.get("name") or "Planet"),
+        constellation_name=str(item.get("constellation_name") or "Uncategorized"),
+        moons_count=int(item.get("moons_count") or 0),
+        schema_fields_count=int(item.get("schema_fields_count") or 0),
+        formula_fields_count=int(item.get("formula_fields_count") or 0),
+        internal_bonds_count=int(item.get("internal_bonds_count") or 0),
+        external_bonds_count=int(item.get("external_bonds_count") or 0),
+        guardian_rules_count=int(item.get("guardian_rules_count") or 0),
+        alerted_moons_count=int(item.get("alerted_moons_count") or 0),
+        circular_fields_count=int(item.get("circular_fields_count") or 0),
+        quality_score=int(item.get("quality_score") or 0),
+        status=str(item.get("status") or "GREEN"),
+        sector_mode=str(item.get("sector_mode") or "belt"),
+    )
+
+
+def moon_summary_to_public(item: Mapping[str, Any]) -> MoonSummaryPublic:
+    return MoonSummaryPublic(
+        asteroid_id=item["asteroid_id"],
+        label=str(item.get("label") or ""),
+        table_id=item["table_id"],
+        table_name=str(item.get("table_name") or "Uncategorized"),
+        constellation_name=str(item.get("constellation_name") or "Uncategorized"),
+        planet_name=str(item.get("planet_name") or "Planet"),
+        metadata_fields_count=int(item.get("metadata_fields_count") or 0),
+        calculated_fields_count=int(item.get("calculated_fields_count") or 0),
+        guardian_rules_count=int(item.get("guardian_rules_count") or 0),
+        active_alerts_count=int(item.get("active_alerts_count") or 0),
+        circular_fields_count=int(item.get("circular_fields_count") or 0),
+        quality_score=int(item.get("quality_score") or 0),
+        status=str(item.get("status") or "GREEN"),
+        created_at=item.get("created_at"),
+    )
+
+
+def bond_summary_to_public(item: Mapping[str, Any]) -> BondSummaryPublic:
+    return BondSummaryPublic(
+        bond_id=item["bond_id"],
+        type=str(item.get("type") or "RELATION"),
+        directional=bool(item.get("directional", False)),
+        flow_direction=str(item.get("flow_direction") or "source_to_target"),
+        source_id=item["source_id"],
+        target_id=item["target_id"],
+        source_label=str(item.get("source_label") or ""),
+        target_label=str(item.get("target_label") or ""),
+        source_table_id=item["source_table_id"],
+        target_table_id=item["target_table_id"],
+        source_constellation_name=str(item.get("source_constellation_name") or "Uncategorized"),
+        source_planet_name=str(item.get("source_planet_name") or "Planet"),
+        target_constellation_name=str(item.get("target_constellation_name") or "Uncategorized"),
+        target_planet_name=str(item.get("target_planet_name") or "Planet"),
+        active_alerts_count=int(item.get("active_alerts_count") or 0),
+        circular_fields_count=int(item.get("circular_fields_count") or 0),
+        quality_score=int(item.get("quality_score") or 0),
+        status=str(item.get("status") or "GREEN"),
+        created_at=item.get("created_at"),
     )
 
 
@@ -243,6 +386,13 @@ def universe_asteroid_to_snapshot(
             if isinstance(table_name_raw, str) and table_name_raw.strip()
             else derive_table_name(value=asteroid.get("value"), metadata=metadata)
         )
+        constellation_name_raw = asteroid.get("constellation_name")
+        planet_name_raw = asteroid.get("planet_name")
+        if isinstance(constellation_name_raw, str) and constellation_name_raw.strip() and isinstance(planet_name_raw, str) and planet_name_raw.strip():
+            constellation_name = constellation_name_raw.strip()
+            planet_name = planet_name_raw.strip()
+        else:
+            constellation_name, planet_name = split_constellation_and_planet_name(table_name)
         table_id = asteroid.get("table_id")
         table_uuid = table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
         return UniverseAsteroidSnapshot(
@@ -250,6 +400,8 @@ def universe_asteroid_to_snapshot(
             value=asteroid.get("value"),
             table_id=table_uuid,
             table_name=table_name,
+            constellation_name=constellation_name,
+            planet_name=planet_name,
             metadata=metadata,
             calculated_values=calculated_values,
             active_alerts=[str(alert) for alert in active_alerts],
@@ -257,11 +409,14 @@ def universe_asteroid_to_snapshot(
         )
 
     table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+    constellation_name, planet_name = split_constellation_and_planet_name(table_name)
     return UniverseAsteroidSnapshot(
         id=asteroid.id,
         value=asteroid.value,
         table_id=derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
         table_name=table_name,
+        constellation_name=constellation_name,
+        planet_name=planet_name,
         metadata=asteroid.metadata,
         calculated_values={},
         active_alerts=[],
@@ -272,14 +427,20 @@ def universe_asteroid_to_snapshot(
 def universe_bond_to_snapshot(
     bond: ProjectedBond | Mapping[str, Any],
     *,
-    asteroid_table_index: Mapping[UUID, tuple[UUID, str]] | None = None,
+    asteroid_table_index: Mapping[UUID, tuple[UUID, str, str, str]] | None = None,
 ) -> UniverseBondSnapshot:
     table_index = asteroid_table_index or {}
     if isinstance(bond, Mapping):
         source_id = bond["source_id"]
         target_id = bond["target_id"]
-        source_table_id, source_table_name = table_index.get(source_id, (DEFAULT_GALAXY_ID, "Unknown"))
-        target_table_id, target_table_name = table_index.get(target_id, (DEFAULT_GALAXY_ID, "Unknown"))
+        source_table_id, source_table_name, source_constellation_name, source_planet_name = table_index.get(
+            source_id,
+            (DEFAULT_GALAXY_ID, "Unknown", "Unknown", "Unknown"),
+        )
+        target_table_id, target_table_name, target_constellation_name, target_planet_name = table_index.get(
+            target_id,
+            (DEFAULT_GALAXY_ID, "Unknown", "Unknown", "Unknown"),
+        )
         return UniverseBondSnapshot(
             id=bond["id"],
             source_id=source_id,
@@ -287,11 +448,21 @@ def universe_bond_to_snapshot(
             type=bond.get("type", "RELATION"),
             source_table_id=source_table_id,
             source_table_name=source_table_name,
+            source_constellation_name=source_constellation_name,
+            source_planet_name=source_planet_name,
             target_table_id=target_table_id,
             target_table_name=target_table_name,
+            target_constellation_name=target_constellation_name,
+            target_planet_name=target_planet_name,
         )
-    source_table_id, source_table_name = table_index.get(bond.source_id, (DEFAULT_GALAXY_ID, "Unknown"))
-    target_table_id, target_table_name = table_index.get(bond.target_id, (DEFAULT_GALAXY_ID, "Unknown"))
+    source_table_id, source_table_name, source_constellation_name, source_planet_name = table_index.get(
+        bond.source_id,
+        (DEFAULT_GALAXY_ID, "Unknown", "Unknown", "Unknown"),
+    )
+    target_table_id, target_table_name, target_constellation_name, target_planet_name = table_index.get(
+        bond.target_id,
+        (DEFAULT_GALAXY_ID, "Unknown", "Unknown", "Unknown"),
+    )
     return UniverseBondSnapshot(
         id=bond.id,
         source_id=bond.source_id,
@@ -299,8 +470,12 @@ def universe_bond_to_snapshot(
         type=bond.type,
         source_table_id=source_table_id,
         source_table_name=source_table_name,
+        source_constellation_name=source_constellation_name,
+        source_planet_name=source_planet_name,
         target_table_id=target_table_id,
         target_table_name=target_table_name,
+        target_constellation_name=target_constellation_name,
+        target_planet_name=target_planet_name,
     )
 
 
@@ -420,6 +595,181 @@ async def extinguish_galaxy(
         galaxy = await auth_service.soft_delete_galaxy(session=session, user_id=current_user.id, galaxy_id=galaxy_id)
     await commit_if_active(session)
     return galaxy_to_public(galaxy)
+
+
+@app.get("/galaxies/{galaxy_id}/summary", response_model=GalaxySummaryPublic, status_code=status.HTTP_200_OK)
+async def galaxy_summary(
+    galaxy_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> GalaxySummaryPublic:
+    target_galaxy = await auth_service.resolve_user_galaxy(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=galaxy_id,
+    )
+    summary = await galaxy_dashboard_service.get_summary(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy.id,
+    )
+    return galaxy_summary_to_public(summary)
+
+
+@app.get("/galaxies/{galaxy_id}/health", response_model=GalaxyHealthPublic, status_code=status.HTTP_200_OK)
+async def galaxy_health(
+    galaxy_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> GalaxyHealthPublic:
+    target_galaxy = await auth_service.resolve_user_galaxy(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=galaxy_id,
+    )
+    health = await galaxy_dashboard_service.get_health(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy.id,
+    )
+    return galaxy_health_to_public(health)
+
+
+@app.get("/galaxies/{galaxy_id}/activity", response_model=GalaxyActivityResponse, status_code=status.HTTP_200_OK)
+async def galaxy_activity(
+    galaxy_id: UUID,
+    limit: int = Query(default=40, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> GalaxyActivityResponse:
+    target_galaxy = await auth_service.resolve_user_galaxy(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=galaxy_id,
+    )
+    items = await galaxy_dashboard_service.list_activity(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy.id,
+        limit=limit,
+    )
+    return GalaxyActivityResponse(items=[galaxy_activity_to_public(item) for item in items])
+
+
+@app.get("/galaxies/{galaxy_id}/constellations", response_model=ConstellationSummaryResponse, status_code=status.HTTP_200_OK)
+async def galaxy_constellations(
+    galaxy_id: UUID,
+    as_of: datetime | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> ConstellationSummaryResponse:
+    target_galaxy = await auth_service.resolve_user_galaxy(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=galaxy_id,
+    )
+    target_branch_id = await resolve_branch_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=target_galaxy.id,
+        branch_id=branch_id,
+    )
+    rows = await constellation_dashboard_service.list_constellations(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy.id,
+        branch_id=target_branch_id,
+        as_of=as_of,
+    )
+    return ConstellationSummaryResponse(items=[constellation_summary_to_public(item) for item in rows])
+
+
+@app.get("/galaxies/{galaxy_id}/planets", response_model=PlanetSummaryResponse, status_code=status.HTTP_200_OK)
+async def galaxy_planets(
+    galaxy_id: UUID,
+    as_of: datetime | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> PlanetSummaryResponse:
+    target_galaxy = await auth_service.resolve_user_galaxy(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=galaxy_id,
+    )
+    target_branch_id = await resolve_branch_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=target_galaxy.id,
+        branch_id=branch_id,
+    )
+    rows = await planet_dashboard_service.list_planets(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy.id,
+        branch_id=target_branch_id,
+        as_of=as_of,
+    )
+    return PlanetSummaryResponse(items=[planet_summary_to_public(item) for item in rows])
+
+
+@app.get("/galaxies/{galaxy_id}/moons", response_model=MoonSummaryResponse, status_code=status.HTTP_200_OK)
+async def galaxy_moons(
+    galaxy_id: UUID,
+    as_of: datetime | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> MoonSummaryResponse:
+    target_galaxy = await auth_service.resolve_user_galaxy(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=galaxy_id,
+    )
+    target_branch_id = await resolve_branch_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=target_galaxy.id,
+        branch_id=branch_id,
+    )
+    rows = await moon_dashboard_service.list_moons(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy.id,
+        branch_id=target_branch_id,
+        as_of=as_of,
+    )
+    return MoonSummaryResponse(items=[moon_summary_to_public(item) for item in rows])
+
+
+@app.get("/galaxies/{galaxy_id}/bonds", response_model=BondSummaryResponse, status_code=status.HTTP_200_OK)
+async def galaxy_bonds(
+    galaxy_id: UUID,
+    as_of: datetime | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> BondSummaryResponse:
+    target_galaxy = await auth_service.resolve_user_galaxy(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=galaxy_id,
+    )
+    target_branch_id = await resolve_branch_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=target_galaxy.id,
+        branch_id=branch_id,
+    )
+    rows = await bond_dashboard_service.list_bonds(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy.id,
+        branch_id=target_branch_id,
+        as_of=as_of,
+    )
+    return BondSummaryResponse(items=[bond_summary_to_public(item) for item in rows])
 
 
 @app.get("/branches", response_model=list[BranchPublic], status_code=status.HTTP_200_OK)
@@ -737,8 +1087,13 @@ async def universe_snapshot(
         universe_asteroid_to_snapshot(asteroid, galaxy_id=target_galaxy_id)
         for asteroid in active_asteroids
     ]
-    table_index: dict[UUID, tuple[UUID, str]] = {
-        asteroid.id: (asteroid.table_id, asteroid.table_name)
+    table_index: dict[UUID, tuple[UUID, str, str, str]] = {
+        asteroid.id: (
+            asteroid.table_id,
+            asteroid.table_name,
+            asteroid.constellation_name,
+            asteroid.planet_name,
+        )
         for asteroid in asteroid_snapshots
     }
 
@@ -774,7 +1129,17 @@ async def universe_tables(
         branch_id=branch_id,
         as_of=as_of,
     )
-    return UniverseTablesResponse(tables=tables)
+    normalized_tables: list[dict[str, Any]] = []
+    for table in tables:
+        item = dict(table)
+        constellation_name = item.get("constellation_name")
+        planet_name = item.get("planet_name")
+        if not (isinstance(constellation_name, str) and constellation_name.strip() and isinstance(planet_name, str) and planet_name.strip()):
+            resolved_constellation, resolved_planet = split_constellation_and_planet_name(item.get("name"))
+            item["constellation_name"] = resolved_constellation
+            item["planet_name"] = resolved_planet
+        normalized_tables.append(item)
+    return UniverseTablesResponse(tables=normalized_tables)
 
 
 @app.post("/io/imports", response_model=ImportRunResponse, status_code=status.HTTP_200_OK)

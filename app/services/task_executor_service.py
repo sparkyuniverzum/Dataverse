@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from hashlib import blake2b
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
+from sqlalchemy import and_, select, text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import Bond
 from app.services.event_store_service import EventStoreService
 from app.services.parser_service import AtomicTask
 from app.services.read_model_projector import ReadModelProjector
@@ -34,6 +37,33 @@ class TaskExecutorService:
         self.event_store = event_store or EventStoreService()
         self.universe_service = universe_service or UniverseService(event_store=self.event_store)
         self.read_model_projector = read_model_projector or ReadModelProjector()
+
+    @staticmethod
+    def _bond_lock_key(
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        source_id: UUID,
+        target_id: UUID,
+        bond_type: str,
+    ) -> int:
+        digest = blake2b(
+            f"{user_id}:{galaxy_id}:{source_id}:{target_id}:{bond_type}".encode("utf-8"),
+            digest_size=8,
+        ).digest()
+        return int.from_bytes(digest, byteorder="big", signed=True)
+
+    @staticmethod
+    def _to_projected_bond(bond: Bond) -> ProjectedBond:
+        return ProjectedBond(
+            id=bond.id,
+            source_id=bond.source_id,
+            target_id=bond.target_id,
+            type=bond.type,
+            is_deleted=bond.is_deleted,
+            created_at=bond.created_at,
+            deleted_at=bond.deleted_at,
+        )
 
     @staticmethod
     def _value_to_text(value: object) -> str:
@@ -144,15 +174,14 @@ class TaskExecutorService:
                 event_type=event_type,
                 payload=payload,
             )
-            # Branch timelines are projected on read by event replay, main timeline keeps strong read-model projection.
-            if branch_id is None:
-                await self.read_model_projector.apply_event(session=session, event=event)
+            appended_events.append(event)
             return event
 
         transaction_ctx = (
             session.begin_nested() if session.in_transaction() else session.begin()
         ) if manage_transaction else _no_transaction()
         async with transaction_ctx:
+            appended_events = []
             for task in tasks:
                 action = task.action.upper()
 
@@ -241,6 +270,36 @@ class TaskExecutorService:
                     )
                     if existing_bond is not None:
                         result.bonds.append(existing_bond)
+                        continue
+
+                    # Serialize relation creation for this exact edge to avoid concurrent duplicate bonds.
+                    lock_key = self._bond_lock_key(
+                        user_id=user_id,
+                        galaxy_id=galaxy_id,
+                        source_id=source_uuid,
+                        target_id=target_uuid,
+                        bond_type=bond_type,
+                    )
+                    await session.execute(sql_text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+
+                    persisted_bond = (
+                        await session.execute(
+                            select(Bond).where(
+                                and_(
+                                    Bond.user_id == user_id,
+                                    Bond.galaxy_id == galaxy_id,
+                                    Bond.source_id == source_uuid,
+                                    Bond.target_id == target_uuid,
+                                    Bond.type == bond_type,
+                                    Bond.is_deleted.is_(False),
+                                )
+                            )
+                        )
+                    ).scalar_one_or_none()
+                    if persisted_bond is not None:
+                        projected = self._to_projected_bond(persisted_bond)
+                        bonds_by_id[projected.id] = projected
+                        result.bonds.append(projected)
                         continue
 
                     bond_id = uuid4()
@@ -512,5 +571,10 @@ class TaskExecutorService:
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Unsupported task action: {task.action}",
                 )
+
+            # Branch timelines are projected on read by event replay.
+            # Main timeline keeps strong read-model consistency within the same transaction.
+            if branch_id is None and appended_events:
+                await self.read_model_projector.apply_events(session=session, events=appended_events)
 
         return result
