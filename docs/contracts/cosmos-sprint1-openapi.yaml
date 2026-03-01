@@ -1,0 +1,331 @@
+openapi: 3.1.0
+info:
+  title: DataVerse Cosmos Sprint 1 API
+  version: 1.0.0-draft
+  description: |
+    Draft contract for Sprint 1 "Scenario Branches + Table Contracts".
+    Global law: hard delete is forbidden, only soft delete endpoints are allowed.
+servers:
+  - url: http://127.0.0.1:8000
+tags:
+  - name: branches
+  - name: contracts
+  - name: universe
+security:
+  - bearerAuth: []
+paths:
+  /branches:
+    get:
+      tags: [branches]
+      summary: List active branches for a galaxy
+      parameters:
+        - $ref: "#/components/parameters/galaxyIdQuery"
+      responses:
+        "200":
+          description: Active branches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BranchPublic"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [branches]
+      summary: Create branch from current timeline (or as_of)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BranchCreateRequest"
+      responses:
+        "201":
+          description: Branch created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchPublic"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /branches/{branch_id}/extinguish:
+    patch:
+      tags: [branches]
+      summary: Soft-delete branch
+      parameters:
+        - $ref: "#/components/parameters/branchIdPath"
+        - $ref: "#/components/parameters/galaxyIdQuery"
+      responses:
+        "200":
+          description: Branch soft-deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchPublic"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /contracts/{table_id}:
+    get:
+      tags: [contracts]
+      summary: Get active contract for table in galaxy
+      parameters:
+        - $ref: "#/components/parameters/tableIdPath"
+        - $ref: "#/components/parameters/galaxyIdQuery"
+      responses:
+        "200":
+          description: Current table contract
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableContractPublic"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [contracts]
+      summary: Append new table contract version
+      parameters:
+        - $ref: "#/components/parameters/tableIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TableContractUpsertRequest"
+      responses:
+        "201":
+          description: Contract version created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableContractPublic"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /universe/snapshot:
+    get:
+      tags: [universe]
+      summary: Return universe snapshot for main timeline or selected branch
+      parameters:
+        - $ref: "#/components/parameters/galaxyIdQuery"
+        - $ref: "#/components/parameters/branchIdQuery"
+        - $ref: "#/components/parameters/asOfQuery"
+      responses:
+        "200":
+          description: Snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UniverseSnapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    galaxyIdQuery:
+      name: galaxy_id
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+    branchIdQuery:
+      name: branch_id
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+    branchIdPath:
+      name: branch_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    tableIdPath:
+      name: table_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    asOfQuery:
+      name: as_of
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+
+  responses:
+    Unauthorized:
+      description: Invalid or missing JWT
+    Forbidden:
+      description: Access to foreign galaxy/branch is forbidden
+    NotFound:
+      description: Resource not found
+    ValidationError:
+      description: Validation error
+
+  schemas:
+    BranchCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        galaxy_id:
+          type: string
+          format: uuid
+        as_of:
+          type: string
+          format: date-time
+
+    BranchPublic:
+      type: object
+      required: [id, galaxy_id, name, created_by, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        galaxy_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        base_event_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    TableContractUpsertRequest:
+      type: object
+      required: [galaxy_id]
+      properties:
+        galaxy_id:
+          type: string
+          format: uuid
+        required_fields:
+          type: array
+          items:
+            type: string
+        field_types:
+          type: object
+          additionalProperties:
+            type: string
+        unique_rules:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        validators:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    TableContractPublic:
+      type: object
+      required: [id, galaxy_id, table_id, version, required_fields, field_types, unique_rules, validators, created_by, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        galaxy_id:
+          type: string
+          format: uuid
+        table_id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+        required_fields:
+          type: array
+          items:
+            type: string
+        field_types:
+          type: object
+          additionalProperties:
+            type: string
+        unique_rules:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        validators:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        created_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    UniverseSnapshot:
+      type: object
+      required: [asteroids, bonds]
+      properties:
+        asteroids:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        bonds:
+          type: array
+          items:
+            type: object
+            additionalProperties: true

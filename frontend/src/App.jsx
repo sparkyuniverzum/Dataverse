@@ -1602,6 +1602,302 @@ function LayeredNavigationPanel({
   );
 }
 
+function GridWorkbench({
+  open,
+  onToggle,
+  maximized,
+  onToggleMaximized,
+  historicalMode,
+  activeTableName,
+  columns,
+  rows,
+  draftValues,
+  busyCellKey,
+  newRowLabel,
+  onNewRowLabelChange,
+  onCreateRow,
+  onDeleteRow,
+  onCellChange,
+  onCellCommit,
+  error,
+}) {
+  const renderCellValue = (row, field) => {
+    const key = `${row.id}::${field}`;
+    if (Object.prototype.hasOwnProperty.call(draftValues, key)) {
+      return draftValues[key];
+    }
+    if (field === "value") {
+      return valueToLabel(row.value);
+    }
+    return valueToLabel(row.metadata?.[field] ?? "");
+  };
+
+  const focusCell = (rowIndex, colIndex) => {
+    if (rowIndex < 0 || colIndex < 0) return;
+    const selector = `[data-grid-row="${rowIndex}"][data-grid-col="${colIndex}"]`;
+    const next = document.querySelector(selector);
+    if (next instanceof HTMLInputElement) {
+      next.focus();
+      next.select();
+    }
+  };
+
+  return (
+    <section
+      style={{
+        position: "absolute",
+        left: maximized ? 12 : 20,
+        right: maximized ? 12 : 20,
+        top: maximized ? 74 : "auto",
+        bottom: maximized ? 16 : 104,
+        zIndex: maximized ? 30 : 19,
+        pointerEvents: "auto",
+        background: "rgba(7, 14, 24, 0.84)",
+        border: "1px solid rgba(108, 206, 245, 0.3)",
+        borderRadius: 12,
+        backdropFilter: "blur(8px)",
+        boxShadow: "0 0 24px rgba(56, 173, 225, 0.12)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "8px 10px",
+          borderBottom: open ? "1px solid rgba(108, 206, 245, 0.16)" : "none",
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, opacity: 0.72, letterSpacing: 0.6 }}>GRID WORKBENCH</div>
+          <div style={{ marginTop: 2, fontSize: 12, opacity: 0.88, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            Tabulka: <strong>{activeTableName || "n/a"}</strong> | Řádky: {rows.length} | Sloupce: {columns.length}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {open ? (
+            <button
+              type="button"
+              onClick={onToggleMaximized}
+              style={{
+                border: "1px solid rgba(116, 216, 255, 0.35)",
+                background: "rgba(8, 20, 34, 0.82)",
+                color: "#d5f9ff",
+                borderRadius: 999,
+                padding: "5px 10px",
+                fontSize: 11,
+                cursor: "pointer",
+              }}
+            >
+              {maximized ? "Minimalizovat" : "Maximalizovat"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onToggle}
+            style={{
+              border: "1px solid rgba(116, 216, 255, 0.35)",
+              background: "rgba(8, 20, 34, 0.82)",
+              color: "#d5f9ff",
+              borderRadius: 999,
+              padding: "5px 10px",
+              fontSize: 11,
+              cursor: "pointer",
+            }}
+          >
+            {open ? "Skrýt grid" : "Zobrazit grid"}
+          </button>
+        </div>
+      </div>
+
+      {open ? (
+        <div style={{ padding: "8px 10px 10px" }}>
+          <div style={{ marginBottom: 8, fontSize: 11, opacity: 0.7 }}>
+            Tip: `Enter` uloží buňku a skočí o řádek níž, `Shift+Enter` o řádek výš.
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <input
+              value={newRowLabel}
+              onChange={(event) => onNewRowLabelChange(event.target.value)}
+              placeholder="Nový řádek (název asteroidu)"
+              disabled={historicalMode}
+              style={{
+                flex: 1,
+                borderRadius: 8,
+                border: "1px solid rgba(118, 215, 255, 0.25)",
+                background: "rgba(4, 8, 16, 0.9)",
+                color: "#d8f7ff",
+                padding: "8px 10px",
+                fontSize: 13,
+                outline: "none",
+              }}
+            />
+            <button
+              type="button"
+              onClick={onCreateRow}
+              disabled={historicalMode || !newRowLabel.trim()}
+              style={{
+                border: "1px solid rgba(110, 225, 255, 0.5)",
+                background: historicalMode || !newRowLabel.trim()
+                  ? "linear-gradient(120deg, rgba(63,95,110,0.7), rgba(48,66,80,0.7))"
+                  : "linear-gradient(120deg, #18b2e2, #36d6ff)",
+                color: historicalMode || !newRowLabel.trim() ? "#b9c8cf" : "#02121c",
+                borderRadius: 8,
+                fontWeight: 700,
+                padding: "0 12px",
+                fontSize: 12,
+                cursor: historicalMode || !newRowLabel.trim() ? "not-allowed" : "pointer",
+              }}
+            >
+              Přidat řádek
+            </button>
+          </div>
+
+          <div
+            style={{
+              maxHeight: maximized ? "calc(100vh - 250px)" : 260,
+              overflow: "auto",
+              border: "1px solid rgba(106, 194, 232, 0.18)",
+              borderRadius: 8,
+            }}
+          >
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
+              <thead>
+                <tr>
+                  <th
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      background: "rgba(8, 18, 30, 0.96)",
+                      color: "#bdeeff",
+                      textAlign: "left",
+                      padding: "7px 8px",
+                      fontSize: 11,
+                      borderBottom: "1px solid rgba(106, 194, 232, 0.18)",
+                      width: 56,
+                    }}
+                  >
+                    #
+                  </th>
+                  {columns.map((column) => (
+                    <th
+                      key={column}
+                      style={{
+                        position: "sticky",
+                        top: 0,
+                        background: "rgba(8, 18, 30, 0.96)",
+                        color: "#bdeeff",
+                        textAlign: "left",
+                        padding: "7px 8px",
+                        fontSize: 11,
+                        borderBottom: "1px solid rgba(106, 194, 232, 0.18)",
+                      }}
+                    >
+                      {column}
+                    </th>
+                  ))}
+                  <th
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      background: "rgba(8, 18, 30, 0.96)",
+                      color: "#bdeeff",
+                      textAlign: "left",
+                      padding: "7px 8px",
+                      fontSize: 11,
+                      borderBottom: "1px solid rgba(106, 194, 232, 0.18)",
+                      width: 76,
+                    }}
+                  >
+                    Akce
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, rowIndex) => (
+                  <tr key={row.id}>
+                    <td
+                      style={{
+                        borderBottom: "1px solid rgba(95, 169, 202, 0.14)",
+                        padding: "6px 8px",
+                        color: "#98cddd",
+                        fontSize: 11,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {rowIndex + 1}
+                    </td>
+                    {columns.map((column, columnIndex) => {
+                      const key = `${row.id}::${column}`;
+                      const busy = busyCellKey === key;
+                      return (
+                        <td
+                          key={key}
+                          style={{
+                            borderBottom: "1px solid rgba(95, 169, 202, 0.14)",
+                            padding: "6px 8px",
+                            background: busy ? "rgba(20, 54, 72, 0.6)" : "transparent",
+                          }}
+                        >
+                          <input
+                            value={renderCellValue(row, column)}
+                            data-grid-row={rowIndex}
+                            data-grid-col={columnIndex}
+                            onChange={(event) => onCellChange(row.id, column, event.target.value)}
+                            onBlur={() => onCellCommit(row.id, column)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                onCellCommit(row.id, column);
+                                focusCell(event.shiftKey ? rowIndex - 1 : rowIndex + 1, columnIndex);
+                              }
+                            }}
+                            disabled={historicalMode || busy}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid rgba(117, 203, 235, 0.18)",
+                              background: "rgba(3, 7, 14, 0.9)",
+                              color: "#ddf9ff",
+                              padding: "6px 7px",
+                              fontSize: 12,
+                              outline: "none",
+                            }}
+                          />
+                        </td>
+                      );
+                    })}
+                    <td style={{ borderBottom: "1px solid rgba(95, 169, 202, 0.14)", padding: "6px 8px" }}>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteRow(row.id)}
+                        disabled={historicalMode}
+                        style={{
+                          border: "1px solid rgba(255, 120, 150, 0.45)",
+                          background: "rgba(40, 13, 22, 0.75)",
+                          color: "#ffc7d5",
+                          borderRadius: 8,
+                          padding: "5px 8px",
+                          fontSize: 11,
+                          cursor: historicalMode ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        Zhasni
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {error ? <div style={{ marginTop: 7, color: "#ff9db0", fontSize: 12 }}>{error}</div> : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export default function App() {
   const {
     user,
@@ -1628,13 +1924,19 @@ export default function App() {
   const [bonds, setBonds] = useState([]);
   const [tables, setTables] = useState([]);
   const [activeTableId, setActiveTableId] = useState("");
+  const [gridOpen, setGridOpen] = useState(true);
+  const [gridMaximized, setGridMaximized] = useState(false);
+  const [gridDraftValues, setGridDraftValues] = useState({});
+  const [gridBusyCellKey, setGridBusyCellKey] = useState("");
+  const [gridError, setGridError] = useState("");
+  const [newGridRowLabel, setNewGridRowLabel] = useState("");
+  const [uiPreset, setUiPreset] = useState("focus");
   const [commandMode, setCommandMode] = useState("auto");
   const [query, setQuery] = useState("");
   const [asOfInput, setAsOfInput] = useState("");
   const [selectedPlanetId, setSelectedPlanetId] = useState(null);
   const [auditTargetId, setAuditTargetId] = useState(null);
   const [hoveredFlow, setHoveredFlow] = useState(null);
-  const [flowCenterMinimized, setFlowCenterMinimized] = useState(false);
   const [assistOpen, setAssistOpen] = useState(false);
   const [assistPinned, setAssistPinned] = useState(false);
   const [navHelpOpen, setNavHelpOpen] = useState(false);
@@ -1646,6 +1948,7 @@ export default function App() {
   const layoutStateRef = useRef({ signature: "", positions: new Map(), sectors: [] });
   const asOfIso = useMemo(() => toAsOfIso(asOfInput), [asOfInput]);
   const historicalMode = Boolean(asOfIso);
+  const smartUiFocus = uiPreset === "focus";
 
   useEffect(() => {
     if (selectedGalaxyId) {
@@ -1667,6 +1970,11 @@ export default function App() {
     setBonds([]);
     setTables([]);
     setActiveTableId("");
+    setGridDraftValues({});
+    setGridBusyCellKey("");
+    setGridError("");
+    setGridMaximized(false);
+    setNewGridRowLabel("");
     setSelectedPlanetId(null);
     setError("");
   }, [isAuthenticated]);
@@ -2164,6 +2472,23 @@ export default function App() {
       .sort((a, b) => valueToLabel(a.value).localeCompare(valueToLabel(b.value)));
   }, [activeTableContract, visualData]);
 
+  const gridColumns = useMemo(() => {
+    const fieldSet = new Set();
+    fieldSet.add("value");
+
+    if (activeTableContract) {
+      activeTableContract.schema_fields.forEach((field) => fieldSet.add(field));
+      activeTableContract.formula_fields.forEach((field) => fieldSet.add(field));
+    }
+    activeTableAsteroids.forEach((row) => {
+      Object.keys(safeMetadata(row.metadata)).forEach((field) => fieldSet.add(field));
+    });
+
+    const columns = [...fieldSet];
+    const metadataColumns = columns.filter((column) => column !== "value").sort((a, b) => a.localeCompare(b));
+    return ["value", ...metadataColumns];
+  }, [activeTableContract, activeTableAsteroids]);
+
   const defaultUniverseView = useMemo(() => {
     const nodes = visualData.enrichedAtoms;
     if (!nodes.length) {
@@ -2251,6 +2576,12 @@ export default function App() {
       setSelectedPlanetId(null);
     }
   }, [selectedPlanetId, selectedPlanet]);
+
+  useEffect(() => {
+    if (!smartUiFocus) return;
+    setAssistOpen(false);
+    setNavHelpOpen(false);
+  }, [smartUiFocus]);
 
   useEffect(() => {
     if (!auditTargetId) return;
@@ -2458,66 +2789,37 @@ export default function App() {
     );
   }, [visualData]);
 
-  const workflowStages = useMemo(() => {
-    const stages = [
+  const fixedWorkflow = useMemo(() => {
+    const hasTable = Boolean(activeTableContract);
+    const hasRows = hasTable && activeTableAsteroids.length > 0;
+    const hasExecutionSignal = bonds.length > 0 || hasFormulaConfigured || Boolean(selectedPlanetId);
+    return [
       {
-        id: "seed",
-        title: "Seed Data",
-        detail: "Vytvoř první asteroidy",
-        done: atoms.length > 0,
+        id: "wf-table",
+        title: "1. Vyber tabulku",
+        detail: hasTable ? `Aktivní: ${activeTableContract?.name || "n/a"}` : "Vyber sektor/tabulku vlevo",
+        done: hasTable,
       },
       {
-        id: "links",
-        title: "Connect Graph",
-        detail: "Propoj entity vazbami",
-        done: bonds.length > 0,
+        id: "wf-grid",
+        title: "2. Uprav grid",
+        detail: hasRows ? `${activeTableAsteroids.length} řádků připraveno` : "Otevři grid a uprav buňky",
+        done: hasRows,
       },
       {
-        id: "calc",
-        title: "Compute",
-        detail: "Nastav vzorec nebo guardian",
-        done: hasFormulaConfigured,
-      },
-      {
-        id: "audit",
-        title: "Audit Flow",
-        detail: "Zaměř cílový tok dat",
-        done: Boolean(auditTargetId || selectedPlanetId),
+        id: "wf-command",
+        title: "3. Spusť příkaz",
+        detail: hasExecutionSignal ? "Graf reaguje na příkazy" : "Použij command bar dole",
+        done: hasExecutionSignal,
       },
     ];
-    return stages;
-  }, [atoms.length, bonds.length, hasFormulaConfigured, auditTargetId, selectedPlanetId]);
+  }, [activeTableContract, activeTableAsteroids.length, bonds.length, hasFormulaConfigured, selectedPlanetId]);
 
   const workflowProgress = useMemo(() => {
-    if (!workflowStages.length) return 0;
-    const done = workflowStages.filter((stage) => stage.done).length;
-    return Math.round((done / workflowStages.length) * 100);
-  }, [workflowStages]);
-
-  const orderedPlaybook = useMemo(() => {
-    const selectedLabel = selectedPlanet ? valueToLabel(selectedPlanet.value) : "Projekt";
-    if (!atoms.length) {
-      return [
-        { id: "pb-1", label: "1. Vytvoř", command: "Firma ACME" },
-        { id: "pb-2", label: "2. Přidej", command: "Produkt X" },
-        { id: "pb-3", label: "3. Propoj", command: "Firma ACME + Produkt X" },
-      ];
-    }
-    if (atoms.length > 0 && !bonds.length) {
-      const a = valueToLabel(visualData.enrichedAtoms[0]?.value) || "A";
-      const b = valueToLabel(visualData.enrichedAtoms[1]?.value) || "B";
-      return [
-        { id: "pb-1", label: "1. Propoj", command: `${a} + ${b}` },
-        { id: "pb-2", label: "2. Zaměř", command: `Ukaž : ${a}` },
-        { id: "pb-3", label: "3. Spočítej", command: `Spočítej : ${a}.celkem = SUM(cena)` },
-      ];
-    }
-    return [
-      { id: "pb-1", label: "1. Fokus", command: `Ukaž : ${selectedLabel}` },
-      { id: "pb-2", label: "2. Formula", command: `Spočítej : ${selectedLabel}.celkem = SUM(cena)` },
-      { id: "pb-3", label: "3. Audit", command: `Hlídej : ${selectedLabel}.celkem > 100000 -> pulse` },
-    ];
-  }, [atoms.length, bonds.length, selectedPlanet, visualData]);
+    if (!fixedWorkflow.length) return 0;
+    const done = fixedWorkflow.filter((stage) => stage.done).length;
+    return Math.round((done / fixedWorkflow.length) * 100);
+  }, [fixedWorkflow]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -2737,6 +3039,11 @@ export default function App() {
     setSelectedGalaxyId(galaxyId);
     setActiveTableId("");
     setTables([]);
+    setGridDraftValues({});
+    setGridBusyCellKey("");
+    setGridError("");
+    setGridMaximized(false);
+    setNewGridRowLabel("");
     setSelectedPlanetId(null);
     setAuditTargetId(null);
     setHoveredFlow(null);
@@ -2759,6 +3066,11 @@ export default function App() {
     setAuditTargetId(null);
     setHoveredFlow(null);
     setActiveTableId("");
+    setGridDraftValues({});
+    setGridBusyCellKey("");
+    setGridError("");
+    setGridMaximized(false);
+    setNewGridRowLabel("");
     setQuery("");
     setCommandMode("auto");
     setAssistOpen(false);
@@ -2777,6 +3089,133 @@ export default function App() {
     setHoveredFlow(null);
     setError("");
   }, []);
+
+  const getGridBaselineValue = useCallback(
+    (asteroidId, field) => {
+      const row = activeTableAsteroids.find((item) => item.id === asteroidId);
+      if (!row) return "";
+      if (field === "value") return valueToLabel(row.value);
+      return valueToLabel(safeMetadata(row.metadata)[field] ?? "");
+    },
+    [activeTableAsteroids]
+  );
+
+  const setGridCellDraft = useCallback(
+    (asteroidId, field, nextValue) => {
+      const key = `${asteroidId}::${field}`;
+      const baseline = getGridBaselineValue(asteroidId, field);
+      setGridDraftValues((prev) => {
+        const normalized = String(nextValue ?? "");
+        if (normalized === baseline) {
+          if (!Object.prototype.hasOwnProperty.call(prev, key)) return prev;
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        }
+        return { ...prev, [key]: normalized };
+      });
+    },
+    [getGridBaselineValue]
+  );
+
+  const commitGridCell = useCallback(
+    async (asteroidId, field) => {
+      if (!selectedGalaxyId || historicalMode) return;
+      const key = `${asteroidId}::${field}`;
+      const draft = Object.prototype.hasOwnProperty.call(gridDraftValues, key) ? gridDraftValues[key] : undefined;
+      if (draft === undefined) return;
+      const baseline = getGridBaselineValue(asteroidId, field);
+      if (draft === baseline) {
+        setGridCellDraft(asteroidId, field, draft);
+        return;
+      }
+
+      setGridBusyCellKey(key);
+      setGridError("");
+      try {
+        const payload = { galaxy_id: selectedGalaxyId };
+        if (field === "value") {
+          payload.value = draft;
+        } else {
+          payload.metadata = { [field]: draft };
+        }
+        const response = await apiFetch(`${API_BASE}/asteroids/${asteroidId}/mutate`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const message = await parseApiError(response, `Grid mutate failed: ${response.status}`);
+          throw new Error(message);
+        }
+        setGridCellDraft(asteroidId, field, baseline);
+        await loadSnapshot();
+      } catch (cellError) {
+        setGridError(cellError.message || "Editace buňky selhala");
+      } finally {
+        setGridBusyCellKey("");
+      }
+    },
+    [selectedGalaxyId, historicalMode, gridDraftValues, getGridBaselineValue, setGridCellDraft, loadSnapshot]
+  );
+
+  const createGridRow = useCallback(async () => {
+    const label = newGridRowLabel.trim();
+    if (!label || !selectedGalaxyId || historicalMode) return;
+    setGridError("");
+    try {
+      const metadata = {};
+      if (activeTableContract?.name) {
+        metadata.table = activeTableContract.name;
+      }
+      const response = await apiFetch(`${API_BASE}/asteroids/ingest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: label, metadata, galaxy_id: selectedGalaxyId }),
+      });
+      if (!response.ok) {
+        const message = await parseApiError(response, `Grid create row failed: ${response.status}`);
+        throw new Error(message);
+      }
+      const created = await response.json();
+      setNewGridRowLabel("");
+      await loadSnapshot();
+      if (created?.id) {
+        setSelectedPlanetId(created.id);
+      }
+    } catch (rowError) {
+      setGridError(rowError.message || "Vytvoření řádku selhalo");
+    }
+  }, [newGridRowLabel, selectedGalaxyId, historicalMode, activeTableContract, loadSnapshot]);
+
+  const deleteGridRow = useCallback(
+    async (asteroidId) => {
+      if (!asteroidId || !selectedGalaxyId || historicalMode) return;
+      setGridError("");
+      try {
+        const response = await apiFetch(`${API_BASE}/asteroids/${asteroidId}/extinguish?galaxy_id=${selectedGalaxyId}`, {
+          method: "PATCH",
+        });
+        if (!response.ok) {
+          const message = await parseApiError(response, `Grid delete row failed: ${response.status}`);
+          throw new Error(message);
+        }
+        setGridDraftValues((prev) => {
+          const next = {};
+          Object.entries(prev).forEach(([key, value]) => {
+            if (!key.startsWith(`${asteroidId}::`)) {
+              next[key] = value;
+            }
+          });
+          return next;
+        });
+        await loadSnapshot();
+      } catch (rowError) {
+        setGridError(rowError.message || "Soft delete řádku selhal");
+      }
+    },
+    [selectedGalaxyId, historicalMode, loadSnapshot]
+  );
 
   if (authLoading) {
     return (
@@ -2855,794 +3294,567 @@ export default function App() {
         onClearHoverFlow={() => setHoveredFlow(null)}
       />
 
-      <div
+      <GridWorkbench
+        open={gridOpen}
+        onToggle={() => {
+          setGridOpen((prev) => {
+            const next = !prev;
+            if (!next) setGridMaximized(false);
+            return next;
+          });
+        }}
+        maximized={gridMaximized}
+        onToggleMaximized={() => setGridMaximized((prev) => !prev)}
+        historicalMode={historicalMode}
+        activeTableName={activeTableContract?.name || "Uncategorized"}
+        columns={gridColumns}
+        rows={activeTableAsteroids}
+        draftValues={gridDraftValues}
+        busyCellKey={gridBusyCellKey}
+        newRowLabel={newGridRowLabel}
+        onNewRowLabelChange={setNewGridRowLabel}
+        onCreateRow={createGridRow}
+        onDeleteRow={deleteGridRow}
+        onCellChange={setGridCellDraft}
+        onCellCommit={commitGridCell}
+        error={gridError}
+      />
+
+      <header
         style={{
           position: "absolute",
-          inset: 0,
-          zIndex: 10,
-          pointerEvents: "none",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          padding: "20px",
-          fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+          left: 12,
+          right: 12,
+          top: 12,
+          zIndex: 20,
+          pointerEvents: "auto",
+          border: "1px solid rgba(105, 198, 234, 0.24)",
+          background: "rgba(5, 12, 22, 0.78)",
+          borderRadius: 14,
+          padding: "10px 12px",
+          color: "#d9f9ff",
+          display: "grid",
+          gap: 8,
+          backdropFilter: "blur(8px)",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 14,
-            flexWrap: "wrap",
-          }}
-        >
-          <LayeredNavigationPanel
-            userEmail={user?.email || ""}
-            galaxies={galaxies}
-            selectedGalaxyId={selectedGalaxyId}
-            activeGalaxy={activeGalaxy}
-            onSelectGalaxy={handleSelectGalaxy}
-            onOpenGalaxyOverview={() => {
-              setSelectedGalaxyId("");
-              setActiveTableId("");
-              setSelectedPlanetId(null);
-              setAuditTargetId(null);
-              setHoveredFlow(null);
-            }}
-            onRefreshGalaxies={loadGalaxies}
-            onLogout={logout}
-            galaxyLoading={galaxyLoading}
-            galaxyBusy={galaxyBusy}
-            galaxyError={galaxyError}
-            appError={error}
-            atomsCount={atoms.length}
-            bondsCount={bonds.length}
-            tableCount={tableContracts.length}
-            tableContracts={tableContracts}
-            activeTableId={activeTableId}
-            onSelectTable={setActiveTableId}
-            onClearTableFocus={() => setActiveTableId("")}
-            activeTableAsteroids={activeTableAsteroids}
-            selectedPlanetId={selectedPlanetId}
-            onSelectPlanet={(planetId) => {
-              setSelectedPlanetId(planetId);
-              setAuditTargetId(null);
-              setHoveredFlow(null);
-            }}
-          />
-
-          <div
-            style={{
-              pointerEvents: "auto",
-              flex: 1,
-              maxWidth: 760,
-              background: "rgba(8, 12, 20, 0.72)",
-              border: "1px solid rgba(120, 198, 255, 0.35)",
-              borderRadius: 12,
-              padding: "12px 14px",
-              color: "#c9f3ff",
-              backdropFilter: "blur(6px)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 12, opacity: 0.75, letterSpacing: 0.6 }}>FLOW COMMAND CENTER</div>
-                <div style={{ marginTop: 3, fontSize: 12, opacity: 0.86 }}>
-                  {historicalMode
-                    ? "Historie je zamčená pro zápis. Přepni na Live a pokračuj podle kroků."
-                    : "Jednoznačný postup: data -> vazby -> výpočet -> audit."}
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#9de9ff" }}>{workflowProgress}% READY</div>
-                <button
-                  type="button"
-                  onClick={() => setFlowCenterMinimized((prev) => !prev)}
-                  style={{
-                    border: "1px solid rgba(116, 216, 255, 0.35)",
-                    background: "rgba(8, 20, 34, 0.82)",
-                    color: "#d5f9ff",
-                    borderRadius: 999,
-                    padding: "5px 9px",
-                    fontSize: 11,
-                    cursor: "pointer",
-                  }}
-                >
-                  {flowCenterMinimized ? "Rozbalit" : "Minimalizovat"}
-                </button>
-              </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: 0.2 }}>DataVerse</div>
+            <div style={{ marginTop: 1, fontSize: 12, opacity: 0.74 }}>
+              {galaxies.find((item) => item.id === selectedGalaxyId)?.name || "Galaxie"} /{" "}
+              {activeTableContract?.name || "Uncategorized"}
             </div>
-
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <div
               style={{
-                marginTop: 8,
-                width: "100%",
-                height: 6,
+                border: "1px solid rgba(111, 205, 236, 0.25)",
+                background: "rgba(4, 10, 18, 0.86)",
                 borderRadius: 999,
-                overflow: "hidden",
-                background: "rgba(70, 120, 145, 0.3)",
+                padding: "5px 10px",
+                fontSize: 12,
+                opacity: 0.9,
               }}
             >
+              Asteroids <strong>{atoms.length}</strong>
+            </div>
+            <div
+              style={{
+                border: "1px solid rgba(111, 205, 236, 0.25)",
+                background: "rgba(4, 10, 18, 0.86)",
+                borderRadius: 999,
+                padding: "5px 10px",
+                fontSize: 12,
+                opacity: 0.9,
+              }}
+            >
+              Bonds <strong>{bonds.length}</strong>
+            </div>
+            {historicalMode ? (
               <div
                 style={{
-                  width: `${workflowProgress}%`,
-                  height: "100%",
-                  background: "linear-gradient(90deg, #2bbbe4, #78e9ff)",
-                  transition: "width 260ms ease",
+                  border: "1px solid rgba(255, 193, 92, 0.42)",
+                  background: "rgba(52, 38, 15, 0.8)",
+                  borderRadius: 999,
+                  padding: "5px 10px",
+                  fontSize: 12,
+                  color: "#ffd79f",
                 }}
-              />
-            </div>
-
-            {flowCenterMinimized ? (
-              <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <div style={{ fontSize: 12, opacity: 0.82 }}>
-                  Aktivní tabulka: <strong>{activeTableContract?.name || "n/a"}</strong>
-                </div>
-                <div style={{ fontSize: 12, opacity: 0.72 }}>
-                  Asteroids {atoms.length} / Bonds {bonds.length} / Tables {tableContracts.length}
-                </div>
-                <button
-                  type="button"
-                  onClick={resetDesk}
-                  style={{
-                    border: "1px solid rgba(255, 154, 177, 0.4)",
-                    background: "rgba(34, 10, 18, 0.72)",
-                    color: "#ffc8d7",
-                    borderRadius: 999,
-                    padding: "5px 9px",
-                    fontSize: 11,
-                    cursor: "pointer",
-                  }}
-                >
-                  Vyčistit plochu
-                </button>
+              >
+                Historický mód
               </div>
-            ) : (
-              <>
-                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
-                  {workflowStages.map((stage, index) => (
-                    <div
-                      key={stage.id}
-                      style={{
-                        border: "1px solid rgba(104, 188, 228, 0.2)",
-                        background: stage.done ? "rgba(18, 53, 72, 0.58)" : "rgba(7, 18, 30, 0.72)",
-                        borderRadius: 10,
-                        padding: "7px 8px",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                        <span
-                          style={{
-                            width: 18,
-                            height: 18,
-                            borderRadius: 999,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: stage.done ? "#05273a" : "#a8d5e2",
-                            background: stage.done ? "#83f0ff" : "rgba(118, 176, 199, 0.3)",
-                          }}
-                        >
-                          {index + 1}
-                        </span>
-                        <span style={{ fontSize: 12, fontWeight: 600 }}>{stage.title}</span>
-                      </div>
-                      <div style={{ marginTop: 3, fontSize: 11, opacity: 0.76 }}>{stage.detail}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {orderedPlaybook.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => applySuggestion(item.command)}
-                      disabled={historicalMode}
-                      style={{
-                        border: "1px solid rgba(116, 216, 255, 0.35)",
-                        background: historicalMode ? "rgba(36,45,58,0.8)" : "rgba(8, 20, 34, 0.82)",
-                        color: historicalMode ? "#8ea0aa" : "#d5f9ff",
-                        borderRadius: 999,
-                        padding: "6px 10px",
-                        fontSize: 11,
-                        cursor: historicalMode ? "not-allowed" : "pointer",
-                      }}
-                      title={item.command}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={resetDesk}
-                    style={{
-                      border: "1px solid rgba(255, 154, 177, 0.4)",
-                      background: "rgba(34, 10, 18, 0.72)",
-                      color: "#ffc8d7",
-                      borderRadius: 999,
-                      padding: "6px 10px",
-                      fontSize: 11,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Vyčistit plochu
-                  </button>
-                </div>
-
-                <div
-                  style={{
-                    marginTop: 10,
-                    borderRadius: 10,
-                    border: "1px solid rgba(104, 188, 228, 0.2)",
-                    background: "rgba(7, 18, 30, 0.72)",
-                    padding: "9px 10px",
-                  }}
-                >
-                  <div style={{ fontSize: 11, opacity: 0.76, letterSpacing: 0.45 }}>TABLE CONTRACT (KANON)</div>
-                  <div style={{ marginTop: 4, fontSize: 12, opacity: 0.9 }}>
-                    1 tabulka = 1 sektor v galaxii. Řádek = asteroid. Buňka = metadata[field].
-                  </div>
-
-                  {activeTableContract ? (
-                    <>
-                      <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: "#dcf8ff" }}>
-                        {activeTableContract.name}
-                      </div>
-                      <div style={{ marginTop: 3, fontSize: 11, opacity: 0.78, wordBreak: "break-all" }}>
-                        id: {String(activeTableContract.table_id)}
-                      </div>
-                      <div style={{ marginTop: 6, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
-                        <div style={{ fontSize: 11, opacity: 0.84 }}>Řádky: {activeTableContract.members.length}</div>
-                        <div style={{ fontSize: 11, opacity: 0.84 }}>Pole: {activeTableContract.schema_fields.length}</div>
-                        <div style={{ fontSize: 11, opacity: 0.84 }}>Vzorce: {activeTableContract.formula_fields.length}</div>
-                      </div>
-                      <div style={{ marginTop: 5, fontSize: 11, opacity: 0.8 }}>
-                        Vazby: {activeTableContract.internal_bonds.length} interní / {activeTableContract.external_bonds.length} externí
-                      </div>
-                      {activeTableContract.sector ? (
-                        <div style={{ marginTop: 4, fontSize: 11, opacity: 0.74 }}>
-                          Sektor: [{(activeTableContract.sector.center?.[0] ?? 0).toFixed(1)}, {(activeTableContract.sector.center?.[1] ?? 0).toFixed(1)}, {(activeTableContract.sector.center?.[2] ?? 0).toFixed(1)}],{" "}
-                          {activeTableContract.sector.mode}, size {Number(activeTableContract.sector.size || 0).toFixed(1)}
-                        </div>
-                      ) : null}
-                    </>
-                  ) : (
-                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.74 }}>Tabulka zatím není vytvořená.</div>
-                  )}
-
-                  {tableContracts.length ? (
-                    <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {tableContracts.slice(0, 8).map((table) => (
-                        <button
-                          key={String(table.table_id)}
-                          type="button"
-                          onClick={() => focusTable(table)}
-                          style={{
-                            border: "1px solid rgba(116, 216, 255, 0.28)",
-                            background:
-                              activeTableContract && String(activeTableContract.table_id) === String(table.table_id)
-                                ? "rgba(38, 89, 122, 0.74)"
-                                : "rgba(8, 20, 34, 0.82)",
-                            color: "#d5f9ff",
-                            borderRadius: 999,
-                            padding: "5px 9px",
-                            fontSize: 11,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {table.name}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </>
-            )}
-          </div>
-
-          <div
-            style={{
-              pointerEvents: "auto",
-              background: "rgba(8, 12, 20, 0.72)",
-              border: "1px solid rgba(120, 198, 255, 0.35)",
-              borderRadius: 12,
-              padding: "12px 14px",
-              color: "#c9f3ff",
-              minWidth: 290,
-              backdropFilter: "blur(6px)",
-            }}
-          >
-            <div style={{ fontSize: 12, opacity: 0.75, letterSpacing: 0.6 }}>TIME MACHINE</div>
-            <input
-              type="datetime-local"
-              value={asOfInput}
-              onChange={(e) => setAsOfInput(e.target.value)}
-              style={{
-                marginTop: 8,
-                width: "100%",
-                border: "1px solid rgba(132, 216, 255, 0.25)",
-                background: "rgba(4, 8, 16, 0.9)",
-                color: "#d9f8ff",
-                borderRadius: 10,
-                fontSize: 14,
-                padding: "10px 12px",
-                outline: "none",
-              }}
-            />
-            <div style={{ marginTop: 7, fontSize: 12, opacity: 0.78 }}>
-              {historicalMode ? "Historický mód aktivní" : "Live mód (současnost)"}
-            </div>
-            <button
-              type="button"
-              onClick={() => setAsOfInput("")}
-              disabled={!historicalMode}
-              style={{
-                marginTop: 8,
-                border: "1px solid rgba(110, 225, 255, 0.5)",
-                background: historicalMode
-                  ? "linear-gradient(120deg, #18b2e2, #36d6ff)"
-                  : "linear-gradient(120deg, rgba(63,95,110,0.7), rgba(48,66,80,0.7))",
-                color: historicalMode ? "#02121c" : "#b9c8cf",
-                borderRadius: 10,
-                fontWeight: 700,
-                letterSpacing: 0.2,
-                padding: "9px 12px",
-                width: "100%",
-                cursor: historicalMode ? "pointer" : "not-allowed",
-              }}
-            >
-              Zpet do soucasnosti
-            </button>
+            ) : null}
           </div>
         </div>
 
-        <div
-          style={{
-            pointerEvents: "auto",
-            alignSelf: "flex-end",
-            width: "min(920px, max(340px, calc(100vw - 430px)))",
-            marginBottom: 8,
-          }}
-        >
-          <div
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <select
+            value={selectedGalaxyId}
+            onChange={(event) => handleSelectGalaxy(event.target.value)}
             style={{
-              marginBottom: 8,
-              borderRadius: 12,
-              border: "1px solid rgba(103, 195, 233, 0.22)",
-              background: "rgba(6, 14, 26, 0.72)",
-              padding: "8px 10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 8,
+              minWidth: 200,
+              borderRadius: 8,
+              border: "1px solid rgba(117, 203, 235, 0.25)",
+              background: "rgba(3, 7, 14, 0.92)",
+              color: "#dff9ff",
+              padding: "7px 9px",
+              fontSize: 13,
+              outline: "none",
             }}
           >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 11, opacity: 0.74, letterSpacing: 0.5 }}>COMMAND COACH</div>
-              <div style={{ marginTop: 2, fontSize: 12, opacity: 0.92, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {contextHints[0]}
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              <button
-                type="button"
-                onClick={() => setAssistOpen((prev) => !prev)}
-                style={{
-                  border: "1px solid rgba(112, 218, 255, 0.35)",
-                  background: "rgba(8, 20, 34, 0.82)",
-                  color: "#d7f8ff",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  cursor: "pointer",
-                }}
-              >
-                {assistOpen ? "Skrýt kroky" : "Ukázat kroky"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setNavHelpOpen((prev) => !prev)}
-                style={{
-                  border: "1px solid rgba(112, 218, 255, 0.35)",
-                  background: navHelpOpen ? "rgba(34, 76, 108, 0.7)" : "rgba(8, 20, 34, 0.82)",
-                  color: "#d7f8ff",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  cursor: "pointer",
-                }}
-              >
-                {navHelpOpen ? "Skrýt klávesy" : "Klávesy"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setAssistPinned((prev) => !prev)}
-                style={{
-                  border: "1px solid rgba(112, 218, 255, 0.35)",
-                  background: assistPinned ? "rgba(34, 76, 108, 0.7)" : "rgba(8, 20, 34, 0.82)",
-                  color: "#d7f8ff",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  cursor: "pointer",
-                }}
-              >
-                {assistPinned ? "Připnuto" : "Připnout"}
-              </button>
-            </div>
-          </div>
+            {galaxies.map((galaxy) => (
+              <option key={galaxy.id} value={galaxy.id}>
+                {galaxy.name}
+              </option>
+            ))}
+          </select>
 
-          {assistOpen ? (
-            <div
+          <select
+            value={activeTableId || ""}
+            onChange={(event) => setActiveTableId(event.target.value)}
+            style={{
+              minWidth: 200,
+              borderRadius: 8,
+              border: "1px solid rgba(117, 203, 235, 0.25)",
+              background: "rgba(3, 7, 14, 0.92)",
+              color: "#dff9ff",
+              padding: "7px 9px",
+              fontSize: 13,
+              outline: "none",
+            }}
+          >
+            {tableContracts.map((table) => (
+              <option key={String(table.table_id)} value={String(table.table_id)}>
+                {table.name} ({table.members.length})
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="datetime-local"
+            value={asOfInput}
+            onChange={(event) => setAsOfInput(event.target.value)}
+            style={{
+              borderRadius: 8,
+              border: "1px solid rgba(117, 203, 235, 0.25)",
+              background: "rgba(3, 7, 14, 0.92)",
+              color: "#dff9ff",
+              padding: "7px 9px",
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setAsOfInput("")}
+            disabled={!historicalMode}
+            style={{
+              border: "1px solid rgba(116, 216, 255, 0.35)",
+              background: historicalMode ? "rgba(34, 95, 121, 0.82)" : "rgba(24, 41, 52, 0.8)",
+              color: historicalMode ? "#ddf9ff" : "#88a9b8",
+              borderRadius: 8,
+              padding: "7px 10px",
+              fontSize: 12,
+              cursor: historicalMode ? "pointer" : "not-allowed",
+            }}
+          >
+            Live
+          </button>
+
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setGridOpen(true);
+                setGridMaximized(true);
+              }}
               style={{
-                marginBottom: 8,
-                borderRadius: 12,
-                border: "1px solid rgba(100, 188, 228, 0.2)",
-                background: "rgba(6, 14, 26, 0.82)",
-                padding: "9px 10px",
+                border: "1px solid rgba(110, 225, 255, 0.5)",
+                background: "linear-gradient(120deg, #18b2e2, #36d6ff)",
+                color: "#02121c",
+                borderRadius: 8,
+                fontWeight: 700,
+                padding: "7px 11px",
+                fontSize: 12,
+                cursor: "pointer",
               }}
             >
-              <div style={{ display: "grid", gap: 6 }}>
-                {guidedActions.slice(0, 1).map((step, index) => (
-                  <div
-                    key={step.id}
-                    style={{
-                      border: "1px solid rgba(101, 187, 226, 0.16)",
-                      borderRadius: 10,
-                      padding: "7px 8px",
-                      background: "rgba(8, 18, 30, 0.74)",
-                    }}
-                  >
-                    <div style={{ fontSize: 11, opacity: 0.72 }}>Krok {index + 1}</div>
-                    <div style={{ marginTop: 1, fontSize: 13, fontWeight: 600 }}>{step.title}</div>
-                    <div style={{ marginTop: 2, fontSize: 12, opacity: 0.84 }}>{step.description}</div>
-                    {step.command ? (
-                      <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          onClick={() => applySuggestion(step.command)}
-                          style={{
-                            border: "1px solid rgba(116, 216, 255, 0.35)",
-                            background: "rgba(8, 20, 34, 0.82)",
-                            color: "#d5f9ff",
-                            borderRadius: 999,
-                            padding: "5px 9px",
-                            fontSize: 11,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Vložit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void runCommand(step.command, { closeAssistOnSuccess: true, clearInputOnSuccess: true });
-                          }}
-                          disabled={busy || historicalMode}
-                          style={{
-                            border: "1px solid rgba(110, 225, 255, 0.45)",
-                            background: busy || historicalMode
-                              ? "linear-gradient(120deg, rgba(63,95,110,0.7), rgba(48,66,80,0.7))"
-                              : "linear-gradient(120deg, #18b2e2, #36d6ff)",
-                            color: busy || historicalMode ? "#b9c8cf" : "#02121c",
-                            borderRadius: 999,
-                            padding: "5px 9px",
-                            fontSize: 11,
-                            cursor: busy || historicalMode ? "not-allowed" : "pointer",
-                          }}
-                        >
-                          Spustit
-                        </button>
-                      </div>
-                    ) : null}
-                    {step.action === "live" ? (
-                      <div style={{ marginTop: 6 }}>
-                        <button
-                          type="button"
-                          onClick={() => setAsOfInput("")}
-                          style={{
-                            border: "1px solid rgba(110, 225, 255, 0.45)",
-                            background: "linear-gradient(120deg, #18b2e2, #36d6ff)",
-                            color: "#02121c",
-                            borderRadius: 999,
-                            padding: "5px 9px",
-                            fontSize: 11,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Přepnout na Live
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
+              Grid
+            </button>
+            <button
+              type="button"
+              onClick={loadGalaxies}
+              disabled={galaxyLoading}
+              style={{
+                border: "1px solid rgba(116, 216, 255, 0.35)",
+                background: "rgba(8, 20, 34, 0.82)",
+                color: "#d5f9ff",
+                borderRadius: 8,
+                padding: "7px 10px",
+                fontSize: 12,
+                cursor: galaxyLoading ? "not-allowed" : "pointer",
+              }}
+            >
+              Obnovit
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedGalaxyId("");
+                setActiveTableId("");
+                setGridDraftValues({});
+                setGridBusyCellKey("");
+                setGridError("");
+                setNewGridRowLabel("");
+                setSelectedPlanetId(null);
+                setAuditTargetId(null);
+                setHoveredFlow(null);
+              }}
+              style={{
+                border: "1px solid rgba(116, 216, 255, 0.35)",
+                background: "rgba(8, 20, 34, 0.82)",
+                color: "#d5f9ff",
+                borderRadius: 8,
+                padding: "7px 10px",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              Galaxie
+            </button>
+            <button
+              type="button"
+              onClick={logout}
+              style={{
+                border: "1px solid rgba(255, 145, 169, 0.38)",
+                background: "rgba(36, 12, 18, 0.75)",
+                color: "#ffcddd",
+                borderRadius: 8,
+                padding: "7px 10px",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              Odhlásit
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <aside
+        style={{
+          position: "absolute",
+          left: 12,
+          top: 112,
+          bottom: 128,
+          width: "min(320px, calc(100vw - 24px))",
+          zIndex: 19,
+          pointerEvents: "auto",
+          border: "1px solid rgba(105, 198, 234, 0.2)",
+          background: "rgba(5, 12, 22, 0.76)",
+          borderRadius: 14,
+          color: "#d9f9ff",
+          display: "grid",
+          gridTemplateRows: "auto 1fr auto",
+          backdropFilter: "blur(8px)",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ padding: "10px 12px", borderBottom: "1px solid rgba(105, 198, 234, 0.2)" }}>
+          {selectedPlanet ? (
+            <>
+              <div style={{ fontSize: 11, letterSpacing: 0.5, opacity: 0.7 }}>VYBRANÝ ASTEROID</div>
+              <div style={{ marginTop: 4, fontSize: 16, fontWeight: 700 }}>{valueToLabel(selectedPlanet.value)}</div>
+              <div style={{ marginTop: 2, fontSize: 12, opacity: 0.75 }}>
+                {formatCreatedAt(selectedPlanet.created_at)} | Metadata {selectedPlanetMetadata.length}
               </div>
+              <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => highlightFlow(selectedPlanet.id)}
+                  style={{
+                    border: "1px solid rgba(110, 225, 255, 0.42)",
+                    background:
+                      auditTargetId === selectedPlanet.id
+                        ? "linear-gradient(120deg, #4fd2ff, #8ee4ff)"
+                        : "rgba(8, 20, 34, 0.82)",
+                    color: auditTargetId === selectedPlanet.id ? "#03253a" : "#d5f9ff",
+                    borderRadius: 999,
+                    padding: "5px 9px",
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  {auditTargetId === selectedPlanet.id ? "Vypnout Audit" : "Audit toků"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPlanetId(null);
+                    setAuditTargetId(null);
+                    setHoveredFlow(null);
+                  }}
+                  style={{
+                    border: "1px solid rgba(111, 206, 255, 0.28)",
+                    background: "rgba(9, 18, 33, 0.7)",
+                    color: "#cff5ff",
+                    borderRadius: 999,
+                    padding: "5px 9px",
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  Zrušit fokus
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, letterSpacing: 0.5, opacity: 0.7 }}>KONTEXT</div>
+              <div style={{ marginTop: 4, fontSize: 16, fontWeight: 700 }}>{activeTableContract?.name || "Uncategorized"}</div>
+              <div style={{ marginTop: 2, fontSize: 12, opacity: 0.75 }}>
+                Vyber asteroid z listu nebo napiš příkaz do spodního panelu.
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={{ overflowY: "auto", padding: 10, display: "grid", gap: 6 }}>
+          {selectedPlanetMetadata.length > 0 ? (
+            <div
+              style={{
+                border: "1px solid rgba(116, 216, 255, 0.24)",
+                background: "rgba(8, 20, 34, 0.8)",
+                borderRadius: 9,
+                padding: "7px 8px",
+                display: "grid",
+                gap: 4,
+              }}
+            >
+              {selectedPlanetMetadata.map(([key, value]) => (
+                <div key={key} style={{ display: "grid", gridTemplateColumns: "92px 1fr", gap: 8, fontSize: 12 }}>
+                  <div style={{ color: "#95d4ea" }}>{key}</div>
+                  <div style={{ color: "#effcff", wordBreak: "break-word" }}>{valueToLabel(value)}</div>
+                </div>
+              ))}
             </div>
           ) : null}
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8, justifyContent: "center" }}>
-            {smartSuggestions.slice(0, 2).map((item) => (
+          {(selectedPlanet ? activeTableAsteroids.slice(0, 12) : activeTableAsteroids.slice(0, 22)).map((asteroid) => {
+            const selected = asteroid.id === selectedPlanetId;
+            return (
               <button
-                key={`quick-${item.id}`}
+                key={asteroid.id}
                 type="button"
-                onClick={() => applySuggestion(item.command)}
-                disabled={historicalMode}
+                onClick={() => {
+                  setSelectedPlanetId(asteroid.id);
+                  setAuditTargetId(null);
+                  setHoveredFlow(null);
+                }}
                 style={{
-                  border: "1px solid rgba(117, 216, 255, 0.3)",
-                  background: historicalMode ? "rgba(36,45,58,0.8)" : "rgba(6, 18, 32, 0.8)",
-                  color: historicalMode ? "#8ea0aa" : "#d4f8ff",
-                  borderRadius: 999,
-                  padding: "7px 12px",
+                  border: "1px solid rgba(116, 216, 255, 0.2)",
+                  background: selected ? "rgba(49, 101, 134, 0.78)" : "rgba(8, 20, 34, 0.82)",
+                  color: "#e2fbff",
+                  borderRadius: 8,
+                  padding: "7px 8px",
                   fontSize: 12,
-                  cursor: historicalMode ? "not-allowed" : "pointer",
+                  textAlign: "left",
+                  cursor: "pointer",
                 }}
-                title={item.command}
               >
-                {item.title}
+                <div style={{ fontWeight: 600 }}>{valueToLabel(asteroid.value)}</div>
+                <div style={{ marginTop: 1, fontSize: 11, opacity: 0.7 }}>Created {formatCreatedAt(asteroid.created_at)}</div>
               </button>
-            ))}
-          </div>
-
-          <div
-            style={{
-              marginBottom: 8,
-              borderRadius: 12,
-              border: "1px solid rgba(101, 190, 228, 0.22)",
-              background: "rgba(6, 14, 26, 0.78)",
-              padding: "8px 9px",
-            }}
-          >
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {COMMAND_MODES.map((mode) => {
-                const selected = mode.id === commandMode;
-                return (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    onClick={() => setCommandMode(mode.id)}
-                    style={{
-                      border: "1px solid rgba(116, 216, 255, 0.34)",
-                      background: selected ? "rgba(38, 89, 122, 0.74)" : "rgba(8, 20, 34, 0.82)",
-                      color: "#d5f9ff",
-                      borderRadius: 999,
-                      padding: "5px 10px",
-                      fontSize: 11,
-                      cursor: "pointer",
-                    }}
-                    title={mode.hint}
-                  >
-                    {mode.label}
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: 6, fontSize: 11, opacity: 0.82 }}>
-              Režim: <strong>{activeCommandMode.label}</strong> - {activeCommandMode.hint}
-            </div>
-            <div style={{ marginTop: 4, fontSize: 11, opacity: 0.78 }}>
-              Formát: <strong>{commandReadiness.format}</strong> | Příklad: <strong>{commandReadiness.example}</strong>
-            </div>
-            {query.trim() ? (
-              <div style={{ marginTop: 3, fontSize: 11, opacity: 0.72, wordBreak: "break-word" }}>
-                Odeslat: {effectiveCommandPreview || query}
-              </div>
-            ) : null}
-            <div
-              style={{
-                marginTop: 4,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 11,
-                borderRadius: 999,
-                padding: "3px 8px",
-                border:
-                  commandReadiness.status === "ready"
-                    ? "1px solid rgba(118, 240, 182, 0.5)"
-                    : commandReadiness.status === "blocked"
-                      ? "1px solid rgba(255, 177, 128, 0.45)"
-                      : "1px solid rgba(255, 146, 171, 0.45)",
-                background:
-                  commandReadiness.status === "ready"
-                    ? "rgba(13, 50, 40, 0.7)"
-                    : commandReadiness.status === "blocked"
-                      ? "rgba(56, 34, 18, 0.72)"
-                      : "rgba(52, 20, 30, 0.72)",
-                color:
-                  commandReadiness.status === "ready"
-                    ? "#baf8dc"
-                    : commandReadiness.status === "blocked"
-                      ? "#ffd6b6"
-                      : "#ffd1dc",
-              }}
-            >
-              <span>Path: {commandReadiness.executePath}</span>
-              <span>|</span>
-              <span>{commandReadiness.message}</span>
-            </div>
-          </div>
-
-          <form
-            onSubmit={executeCommand}
-            style={{
-              display: "flex",
-              gap: 10,
-              padding: 10,
-              borderRadius: 14,
-              background: "rgba(5, 9, 18, 0.75)",
-              border: "1px solid rgba(102, 209, 255, 0.3)",
-              backdropFilter: "blur(8px)",
-            }}
-          >
-            <div style={{ flex: 1, position: "relative" }}>
-              <input
-                ref={commandInputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onFocus={() => setCommandFocused(true)}
-                onBlur={() => setTimeout(() => setCommandFocused(false), 120)}
-                onKeyDown={(event) => {
-                  if (!commandFocused || !smartSuggestions.length) return;
-                  if (event.key === "ArrowDown") {
-                    event.preventDefault();
-                    setActiveSuggestionIndex((prev) => (prev + 1) % smartSuggestions.length);
-                    return;
-                  }
-                  if (event.key === "ArrowUp") {
-                    event.preventDefault();
-                    setActiveSuggestionIndex((prev) => (prev - 1 + smartSuggestions.length) % smartSuggestions.length);
-                    return;
-                  }
-                  if (event.key === "Tab" && smartSuggestions[activeSuggestionIndex]) {
-                    const selectedSuggestion = smartSuggestions[activeSuggestionIndex];
-                    if (normalizeSearchText(query) !== normalizeSearchText(selectedSuggestion.command)) {
-                      event.preventDefault();
-                      applySuggestion(selectedSuggestion.command);
-                    }
-                  }
-                }}
-                disabled={historicalMode || busy}
-                placeholder={commandPlaceholder}
-                style={{
-                  width: "100%",
-                  border: "1px solid rgba(132, 216, 255, 0.25)",
-                  background: "rgba(4, 8, 16, 0.9)",
-                  color: "#d9f8ff",
-                  borderRadius: 10,
-                  fontSize: 16,
-                  padding: "12px 14px",
-                  outline: "none",
-                }}
-              />
-
-              {commandFocused && !historicalMode && smartSuggestions.length > 0 ? (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    bottom: "calc(100% + 8px)",
-                    borderRadius: 12,
-                    border: "1px solid rgba(112, 218, 255, 0.35)",
-                    background: "rgba(8, 16, 28, 0.92)",
-                    backdropFilter: "blur(8px)",
-                    overflow: "hidden",
-                    boxShadow: "0 0 24px rgba(76, 200, 255, 0.16)",
-                  }}
-                >
-                  {smartSuggestions.map((item, index) => {
-                    const active = index === activeSuggestionIndex;
-                    return (
-                      <button
-                        key={`suggest-${item.id}-${item.command}`}
-                        type="button"
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          applySuggestion(item.command);
-                        }}
-                        style={{
-                          width: "100%",
-                          border: "none",
-                          borderBottom: index < smartSuggestions.length - 1 ? "1px solid rgba(102, 197, 236, 0.14)" : "none",
-                          background: active ? "rgba(34, 76, 108, 0.6)" : "transparent",
-                          color: "#d7f8ff",
-                          textAlign: "left",
-                          padding: "9px 12px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <div style={{ fontSize: 12, opacity: 0.78 }}>{item.title}</div>
-                        <div style={{ marginTop: 2, fontSize: 13 }}>{item.command}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
-
-            <button
-              type="submit"
-              disabled={busy || historicalMode || commandReadiness.status !== "ready"}
-              style={{
-                border: "1px solid rgba(110, 225, 255, 0.5)",
-                background: busy || historicalMode || commandReadiness.status !== "ready"
-                  ? "linear-gradient(120deg, rgba(63,95,110,0.7), rgba(48,66,80,0.7))"
-                  : "linear-gradient(120deg, #18b2e2, #36d6ff)",
-                color: busy || historicalMode || commandReadiness.status !== "ready" ? "#b9c8cf" : "#02121c",
-                borderRadius: 10,
-                fontWeight: 700,
-                letterSpacing: 0.3,
-                padding: "0 18px",
-                minWidth: 124,
-                cursor: busy || historicalMode || commandReadiness.status !== "ready" ? "not-allowed" : "pointer",
-              }}
-            >
-              {historicalMode
-                ? "HISTORICAL LOCK"
-                : busy
-                  ? "RUNNING..."
-                  : commandReadiness.status !== "ready"
-                    ? "CHECK INPUT"
-                    : `EXECUTE ${commandReadiness.executePath}`}
-            </button>
-          </form>
+            );
+          })}
         </div>
 
-      </div>
+        <div style={{ padding: 10, borderTop: "1px solid rgba(105, 198, 234, 0.2)", display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {smartSuggestions.slice(0, 3).map((item) => (
+            <button
+              key={`smart-minimal-${item.id}`}
+              type="button"
+              onClick={() => applySuggestion(item.command)}
+              disabled={historicalMode}
+              style={{
+                border: "1px solid rgba(117, 216, 255, 0.3)",
+                background: historicalMode ? "rgba(36,45,58,0.8)" : "rgba(6, 18, 32, 0.8)",
+                color: historicalMode ? "#8ea0aa" : "#d4f8ff",
+                borderRadius: 999,
+                padding: "6px 10px",
+                fontSize: 11,
+                cursor: historicalMode ? "not-allowed" : "pointer",
+              }}
+              title={item.command}
+            >
+              {item.title}
+            </button>
+          ))}
+        </div>
+      </aside>
 
-      <div
+      <section
         style={{
           position: "absolute",
-          right: 18,
-          bottom: 18,
-          zIndex: 23,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "min(980px, calc(100vw - 24px))",
+          bottom: 12,
+          zIndex: 21,
           pointerEvents: "auto",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          gap: 8,
+          border: "1px solid rgba(105, 198, 234, 0.24)",
+          background: "rgba(5, 12, 22, 0.82)",
+          borderRadius: 14,
+          padding: "10px 12px",
+          color: "#d9f9ff",
+          backdropFilter: "blur(8px)",
         }}
       >
-        <button
-          type="button"
-          onClick={() => setNavHelpOpen((prev) => !prev)}
-          style={{
-            border: "1px solid rgba(112, 218, 255, 0.35)",
-            background: navHelpOpen ? "rgba(34, 76, 108, 0.7)" : "rgba(8, 20, 34, 0.82)",
-            color: "#d7f8ff",
-            borderRadius: 999,
-            padding: "6px 10px",
-            fontSize: 11,
-            cursor: "pointer",
-          }}
-        >
-          {navHelpOpen ? "Skrýt nápovědu (?)" : "Nápověda (?)"}
-        </button>
-        {navHelpOpen ? (
-          <div
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12, opacity: 0.84 }}>
+            {historicalMode ? "Historický mód: zápis je uzamčen." : commandReadiness.message}
+          </div>
+          <select
+            value={commandMode}
+            onChange={(event) => setCommandMode(event.target.value)}
             style={{
-              borderRadius: 12,
-              border: "1px solid rgba(113, 210, 245, 0.25)",
-              background: "rgba(8, 14, 26, 0.72)",
-              color: "#c7eefb",
-              padding: "9px 11px",
-              fontSize: 11,
-              backdropFilter: "blur(6px)",
+              borderRadius: 8,
+              border: "1px solid rgba(117, 203, 235, 0.25)",
+              background: "rgba(3, 7, 14, 0.92)",
+              color: "#dff9ff",
+              padding: "6px 9px",
+              fontSize: 12,
+              outline: "none",
             }}
           >
-            {NAV_SHORTCUTS.map((item) => (
-              <div key={item.key} style={{ display: "flex", gap: 6, marginTop: 3 }}>
-                <span style={{ opacity: 0.86, minWidth: 46 }}>{item.key}</span>
-                <span style={{ opacity: 0.72 }}>{item.label}</span>
-              </div>
+            {COMMAND_MODES.map((mode) => (
+              <option key={mode.id} value={mode.id}>
+                Rezim: {mode.label}
+              </option>
             ))}
+          </select>
+        </div>
+
+        {error ? <div style={{ marginTop: 6, color: "#ff9db0", fontSize: 12 }}>{error}</div> : null}
+
+        <form
+          onSubmit={executeCommand}
+          style={{
+            marginTop: 8,
+            display: "flex",
+            gap: 10,
+            alignItems: "stretch",
+          }}
+        >
+          <div style={{ flex: 1, position: "relative" }}>
+            <input
+              ref={commandInputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onFocus={() => setCommandFocused(true)}
+              onBlur={() => setTimeout(() => setCommandFocused(false), 120)}
+              onKeyDown={(event) => {
+                if (!commandFocused || !smartSuggestions.length) return;
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setActiveSuggestionIndex((prev) => (prev + 1) % smartSuggestions.length);
+                  return;
+                }
+                if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setActiveSuggestionIndex((prev) => (prev - 1 + smartSuggestions.length) % smartSuggestions.length);
+                  return;
+                }
+                if (event.key === "Tab" && smartSuggestions[activeSuggestionIndex]) {
+                  const selectedSuggestion = smartSuggestions[activeSuggestionIndex];
+                  if (normalizeSearchText(query) !== normalizeSearchText(selectedSuggestion.command)) {
+                    event.preventDefault();
+                    applySuggestion(selectedSuggestion.command);
+                  }
+                }
+              }}
+              disabled={historicalMode || busy}
+              placeholder={commandPlaceholder}
+              style={{
+                width: "100%",
+                border: "1px solid rgba(132, 216, 255, 0.25)",
+                background: "rgba(4, 8, 16, 0.92)",
+                color: "#d9f8ff",
+                borderRadius: 10,
+                fontSize: 15,
+                padding: "11px 12px",
+                outline: "none",
+              }}
+            />
+
+            {commandFocused && !historicalMode && smartSuggestions.length > 0 ? (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: "calc(100% + 8px)",
+                  borderRadius: 12,
+                  border: "1px solid rgba(112, 218, 255, 0.35)",
+                  background: "rgba(8, 16, 28, 0.92)",
+                  backdropFilter: "blur(8px)",
+                  overflow: "hidden",
+                  boxShadow: "0 0 24px rgba(76, 200, 255, 0.16)",
+                }}
+              >
+                {smartSuggestions.map((item, index) => {
+                  const active = index === activeSuggestionIndex;
+                  return (
+                    <button
+                      key={`suggest-minimal-${item.id}-${item.command}`}
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        applySuggestion(item.command);
+                      }}
+                      style={{
+                        width: "100%",
+                        border: "none",
+                        borderBottom: index < smartSuggestions.length - 1 ? "1px solid rgba(102, 197, 236, 0.14)" : "none",
+                        background: active ? "rgba(34, 76, 108, 0.6)" : "transparent",
+                        color: "#d7f8ff",
+                        textAlign: "left",
+                        padding: "9px 12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ fontSize: 12, opacity: 0.78 }}>{item.title}</div>
+                      <div style={{ marginTop: 2, fontSize: 13 }}>{item.command}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
+
+          <button
+            type="submit"
+            disabled={busy || historicalMode || commandReadiness.status !== "ready"}
+            style={{
+              border: "1px solid rgba(110, 225, 255, 0.5)",
+              background:
+                busy || historicalMode || commandReadiness.status !== "ready"
+                  ? "linear-gradient(120deg, rgba(63,95,110,0.7), rgba(48,66,80,0.7))"
+                  : "linear-gradient(120deg, #18b2e2, #36d6ff)",
+              color: busy || historicalMode || commandReadiness.status !== "ready" ? "#b9c8cf" : "#02121c",
+              borderRadius: 10,
+              fontWeight: 700,
+              letterSpacing: 0.3,
+              padding: "0 18px",
+              minWidth: 132,
+              cursor: busy || historicalMode || commandReadiness.status !== "ready" ? "not-allowed" : "pointer",
+            }}
+          >
+            {historicalMode ? "LOCK" : busy ? "RUNNING..." : "EXECUTE"}
+          </button>
+        </form>
+      </section>
 
       {hoveredFlow ? (
         <div
@@ -3665,108 +3877,6 @@ export default function App() {
           }}
         >
           {hoveredFlow.text || "Tok dat"}
-        </div>
-      ) : null}
-
-      {selectedPlanet ? (
-        <div
-          style={{
-            position: "absolute",
-            right: 20,
-            top: 170,
-            zIndex: 25,
-            width: "min(360px, 92vw)",
-            pointerEvents: "auto",
-            background: "linear-gradient(150deg, rgba(10, 17, 30, 0.86), rgba(6, 11, 22, 0.8))",
-            border: "1px solid rgba(122, 221, 255, 0.38)",
-            borderRadius: 14,
-            padding: "14px 16px",
-            color: "#d6f6ff",
-            backdropFilter: "blur(8px)",
-            boxShadow: "0 0 30px rgba(81, 208, 255, 0.15)",
-          }}
-        >
-          <div style={{ fontSize: 12, opacity: 0.74, letterSpacing: 0.7 }}>HOLOGRAFICKÝ PANEL</div>
-          <div
-            style={{
-              marginTop: 8,
-              fontSize: 22,
-              lineHeight: 1.25,
-              fontWeight: 700,
-              color: "#ebfbff",
-              textShadow: "0 0 14px rgba(127, 224, 255, 0.5)",
-              wordBreak: "break-word",
-            }}
-          >
-            {valueToLabel(selectedPlanet.value)}
-          </div>
-          <div style={{ marginTop: 8, fontSize: 13, opacity: 0.82 }}>
-            Created: {formatCreatedAt(selectedPlanet.created_at)}
-          </div>
-          <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={() => highlightFlow(selectedPlanet.id)}
-              style={{
-                border: "1px solid rgba(110, 225, 255, 0.42)",
-                background:
-                  auditTargetId === selectedPlanet.id
-                    ? "linear-gradient(120deg, #4fd2ff, #8ee4ff)"
-                    : "rgba(8, 20, 34, 0.82)",
-                color: auditTargetId === selectedPlanet.id ? "#03253a" : "#d5f9ff",
-                borderRadius: 999,
-                padding: "6px 10px",
-                fontSize: 12,
-                cursor: "pointer",
-              }}
-            >
-              {auditTargetId === selectedPlanet.id ? "Vypnout Audit Flow" : "Audit Flow"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedPlanetId(null);
-                setAuditTargetId(null);
-                setHoveredFlow(null);
-              }}
-              style={{
-                border: "1px solid rgba(111, 206, 255, 0.28)",
-                background: "rgba(9, 18, 33, 0.7)",
-                color: "#cff5ff",
-                borderRadius: 999,
-                padding: "6px 10px",
-                fontSize: 12,
-                cursor: "pointer",
-              }}
-            >
-              Zrušit fokus
-            </button>
-          </div>
-
-          {selectedPlanetMetadata.length > 0 ? (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 12, opacity: 0.75, letterSpacing: 0.6 }}>METADATA</div>
-              <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                {selectedPlanetMetadata.map(([key, value]) => (
-                  <div
-                    key={key}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "minmax(96px, 36%) 1fr",
-                      gap: 8,
-                      fontSize: 13,
-                      alignItems: "start",
-                    }}
-                  >
-                    <div style={{ color: "#9dd7ea", opacity: 0.9, wordBreak: "break-word" }}>{key}</div>
-                    <div style={{ color: "#f0fdff", wordBreak: "break-word" }}>{valueToLabel(value)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div style={{ marginTop: 12, fontSize: 13, opacity: 0.68 }}>Metadata: žádná</div>
-          )}
         </div>
       ) : null}
     </div>

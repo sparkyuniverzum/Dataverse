@@ -9,6 +9,20 @@ class AsteroidIngestRequest(BaseModel):
     value: Any
     metadata: dict[str, Any] = Field(default_factory=dict)
     galaxy_id: uuid.UUID | None = None
+    branch_id: uuid.UUID | None = None
+
+
+class AsteroidMutateRequest(BaseModel):
+    value: Any | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    galaxy_id: uuid.UUID | None = None
+    branch_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_has_patch(self) -> "AsteroidMutateRequest":
+        if self.value is None and not self.metadata:
+            raise ValueError("Provide either 'value' or non-empty 'metadata'")
+        return self
 
 
 class AsteroidResponse(BaseModel):
@@ -27,6 +41,7 @@ class BondCreateRequest(BaseModel):
     target_id: uuid.UUID
     type: str
     galaxy_id: uuid.UUID | None = None
+    branch_id: uuid.UUID | None = None
 
 
 class BondResponse(BaseModel):
@@ -45,6 +60,7 @@ class ParseCommandRequest(BaseModel):
     text: str | None = None
     query: str | None = None
     galaxy_id: uuid.UUID | None = None
+    branch_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def validate_text_or_query(self) -> "ParseCommandRequest":
@@ -194,6 +210,45 @@ class AuthResponse(BaseModel):
 
 class GalaxyCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
+
+
+class BranchCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    galaxy_id: uuid.UUID | None = None
+    as_of: datetime | None = None
+
+
+class BranchPublic(BaseModel):
+    id: uuid.UUID
+    galaxy_id: uuid.UUID
+    name: str
+    base_event_id: uuid.UUID | None
+    created_by: uuid.UUID
+    created_at: datetime
+    deleted_at: datetime | None
+
+
+class TableContractUpsertRequest(BaseModel):
+    galaxy_id: uuid.UUID
+    required_fields: list[str] = Field(default_factory=list)
+    field_types: dict[str, str] = Field(default_factory=dict)
+    unique_rules: list[dict[str, Any]] = Field(default_factory=list)
+    validators: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class TableContractPublic(BaseModel):
+    id: uuid.UUID
+    galaxy_id: uuid.UUID
+    table_id: uuid.UUID
+    version: int
+    required_fields: list[str] = Field(default_factory=list)
+    field_types: dict[str, str] = Field(default_factory=dict)
+    unique_rules: list[dict[str, Any]] = Field(default_factory=list)
+    validators: list[dict[str, Any]] = Field(default_factory=list)
+    created_by: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime | None
 
 
 class ImportModeSchema(str, Enum):

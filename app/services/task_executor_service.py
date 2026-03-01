@@ -103,6 +103,7 @@ class TaskExecutorService:
         tasks: list[AtomicTask],
         user_id: UUID,
         galaxy_id: UUID = DEFAULT_GALAXY_ID,
+        branch_id: UUID | None = None,
         manage_transaction: bool = True,
     ) -> TaskExecutionResult:
         result = TaskExecutionResult()
@@ -112,6 +113,7 @@ class TaskExecutorService:
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
+            branch_id=branch_id,
             apply_calculations=False,
         )
         asteroids_by_id: dict[UUID, ProjectedAsteroid] = {a.id: a for a in active_asteroids}
@@ -137,11 +139,14 @@ class TaskExecutorService:
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
+                branch_id=branch_id,
                 entity_id=entity_id,
                 event_type=event_type,
                 payload=payload,
             )
-            await self.read_model_projector.apply_event(session=session, event=event)
+            # Branch timelines are projected on read by event replay, main timeline keeps strong read-model projection.
+            if branch_id is None:
+                await self.read_model_projector.apply_event(session=session, event=event)
             return event
 
         transaction_ctx = (
@@ -283,6 +288,50 @@ class TaskExecutorService:
                         condition=(str(task.params["condition"]) if task.params.get("condition") else None),
                     )
                     result.selected_asteroids.extend(selected)
+                    continue
+
+                if action == "UPDATE_ASTEROID":
+                    asteroid_uuid = self._parse_uuid(task.params.get("asteroid_id"))
+                    if asteroid_uuid is None:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="UPDATE_ASTEROID requires valid asteroid_id",
+                        )
+
+                    asteroid = asteroids_by_id.get(asteroid_uuid)
+                    if asteroid is None:
+                        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target asteroid not found")
+
+                    has_change = False
+                    if "value" in task.params:
+                        next_value = task.params.get("value")
+                        if asteroid.value != next_value:
+                            await append_and_project_event(
+                                entity_id=asteroid.id,
+                                event_type="ASTEROID_VALUE_UPDATED",
+                                payload={"value": next_value},
+                            )
+                            asteroid.value = next_value
+                            has_change = True
+
+                    raw_metadata = task.params.get("metadata")
+                    if isinstance(raw_metadata, dict) and raw_metadata:
+                        metadata_update = {k: v for k, v in raw_metadata.items() if asteroid.metadata.get(k) != v}
+                        if metadata_update:
+                            await append_and_project_event(
+                                entity_id=asteroid.id,
+                                event_type="METADATA_UPDATED",
+                                payload={"metadata": metadata_update},
+                            )
+                            asteroid.metadata = {**asteroid.metadata, **metadata_update}
+                            has_change = True
+
+                    if not has_change:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="No effective update for asteroid",
+                        )
+                    result.asteroids.append(asteroid)
                     continue
 
                 if action == "SET_FORMULA":

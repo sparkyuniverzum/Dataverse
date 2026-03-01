@@ -5,13 +5,23 @@ from typing import Any
 
 @dataclass(frozen=True)
 class AtomicTask:
-    action: str  # INGEST, LINK, SELECT, EXTINGUISH
+    # Parser output only: syntactic command translation into atomic tasks.
+    action: str
     params: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class ParseResult:
+    tasks: list[AtomicTask]
+    errors: list[str]
+
+
 class ParserService:
-    _atom_with_metadata_re = re.compile(r"^(?P<value>.*?)\s*\((?P<meta>[^()]*)\)\s*$")
-    _delete_command_re = re.compile(r"^(zhasni|smaz|smaž|delete)\s*:\s*(?P<target>.+)$", re.IGNORECASE)
+    _atom_with_metadata_re = re.compile(r"^(?P<value>.*?)\s*\((?P<meta>.*)\)\s*$")
+    _delete_command_re = re.compile(
+        r"^(zhasni|smaz|smaž|delete)\s*:\s*(?P<target>.+)$",
+        re.IGNORECASE,
+    )
     _guardian_command_re = re.compile(
         r"^(hlídej|hlidej)\s*:\s*(?P<target>.+?)\.(?P<field>[^\s]+)\s*"
         r"(?P<operator>>=|<=|==|>|<)\s*(?P<threshold>.+?)\s*->\s*(?P<action>[a-zA-Z_][\w-]*)\s*$",
@@ -22,20 +32,38 @@ class ParserService:
         r"(?P<func>SUM|AVG|MIN|MAX|COUNT)\s*\(\s*(?P<source_attr>[^)]+)\s*\)\s*$",
         re.IGNORECASE,
     )
+    _triple_shot_re = re.compile(r"^(?P<verb>[^\s:]+)\s*:\s*(?P<target>[^@]+?)(?:\s*@\s*(?P<condition>.*))?$")
 
     def __init__(self) -> None:
         self.intent_map = {
             "ukaz": "SELECT",
             "ukaž": "SELECT",
             "najdi": "SELECT",
+            "show": "SELECT",
+            "find": "SELECT",
             "smaz": "EXTINGUISH",
             "smaž": "EXTINGUISH",
             "zhasni": "EXTINGUISH",
+            "delete": "EXTINGUISH",
             "spoj": "LINK",
         }
-        self.operators = {
-            "+": "LINK_RELATION",
-            ":": "LINK_TYPE",
+        self.relation_operators = {"+": "RELATION", ":": "TYPE"}
+        self.requires_colon_verbs = {
+            "ukaz",
+            "ukaž",
+            "najdi",
+            "show",
+            "find",
+            "smaz",
+            "smaž",
+            "zhasni",
+            "delete",
+            "hlidej",
+            "hlídej",
+            "spocitej",
+            "spočítej",
+            "vypocitej",
+            "vypočítej",
         }
 
     @staticmethod
@@ -52,43 +80,23 @@ class ParserService:
             return int(float_value)
         return float_value
 
-    def _parse_metadata_dict(self, metadata_block: str) -> dict[str, str]:
-        parsed: dict[str, str] = {}
-        for raw_item in metadata_block.split(","):
-            item = raw_item.strip()
-            if not item:
-                continue
-
-            separator = ":" if ":" in item else ("=" if "=" in item else None)
-            if separator is None:
-                continue
-
-            key, value = item.split(separator, 1)
-            key = key.strip()
-            value = value.strip()
-            if key:
-                parsed[key] = value
-        return parsed
-
-    def _parse_atom_token(self, token: str) -> tuple[str, dict[str, str]]:
-        stripped = token.strip()
-        if not stripped:
-            return "", {}
-
-        match = self._atom_with_metadata_re.match(stripped)
-        if not match:
-            return stripped, {}
-
-        value = match.group("value").strip()
-        metadata = self._parse_metadata_dict(match.group("meta"))
-        return (value if value else stripped), metadata
-
     def _split_top_level(self, text: str, delimiter: str) -> list[str]:
         parts: list[str] = []
         current: list[str] = []
         depth = 0
+        quote: str | None = None
 
         for ch in text:
+            if ch in {"'", '"'}:
+                if quote is None:
+                    quote = ch
+                elif quote == ch:
+                    quote = None
+                current.append(ch)
+                continue
+            if quote is not None:
+                current.append(ch)
+                continue
             if ch == "(":
                 depth += 1
                 current.append(ch)
@@ -106,122 +114,242 @@ class ParserService:
         parts.append("".join(current).strip())
         return parts
 
-    def parse(self, text: str) -> list[AtomicTask]:
+    def _count_top_level_operator(self, text: str, operator: str) -> int:
+        count = 0
+        depth = 0
+        quote: str | None = None
+        for ch in text:
+            if ch in {"'", '"'}:
+                if quote is None:
+                    quote = ch
+                elif quote == ch:
+                    quote = None
+                continue
+            if quote is not None:
+                continue
+            if ch == "(":
+                depth += 1
+                continue
+            if ch == ")":
+                depth = max(0, depth - 1)
+                continue
+            if ch == operator and depth == 0:
+                count += 1
+        return count
+
+    def _detect_missing_colon_for_known_verb(self, normalized: str) -> str | None:
+        if ":" in normalized:
+            return None
+        first_word = normalized.split(maxsplit=1)[0].strip().lower()
+        if first_word in self.requires_colon_verbs:
+            return f"Missing ':' after command verb '{first_word}'."
+        return None
+
+    def _parse_metadata_dict(self, metadata_block: str) -> dict[str, str]:
+        parsed: dict[str, str] = {}
+        for raw_item in self._split_top_level(metadata_block, ","):
+            item = raw_item.strip()
+            if not item:
+                continue
+
+            separator = ":" if ":" in item else ("=" if "=" in item else None)
+            if separator is None:
+                continue
+
+            key, value = item.split(separator, 1)
+            key = key.strip()
+            value = value.strip()
+            if key:
+                parsed[key] = value
+        return parsed
+
+    @staticmethod
+    def _is_balanced_parentheses(text: str) -> bool:
+        depth = 0
+        for ch in text:
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth < 0:
+                    return False
+        return depth == 0
+
+    def _parse_atom_token(self, token: str) -> tuple[str, dict[str, str]]:
+        stripped = token.strip()
+        if not stripped:
+            return "", {}
+        if not self._is_balanced_parentheses(stripped):
+            return stripped, {}
+
+        match = self._atom_with_metadata_re.match(stripped)
+        if not match:
+            return stripped, {}
+
+        value = match.group("value").strip()
+        metadata = self._parse_metadata_dict(match.group("meta"))
+        return (value if value else stripped), metadata
+
+    def _build_link_tasks(
+        self,
+        parsed_parts: list[tuple[str, dict[str, str]]],
+        *,
+        relation_type: str,
+    ) -> list[AtomicTask]:
+        tasks: list[AtomicTask] = []
+        for value, metadata in parsed_parts:
+            tasks.append(AtomicTask(action="INGEST", params={"value": value, "metadata": metadata}))
+
+        # Sequential linking for chains like A + B + C (A-B, B-C).
+        for index in range(len(parsed_parts) - 1):
+            source_metadata = parsed_parts[index][1]
+            target_metadata = parsed_parts[index + 1][1]
+            link_params: dict[str, Any] = {"type": relation_type}
+            if source_metadata or target_metadata:
+                link_params["metadata"] = {
+                    "source_asteroid": source_metadata,
+                    "target_asteroid": target_metadata,
+                }
+            tasks.append(AtomicTask(action="LINK", params=link_params))
+        return tasks
+
+    def _parse_delete(self, normalized: str) -> list[AtomicTask] | None:
+        delete_match = self._delete_command_re.match(normalized)
+        if not delete_match:
+            return None
+        target = delete_match.group("target").strip()
+        if not target:
+            return []
+        return [AtomicTask(action="DELETE", params={"target": target})]
+
+    def _parse_guardian(self, normalized: str) -> list[AtomicTask] | None:
+        guardian_match = self._guardian_command_re.match(normalized)
+        if not guardian_match:
+            return None
+
+        target = guardian_match.group("target").strip()
+        field = guardian_match.group("field").strip()
+        operator = guardian_match.group("operator").strip()
+        threshold = self._coerce_scalar(guardian_match.group("threshold"))
+        action = guardian_match.group("action").strip()
+
+        if not (target and field and operator and action):
+            return []
+        return [
+            AtomicTask(
+                action="ADD_GUARDIAN",
+                params={
+                    "target": target,
+                    "field": field,
+                    "operator": operator,
+                    "threshold": threshold,
+                    "action": action,
+                },
+            )
+        ]
+
+    def _parse_formula(self, normalized: str) -> list[AtomicTask] | None:
+        formula_match = self._set_formula_re.match(normalized)
+        if not formula_match:
+            return None
+
+        target = formula_match.group("target").strip()
+        field = formula_match.group("field").strip()
+        func = formula_match.group("func").strip().upper()
+        source_attr = formula_match.group("source_attr").strip()
+
+        if not (target and field and source_attr):
+            return []
+        return [
+            AtomicTask(
+                action="SET_FORMULA",
+                params={
+                    "target": target,
+                    "field": field,
+                    "formula": f"={func}({source_attr})",
+                },
+            )
+        ]
+
+    def _parse_triple_shot(self, normalized: str) -> list[AtomicTask] | None:
+        triple_shot_match = self._triple_shot_re.match(normalized)
+        if not triple_shot_match:
+            return None
+
+        verb = triple_shot_match.group("verb").strip().lower()
+        action = self.intent_map.get(verb)
+        if action is None:
+            return None
+
+        target = triple_shot_match.group("target").strip()
+        condition_raw = triple_shot_match.group("condition")
+        condition = condition_raw.strip() if condition_raw else None
+        if not target:
+            return []
+
+        return [AtomicTask(action=action, params={"target_asteroid": target, "condition": condition})]
+
+    def _parse_binary_chain_result(self, normalized: str, operator: str) -> ParseResult:
+        parts = self._split_top_level(normalized, operator)
+        if len(parts) < 2:
+            return ParseResult(tasks=[], errors=[f"Invalid expression: missing '{operator}' operands."])
+        if any(not part.strip() for part in parts):
+            return ParseResult(tasks=[], errors=[f"Invalid expression: empty operand around '{operator}'."])
+
+        parsed_parts = [self._parse_atom_token(part) for part in parts]
+        parsed_parts = [(value, metadata) for value, metadata in parsed_parts if value]
+
+        if len(parsed_parts) < 2:
+            return ParseResult(tasks=[], errors=[f"Invalid expression: expected at least two operands for '{operator}'."])
+        relation_type = self.relation_operators[operator]
+        return ParseResult(tasks=self._build_link_tasks(parsed_parts, relation_type=relation_type), errors=[])
+
+    def parse_with_diagnostics(self, text: str) -> ParseResult:
         normalized = text.strip()
         if not normalized:
-            return []
+            return ParseResult(tasks=[], errors=["Command is empty."])
+        if not self._is_balanced_parentheses(normalized):
+            return ParseResult(tasks=[], errors=["Unbalanced parentheses in command."])
 
-        instructions: list[AtomicTask] = []
+        missing_colon_error = self._detect_missing_colon_for_known_verb(normalized)
+        if missing_colon_error is not None:
+            return ParseResult(tasks=[], errors=[missing_colon_error])
 
-        delete_match = self._delete_command_re.match(normalized)
-        if delete_match:
-            target = delete_match.group("target").strip()
-            if target:
-                return [AtomicTask(action="DELETE", params={"target": target})]
-            return []
+        for strategy in (
+            self._parse_delete,
+            self._parse_guardian,
+            self._parse_formula,
+            self._parse_triple_shot,
+        ):
+            parsed = strategy(normalized)
+            if parsed is not None:
+                if parsed:
+                    return ParseResult(tasks=parsed, errors=[])
+                return ParseResult(tasks=[], errors=["Invalid command syntax."])
 
-        guardian_match = self._guardian_command_re.match(normalized)
-        if guardian_match:
-            target = guardian_match.group("target").strip()
-            field = guardian_match.group("field").strip()
-            operator = guardian_match.group("operator").strip()
-            threshold = self._coerce_scalar(guardian_match.group("threshold"))
-            action = guardian_match.group("action").strip()
-            if target and field and operator and action:
-                return [
-                    AtomicTask(
-                        action="ADD_GUARDIAN",
-                        params={
-                            "target": target,
-                            "field": field,
-                            "operator": operator,
-                            "threshold": threshold,
-                            "action": action,
-                        },
-                    )
-                ]
-            return []
-
-        formula_match = self._set_formula_re.match(normalized)
-        if formula_match:
-            target = formula_match.group("target").strip()
-            field = formula_match.group("field").strip()
-            func = formula_match.group("func").strip().upper()
-            source_attr = formula_match.group("source_attr").strip()
-            if target and field and source_attr:
-                return [
-                    AtomicTask(
-                        action="SET_FORMULA",
-                        params={
-                            "target": target,
-                            "field": field,
-                            "formula": f"={func}({source_attr})",
-                        },
-                    )
-                ]
-            return []
-
-        triple_shot_match = re.match(r"^(\w+)\s*:\s*([^@]+?)(?:\s*@\s*(.*))?$", normalized)
-        if triple_shot_match and triple_shot_match.group(1).lower() in self.intent_map:
-            action_word = triple_shot_match.group(1).lower()
-            target = triple_shot_match.group(2).strip()
-            condition = triple_shot_match.group(3)
-
-            action = self.intent_map.get(action_word, "SELECT")
-            instructions.append(
-                AtomicTask(
-                    action=action,
-                    params={
-                        "target_asteroid": target,
-                        "condition": condition.strip() if condition else None,
-                    },
-                )
-            )
-            return instructions
-
-        plus_parts = self._split_top_level(normalized, "+")
-        if len(plus_parts) >= 2:
-            parsed_parts = [self._parse_atom_token(part) for part in plus_parts]
-            parsed_parts = [(value, metadata) for value, metadata in parsed_parts if value]
-
-            for value, metadata in parsed_parts:
-                instructions.append(AtomicTask(action="INGEST", params={"value": value, "metadata": metadata}))
-
-            if len(parsed_parts) >= 2:
-                source_metadata = parsed_parts[-2][1]
-                target_metadata = parsed_parts[-1][1]
-                link_params = {"type": "RELATION"}
-                if source_metadata or target_metadata:
-                    link_params["metadata"] = {
-                        "source_asteroid": source_metadata,
-                        "target_asteroid": target_metadata,
-                    }
-                instructions.append(AtomicTask(action="LINK", params=link_params))
-            return instructions
-
-        colon_parts = self._split_top_level(normalized, ":")
-        if len(colon_parts) >= 2:
-            left_raw = colon_parts[0]
-            right_raw = ":".join(colon_parts[1:])
-            left_value, left_metadata = self._parse_atom_token(left_raw)
-            right_value, right_metadata = self._parse_atom_token(right_raw)
-
-            instructions.append(
-                AtomicTask(action="INGEST", params={"value": left_value, "metadata": left_metadata})
-            )
-            instructions.append(
-                AtomicTask(action="INGEST", params={"value": right_value, "metadata": right_metadata})
+        has_plus = self._count_top_level_operator(normalized, "+") > 0
+        has_colon = self._count_top_level_operator(normalized, ":") > 0
+        if has_plus and has_colon:
+            return ParseResult(
+                tasks=[],
+                errors=["Mixed operators '+' and ':' in one command are not supported."],
             )
 
-            link_params = {"type": "TYPE"}
-            if left_metadata or right_metadata:
-                link_params["metadata"] = {
-                    "source_asteroid": left_metadata,
-                    "target_asteroid": right_metadata,
-                }
-            instructions.append(AtomicTask(action="LINK", params=link_params))
-            return instructions
+        if has_plus:
+            return self._parse_binary_chain_result(normalized, "+")
 
+        if has_colon:
+            return self._parse_binary_chain_result(normalized, ":")
+
+        # Fallback: single atom ingest with optional metadata.
         value, metadata = self._parse_atom_token(normalized)
-        instructions.append(AtomicTask(action="INGEST", params={"value": value, "metadata": metadata}))
-        return instructions
+        if not value:
+            return ParseResult(tasks=[], errors=["Missing asteroid value."])
+        return ParseResult(
+            tasks=[AtomicTask(action="INGEST", params={"value": value, "metadata": metadata})],
+            errors=[],
+        )
+
+    def parse(self, text: str) -> list[AtomicTask]:
+        # Compatibility wrapper for callers expecting the previous return type.
+        return self.parse_with_diagnostics(text).tasks

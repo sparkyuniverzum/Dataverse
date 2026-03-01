@@ -4,6 +4,8 @@ import csv
 import hashlib
 import io
 import json
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
@@ -32,9 +34,10 @@ class ImportStatus(str, Enum):
     FAILED = "FAILED"
 
 
-class ImportExecutionResult(BaseModel):
+@dataclass
+class ImportExecutionResult:
     job: ImportJob
-    summary: dict[str, Any] = Field(default_factory=dict)
+    summary: dict[str, Any]
 
 
 class ImportErrorRow(BaseModel):
@@ -230,6 +233,15 @@ class ImportExportService:
         mode: ImportMode,
         strict: bool,
     ) -> ImportExecutionResult:
+        @asynccontextmanager
+        async def in_tx():
+            if session.in_transaction():
+                async with session.begin_nested():
+                    yield
+            else:
+                async with session.begin():
+                    yield
+
         decoded = self._decode_csv_bytes(file_bytes)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
@@ -242,7 +254,6 @@ class ImportExportService:
             mode=mode,
             strict=strict,
         )
-        await session.commit()
         await session.refresh(job)
 
         stream = io.StringIO(decoded)
@@ -266,7 +277,7 @@ class ImportExportService:
 
                 if mode == ImportMode.COMMIT:
                     # Row-level transaction keeps strong consistency and lets lenient mode continue.
-                    async with session.begin():
+                    async with in_tx():
                         await self.task_executor.execute_tasks(
                             session=session,
                             tasks=tasks,
@@ -277,7 +288,7 @@ class ImportExportService:
                 processed_rows += 1
             except Exception as exc:
                 errors_count += 1
-                async with session.begin():
+                async with in_tx():
                     session.add(
                         ImportError(
                             job_id=job.id,
@@ -288,7 +299,7 @@ class ImportExportService:
                         )
                     )
                 if strict:
-                    async with session.begin():
+                    async with in_tx():
                         job.status = ImportStatus.FAILED.value
                         job.total_rows = total_rows
                         job.processed_rows = processed_rows
@@ -307,7 +318,7 @@ class ImportExportService:
         if errors_count > 0:
             final_status = ImportStatus.COMPLETED_WITH_ERRORS.value
 
-        async with session.begin():
+        async with in_tx():
             job.status = final_status
             job.total_rows = total_rows
             job.processed_rows = processed_rows

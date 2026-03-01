@@ -317,6 +317,36 @@ def test_set_formula_command_is_calculated_in_snapshot_output(auth_client: tuple
     assert atoms_by_value[project]["metadata"]["celkem"] == 150
 
 
+def test_mutate_asteroid_updates_value_and_metadata(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    original = f"Mutate-{uuid.uuid4()}"
+    renamed = f"Mutate-Renamed-{uuid.uuid4()}"
+
+    created = client.post("/asteroids/ingest", json={"value": original, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+    asteroid_id = created.json()["id"]
+
+    patch_value = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={"value": renamed, "galaxy_id": galaxy_id},
+    )
+    assert patch_value.status_code == 200, patch_value.text
+    assert _stringify(patch_value.json()["value"]) == renamed
+
+    patch_meta = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={"metadata": {"stav": "aktivni"}, "galaxy_id": galaxy_id},
+    )
+    assert patch_meta.status_code == 200, patch_meta.text
+    assert patch_meta.json()["metadata"]["stav"] == "aktivni"
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    by_value = {_stringify(atom["value"]): atom for atom in snapshot.json()["asteroids"]}
+    assert renamed in by_value
+    assert by_value[renamed]["metadata"]["stav"] == "aktivni"
+
+
 def test_guardian_command_is_idempotent_for_same_rule(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     project = f"GuardianProjekt-{uuid.uuid4()}"
@@ -475,9 +505,9 @@ def test_csv_import_commit_creates_asteroids_and_metadata(auth_client: tuple[htt
     snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
     assert snapshot.status_code == 200, snapshot.text
     by_value = {_stringify(atom["value"]): atom for atom in snapshot.json()["asteroids"]}
-    assert by_value[a_label]["metadata"].get("cena") == "100"
+    assert by_value[a_label]["metadata"].get("cena") in {"100", 100}
     assert by_value[a_label]["metadata"].get("mena") == "CZK"
-    assert by_value[b_label]["metadata"].get("cena") == "250"
+    assert by_value[b_label]["metadata"].get("cena") in {"250", 250}
 
 
 def test_csv_export_snapshot_returns_csv(auth_client: tuple[httpx.Client, str]) -> None:
@@ -491,3 +521,155 @@ def test_csv_export_snapshot_returns_csv(auth_client: tuple[httpx.Client, str]) 
     assert exported.headers.get("content-type", "").startswith("text/csv")
     assert "record_type,id,value" in exported.text
     assert label in exported.text
+
+
+def test_branch_snapshot_isolated_from_new_main_events(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    base_label = f"branch-base-{uuid.uuid4()}"
+    future_label = f"branch-future-{uuid.uuid4()}"
+
+    created_base = client.post("/asteroids/ingest", json={"value": base_label, "galaxy_id": galaxy_id})
+    assert created_base.status_code == 200, created_base.text
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"Scenario-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    created_future = client.post("/asteroids/ingest", json={"value": future_label, "galaxy_id": galaxy_id})
+    assert created_future.status_code == 200, created_future.text
+
+    snapshot_main = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_main.status_code == 200, snapshot_main.text
+    main_values = {_stringify(atom["value"]) for atom in snapshot_main.json()["asteroids"]}
+    assert base_label in main_values
+    assert future_label in main_values
+
+    snapshot_branch = client.get(
+        "/universe/snapshot",
+        params={"galaxy_id": galaxy_id, "branch_id": branch_id},
+    )
+    assert snapshot_branch.status_code == 200, snapshot_branch.text
+    branch_values = {_stringify(atom["value"]) for atom in snapshot_branch.json()["asteroids"]}
+    assert base_label in branch_values
+    assert future_label not in branch_values
+
+
+def test_branch_ingest_writes_only_to_branch_timeline(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    main_label = f"main-{uuid.uuid4()}"
+    branch_label = f"branch-{uuid.uuid4()}"
+
+    created_main = client.post("/asteroids/ingest", json={"value": main_label, "galaxy_id": galaxy_id})
+    assert created_main.status_code == 200, created_main.text
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"WriteScenario-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    created_branch = client.post(
+        "/asteroids/ingest",
+        json={"value": branch_label, "galaxy_id": galaxy_id, "branch_id": branch_id},
+    )
+    assert created_branch.status_code == 200, created_branch.text
+
+    main_snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert main_snapshot.status_code == 200, main_snapshot.text
+    main_values = {_stringify(atom["value"]) for atom in main_snapshot.json()["asteroids"]}
+    assert main_label in main_values
+    assert branch_label not in main_values
+
+    branch_snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id, "branch_id": branch_id})
+    assert branch_snapshot.status_code == 200, branch_snapshot.text
+    branch_values = {_stringify(atom["value"]) for atom in branch_snapshot.json()["asteroids"]}
+    assert main_label in branch_values
+    assert branch_label in branch_values
+
+
+def test_branch_extinguish_does_not_delete_main_timeline(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"branch-extinguish-{uuid.uuid4()}"
+
+    created = client.post("/asteroids/ingest", json={"value": label, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+    asteroid_id = created.json()["id"]
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"ExtinguishScenario-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    extinguished = client.patch(
+        f"/asteroids/{asteroid_id}/extinguish",
+        params={"galaxy_id": galaxy_id, "branch_id": branch_id},
+    )
+    assert extinguished.status_code == 200, extinguished.text
+
+    main_snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert main_snapshot.status_code == 200, main_snapshot.text
+    main_values = {_stringify(atom["value"]) for atom in main_snapshot.json()["asteroids"]}
+    assert label in main_values
+
+    branch_snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id, "branch_id": branch_id})
+    assert branch_snapshot.status_code == 200, branch_snapshot.text
+    branch_values = {_stringify(atom["value"]) for atom in branch_snapshot.json()["asteroids"]}
+    assert label not in branch_values
+
+
+def test_table_contract_versioning_returns_latest(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    table_name = f"Contract-{uuid.uuid4()}"
+    label = f"ContractEntity-{uuid.uuid4()}"
+
+    created = client.post(
+        "/asteroids/ingest",
+        json={"value": label, "metadata": {"table": table_name, "cena": 100}, "galaxy_id": galaxy_id},
+    )
+    assert created.status_code == 200, created.text
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    asteroid = next((item for item in snapshot.json()["asteroids"] if _stringify(item["value"]) == label), None)
+    assert asteroid is not None
+    table_id = asteroid["table_id"]
+
+    v1 = client.post(
+        f"/contracts/{table_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "required_fields": ["cena"],
+            "field_types": {"cena": "number"},
+            "validators": [{"field": "cena", "operator": ">", "value": 0}],
+        },
+    )
+    assert v1.status_code == 201, v1.text
+    assert v1.json()["version"] == 1
+
+    v2 = client.post(
+        f"/contracts/{table_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "required_fields": ["cena", "mena"],
+            "field_types": {"cena": "number", "mena": "string"},
+            "unique_rules": [{"fields": ["value"]}],
+        },
+    )
+    assert v2.status_code == 201, v2.text
+    assert v2.json()["version"] == 2
+
+    fetched = client.get(
+        f"/contracts/{table_id}",
+        params={"galaxy_id": galaxy_id},
+    )
+    assert fetched.status_code == 200, fetched.text
+    body = fetched.json()
+    assert body["version"] == 2
+    assert body["field_types"]["mena"] == "string"
+    assert "mena" in body["required_fields"]

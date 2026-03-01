@@ -50,27 +50,27 @@ Date: 2026-02-28
 ## Asteroids and bonds
 ### `POST /asteroids/ingest`
 - Auth required.
-- Request: `{ "value": any, "metadata"?: object, "galaxy_id"?: uuid }`
+- Request: `{ "value": any, "metadata"?: object, "galaxy_id"?: uuid, "branch_id"?: uuid }`
 - Behavior: find-or-create active asteroid by exact `value`; metadata may be merged by event.
 - Response `200`: `AsteroidResponse`.
 
 ### `PATCH /asteroids/{asteroid_id}/extinguish`
 - Auth required.
-- Query: `galaxy_id?`
+- Query: `galaxy_id?`, `branch_id?`
 - Behavior: soft-deletes asteroid and connected bonds (event-sourced cascade).
 - Response `200`: deleted `AsteroidResponse` (`is_deleted=true`, `deleted_at!=null`).
 - Errors: `404` not found.
 
 ### `POST /bonds/link`
 - Auth required.
-- Request: `{ "source_id": uuid, "target_id": uuid, "type": string, "galaxy_id"?: uuid }`
+- Request: `{ "source_id": uuid, "target_id": uuid, "type": string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
 - Response `200`: `BondResponse`.
 - Errors: `422` same source/target or invalid context, `404` endpoint asteroid missing.
 
 ## Parser execution
 ### `POST /parser/execute`
 - Auth required.
-- Request: `{ "query"?: string, "text"?: string, "galaxy_id"?: uuid }`
+- Request: `{ "query"?: string, "text"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
 - Validation:
 - At least one of `query`/`text` must be present and non-empty.
 - If both are present, they must be equal.
@@ -84,7 +84,7 @@ Date: 2026-02-28
 ## Universe read models
 ### `GET /universe/snapshot`
 - Auth required.
-- Query: `galaxy_id?: uuid`, `as_of?: datetime`.
+- Query: `galaxy_id?: uuid`, `as_of?: datetime`, `branch_id?: uuid` (Sprint 1 extension, draft).
 - Response `200`:
 - `asteroids[]`: `{ id, value, table_id, table_name, metadata, calculated_values, active_alerts, created_at }`
 - `bonds[]`: `{ id, source_id, target_id, type, source_table_id, source_table_name, target_table_id, target_table_name }`
@@ -93,7 +93,7 @@ Date: 2026-02-28
 
 ### `GET /universe/tables`
 - Auth required.
-- Query: `galaxy_id?: uuid`, `as_of?: datetime`.
+- Query: `galaxy_id?: uuid`, `as_of?: datetime`, `branch_id?: uuid`.
 - Response `200`: `{ tables: UniverseTableSnapshot[] }`.
 - Each table contains schema/formula summary, members, bonds, and sector projection.
 
@@ -103,3 +103,13 @@ Date: 2026-02-28
 - `BOND_FORMED`
 - `ASTEROID_SOFT_DELETED`
 - `BOND_SOFT_DELETED`
+
+## Cosmos Sprint 1 extension (draft)
+- Scenario branches and table contracts are specified in:
+- `docs/contracts/cosmos-sprint1-openapi.yaml`
+- Planned endpoints:
+- `GET/POST /branches`
+- `PATCH /branches/{branch_id}/extinguish`
+- `GET/POST /contracts/{table_id}`
+- Branch-aware snapshot:
+- `GET /universe/snapshot?...&branch_id=<uuid>`

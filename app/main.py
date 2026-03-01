@@ -9,11 +9,14 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import Galaxy, ImportError, ImportJob, User
+from app.models import Branch, Galaxy, ImportError, ImportJob, TableContract, User
 from app.schemas import (
     AsteroidIngestRequest,
+    AsteroidMutateRequest,
     AsteroidResponse,
     AuthResponse,
+    BranchCreateRequest,
+    BranchPublic,
     BondCreateRequest,
     BondResponse,
     GalaxyCreateRequest,
@@ -27,6 +30,8 @@ from app.schemas import (
     ParseCommandRequest,
     ParseCommandResponse,
     RegisterRequest,
+    TableContractPublic,
+    TableContractUpsertRequest,
     TaskSchema,
     UniverseAsteroidSnapshot,
     UniverseBondSnapshot,
@@ -35,6 +40,7 @@ from app.schemas import (
     UserPublic,
 )
 from app.services.auth_service import AuthService, get_current_user
+from app.services.cosmos_service import CosmosService
 from app.services.event_store_service import EventStoreService
 from app.services.io_service import ImportExportService, ImportMode
 from app.services.parser_service import AtomicTask, ParserService
@@ -63,6 +69,7 @@ parser_service = ParserService()
 task_executor_service = TaskExecutorService(event_store=event_store, universe_service=universe_service)
 auth_service = AuthService()
 io_service = ImportExportService(task_executor=task_executor_service, universe_service=universe_service)
+cosmos_service = CosmosService()
 
 
 def user_to_public(user: User) -> UserPublic:
@@ -82,6 +89,39 @@ def galaxy_to_public(galaxy: Galaxy) -> GalaxyPublic:
         owner_id=galaxy.owner_id,
         created_at=galaxy.created_at,
         deleted_at=galaxy.deleted_at,
+    )
+
+
+def branch_to_public(branch: Branch) -> BranchPublic:
+    return BranchPublic(
+        id=branch.id,
+        galaxy_id=branch.galaxy_id,
+        name=branch.name,
+        base_event_id=branch.base_event_id,
+        created_by=branch.created_by,
+        created_at=branch.created_at,
+        deleted_at=branch.deleted_at,
+    )
+
+
+def table_contract_to_public(contract: TableContract) -> TableContractPublic:
+    required_fields = contract.required_fields if isinstance(contract.required_fields, list) else []
+    field_types = contract.field_types if isinstance(contract.field_types, dict) else {}
+    unique_rules = contract.unique_rules if isinstance(contract.unique_rules, list) else []
+    validators = contract.validators if isinstance(contract.validators, list) else []
+    return TableContractPublic(
+        id=contract.id,
+        galaxy_id=contract.galaxy_id,
+        table_id=contract.table_id,
+        version=contract.version,
+        required_fields=[str(item) for item in required_fields],
+        field_types={str(key): str(value) for key, value in field_types.items()},
+        unique_rules=[item for item in unique_rules if isinstance(item, dict)],
+        validators=[item for item in validators if isinstance(item, dict)],
+        created_by=contract.created_by,
+        created_at=contract.created_at,
+        updated_at=contract.updated_at,
+        deleted_at=contract.deleted_at,
     )
 
 
@@ -278,6 +318,21 @@ async def resolve_galaxy_id_for_user(
     return galaxy.id
 
 
+async def resolve_branch_id_for_user(
+    session: AsyncSession,
+    *,
+    user: User,
+    galaxy_id: UUID,
+    branch_id: UUID | None,
+) -> UUID | None:
+    return await cosmos_service.resolve_branch_id(
+        session=session,
+        user_id=user.id,
+        galaxy_id=galaxy_id,
+        branch_id=branch_id,
+    )
+
+
 @app.post("/auth/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     payload: RegisterRequest,
@@ -367,6 +422,99 @@ async def extinguish_galaxy(
     return galaxy_to_public(galaxy)
 
 
+@app.get("/branches", response_model=list[BranchPublic], status_code=status.HTTP_200_OK)
+async def list_branches(
+    galaxy_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> list[BranchPublic]:
+    branches = await cosmos_service.list_branches(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=galaxy_id,
+    )
+    return [branch_to_public(branch) for branch in branches]
+
+
+@app.post("/branches", response_model=BranchPublic, status_code=status.HTTP_201_CREATED)
+async def create_branch(
+    payload: BranchCreateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> BranchPublic:
+    async with transactional_context(session):
+        branch = await cosmos_service.create_branch(
+            session=session,
+            user_id=current_user.id,
+            galaxy_id=payload.galaxy_id,
+            name=payload.name,
+            as_of=payload.as_of,
+        )
+    await commit_if_active(session)
+    return branch_to_public(branch)
+
+
+@app.patch("/branches/{branch_id}/extinguish", response_model=BranchPublic, status_code=status.HTTP_200_OK)
+async def extinguish_branch(
+    branch_id: UUID,
+    galaxy_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> BranchPublic:
+    async with transactional_context(session):
+        branch = await cosmos_service.extinguish_branch(
+            session=session,
+            user_id=current_user.id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+        )
+    await commit_if_active(session)
+    return branch_to_public(branch)
+
+
+@app.get("/contracts/{table_id}", response_model=TableContractPublic, status_code=status.HTTP_200_OK)
+async def get_table_contract(
+    table_id: UUID,
+    galaxy_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> TableContractPublic:
+    target_galaxy_id = await resolve_galaxy_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=galaxy_id,
+    )
+    contract = await cosmos_service.get_table_contract(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+        table_id=table_id,
+    )
+    return table_contract_to_public(contract)
+
+
+@app.post("/contracts/{table_id}", response_model=TableContractPublic, status_code=status.HTTP_201_CREATED)
+async def upsert_table_contract(
+    table_id: UUID,
+    payload: TableContractUpsertRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> TableContractPublic:
+    async with transactional_context(session):
+        contract = await cosmos_service.upsert_table_contract(
+            session=session,
+            user_id=current_user.id,
+            galaxy_id=payload.galaxy_id,
+            table_id=table_id,
+            required_fields=payload.required_fields,
+            field_types=payload.field_types,
+            unique_rules=payload.unique_rules,
+            validators=payload.validators,
+        )
+    await commit_if_active(session)
+    return table_contract_to_public(contract)
+
+
 @app.post("/asteroids/ingest", response_model=AsteroidResponse, status_code=status.HTTP_200_OK)
 async def ingest_asteroid(
     payload: AsteroidIngestRequest,
@@ -380,11 +528,18 @@ async def ingest_asteroid(
             user=current_user,
             galaxy_id=payload.galaxy_id,
         )
+        target_branch_id = await resolve_branch_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=target_galaxy_id,
+            branch_id=payload.branch_id,
+        )
         execution = await task_executor_service.execute_tasks(
             session=session,
             tasks=tasks,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
             manage_transaction=False,
         )
     await commit_if_active(session)
@@ -397,6 +552,7 @@ async def ingest_asteroid(
 async def extinguish_asteroid(
     asteroid_id: UUID,
     galaxy_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> AsteroidResponse:
@@ -407,11 +563,18 @@ async def extinguish_asteroid(
             user=current_user,
             galaxy_id=galaxy_id,
         )
+        target_branch_id = await resolve_branch_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=target_galaxy_id,
+            branch_id=branch_id,
+        )
         execution = await task_executor_service.execute_tasks(
             session=session,
             tasks=tasks,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
             manage_transaction=False,
         )
     await commit_if_active(session)
@@ -425,6 +588,48 @@ async def extinguish_asteroid(
     if deleted_asteroid is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Extinguish result is inconsistent")
     return asteroid_to_response(deleted_asteroid)
+
+
+@app.patch("/asteroids/{asteroid_id}/mutate", response_model=AsteroidResponse, status_code=status.HTTP_200_OK)
+async def mutate_asteroid(
+    asteroid_id: UUID,
+    payload: AsteroidMutateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> AsteroidResponse:
+    params: dict[str, Any] = {"asteroid_id": str(asteroid_id)}
+    if payload.value is not None:
+        params["value"] = payload.value
+    if payload.metadata:
+        params["metadata"] = payload.metadata
+
+    tasks = [AtomicTask(action="UPDATE_ASTEROID", params=params)]
+    async with transactional_context(session):
+        target_galaxy_id = await resolve_galaxy_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=payload.galaxy_id,
+        )
+        target_branch_id = await resolve_branch_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=target_galaxy_id,
+            branch_id=payload.branch_id,
+        )
+        execution = await task_executor_service.execute_tasks(
+            session=session,
+            tasks=tasks,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            manage_transaction=False,
+        )
+    await commit_if_active(session)
+
+    if not execution.asteroids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asteroid not found")
+    mutated = next((asteroid for asteroid in execution.asteroids if asteroid.id == asteroid_id), execution.asteroids[0])
+    return asteroid_to_response(mutated)
 
 
 @app.post("/bonds/link", response_model=BondResponse, status_code=status.HTTP_200_OK)
@@ -449,11 +654,18 @@ async def link_bond(
             user=current_user,
             galaxy_id=payload.galaxy_id,
         )
+        target_branch_id = await resolve_branch_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=target_galaxy_id,
+            branch_id=payload.branch_id,
+        )
         execution = await task_executor_service.execute_tasks(
             session=session,
             tasks=tasks,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
             manage_transaction=False,
         )
     await commit_if_active(session)
@@ -468,9 +680,13 @@ async def parse_and_execute(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> ParseCommandResponse:
-    tasks = parser_service.parse(payload.command)
-    if not tasks:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Empty command")
+    parse_result = parser_service.parse_with_diagnostics(payload.command)
+    if parse_result.errors:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Parse error: {parse_result.errors[0]}",
+        )
+    tasks = parse_result.tasks
 
     async with transactional_context(session):
         target_galaxy_id = await resolve_galaxy_id_for_user(
@@ -478,11 +694,18 @@ async def parse_and_execute(
             user=current_user,
             galaxy_id=payload.galaxy_id,
         )
+        target_branch_id = await resolve_branch_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=target_galaxy_id,
+            branch_id=payload.branch_id,
+        )
         execution = await task_executor_service.execute_tasks(
             session=session,
             tasks=tasks,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
             manage_transaction=False,
         )
     await commit_if_active(session)
@@ -493,6 +716,7 @@ async def parse_and_execute(
 async def universe_snapshot(
     as_of: datetime | None = None,
     galaxy_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> UniverseSnapshotResponse:
@@ -505,6 +729,7 @@ async def universe_snapshot(
         session=session,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
+        branch_id=branch_id,
         as_of=as_of,
     )
 
@@ -533,6 +758,7 @@ async def universe_snapshot(
 async def universe_tables(
     as_of: datetime | None = None,
     galaxy_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> UniverseTablesResponse:
@@ -545,6 +771,7 @@ async def universe_tables(
         session=session,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
+        branch_id=branch_id,
         as_of=as_of,
     )
     return UniverseTablesResponse(tables=tables)
@@ -571,20 +798,22 @@ async def run_import_csv(
     if not payload:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is empty")
 
-    target_galaxy_id = await resolve_galaxy_id_for_user(
-        session=session,
-        user=current_user,
-        galaxy_id=galaxy_id,
-    )
-    result = await io_service.import_csv(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=target_galaxy_id,
-        filename=file.filename,
-        file_bytes=payload,
-        mode=ImportMode(mode.value),
-        strict=bool(strict),
-    )
+    async with transactional_context(session):
+        target_galaxy_id = await resolve_galaxy_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=galaxy_id,
+        )
+        result = await io_service.import_csv(
+            session=session,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            filename=file.filename,
+            file_bytes=payload,
+            mode=ImportMode(mode.value),
+            strict=bool(strict),
+        )
+    await commit_if_active(session)
     return ImportRunResponse(job=import_job_to_public(result.job))
 
 

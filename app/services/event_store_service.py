@@ -16,6 +16,7 @@ class EventStoreService:
         *,
         user_id: UUID,
         galaxy_id: UUID,
+        branch_id: UUID | None = None,
         entity_id: UUID,
         event_type: str,
         payload: dict,
@@ -23,6 +24,7 @@ class EventStoreService:
         event = Event(
             user_id=user_id,
             galaxy_id=galaxy_id,
+            branch_id=branch_id,
             entity_id=entity_id,
             event_type=event_type,
             payload=payload,
@@ -38,13 +40,22 @@ class EventStoreService:
         *,
         user_id: UUID,
         galaxy_id: UUID,
+        branch_id: UUID | None = None,
         as_of: datetime | None = None,
+        up_to_event_seq: int | None = None,
     ) -> list[Event]:
         stmt = select(Event).where(
             Event.user_id == user_id,
             Event.galaxy_id == galaxy_id,
         )
+        # Main timeline is represented by NULL branch_id.
+        if branch_id is None:
+            stmt = stmt.where(Event.branch_id.is_(None))
+        else:
+            stmt = stmt.where(Event.branch_id == branch_id)
         if as_of is not None:
             stmt = stmt.where(Event.timestamp <= as_of)
-        stmt = stmt.order_by(Event.timestamp.asc(), Event.id.asc())
+        if up_to_event_seq is not None:
+            stmt = stmt.where(Event.event_seq <= up_to_event_seq)
+        stmt = stmt.order_by(Event.event_seq.asc())
         return list((await session.execute(stmt)).scalars().all())

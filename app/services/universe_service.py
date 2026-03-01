@@ -12,7 +12,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Atom, Bond, Event, Galaxy
+from app.models import Atom, Bond, Branch, Event, Galaxy
 from app.services.calc_service import evaluate_universe
 from app.services.event_store_service import EventStoreService
 from app.services.guardian_service import evaluate_guardians
@@ -107,6 +107,13 @@ class UniverseService:
             metadata_patch = payload.get("metadata", {})
             if isinstance(metadata_patch, dict):
                 asteroid.metadata = {**asteroid.metadata, **metadata_patch}
+            return
+
+        if event.event_type == "ASTEROID_VALUE_UPDATED":
+            asteroid = asteroids_by_id.get(event.entity_id)
+            if asteroid is None:
+                return
+            asteroid.value = payload.get("value")
             return
 
         if event.event_type == "ASTEROID_SOFT_DELETED":
@@ -226,12 +233,14 @@ class UniverseService:
         *,
         user_id: UUID,
         galaxy_id: UUID,
+        branch_id: UUID | None,
         as_of: datetime | None,
     ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
         events = await self.event_store.list_events(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
+            branch_id=branch_id,
             as_of=as_of,
         )
 
@@ -252,17 +261,91 @@ class UniverseService:
         active_bonds.sort(key=lambda item: (item.created_at, str(item.id)))
         return active_asteroids, active_bonds
 
+    async def _project_state_from_branch(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        branch_id: UUID,
+        as_of: datetime | None,
+    ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+        branch = (await session.execute(select(Branch).where(Branch.id == branch_id))).scalar_one_or_none()
+        if branch is None or branch.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+        if branch.galaxy_id != galaxy_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden branch access")
+
+        main_events: list[Event] = []
+        if branch.base_event_id is not None:
+            base_event = (
+                await session.execute(
+                    select(Event).where(
+                        Event.id == branch.base_event_id,
+                        Event.user_id == user_id,
+                        Event.galaxy_id == galaxy_id,
+                        Event.branch_id.is_(None),
+                    )
+                )
+            ).scalar_one_or_none()
+            if base_event is not None:
+                main_cutoff_time = base_event.timestamp
+                if as_of is not None:
+                    main_cutoff_time = min(main_cutoff_time, as_of)
+                main_events = await self.event_store.list_events(
+                    session=session,
+                    user_id=user_id,
+                    galaxy_id=galaxy_id,
+                    branch_id=None,
+                    as_of=main_cutoff_time,
+                    up_to_event_seq=base_event.event_seq,
+                )
+
+        branch_events = await self.event_store.list_events(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=branch.id,
+            as_of=as_of,
+        )
+
+        asteroids_by_id: dict[UUID, ProjectedAsteroid] = {}
+        bonds_by_id: dict[UUID, ProjectedBond] = {}
+        for event in [*main_events, *branch_events]:
+            self._apply_event(event, asteroids_by_id, bonds_by_id)
+
+        active_asteroids = [a for a in asteroids_by_id.values() if not a.is_deleted]
+        active_asteroids.sort(key=lambda item: (item.created_at, str(item.id)))
+        active_ids = {item.id for item in active_asteroids}
+
+        active_bonds = [
+            bond
+            for bond in bonds_by_id.values()
+            if not bond.is_deleted and bond.source_id in active_ids and bond.target_id in active_ids
+        ]
+        active_bonds.sort(key=lambda item: (item.created_at, str(item.id)))
+        return active_asteroids, active_bonds
+
     async def project_state(
         self,
         session: AsyncSession,
         *,
         user_id: UUID,
         galaxy_id: UUID = DEFAULT_GALAXY_ID,
+        branch_id: UUID | None = None,
         as_of: datetime | None = None,
         apply_calculations: bool = True,
     ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond]]:
         await self._ensure_galaxy_access(session, user_id=user_id, galaxy_id=galaxy_id)
-        if as_of is None:
+        if branch_id is not None:
+            active_asteroids, active_bonds = await self._project_state_from_branch(
+                session=session,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+                branch_id=branch_id,
+                as_of=as_of,
+            )
+        elif as_of is None:
             active_asteroids, active_bonds = await self._project_state_from_read_model(
                 session=session,
                 user_id=user_id,
@@ -274,6 +357,7 @@ class UniverseService:
                     session=session,
                     user_id=user_id,
                     galaxy_id=galaxy_id,
+                    branch_id=None,
                     as_of=as_of,
                 )
         else:
@@ -281,6 +365,7 @@ class UniverseService:
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
+                branch_id=None,
                 as_of=as_of,
             )
 
@@ -323,12 +408,14 @@ class UniverseService:
         *,
         user_id: UUID,
         galaxy_id: UUID = DEFAULT_GALAXY_ID,
+        branch_id: UUID | None = None,
         as_of: datetime | None = None,
     ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond]]:
         return await self.project_state(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
+            branch_id=branch_id,
             as_of=as_of,
             apply_calculations=True,
         )
@@ -339,12 +426,14 @@ class UniverseService:
         *,
         user_id: UUID,
         galaxy_id: UUID = DEFAULT_GALAXY_ID,
+        branch_id: UUID | None = None,
         as_of: datetime | None = None,
     ) -> list[dict[str, Any]]:
         asteroids, bonds = await self.snapshot(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
+            branch_id=branch_id,
             as_of=as_of,
         )
 

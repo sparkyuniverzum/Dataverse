@@ -21,6 +21,10 @@ class MetadataUpdatedPayload(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class AsteroidValueUpdatedPayload(BaseModel):
+    value: Any
+
+
 class BondFormedPayload(BaseModel):
     source_id: UUID
     target_id: UUID
@@ -62,6 +66,16 @@ class ReadModelProjector:
                 galaxy_id=event.galaxy_id,
                 asteroid_id=event.entity_id,
                 payload=MetadataUpdatedPayload.model_validate(payload),
+            )
+            return
+
+        if event_type == "ASTEROID_VALUE_UPDATED":
+            await self._project_asteroid_value_updated(
+                session=session,
+                user_id=event.user_id,
+                galaxy_id=event.galaxy_id,
+                asteroid_id=event.entity_id,
+                payload=AsteroidValueUpdatedPayload.model_validate(payload),
             )
             return
 
@@ -192,6 +206,28 @@ class ReadModelProjector:
                 )
             )
             .values(is_deleted=True, deleted_at=happened_at)
+        )
+
+    async def _project_asteroid_value_updated(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: UUID,
+        galaxy_id: UUID,
+        asteroid_id: UUID,
+        payload: AsteroidValueUpdatedPayload,
+    ) -> None:
+        await session.execute(
+            update(Atom)
+            .where(
+                and_(
+                    Atom.id == asteroid_id,
+                    Atom.user_id == user_id,
+                    Atom.galaxy_id == galaxy_id,
+                    Atom.is_deleted.is_(False),
+                )
+            )
+            .values(value=payload.value)
         )
 
     async def _project_bond_formed(
