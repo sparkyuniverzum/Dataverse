@@ -112,7 +112,7 @@ Date: 2026-02-28
 ## Universe read models
 ### `GET /universe/snapshot`
 - Auth required.
-- Query: `galaxy_id?: uuid`, `as_of?: datetime`, `branch_id?: uuid` (Sprint 1 extension, draft).
+- Query: `galaxy_id?: uuid`, `as_of?: datetime`, `branch_id?: uuid`.
 - Response `200`:
 - `asteroids[]`: `{ id, value, table_id, table_name, metadata, calculated_values, active_alerts, created_at }`
 - `bonds[]`: `{ id, source_id, target_id, type, source_table_id, source_table_name, target_table_id, target_table_name }`
@@ -170,11 +170,12 @@ Date: 2026-02-28
 - `ASTEROID_SOFT_DELETED`
 - `BOND_SOFT_DELETED`
 
-## Cosmos Sprint 1 extension (draft)
+## Cosmos Sprint 1 extension (implemented)
 - Scenario branches and table contracts are specified in:
 - `docs/contracts/cosmos-sprint1-openapi.yaml`
-- Planned endpoints:
+- Implemented endpoints:
 - `GET/POST /branches`
+- `POST /branches/{branch_id}/promote`
 - `PATCH /branches/{branch_id}/extinguish`
 - `GET/POST /contracts/{table_id}`
 - Branch-aware snapshot:

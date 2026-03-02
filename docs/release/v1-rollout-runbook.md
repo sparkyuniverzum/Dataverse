@@ -30,8 +30,8 @@ Expected:
 Use annotated tag after successful gate and smoke:
 
 ```bash
-git tag -a v1.0.0 -m "DataVerse V1 release"
-git push origin v1.0.0
+git tag -a v1.0.1 -m "DataVerse V1 release"
+git push origin v1.0.1
 ```
 
 ## 5. Rollback strategy
@@ -57,3 +57,9 @@ If release validation fails:
   - gate logs
   - CI run URL
   - tag SHA
+
+## 8. Recorded V1 closeout
+- Closeout date: 2026-03-02
+- Gate: `make v1-release-full` passed
+- Release tag: `v1.0.1`
+- Release SHA: `89f4f17`

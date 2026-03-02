@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
   title: DataVerse Cosmos Sprint 1 API
-  version: 1.0.0-draft
+  version: 1.0.1
   description: |
-    Draft contract for Sprint 1 "Scenario Branches + Table Contracts".
+    Contract for Sprint 1 "Scenario Branches + Table Contracts".
     Global law: hard delete is forbidden, only soft delete endpoints are allowed.
 servers:
   - url: http://127.0.0.1:8000
