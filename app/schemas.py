@@ -51,6 +51,21 @@ class BondCreateRequest(BaseModel):
     branch_id: uuid.UUID | None = None
 
 
+class BondMutateRequest(BaseModel):
+    type: str
+    expected_event_seq: int | None = Field(default=None, ge=0)
+    idempotency_key: str | None = None
+    galaxy_id: uuid.UUID | None = None
+    branch_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_type(self) -> "BondMutateRequest":
+        if not str(self.type or "").strip():
+            raise ValueError("Provide non-empty 'type'")
+        self.type = str(self.type).strip()
+        return self
+
+
 class BondResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -58,6 +73,8 @@ class BondResponse(BaseModel):
     source_id: uuid.UUID
     target_id: uuid.UUID
     type: str
+    directional: bool = False
+    flow_direction: str = "bidirectional"
     is_deleted: bool
     created_at: datetime
     deleted_at: datetime | None
@@ -140,6 +157,8 @@ class UniverseBondSnapshot(BaseModel):
     source_id: uuid.UUID
     target_id: uuid.UUID
     type: str
+    directional: bool = False
+    flow_direction: str = "bidirectional"
     source_table_id: uuid.UUID
     source_table_name: str
     source_constellation_name: str
@@ -169,6 +188,8 @@ class UniverseTableBondSnapshot(BaseModel):
     source_id: uuid.UUID
     target_id: uuid.UUID
     type: str
+    directional: bool = False
+    flow_direction: str = "bidirectional"
     peer_table_id: uuid.UUID | None = None
     peer_table_name: str | None = None
 

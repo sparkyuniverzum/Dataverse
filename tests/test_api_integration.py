@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import os
+from threading import Barrier
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -37,6 +39,102 @@ def _snapshot_asteroid(client: httpx.Client, *, galaxy_id: str, asteroid_id: str
         if asteroid.get("id") == asteroid_id:
             return asteroid
     raise AssertionError(f"Asteroid {asteroid_id} not found in snapshot")
+
+
+def _assert_occ_conflict(response: httpx.Response, *, expected_event_seq: int | None = None) -> dict:
+    assert response.status_code == 409, response.text
+    body = response.json()
+    detail = body.get("detail", {})
+    assert isinstance(detail, dict), body
+    assert detail.get("code") == "OCC_CONFLICT"
+    assert isinstance(detail.get("context"), str) and detail.get("context")
+    assert isinstance(detail.get("entity_id"), str) and detail.get("entity_id")
+    assert isinstance(detail.get("current_event_seq"), int)
+    if expected_event_seq is not None:
+        assert detail.get("expected_event_seq") == expected_event_seq
+    return detail
+
+
+def _parallel_mutate_with_expected_seq(
+    *,
+    auth_header: str,
+    galaxy_id: str,
+    asteroid_id: str,
+    expected_event_seq: int,
+) -> list[tuple[int, dict]]:
+    barrier = Barrier(2)
+
+    def _call(status_label: str) -> tuple[int, dict]:
+        with httpx.Client(
+            base_url=API_BASE_URL,
+            timeout=20.0,
+            headers={"Authorization": auth_header},
+        ) as worker_client:
+            barrier.wait(timeout=10.0)
+            response = worker_client.patch(
+                f"/asteroids/{asteroid_id}/mutate",
+                json={
+                    "metadata": {"race_status": status_label},
+                    "expected_event_seq": expected_event_seq,
+                    "galaxy_id": galaxy_id,
+                },
+            )
+            body: dict
+            try:
+                parsed = response.json()
+                body = parsed if isinstance(parsed, dict) else {}
+            except ValueError:
+                body = {}
+            return response.status_code, body
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        result_a = pool.submit(_call, "A")
+        result_b = pool.submit(_call, "B")
+        return [result_a.result(timeout=25.0), result_b.result(timeout=25.0)]
+
+
+def _parallel_link_with_expected_seq(
+    *,
+    auth_header: str,
+    galaxy_id: str,
+    source_id: str,
+    target_id: str,
+    relation_type: str,
+    expected_source_event_seq: int,
+    expected_target_event_seq: int,
+) -> list[tuple[int, dict]]:
+    barrier = Barrier(2)
+
+    def _call() -> tuple[int, dict]:
+        with httpx.Client(
+            base_url=API_BASE_URL,
+            timeout=20.0,
+            headers={"Authorization": auth_header},
+        ) as worker_client:
+            barrier.wait(timeout=10.0)
+            response = worker_client.post(
+                "/bonds/link",
+                json={
+                    "source_id": source_id,
+                    "target_id": target_id,
+                    "type": relation_type,
+                    "expected_source_event_seq": expected_source_event_seq,
+                    "expected_target_event_seq": expected_target_event_seq,
+                    "galaxy_id": galaxy_id,
+                },
+            )
+            body: dict
+            try:
+                parsed = response.json()
+                body = parsed if isinstance(parsed, dict) else {}
+            except ValueError:
+                body = {}
+            return response.status_code, body
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        result_a = pool.submit(_call)
+        result_b = pool.submit(_call)
+        return [result_a.result(timeout=25.0), result_b.result(timeout=25.0)]
 
 
 @pytest.fixture(scope="session")
@@ -625,14 +723,46 @@ def test_mutate_asteroid_occ_rejects_stale_expected_event_seq(auth_client: tuple
         f"/asteroids/{asteroid_id}/mutate",
         json={"metadata": {"status": "stale-write"}, "expected_event_seq": initial_seq, "galaxy_id": galaxy_id},
     )
-    assert stale_mutate.status_code == 409, stale_mutate.text
-    assert "OCC conflict" in stale_mutate.text
+    detail = _assert_occ_conflict(stale_mutate, expected_event_seq=initial_seq)
+    assert "update_asteroid" in detail["context"].lower()
+    assert detail["entity_id"] == asteroid_id
 
     snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
     assert snapshot.status_code == 200, snapshot.text
     by_value = {_stringify(atom["value"]): atom for atom in snapshot.json()["asteroids"]}
     assert renamed in by_value
     assert by_value[renamed]["metadata"].get("status") != "stale-write"
+
+
+def test_mutate_asteroid_occ_parallel_writes_allow_single_winner(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    original = f"OCC-Parallel-{uuid.uuid4()}"
+    auth_header = str(client.headers.get("Authorization") or "")
+    assert auth_header.startswith("Bearer "), "Missing auth header in test client"
+
+    created = client.post("/asteroids/ingest", json={"value": original, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+    asteroid_id = created.json()["id"]
+    initial_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=asteroid_id)
+
+    outcomes = _parallel_mutate_with_expected_seq(
+        auth_header=auth_header,
+        galaxy_id=galaxy_id,
+        asteroid_id=asteroid_id,
+        expected_event_seq=initial_seq,
+    )
+    statuses = sorted(status for status, _ in outcomes)
+    assert statuses == [200, 409], outcomes
+
+    conflict_payload = next(payload for status, payload in outcomes if status == 409)
+    detail = conflict_payload.get("detail", {})
+    assert isinstance(detail, dict), conflict_payload
+    assert detail.get("code") == "OCC_CONFLICT"
+    assert detail.get("expected_event_seq") == initial_seq
+
+    snapshot_after = _snapshot_asteroid(client, galaxy_id=galaxy_id, asteroid_id=asteroid_id)
+    assert snapshot_after["current_event_seq"] == initial_seq + 1
+    assert snapshot_after["metadata"].get("race_status") in {"A", "B"}
 
 
 def test_snapshot_and_write_responses_expose_current_event_seq(auth_client: tuple[httpx.Client, str]) -> None:
@@ -755,8 +885,8 @@ def test_extinguish_asteroid_occ_rejects_stale_expected_event_seq(auth_client: t
         f"/asteroids/{asteroid_id}/extinguish",
         params={"galaxy_id": galaxy_id, "expected_event_seq": initial_seq},
     )
-    assert stale_delete.status_code == 409, stale_delete.text
-    assert "OCC conflict" in stale_delete.text
+    detail = _assert_occ_conflict(stale_delete, expected_event_seq=initial_seq)
+    assert "delete" in detail["context"].lower()
 
     snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
     assert snapshot.status_code == 200, snapshot.text
@@ -795,8 +925,8 @@ def test_link_occ_rejects_stale_expected_source_seq(auth_client: tuple[httpx.Cli
             "galaxy_id": galaxy_id,
         },
     )
-    assert stale_link.status_code == 409, stale_link.text
-    assert "OCC conflict" in stale_link.text
+    detail = _assert_occ_conflict(stale_link, expected_event_seq=source_seq)
+    assert "source" in detail["context"].lower()
 
 def test_guardian_command_is_idempotent_for_same_rule(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
@@ -1821,3 +1951,165 @@ def test_relation_link_reverse_direction_reuses_same_bond(auth_client: tuple[htt
         and {bond.get("source_id"), bond.get("target_id")} == {left_id, right_id}
     ]
     assert len(rel_bonds) == 1
+
+
+def test_link_type_alias_formula_is_normalized_to_flow(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    source_label = f"FlowAlias-S-{uuid.uuid4()}"
+    target_label = f"FlowAlias-T-{uuid.uuid4()}"
+
+    source = client.post("/asteroids/ingest", json={"value": source_label, "galaxy_id": galaxy_id})
+    target = client.post("/asteroids/ingest", json={"value": target_label, "galaxy_id": galaxy_id})
+    assert source.status_code == 200, source.text
+    assert target.status_code == 200, target.text
+    source_id = source.json()["id"]
+    target_id = target.json()["id"]
+
+    linked = client.post(
+        "/bonds/link",
+        json={"source_id": source_id, "target_id": target_id, "type": "formula", "galaxy_id": galaxy_id},
+    )
+    assert linked.status_code == 200, linked.text
+    body = linked.json()
+    assert body["type"] == "FLOW"
+    assert body["directional"] is True
+    assert body["flow_direction"] == "source_to_target"
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    matched = [
+        bond
+        for bond in snapshot.json()["bonds"]
+        if bond.get("id") == body["id"]
+    ]
+    assert len(matched) == 1
+    assert matched[0]["type"] == "FLOW"
+    assert matched[0]["directional"] is True
+    assert matched[0]["flow_direction"] == "source_to_target"
+
+
+def test_link_parallel_same_relation_returns_single_bond(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    auth_header = str(client.headers.get("Authorization") or "")
+    assert auth_header.startswith("Bearer "), "Missing auth header in test client"
+    source_label = f"ParallelLink-S-{uuid.uuid4()}"
+    target_label = f"ParallelLink-T-{uuid.uuid4()}"
+
+    source = client.post("/asteroids/ingest", json={"value": source_label, "galaxy_id": galaxy_id})
+    target = client.post("/asteroids/ingest", json={"value": target_label, "galaxy_id": galaxy_id})
+    assert source.status_code == 200, source.text
+    assert target.status_code == 200, target.text
+    source_id = source.json()["id"]
+    target_id = target.json()["id"]
+    source_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=source_id)
+    target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_id)
+
+    outcomes = _parallel_link_with_expected_seq(
+        auth_header=auth_header,
+        galaxy_id=galaxy_id,
+        source_id=source_id,
+        target_id=target_id,
+        relation_type="RELATION",
+        expected_source_event_seq=source_seq,
+        expected_target_event_seq=target_seq,
+    )
+    statuses = sorted(status for status, _ in outcomes)
+    assert statuses == [200, 200], outcomes
+
+    result_ids = {payload.get("id") for status, payload in outcomes if status == 200}
+    assert len(result_ids) == 1
+    bond_id = next(iter(result_ids))
+    assert bond_id
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    rel_bonds = [
+        bond
+        for bond in snapshot.json()["bonds"]
+        if str(bond.get("type", "")).upper() == "RELATION"
+        and {bond.get("source_id"), bond.get("target_id")} == {source_id, target_id}
+    ]
+    assert len(rel_bonds) == 1
+    assert rel_bonds[0]["id"] == bond_id
+
+
+def test_bond_mutate_replaces_type_and_preserves_single_active_edge(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    source_label = f"BondMut-S-{uuid.uuid4()}"
+    target_label = f"BondMut-T-{uuid.uuid4()}"
+
+    source = client.post("/asteroids/ingest", json={"value": source_label, "galaxy_id": galaxy_id})
+    target = client.post("/asteroids/ingest", json={"value": target_label, "galaxy_id": galaxy_id})
+    assert source.status_code == 200, source.text
+    assert target.status_code == 200, target.text
+    source_id = source.json()["id"]
+    target_id = target.json()["id"]
+
+    linked = client.post(
+        "/bonds/link",
+        json={"source_id": source_id, "target_id": target_id, "type": "RELATION", "galaxy_id": galaxy_id},
+    )
+    assert linked.status_code == 200, linked.text
+    original = linked.json()
+
+    mutated = client.patch(
+        f"/bonds/{original['id']}/mutate",
+        json={
+            "type": "TYPE",
+            "expected_event_seq": original["current_event_seq"],
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert mutated.status_code == 200, mutated.text
+    mutated_body = mutated.json()
+    assert mutated_body["id"] != original["id"]
+    assert mutated_body["type"] == "TYPE"
+    assert mutated_body["directional"] is True
+    assert mutated_body["flow_direction"] == "source_to_target"
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    bonds = snapshot.json()["bonds"]
+    active = [
+        bond
+        for bond in bonds
+        if {bond.get("source_id"), bond.get("target_id")} == {source_id, target_id}
+    ]
+    assert len(active) == 1
+    assert active[0]["id"] == mutated_body["id"]
+    assert active[0]["type"] == "TYPE"
+
+
+def test_bond_extinguish_soft_deletes_link(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    source_label = f"BondDel-S-{uuid.uuid4()}"
+    target_label = f"BondDel-T-{uuid.uuid4()}"
+
+    source = client.post("/asteroids/ingest", json={"value": source_label, "galaxy_id": galaxy_id})
+    target = client.post("/asteroids/ingest", json={"value": target_label, "galaxy_id": galaxy_id})
+    assert source.status_code == 200, source.text
+    assert target.status_code == 200, target.text
+    source_id = source.json()["id"]
+    target_id = target.json()["id"]
+
+    linked = client.post(
+        "/bonds/link",
+        json={"source_id": source_id, "target_id": target_id, "type": "FLOW", "galaxy_id": galaxy_id},
+    )
+    assert linked.status_code == 200, linked.text
+    body = linked.json()
+
+    extinguished = client.patch(
+        f"/bonds/{body['id']}/extinguish",
+        params={"galaxy_id": galaxy_id, "expected_event_seq": body["current_event_seq"]},
+    )
+    assert extinguished.status_code == 200, extinguished.text
+    ext_body = extinguished.json()
+    assert ext_body["id"] == body["id"]
+    assert ext_body["is_deleted"] is True
+    assert ext_body["deleted_at"] is not None
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    bond_ids = {bond["id"] for bond in snapshot.json()["bonds"]}
+    assert body["id"] not in bond_ids

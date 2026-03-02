@@ -27,6 +27,105 @@ export async function apiFetch(input, init = {}) {
   return response;
 }
 
+export function normalizeApiErrorPayload(payload, { status = 0, fallbackMessage = "Request failed" } = {}) {
+  const detail = payload && typeof payload === "object" ? payload.detail : null;
+  const detailObject = detail && typeof detail === "object" && !Array.isArray(detail) ? detail : null;
+  const detailText = typeof detail === "string" ? detail.trim() : "";
+  const codeRaw = detailObject?.code ?? (payload && typeof payload === "object" ? payload.code : null);
+  const code = typeof codeRaw === "string" && codeRaw.trim() ? codeRaw.trim() : null;
+
+  let message = "";
+  if (typeof detailObject?.message === "string" && detailObject.message.trim()) {
+    message = detailObject.message.trim();
+  } else if (detailText) {
+    message = detailText;
+  } else if (payload && typeof payload === "object" && typeof payload.message === "string" && payload.message.trim()) {
+    message = payload.message.trim();
+  }
+  if (!message) {
+    message = `${fallbackMessage}: ${status || "unknown"}`;
+  }
+
+  return {
+    status: Number(status || 0),
+    code,
+    message,
+    detail: detailObject || detail || null,
+    payload,
+  };
+}
+
+async function readResponsePayload(response) {
+  try {
+    const text = await response.text();
+    if (!text) return null;
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+export async function apiErrorFromResponse(response, fallbackMessage = "Request failed") {
+  const payload = await readResponsePayload(response);
+  const normalized = normalizeApiErrorPayload(payload, { status: response?.status || 0, fallbackMessage });
+  const error = new Error(normalized.message);
+  error.name = "ApiError";
+  error.status = normalized.status;
+  error.code = normalized.code;
+  error.detail = normalized.detail;
+  error.payload = normalized.payload;
+  return error;
+}
+
+export function isOccConflictError(error) {
+  if (!error || Number(error.status) !== 409) return false;
+  const code = String(error.code || error?.detail?.code || "").trim().toUpperCase();
+  return code === "OCC_CONFLICT";
+}
+
+export function buildOccConflictMessage(error, actionLabel = "zapis") {
+  const detail = error?.detail && typeof error.detail === "object" ? error.detail : {};
+  const context = typeof detail.context === "string" && detail.context.trim() ? detail.context.trim() : actionLabel;
+  const expected = Number.isInteger(detail.expected_event_seq) ? detail.expected_event_seq : null;
+  const current = Number.isInteger(detail.current_event_seq) ? detail.current_event_seq : null;
+  const expectedText = expected === null ? "?" : String(expected);
+  const currentText = current === null ? "?" : String(current);
+  return `Kolize soubezne zmeny (${context}). Data byla obnovena; zkontroluj aktualni stav a akci zopakuj (expected=${expectedText}, current=${currentText}).`;
+}
+
+const BOND_TYPE_ALIASES = {
+  RELATION: "RELATION",
+  REL: "RELATION",
+  LINK: "RELATION",
+  EDGE: "RELATION",
+  BOND: "RELATION",
+  TYPE: "TYPE",
+  TYP: "TYPE",
+  FLOW: "FLOW",
+  DATAFLOW: "FLOW",
+  DATA_FLOW: "FLOW",
+  FORMULA: "FLOW",
+  GUARDIAN: "GUARDIAN",
+  GUARD: "GUARDIAN",
+  WATCH: "GUARDIAN",
+};
+
+export function normalizeBondType(rawType) {
+  const normalized = String(rawType || "").trim().toUpperCase().replaceAll("-", "_").replaceAll(" ", "_");
+  if (!normalized) return "RELATION";
+  return BOND_TYPE_ALIASES[normalized] || normalized;
+}
+
+export function bondSemanticsFromType(rawType) {
+  const type = normalizeBondType(rawType);
+  const directional = type !== "RELATION";
+  return {
+    type,
+    directional,
+    flow_direction: directional ? "source_to_target" : "bidirectional",
+  };
+}
+
 export function buildParserPayload(command, galaxyId = null, branchId = null) {
   const trimmed = typeof command === "string" ? command.trim() : "";
   const payload = {

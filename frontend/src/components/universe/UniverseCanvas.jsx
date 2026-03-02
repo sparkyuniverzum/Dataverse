@@ -164,6 +164,7 @@ function buildConstellationVisual(node) {
 const LINK_COLORS = {
   RELATION: "#58d2ff",
   TYPE: "#91a8ff",
+  FLOW: "#84ffd1",
   FORMULA: "#84ffd1",
   GUARDIAN: "#ffb15f",
   DEFAULT: "#76d8ff",
@@ -181,6 +182,10 @@ const LINK_SEMANTICS = {
   FORMULA: {
     directional: true,
     description: "Datový tok do výpočtu: zdroj -> cíl.",
+  },
+  FLOW: {
+    directional: true,
+    description: "Datový tok: zdroj -> cíl.",
   },
   GUARDIAN: {
     directional: true,
@@ -220,11 +225,16 @@ function resolveStatusTint(status) {
   return "#64d9ff";
 }
 
-function resolveLinkSemantic(type) {
-  const key = String(type || "RELATION").toUpperCase();
-  return LINK_SEMANTICS[key] || {
+function resolveLinkSemantic(link) {
+  const key = String(link?.type || "RELATION").toUpperCase();
+  const byType = LINK_SEMANTICS[key] || {
     directional: true,
     description: "Směr odpovídá source -> target.",
+  };
+  const directional = typeof link?.directional === "boolean" ? link.directional : byType.directional;
+  return {
+    directional,
+    description: String(link?.description || byType.description),
   };
 }
 
@@ -369,7 +379,7 @@ function MouseGuideOverlay({ level, hoveredNode }) {
   );
 }
 
-function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHoverLink, onLeaveLink }) {
+function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHoverLink, onLeaveLink, onSelectLink }) {
   const pulseRef = useRef(null);
   const pulse2Ref = useRef(null);
   const linkPhysics = link?.physics || FALLBACK_LINK_PHYSICS;
@@ -385,7 +395,7 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
   }, [sourceNode, targetNode, emphasized, flow, stress]);
 
   const color = resolveLinkColor(link.type);
-  const semantics = resolveLinkSemantic(link.type);
+  const semantics = resolveLinkSemantic(link);
   const endpointStatus = resolveWorstStatus(sourceNode?.v1?.status, targetNode?.v1?.status);
   const v1Status = String(link?.v1?.status || endpointStatus);
   const v1Quality = Number(link?.v1?.quality_score ?? (v1Status === "RED" ? 55 : v1Status === "YELLOW" ? 78 : 95));
@@ -429,7 +439,7 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
         onPointerOver={(event) => {
           event.stopPropagation();
           setBodyCursor("pointer");
-          onHoverLink?.({
+          const payload = {
             id: link.id,
             type: String(link.type || "RELATION"),
             weight: weight,
@@ -445,6 +455,19 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
             v1Quality,
             physicsStress: stress,
             physicsFlow: flow,
+            x: event.nativeEvent.clientX,
+            y: event.nativeEvent.clientY,
+          };
+          onHoverLink?.(payload);
+        }}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelectLink?.({
+            id: link.id,
+            type: String(link.type || "RELATION"),
+            directional: semantics.directional,
+            source_id: link.source_id || link.source,
+            target_id: link.target_id || link.target,
             x: event.nativeEvent.clientX,
             y: event.nativeEvent.clientY,
           });
@@ -728,6 +751,7 @@ export default function UniverseCanvas({
   onLinkCancel,
   onHoverLink,
   onLeaveLink,
+  onSelectLink,
 }) {
   const controlsRef = useRef(null);
   const dragRef = useRef(null);
@@ -884,6 +908,7 @@ export default function UniverseCanvas({
                 emphasized={isRelated}
                 onHoverLink={onHoverLink}
                 onLeaveLink={onLeaveLink}
+                onSelectLink={onSelectLink}
               />
             );
             })
@@ -908,6 +933,7 @@ export default function UniverseCanvas({
                 emphasized={isRelated}
                 onHoverLink={onHoverLink}
                 onLeaveLink={onLeaveLink}
+                onSelectLink={onSelectLink}
               />
             );
             })

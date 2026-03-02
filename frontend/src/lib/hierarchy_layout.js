@@ -267,6 +267,8 @@ export function calculateHierarchyLayout({
       target: String(bond.target_id),
       weight: 1,
       type: String(bond.type || "RELATION").toUpperCase(),
+      directional: typeof bond.directional === "boolean" ? bond.directional : undefined,
+      flow_direction: typeof bond.flow_direction === "string" ? bond.flow_direction : undefined,
     }))
     .filter((link) => link.source !== link.target);
   const asteroidLinksForLayout = asteroidLinks.map((link) => ({

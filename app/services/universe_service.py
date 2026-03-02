@@ -13,6 +13,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Atom, Bond, Branch, Event, Galaxy
+from app.services.bond_semantics import bond_semantics, normalize_bond_type
 from app.services.calc_service import evaluate_universe
 from app.services.event_store_service import EventStoreService
 from app.services.guardian_service import evaluate_guardians
@@ -154,7 +155,7 @@ class UniverseService:
                 id=event.entity_id,
                 source_id=source_id,
                 target_id=target_id,
-                type=str(payload.get("type", "RELATION")),
+                type=normalize_bond_type(payload.get("type", "RELATION")),
                 is_deleted=False,
                 created_at=event.timestamp,
                 deleted_at=None,
@@ -277,7 +278,7 @@ class UniverseService:
                 id=bond.id,
                 source_id=bond.source_id,
                 target_id=bond.target_id,
-                type=bond.type,
+                type=normalize_bond_type(bond.type),
                 is_deleted=bond.is_deleted,
                 created_at=bond.created_at,
                 deleted_at=bond.deleted_at,
@@ -605,8 +606,11 @@ class UniverseService:
                 "id": bond.id,
                 "source_id": bond.source_id,
                 "target_id": bond.target_id,
-                "type": bond.type,
+                "type": normalize_bond_type(bond.type),
             }
+            semantics = bond_semantics(bond.type)
+            bond_payload["directional"] = semantics.directional
+            bond_payload["flow_direction"] = semantics.flow_direction
             if source["table_id"] == target["table_id"]:
                 source_table["internal_bonds"].append(bond_payload)
             else:

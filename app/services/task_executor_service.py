@@ -11,6 +11,7 @@ from sqlalchemy import and_, func, or_, select, text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Bond, Event, TableContract
+from app.services.bond_semantics import normalize_bond_type
 from app.services.event_store_service import EventStoreService
 from app.services.parser_service import AtomicTask
 from app.services.read_model_projector import ReadModelProjector
@@ -62,12 +63,26 @@ class TaskExecutorService:
         return int.from_bytes(digest, byteorder="big", signed=True)
 
     @staticmethod
+    def _occ_scope_lock_key(
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        branch_id: UUID | None,
+    ) -> int:
+        branch_scope = str(branch_id) if branch_id is not None else "main"
+        digest = blake2b(
+            f"occ:{user_id}:{galaxy_id}:{branch_scope}".encode("utf-8"),
+            digest_size=8,
+        ).digest()
+        return int.from_bytes(digest, byteorder="big", signed=True)
+
+    @staticmethod
     def _to_projected_bond(bond: Bond, *, current_event_seq: int = 0) -> ProjectedBond:
         return ProjectedBond(
             id=bond.id,
             source_id=bond.source_id,
             target_id=bond.target_id,
-            type=bond.type,
+            type=normalize_bond_type(bond.type),
             is_deleted=bond.is_deleted,
             created_at=bond.created_at,
             deleted_at=bond.deleted_at,
@@ -231,6 +246,13 @@ class TaskExecutorService:
     ) -> None:
         if expected_event_seq is None:
             return
+        # Serialize OCC checks per user+galaxy+branch scope so check+append behaves atomically under parallel writes.
+        lock_key = self._occ_scope_lock_key(
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+        )
+        await session.execute(sql_text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
         current_event_seq = await self._current_entity_event_seq(
             session=session,
             user_id=user_id,
@@ -241,10 +263,14 @@ class TaskExecutorService:
         if current_event_seq != expected_event_seq:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"OCC conflict for {context}: expected_event_seq={expected_event_seq}, "
-                    f"current_event_seq={current_event_seq}"
-                ),
+                detail={
+                    "code": "OCC_CONFLICT",
+                    "message": f"OCC conflict for {context}",
+                    "context": context,
+                    "entity_id": str(entity_id),
+                    "expected_event_seq": expected_event_seq,
+                    "current_event_seq": current_event_seq,
+                },
             )
 
     @staticmethod
@@ -669,7 +695,7 @@ class TaskExecutorService:
                         context=f"LINK target {target_uuid}",
                     )
 
-                    bond_type = str(task.params.get("type", "RELATION")).strip().upper() or "RELATION"
+                    bond_type = normalize_bond_type(task.params.get("type", "RELATION"))
                     is_relation = bond_type == "RELATION"
                     if is_relation:
                         source_uuid, target_uuid = self._canonical_relation_pair(source_uuid, target_uuid)
@@ -771,6 +797,150 @@ class TaskExecutorService:
                     )
                     bonds_by_id[bond.id] = bond
                     result.bonds.append(bond)
+                    continue
+
+                if action == "UPDATE_BOND":
+                    bond_uuid = self._parse_uuid(task.params.get("bond_id"))
+                    if bond_uuid is None:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="UPDATE_BOND requires valid bond_id",
+                        )
+                    bond = bonds_by_id.get(bond_uuid)
+                    if bond is None:
+                        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bond not found")
+
+                    raw_type = str(task.params.get("type", "")).strip()
+                    if not raw_type:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="UPDATE_BOND requires non-empty type",
+                        )
+                    next_type = normalize_bond_type(raw_type)
+                    expected_event_seq = self._parse_expected_event_seq(
+                        task.params.get("expected_event_seq"),
+                        field_name="expected_event_seq",
+                    )
+                    await self._enforce_expected_entity_event_seq(
+                        session=session,
+                        user_id=user_id,
+                        galaxy_id=galaxy_id,
+                        branch_id=branch_id,
+                        entity_id=bond.id,
+                        expected_event_seq=expected_event_seq,
+                        context=f"UPDATE_BOND {bond.id}",
+                    )
+
+                    current_type = normalize_bond_type(bond.type)
+                    if next_type == current_type:
+                        result.bonds.append(bond)
+                        continue
+
+                    source_uuid = bond.source_id
+                    target_uuid = bond.target_id
+                    next_is_relation = next_type == "RELATION"
+                    if next_is_relation:
+                        source_uuid, target_uuid = self._canonical_relation_pair(source_uuid, target_uuid)
+
+                    duplicate = next(
+                        (
+                            candidate
+                            for candidate in bonds_by_id.values()
+                            if candidate.id != bond.id
+                            and normalize_bond_type(candidate.type) == next_type
+                            and (
+                                (candidate.source_id == source_uuid and candidate.target_id == target_uuid)
+                                or (
+                                    next_is_relation
+                                    and candidate.source_id == target_uuid
+                                    and candidate.target_id == source_uuid
+                                )
+                            )
+                        ),
+                        None,
+                    )
+                    if duplicate is not None:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail={
+                                "code": "BOND_TYPE_CONFLICT",
+                                "message": "Target bond type already exists for this edge",
+                                "bond_id": str(duplicate.id),
+                            },
+                        )
+
+                    replaced_event = await append_and_project_event(
+                        entity_id=bond.id,
+                        event_type="BOND_SOFT_DELETED",
+                        payload={"replaced_by_type": next_type},
+                    )
+                    bond.is_deleted = True
+                    bond.deleted_at = replaced_event.timestamp
+                    bond.current_event_seq = int(replaced_event.event_seq)
+                    if bond.id not in result.extinguished_bond_ids:
+                        result.extinguished_bond_ids.append(bond.id)
+                    bonds_by_id.pop(bond.id, None)
+
+                    new_bond_id = uuid4()
+                    formed_event = await append_and_project_event(
+                        entity_id=new_bond_id,
+                        event_type="BOND_FORMED",
+                        payload={
+                            "source_id": str(source_uuid),
+                            "target_id": str(target_uuid),
+                            "type": next_type,
+                        },
+                    )
+                    new_bond = ProjectedBond(
+                        id=new_bond_id,
+                        source_id=source_uuid,
+                        target_id=target_uuid,
+                        type=next_type,
+                        is_deleted=False,
+                        created_at=formed_event.timestamp,
+                        deleted_at=None,
+                        current_event_seq=int(formed_event.event_seq),
+                    )
+                    bonds_by_id[new_bond.id] = new_bond
+                    result.bonds.append(new_bond)
+                    continue
+
+                if action == "EXTINGUISH_BOND":
+                    bond_uuid = self._parse_uuid(task.params.get("bond_id"))
+                    if bond_uuid is None:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="EXTINGUISH_BOND requires valid bond_id",
+                        )
+                    bond = bonds_by_id.get(bond_uuid)
+                    if bond is None:
+                        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bond not found")
+
+                    expected_event_seq = self._parse_expected_event_seq(
+                        task.params.get("expected_event_seq"),
+                        field_name="expected_event_seq",
+                    )
+                    await self._enforce_expected_entity_event_seq(
+                        session=session,
+                        user_id=user_id,
+                        galaxy_id=galaxy_id,
+                        branch_id=branch_id,
+                        entity_id=bond.id,
+                        expected_event_seq=expected_event_seq,
+                        context=f"EXTINGUISH_BOND {bond.id}",
+                    )
+                    deleted_event = await append_and_project_event(
+                        entity_id=bond.id,
+                        event_type="BOND_SOFT_DELETED",
+                        payload={},
+                    )
+                    bond.is_deleted = True
+                    bond.deleted_at = deleted_event.timestamp
+                    bond.current_event_seq = int(deleted_event.event_seq)
+                    bonds_by_id.pop(bond.id, None)
+                    result.bonds.append(bond)
+                    if bond.id not in result.extinguished_bond_ids:
+                        result.extinguished_bond_ids.append(bond.id)
                     continue
 
                 if action == "SELECT":

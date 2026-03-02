@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   API_BASE,
+  apiErrorFromResponse,
   apiFetch,
+  bondSemanticsFromType,
+  buildOccConflictMessage,
   buildGalaxyBondsUrl,
   buildGalaxyEventsStreamUrl,
   buildGalaxyMoonsUrl,
@@ -13,6 +16,8 @@ import {
   buildParserPayload,
   buildSnapshotUrl,
   buildTablesUrl,
+  isOccConflictError,
+  normalizeBondType,
   normalizeSnapshot,
   toAsOfIso,
 } from "../../lib/dataverseApi";
@@ -151,6 +156,32 @@ function resolveStatusColor(status) {
 }
 
 const RESERVED_METADATA_KEYS = new Set(["table", "table_id", "table_name"]);
+const QUICK_LINK_TYPE_OPTIONS = [
+  {
+    value: "RELATION",
+    label: "RELATION",
+    direction: "A ↔ B",
+    description: "Vzájemná vazba bez směru. A+B je stejná vazba jako B+A.",
+  },
+  {
+    value: "TYPE",
+    label: "TYPE",
+    direction: "A → B",
+    description: "Typová vazba. A je instance/součást typu B.",
+  },
+  {
+    value: "FLOW",
+    label: "FLOW",
+    direction: "A → B",
+    description: "Datový tok ze zdroje A do cíle B.",
+  },
+  {
+    value: "GUARDIAN",
+    label: "GUARDIAN",
+    direction: "A → B",
+    description: "Kontrolní/hlídací tok ze zdroje A na cíl B.",
+  },
+];
 
 export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }) {
   const {
@@ -214,6 +245,8 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
   const [quickGuardianThreshold, setQuickGuardianThreshold] = useState("1000");
   const [quickGuardianAction, setQuickGuardianAction] = useState("ALERT");
   const [quickDeleteTargetId, setQuickDeleteTargetId] = useState("");
+  const [selectedBondId, setSelectedBondId] = useState("");
+  const [bondEditorType, setBondEditorType] = useState("RELATION");
   const [branches, setBranches] = useState([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
   const [branchesError, setBranchesError] = useState("");
@@ -472,11 +505,14 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
           const sourceAsteroid = asteroidsById.get(sourceId);
           const targetAsteroid = asteroidsById.get(targetId);
           if (!sourceAsteroid || !targetAsteroid) return;
+          const semantics = bondSemanticsFromType(payload.type || "RELATION");
           bondsById.set(entityId, {
             id: entityId,
             source_id: sourceId,
             target_id: targetId,
-            type: String(payload.type || "RELATION"),
+            type: semantics.type,
+            directional: semantics.directional,
+            flow_direction: semantics.flow_direction,
             source_table_id: String(sourceAsteroid.table_id || ""),
             source_table_name: String(sourceAsteroid.table_name || "Unknown"),
             source_constellation_name: String(sourceAsteroid.constellation_name || "Unknown"),
@@ -932,9 +968,17 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     () => snapshot.asteroids.find((asteroid) => String(asteroid.id) === String(selectedAsteroidId || "")) || null,
     [selectedAsteroidId, snapshot.asteroids]
   );
+  const selectedBond = useMemo(
+    () => snapshot.bonds.find((bond) => String(bond.id) === String(selectedBondId || "")) || null,
+    [selectedBondId, snapshot.bonds]
+  );
   const selectedMoonV1 = useMemo(
     () => moons.find((item) => String(item.asteroid_id) === String(selectedAsteroidId || "")) || null,
     [moons, selectedAsteroidId]
+  );
+  const selectedBondV1 = useMemo(
+    () => bondsV1.find((item) => String(item.bond_id) === String(selectedBondId || "")) || null,
+    [bondsV1, selectedBondId]
   );
   const selectedSemantic = useMemo(
     () => splitEntityAndPlanetName(selectedTable),
@@ -955,6 +999,10 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         })
         .sort((a, b) => a.label.localeCompare(b.label)),
     [snapshot.asteroids, tables]
+  );
+  const selectedQuickLinkTypeOption = useMemo(
+    () => QUICK_LINK_TYPE_OPTIONS.find((item) => item.value === quickLinkType) || QUICK_LINK_TYPE_OPTIONS[0],
+    [quickLinkType]
   );
 
   useEffect(() => {
@@ -979,6 +1027,19 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     setQuickLinkSourceId((previous) => (previous && validIds.has(previous) ? previous : firstId));
     setQuickLinkTargetId((previous) => (previous && validIds.has(previous) ? previous : secondId));
   }, [moonQuickOptions]);
+
+  useEffect(() => {
+    if (!selectedBondId) return;
+    const exists = snapshot.bonds.some((bond) => String(bond.id) === String(selectedBondId));
+    if (!exists) {
+      setSelectedBondId("");
+    }
+  }, [selectedBondId, snapshot.bonds]);
+
+  useEffect(() => {
+    if (!selectedBond) return;
+    setBondEditorType(normalizeBondType(selectedBond.type || "RELATION"));
+  }, [selectedBond]);
 
   const tableRows = useMemo(() => {
     if (!selectedTable) return [];
@@ -1079,7 +1140,12 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
           body: JSON.stringify(buildParserPayload(normalized, galaxy.id, activeBranchId)),
         });
         if (!response.ok) {
-          throw new Error(`Parser failed: ${response.status}`);
+          const apiError = await apiErrorFromResponse(response, "Parser failed");
+          if (isOccConflictError(apiError)) {
+            await loadUniverse();
+            throw new Error(buildOccConflictMessage(apiError, "parser execute"));
+          }
+          throw apiError;
         }
         if (clearInput) {
           setQuery("");
@@ -1260,34 +1326,120 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
 
   const mutateAsteroid = useCallback(
     async (asteroidId, payload) => {
+      const asteroid = snapshot.asteroids.find((item) => String(item?.id) === String(asteroidId));
+      const expectedEventSeq =
+        Number.isInteger(asteroid?.current_event_seq) && payload?.expected_event_seq === undefined
+          ? asteroid.current_event_seq
+          : payload?.expected_event_seq;
       const response = await apiFetch(`${API_BASE}/asteroids/${asteroidId}/mutate`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, galaxy_id: galaxy.id, branch_id: activeBranchId }),
+        body: JSON.stringify({
+          ...payload,
+          ...(expectedEventSeq !== undefined ? { expected_event_seq: expectedEventSeq } : {}),
+          galaxy_id: galaxy.id,
+          branch_id: activeBranchId,
+        }),
       });
       if (!response.ok) {
-        throw new Error(`Mutate failed: ${response.status}`);
+        const apiError = await apiErrorFromResponse(response, "Mutate failed");
+        if (isOccConflictError(apiError)) {
+          await loadUniverse();
+          throw new Error(buildOccConflictMessage(apiError, "mutace bunky"));
+        }
+        throw apiError;
       }
       await loadUniverse();
     },
-    [activeBranchId, galaxy.id, loadUniverse]
+    [activeBranchId, galaxy.id, loadUniverse, snapshot.asteroids]
   );
 
   const extinguishAsteroid = useCallback(
     async (asteroidId) => {
+      const asteroid = snapshot.asteroids.find((item) => String(item?.id) === String(asteroidId));
       const query = new URLSearchParams({ galaxy_id: String(galaxy.id) });
       if (activeBranchId) {
         query.set("branch_id", String(activeBranchId));
+      }
+      if (Number.isInteger(asteroid?.current_event_seq)) {
+        query.set("expected_event_seq", String(asteroid.current_event_seq));
       }
       const response = await apiFetch(`${API_BASE}/asteroids/${asteroidId}/extinguish?${query.toString()}`, {
         method: "PATCH",
       });
       if (!response.ok) {
-        throw new Error(`Extinguish failed: ${response.status}`);
+        const apiError = await apiErrorFromResponse(response, "Extinguish failed");
+        if (isOccConflictError(apiError)) {
+          await loadUniverse();
+          throw new Error(buildOccConflictMessage(apiError, "zhasnuti mesice"));
+        }
+        throw apiError;
       }
       await loadUniverse();
     },
-    [activeBranchId, galaxy.id, loadUniverse]
+    [activeBranchId, galaxy.id, loadUniverse, snapshot.asteroids]
+  );
+
+  const mutateBondType = useCallback(
+    async (bondId, nextType) => {
+      const bond = snapshot.bonds.find((item) => String(item?.id) === String(bondId));
+      if (!bond) {
+        throw new Error("Vazba uz neexistuje.");
+      }
+      const normalizedType = normalizeBondType(nextType);
+      const response = await apiFetch(`${API_BASE}/bonds/${bondId}/mutate`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: normalizedType,
+          ...(Number.isInteger(bond?.current_event_seq) ? { expected_event_seq: bond.current_event_seq } : {}),
+          galaxy_id: galaxy.id,
+          branch_id: activeBranchId,
+        }),
+      });
+      if (!response.ok) {
+        const apiError = await apiErrorFromResponse(response, "Bond mutate failed");
+        if (isOccConflictError(apiError)) {
+          await loadUniverse();
+          throw new Error(buildOccConflictMessage(apiError, "zmena typu vazby"));
+        }
+        throw apiError;
+      }
+      const body = await response.json();
+      setSelectedBondId(String(body?.id || ""));
+      await loadUniverse();
+    },
+    [activeBranchId, galaxy.id, loadUniverse, snapshot.bonds]
+  );
+
+  const extinguishBond = useCallback(
+    async (bondId) => {
+      const bond = snapshot.bonds.find((item) => String(item?.id) === String(bondId));
+      if (!bond) {
+        throw new Error("Vazba uz neexistuje.");
+      }
+      const query = new URLSearchParams({ galaxy_id: String(galaxy.id) });
+      if (activeBranchId) {
+        query.set("branch_id", String(activeBranchId));
+      }
+      if (Number.isInteger(bond?.current_event_seq)) {
+        query.set("expected_event_seq", String(bond.current_event_seq));
+      }
+      const response = await apiFetch(`${API_BASE}/bonds/${bondId}/extinguish?${query.toString()}`, {
+        method: "PATCH",
+      });
+      if (!response.ok) {
+        const apiError = await apiErrorFromResponse(response, "Bond extinguish failed");
+        if (isOccConflictError(apiError)) {
+          await loadUniverse();
+          throw new Error(buildOccConflictMessage(apiError, "zhasnuti vazby"));
+        }
+        throw apiError;
+      }
+      setSelectedBondId("");
+      await loadUniverse();
+    },
+    [activeBranchId, galaxy.id, loadUniverse, snapshot.bonds]
   );
 
   const handleCommand = useCallback(
@@ -1327,26 +1479,40 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         return;
       }
       try {
+        const normalizedType = normalizeBondType(relationType);
+        const source = snapshot.asteroids.find((item) => String(item?.id) === String(sourceId));
+        const target = snapshot.asteroids.find((item) => String(item?.id) === String(targetId));
         const response = await apiFetch(`${API_BASE}/bonds/link`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             source_id: sourceId,
             target_id: targetId,
-            type: relationType,
+            type: normalizedType,
+            ...(Number.isInteger(source?.current_event_seq) ? { expected_source_event_seq: source.current_event_seq } : {}),
+            ...(Number.isInteger(target?.current_event_seq) ? { expected_target_event_seq: target.current_event_seq } : {}),
             galaxy_id: galaxy.id,
             branch_id: activeBranchId,
           }),
         });
         if (!response.ok) {
-          throw new Error(`Link failed: ${response.status}`);
+          const apiError = await apiErrorFromResponse(response, "Link failed");
+          if (isOccConflictError(apiError)) {
+            await loadUniverse();
+            throw new Error(buildOccConflictMessage(apiError, "vytvoreni vazby"));
+          }
+          throw apiError;
+        }
+        const body = await response.json();
+        if (body?.id) {
+          setSelectedBondId(String(body.id));
         }
         await loadUniverse();
       } catch (linkError) {
         setError(linkError.message || "Link creation failed");
       }
     },
-    [activeBranchId, galaxy.id, historicalMode, loadUniverse]
+    [activeBranchId, galaxy.id, historicalMode, loadUniverse, snapshot.asteroids]
   );
 
   const handleQuickCreate = useCallback(async () => {
@@ -1541,6 +1707,12 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         onLinkCancel={clearLinkDraft}
         onHoverLink={setHoveredLink}
         onLeaveLink={() => setHoveredLink(null)}
+        onSelectLink={(link) => {
+          const bondId = String(link?.id || "");
+          if (!bondId) return;
+          setSelectedBondId(bondId);
+          patchPanel("inspector", { collapsed: false });
+        }}
       />
 
       <div
@@ -1602,7 +1774,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
           Vazby:
           <span style={{ marginLeft: 5, color: "#58d2ff" }}>RELATION</span>
           <span style={{ marginLeft: 6, color: "#91a8ff" }}>TYPE</span>
-          <span style={{ marginLeft: 6, color: "#84ffd1" }}>FORMULA</span>
+          <span style={{ marginLeft: 6, color: "#84ffd1" }}>FLOW</span>
           <span style={{ marginLeft: 6, color: "#ffb15f" }}>GUARDIAN</span>
         </span>
         <span style={{ opacity: 0.78 }}>
@@ -1894,13 +2066,15 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
           </div>
 
           <div style={{ display: "grid", gap: 5, marginBottom: 8 }}>
-            <div style={miniTitleStyle}>Rychla vazba (RELATION / TYPE / FORMULA / GUARDIAN)</div>
+            <div style={miniTitleStyle}>Rychla vazba (RELATION / TYPE / FLOW / GUARDIAN)</div>
             <select value={quickLinkType} onChange={(event) => setQuickLinkType(event.target.value)} style={selectStyle}>
-              <option value="RELATION">RELATION (obousmerna)</option>
-              <option value="TYPE">TYPE (A to B)</option>
-              <option value="FORMULA">FORMULA (A to B)</option>
-              <option value="GUARDIAN">GUARDIAN (A to B)</option>
+              {QUICK_LINK_TYPE_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label} ({item.direction})
+                </option>
+              ))}
             </select>
+            <div style={{ fontSize: 11, opacity: 0.78 }}>{selectedQuickLinkTypeOption.description}</div>
             <select value={quickLinkSourceId} onChange={(event) => setQuickLinkSourceId(event.target.value)} style={selectStyle}>
               <option value="">Zdrojovy Mesic</option>
               {moonQuickOptions.map((item) => (
@@ -2245,6 +2419,8 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
                   key={`${item.bond_id}`}
                   type="button"
                   onClick={() => {
+                    setSelectedBondId(String(item.bond_id));
+                    patchPanel("inspector", { collapsed: false });
                     if (sourceNode) {
                       focusAsteroid({ asteroidId: sourceNode.id, cameraTarget: sourceNode.position, cameraDistance: 58 });
                     } else if (targetNode) {
@@ -2372,9 +2548,76 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
               Zhasnout mesic (Soft Delete)
             </button>
           </div>
+        ) : selectedBond ? (
+          <div style={{ display: "grid", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, opacity: 0.74 }}>VAZBA / TOK</div>
+              <div style={{ marginTop: 3, fontSize: 16, fontWeight: 700 }}>
+                {selectedBond.type} · {selectedBond.directional ? "A→B" : "A↔B"}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.72 }}>{String(selectedBond.id)}</div>
+              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.84 }}>
+                {selectedBond.source_id} → {selectedBond.target_id}
+              </div>
+              {selectedBondV1 ? (
+                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
+                  V1:{" "}
+                  <strong style={{ color: resolveStatusColor(selectedBondV1.status) }}>
+                    {selectedBondV1.status}
+                  </strong>{" "}
+                  ({selectedBondV1.quality_score}/100)
+                </div>
+              ) : null}
+            </div>
+
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 11, opacity: 0.68 }}>Typ vazby</div>
+              <select
+                value={bondEditorType}
+                onChange={(event) => setBondEditorType(event.target.value)}
+                disabled={historicalMode}
+                style={selectStyle}
+              >
+                {QUICK_LINK_TYPE_OPTIONS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label} ({item.direction})
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: 11, opacity: 0.78 }}>
+                {(QUICK_LINK_TYPE_OPTIONS.find((item) => item.value === bondEditorType) || QUICK_LINK_TYPE_OPTIONS[0]).description}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={historicalMode}
+              onClick={() =>
+                mutateBondType(selectedBond.id, bondEditorType).catch((mutError) =>
+                  setError(mutError.message || "Bond mutate failed")
+                )
+              }
+              style={ghostButtonStyle}
+            >
+              Ulozit typ vazby
+            </button>
+
+            <button
+              type="button"
+              disabled={historicalMode}
+              onClick={() =>
+                extinguishBond(selectedBond.id).catch((extError) =>
+                  setError(extError.message || "Bond soft delete failed")
+                )
+              }
+              style={{ ...ghostButtonStyle, borderColor: "rgba(255, 136, 166, 0.4)", color: "#ffc6d8" }}
+            >
+              Zhasnout vazbu (Soft Delete)
+            </button>
+          </div>
         ) : (
           <div style={{ fontSize: 13, opacity: 0.78 }}>
-            Klikni na mesic nebo pouzij prave tlacitko mysi. Otevre se kontext menu a detail tezby bunek.
+            Klikni na mesic nebo vazbu. Inspector zobrazi editor detailu objektu.
           </div>
         )}
       </FloatingPanel>

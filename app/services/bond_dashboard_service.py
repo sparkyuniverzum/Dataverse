@@ -6,12 +6,11 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.bond_semantics import bond_semantics
 from app.services.universe_service import DEFAULT_GALAXY_ID, UniverseService, derive_table_id, derive_table_name, split_constellation_and_planet_name
 
 
 class BondDashboardService:
-    DIRECTIONAL_TYPES = {"TYPE", "FORMULA", "GUARDIAN"}
-
     def __init__(self, *, universe_service: UniverseService | None = None) -> None:
         self.universe_service = universe_service or UniverseService()
 
@@ -94,9 +93,10 @@ class BondDashboardService:
             if source is None or target is None:
                 continue
 
-            bond_type = str(bond.type or "RELATION").upper()
-            directional = bond_type in self.DIRECTIONAL_TYPES
-            flow_direction = "source_to_target" if directional else "bidirectional"
+            semantics = bond_semantics(bond.type)
+            bond_type = semantics.bond_type
+            directional = semantics.directional
+            flow_direction = semantics.flow_direction
 
             alerts_count = int(source["alerts_count"]) + int(target["alerts_count"])
             circular_count = int(source["circular_fields_count"]) + int(target["circular_fields_count"])
@@ -142,4 +142,3 @@ class BondDashboardService:
             )
         )
         return rows
-

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  apiErrorFromResponse,
+  bondSemanticsFromType,
+  buildOccConflictMessage,
   buildGalaxyEventsStreamUrl,
   buildImportJobErrorsUrl,
   buildImportJobUrl,
@@ -9,6 +12,9 @@ import {
   buildSnapshotExportUrl,
   buildSnapshotUrl,
   buildTablesExportUrl,
+  isOccConflictError,
+  normalizeBondType,
+  normalizeApiErrorPayload,
   normalizeSnapshot,
   toAsOfIso,
 } from "./dataverseApi";
@@ -103,5 +109,66 @@ describe("io urls", () => {
     expect(tablesUrl).toContain("format=csv");
     expect(tablesUrl).toContain("galaxy_id=g-2");
     expect(tablesUrl).toContain("branch_id=br-2");
+  });
+});
+
+describe("api error helpers", () => {
+  it("normalizes OCC conflict payload", () => {
+    const normalized = normalizeApiErrorPayload(
+      {
+        detail: {
+          code: "OCC_CONFLICT",
+          message: "OCC conflict for asteroid mutate",
+          context: "asteroid mutate",
+          expected_event_seq: 2,
+          current_event_seq: 3,
+        },
+      },
+      { status: 409, fallbackMessage: "Mutate failed" }
+    );
+    expect(normalized.status).toBe(409);
+    expect(normalized.code).toBe("OCC_CONFLICT");
+    expect(normalized.message).toContain("OCC conflict");
+  });
+
+  it("creates ApiError from response and detects OCC conflict", async () => {
+    const response = new Response(
+      JSON.stringify({
+        detail: {
+          code: "OCC_CONFLICT",
+          message: "OCC conflict for source link",
+          context: "source link",
+          expected_event_seq: 5,
+          current_event_seq: 7,
+        },
+      }),
+      { status: 409, headers: { "Content-Type": "application/json" } }
+    );
+    const error = await apiErrorFromResponse(response, "Link failed");
+    expect(error.name).toBe("ApiError");
+    expect(error.status).toBe(409);
+    expect(isOccConflictError(error)).toBe(true);
+    expect(buildOccConflictMessage(error, "vytvoreni vazby")).toContain("Data byla obnovena");
+  });
+});
+
+describe("bond semantics helpers", () => {
+  it("normalizes aliases to canonical bond type", () => {
+    expect(normalizeBondType("formula")).toBe("FLOW");
+    expect(normalizeBondType(" rel ")).toBe("RELATION");
+    expect(normalizeBondType("guardian")).toBe("GUARDIAN");
+  });
+
+  it("returns directional flags for normalized bond type", () => {
+    expect(bondSemanticsFromType("RELATION")).toEqual({
+      type: "RELATION",
+      directional: false,
+      flow_direction: "bidirectional",
+    });
+    expect(bondSemanticsFromType("FLOW")).toEqual({
+      type: "FLOW",
+      directional: true,
+      flow_direction: "source_to_target",
+    });
   });
 });

@@ -56,7 +56,7 @@ jobs:
 
       - name: Backend integration smoke
         run: |
-          pytest -q tests/test_api_integration.py -k "snapshot_v1_contract or tables_v1_contract or task_executor_rolls_back_on_failed_link or execute_tasks_rollback_after_partial_write or guardian_command_is_idempotent_for_same_rule"
+          pytest -q tests/test_api_integration.py -k "snapshot_v1_contract or tables_v1_contract or task_executor_rolls_back_on_failed_link or execute_tasks_rollback_after_partial_write or guardian_command_is_idempotent_for_same_rule or mutate_asteroid_occ_parallel_writes_allow_single_winner or link_parallel_same_relation_returns_single_bond or bond_mutate_replaces_type_and_preserves_single_active_edge or bond_extinguish_soft_deletes_link"
 
       - name: Parser2 release gate integration tests
         run: |

@@ -21,6 +21,7 @@ from app.schemas import (
     BranchPromoteResponse,
     BranchPublic,
     BondCreateRequest,
+    BondMutateRequest,
     BondSummaryPublic,
     BondSummaryResponse,
     BondResponse,
@@ -56,6 +57,7 @@ from app.schemas import (
 )
 from app.services.auth_service import AuthService, get_current_user
 from app.services.bond_dashboard_service import BondDashboardService
+from app.services.bond_semantics import bond_semantics
 from app.services.cosmos_service import CosmosService
 from app.services.constellation_dashboard_service import ConstellationDashboardService
 from app.services.event_store_service import EventStoreService
@@ -360,21 +362,27 @@ def asteroid_to_response(asteroid: ProjectedAsteroid | Mapping[str, Any]) -> Ast
 
 def bond_to_response(bond: ProjectedBond | Mapping[str, Any]) -> BondResponse:
     if isinstance(bond, Mapping):
+        semantics = bond_semantics(bond.get("type", "RELATION"))
         return BondResponse(
             id=bond["id"],
             source_id=bond["source_id"],
             target_id=bond["target_id"],
-            type=bond.get("type", "RELATION"),
+            type=semantics.bond_type,
+            directional=semantics.directional,
+            flow_direction=semantics.flow_direction,
             is_deleted=bool(bond.get("is_deleted", False)),
             created_at=bond["created_at"],
             deleted_at=bond.get("deleted_at"),
             current_event_seq=int(bond.get("current_event_seq", 0) or 0),
         )
+    semantics = bond_semantics(bond.type)
     return BondResponse(
         id=bond.id,
         source_id=bond.source_id,
         target_id=bond.target_id,
-        type=bond.type,
+        type=semantics.bond_type,
+        directional=semantics.directional,
+        flow_direction=semantics.flow_direction,
         is_deleted=bond.is_deleted,
         created_at=bond.created_at,
         deleted_at=bond.deleted_at,
@@ -465,6 +473,7 @@ def universe_bond_to_snapshot(
 ) -> UniverseBondSnapshot:
     table_index = asteroid_table_index or {}
     if isinstance(bond, Mapping):
+        semantics = bond_semantics(bond.get("type", "RELATION"))
         source_id = bond["source_id"]
         target_id = bond["target_id"]
         source_table_id, source_table_name, source_constellation_name, source_planet_name = table_index.get(
@@ -479,7 +488,9 @@ def universe_bond_to_snapshot(
             id=bond["id"],
             source_id=source_id,
             target_id=target_id,
-            type=bond.get("type", "RELATION"),
+            type=semantics.bond_type,
+            directional=semantics.directional,
+            flow_direction=semantics.flow_direction,
             source_table_id=source_table_id,
             source_table_name=source_table_name,
             source_constellation_name=source_constellation_name,
@@ -490,6 +501,7 @@ def universe_bond_to_snapshot(
             target_planet_name=target_planet_name,
             current_event_seq=int(bond.get("current_event_seq", 0) or 0),
         )
+    semantics = bond_semantics(bond.type)
     source_table_id, source_table_name, source_constellation_name, source_planet_name = table_index.get(
         bond.source_id,
         (DEFAULT_GALAXY_ID, "Unknown", "Unknown", "Unknown"),
@@ -502,7 +514,9 @@ def universe_bond_to_snapshot(
         id=bond.id,
         source_id=bond.source_id,
         target_id=bond.target_id,
-        type=bond.type,
+        type=semantics.bond_type,
+        directional=semantics.directional,
+        flow_direction=semantics.flow_direction,
         source_table_id=source_table_id,
         source_table_name=source_table_name,
         source_constellation_name=source_constellation_name,
@@ -1425,6 +1439,196 @@ async def link_bond(
         return replayed_response
     if response_to_store is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Bond link failed")
+    return response_to_store
+
+
+@app.patch("/bonds/{bond_id}/mutate", response_model=BondResponse, status_code=status.HTTP_200_OK)
+async def mutate_bond(
+    bond_id: UUID,
+    payload: BondMutateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> BondResponse:
+    tasks = [
+        AtomicTask(
+            action="UPDATE_BOND",
+            params={
+                "bond_id": str(bond_id),
+                "type": payload.type,
+                **(
+                    {"expected_event_seq": payload.expected_event_seq}
+                    if payload.expected_event_seq is not None
+                    else {}
+                ),
+            },
+        )
+    ]
+    normalized_idempotency_key = normalize_idempotency_key(payload.idempotency_key)
+    endpoint_key = "PATCH:/bonds/{bond_id}/mutate"
+    replayed_response: BondResponse | None = None
+    response_to_store: BondResponse | None = None
+    async with transactional_context(session):
+        target_galaxy_id = await resolve_galaxy_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=payload.galaxy_id,
+        )
+        target_branch_id = await resolve_branch_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=target_galaxy_id,
+            branch_id=payload.branch_id,
+        )
+        request_hash = None
+        if normalized_idempotency_key is not None:
+            request_hash = idempotency_service.request_hash(
+                {
+                    "bond_id": str(bond_id),
+                    "type": payload.type,
+                    "expected_event_seq": payload.expected_event_seq,
+                }
+            )
+            replay = await idempotency_service.check_replay(
+                session=session,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                endpoint=endpoint_key,
+                idempotency_key=normalized_idempotency_key,
+                request_hash=request_hash,
+            )
+            if replay is not None:
+                replayed_response = BondResponse.model_validate(replay.response_payload)
+            else:
+                execution = await task_executor_service.execute_tasks(
+                    session=session,
+                    tasks=tasks,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    manage_transaction=False,
+                )
+                if not execution.bonds:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bond not found")
+                response_to_store = bond_to_response(execution.bonds[-1])
+                await idempotency_service.store_response(
+                    session=session,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    endpoint=endpoint_key,
+                    idempotency_key=normalized_idempotency_key,
+                    request_hash=request_hash,
+                    status_code=status.HTTP_200_OK,
+                    response_payload=response_to_store.model_dump(mode="json"),
+                )
+        else:
+            execution = await task_executor_service.execute_tasks(
+                session=session,
+                tasks=tasks,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                manage_transaction=False,
+            )
+            if not execution.bonds:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bond not found")
+            response_to_store = bond_to_response(execution.bonds[-1])
+    await commit_if_active(session)
+    if replayed_response is not None:
+        return replayed_response
+    if response_to_store is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bond not found")
+    return response_to_store
+
+
+@app.patch("/bonds/{bond_id}/extinguish", response_model=BondResponse, status_code=status.HTTP_200_OK)
+async def extinguish_bond(
+    bond_id: UUID,
+    galaxy_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    expected_event_seq: int | None = Query(default=None, ge=0),
+    idempotency_key: str | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> BondResponse:
+    params: dict[str, Any] = {"bond_id": str(bond_id)}
+    if expected_event_seq is not None:
+        params["expected_event_seq"] = expected_event_seq
+    tasks = [AtomicTask(action="EXTINGUISH_BOND", params=params)]
+
+    normalized_idempotency_key = normalize_idempotency_key(idempotency_key)
+    endpoint_key = "PATCH:/bonds/{bond_id}/extinguish"
+    replayed_response: BondResponse | None = None
+    response_to_store: BondResponse | None = None
+    async with transactional_context(session):
+        target_galaxy_id = await resolve_galaxy_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=galaxy_id,
+        )
+        target_branch_id = await resolve_branch_id_for_user(
+            session=session,
+            user=current_user,
+            galaxy_id=target_galaxy_id,
+            branch_id=branch_id,
+        )
+        request_hash = None
+        if normalized_idempotency_key is not None:
+            request_hash = idempotency_service.request_hash(
+                {"bond_id": str(bond_id), "expected_event_seq": expected_event_seq}
+            )
+            replay = await idempotency_service.check_replay(
+                session=session,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                endpoint=endpoint_key,
+                idempotency_key=normalized_idempotency_key,
+                request_hash=request_hash,
+            )
+            if replay is not None:
+                replayed_response = BondResponse.model_validate(replay.response_payload)
+            else:
+                execution = await task_executor_service.execute_tasks(
+                    session=session,
+                    tasks=tasks,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    manage_transaction=False,
+                )
+                if not execution.bonds:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bond not found")
+                response_to_store = bond_to_response(execution.bonds[0])
+                await idempotency_service.store_response(
+                    session=session,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    endpoint=endpoint_key,
+                    idempotency_key=normalized_idempotency_key,
+                    request_hash=request_hash,
+                    status_code=status.HTTP_200_OK,
+                    response_payload=response_to_store.model_dump(mode="json"),
+                )
+        else:
+            execution = await task_executor_service.execute_tasks(
+                session=session,
+                tasks=tasks,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                manage_transaction=False,
+            )
+            if not execution.bonds:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bond not found")
+            response_to_store = bond_to_response(execution.bonds[0])
+    await commit_if_active(session)
+    if replayed_response is not None:
+        return replayed_response
+    if response_to_store is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bond not found")
     return response_to_store
 
 

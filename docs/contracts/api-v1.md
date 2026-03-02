@@ -12,6 +12,8 @@ Date: 2026-02-28
 - If table contract exists for resolved table, all effective writes are validated against it before events are appended.
 - Canonical domain language and semantics are defined in `docs/contracts/semantic-constitution-v1.md`.
 - Write endpoints support optional `idempotency_key`; same key + same payload in same scope replays stored response, same key + different payload returns `409`.
+- OCC conflicts (`409`) use unified payload:
+  - `{ "detail": { "code": "OCC_CONFLICT", "message": string, "context": string, "entity_id": uuid, "expected_event_seq": int, "current_event_seq": int } }`
 
 ## Auth
 ### `POST /auth/register`
@@ -102,10 +104,25 @@ Date: 2026-02-28
 ### `POST /bonds/link`
 - Auth required.
 - Request: `{ "source_id": uuid, "target_id": uuid, "type": string, "expected_source_event_seq"?: int>=0, "expected_target_event_seq"?: int>=0, "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
-- Response `200`: `BondResponse`.
+- Response `200`: `BondResponse` with `type`, `directional`, `flow_direction`.
 - `RELATION` semantics: canonical undirected pair (A-B equals B-A), reverse direction reuses existing active bond.
+- Type normalization: aliases are normalized before write (`FORMULA` -> `FLOW`, `REL`/`LINK` -> `RELATION`, `GUARD`/`WATCH` -> `GUARDIAN`).
 - OCC (optional): if expected source/target sequence is provided and differs from current sequence, endpoint returns `409`.
 - Errors: `422` same source/target or invalid context, `404` endpoint asteroid missing, `409` optimistic concurrency conflict.
+
+### `PATCH /bonds/{bond_id}/mutate`
+- Auth required.
+- Request: `{ "type": string, "expected_event_seq"?: int>=0, "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
+- Behavior: updates bond type by soft-deleting current bond event stream and creating a new canonical bond with new type.
+- Response `200`: updated `BondResponse` (can contain new `id` when type changed).
+- Errors: `404` bond not found, `409` OCC conflict or target edge/type already exists.
+
+### `PATCH /bonds/{bond_id}/extinguish`
+- Auth required.
+- Query: `galaxy_id?`, `branch_id?`, `expected_event_seq?`, `idempotency_key?`
+- Behavior: soft-deletes selected bond.
+- Response `200`: deleted `BondResponse` (`is_deleted=true`, `deleted_at!=null`).
+- Errors: `404` bond not found, `409` OCC conflict.
 
 ## Parser execution
 ### `POST /parser/execute`
@@ -138,7 +155,7 @@ Date: 2026-02-28
 - Response `200`:
 - `asteroids[]`: `{ id, value, table_id, table_name, metadata, calculated_values, active_alerts, created_at }`
 - `asteroids[]` include `current_event_seq` (latest event sequence visible in selected timeline).
-- `bonds[]`: `{ id, source_id, target_id, type, source_table_id, source_table_name, target_table_id, target_table_name, current_event_seq }`
+- `bonds[]`: `{ id, source_id, target_id, type, directional, flow_direction, source_table_id, source_table_name, target_table_id, target_table_name, current_event_seq }`
 - `as_of` behavior: only events with `timestamp <= as_of` are projected.
 - Access errors: `403` foreign galaxy, `404` galaxy not found/deleted.
 
