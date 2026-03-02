@@ -227,11 +227,12 @@ def moon_summary_to_public(item: Mapping[str, Any]) -> MoonSummaryPublic:
 
 
 def bond_summary_to_public(item: Mapping[str, Any]) -> BondSummaryPublic:
+    semantics = bond_semantics(item.get("type", "RELATION"))
     return BondSummaryPublic(
         bond_id=item["bond_id"],
-        type=str(item.get("type") or "RELATION"),
-        directional=bool(item.get("directional", False)),
-        flow_direction=str(item.get("flow_direction") or "source_to_target"),
+        type=semantics.bond_type,
+        directional=bool(item.get("directional", semantics.directional)),
+        flow_direction=str(item.get("flow_direction") or semantics.flow_direction),
         source_id=item["source_id"],
         target_id=item["target_id"],
         source_label=str(item.get("source_label") or ""),

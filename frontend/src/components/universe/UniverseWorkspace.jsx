@@ -183,7 +183,26 @@ const QUICK_LINK_TYPE_OPTIONS = [
   },
 ];
 
-export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }) {
+function buildBondMeaningSentence(bond, sourceLabel, targetLabel) {
+  const source = sourceLabel || "zdroj";
+  const target = targetLabel || "cil";
+  const type = normalizeBondType(bond?.type || "RELATION");
+  if (type === "RELATION") {
+    return `${source} a ${target} jsou vzajemne provazane (obousmerne).`;
+  }
+  if (type === "TYPE") {
+    return `${source} je instancni/soucastny prvek typu ${target}.`;
+  }
+  if (type === "FLOW") {
+    return `Data tecou ze ${source} do ${target}.`;
+  }
+  if (type === "GUARDIAN") {
+    return `${source} hlida nebo spousti kontrolu nad ${target}.`;
+  }
+  return `Vazba vede ze ${source} do ${target}.`;
+}
+
+export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGalaxies, onLogout }) {
   const {
     level,
     selectedTableId,
@@ -194,6 +213,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     linkDraft,
     focusTable,
     focusAsteroid,
+    clearSelectedAsteroid,
     backToTables,
     openContextMenu,
     closeContextMenu,
@@ -972,6 +992,26 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     () => snapshot.bonds.find((bond) => String(bond.id) === String(selectedBondId || "")) || null,
     [selectedBondId, snapshot.bonds]
   );
+  const selectedBondSource = useMemo(
+    () => asteroidById.get(String(selectedBond?.source_id || "")) || null,
+    [asteroidById, selectedBond]
+  );
+  const selectedBondTarget = useMemo(
+    () => asteroidById.get(String(selectedBond?.target_id || "")) || null,
+    [asteroidById, selectedBond]
+  );
+  const selectedBondSourceLabel = useMemo(
+    () => valueToLabel(selectedBondSource?.value) || String(selectedBond?.source_id || ""),
+    [selectedBond, selectedBondSource]
+  );
+  const selectedBondTargetLabel = useMemo(
+    () => valueToLabel(selectedBondTarget?.value) || String(selectedBond?.target_id || ""),
+    [selectedBond, selectedBondTarget]
+  );
+  const selectedBondMeaning = useMemo(
+    () => buildBondMeaningSentence(selectedBond, selectedBondSourceLabel, selectedBondTargetLabel),
+    [selectedBond, selectedBondSourceLabel, selectedBondTargetLabel]
+  );
   const selectedMoonV1 = useMemo(
     () => moons.find((item) => String(item.asteroid_id) === String(selectedAsteroidId || "")) || null,
     [moons, selectedAsteroidId]
@@ -1003,6 +1043,17 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
   const selectedQuickLinkTypeOption = useMemo(
     () => QUICK_LINK_TYPE_OPTIONS.find((item) => item.value === quickLinkType) || QUICK_LINK_TYPE_OPTIONS[0],
     [quickLinkType]
+  );
+
+  const selectBondInInspector = useCallback(
+    (bondId) => {
+      const normalizedBondId = String(bondId || "").trim();
+      if (!normalizedBondId) return;
+      clearSelectedAsteroid();
+      setSelectedBondId(normalizedBondId);
+      patchPanel("inspector", { collapsed: false });
+    },
+    [clearSelectedAsteroid, patchPanel]
   );
 
   useEffect(() => {
@@ -1089,6 +1140,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         (asteroid) => normalizeText(String(asteroid.id)) === targetText || normalizeText(valueToLabel(asteroid.value)) === targetText
       );
       if (foundAsteroid) {
+        setSelectedBondId("");
         const table = resolveTableForAsteroid(tables, foundAsteroid.id);
         if (table) {
           const tableNode = tableNodes.find((node) => node.id === String(table.table_id));
@@ -1099,6 +1151,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         const asteroidNode = asteroidNodes.find((node) => node.id === String(foundAsteroid.id));
         if (asteroidNode) {
           focusAsteroid({ asteroidId: asteroidNode.id, cameraTarget: asteroidNode.position, cameraDistance: 56 });
+          patchPanel("inspector", { collapsed: false });
         }
         return true;
       }
@@ -1112,6 +1165,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
       if (foundTable) {
         const node = tableNodes.find((item) => item.id === String(foundTable.table_id));
         if (node) {
+          setSelectedBondId("");
           focusTable({ tableId: node.id, cameraTarget: node.position, cameraDistance: 220 });
           return true;
         }
@@ -1119,7 +1173,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
 
       return false;
     },
-    [asteroidNodes, focusAsteroid, focusTable, snapshot.asteroids, tableNodes, tables]
+    [asteroidNodes, focusAsteroid, focusTable, patchPanel, snapshot.asteroids, tableNodes, tables]
   );
 
   const executeParserCommand = useCallback(
@@ -1406,10 +1460,10 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         throw apiError;
       }
       const body = await response.json();
-      setSelectedBondId(String(body?.id || ""));
+      selectBondInInspector(body?.id);
       await loadUniverse();
     },
-    [activeBranchId, galaxy.id, loadUniverse, snapshot.bonds]
+    [activeBranchId, galaxy.id, loadUniverse, selectBondInInspector, snapshot.bonds]
   );
 
   const extinguishBond = useCallback(
@@ -1504,15 +1558,13 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
           throw apiError;
         }
         const body = await response.json();
-        if (body?.id) {
-          setSelectedBondId(String(body.id));
-        }
+        selectBondInInspector(body?.id);
         await loadUniverse();
       } catch (linkError) {
         setError(linkError.message || "Link creation failed");
       }
     },
-    [activeBranchId, galaxy.id, historicalMode, loadUniverse, snapshot.asteroids]
+    [activeBranchId, galaxy.id, historicalMode, loadUniverse, selectBondInInspector, snapshot.asteroids]
   );
 
   const handleQuickCreate = useCallback(async () => {
@@ -1618,6 +1670,28 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
     }
   }, [executeParserCommand, quickDeleteTargetId]);
 
+  const handleQuickCreateGalaxy = useCallback(async () => {
+    const suggestedName = `Nova galaxie ${new Date().toLocaleTimeString()}`;
+    const enteredName =
+      typeof window !== "undefined"
+        ? window.prompt("Nazev nove galaxie:", suggestedName)
+        : suggestedName;
+    const name = String(enteredName || "").trim();
+    if (!name) return;
+
+    setError("");
+    try {
+      if (typeof onCreateGalaxy !== "function") {
+        throw new Error("Vytvareni galaxie neni dostupne.");
+      }
+      const created = await onCreateGalaxy(name);
+      setImportInfo(`Galaxie vytvorena: ${created?.name || name}`);
+      onBackToGalaxies?.();
+    } catch (createError) {
+      setError(createError.message || "Create galaxy failed");
+    }
+  }, [onBackToGalaxies, onCreateGalaxy]);
+
   const handleContextAction = useCallback(
     async (action, menu) => {
       closeContextMenu();
@@ -1627,11 +1701,13 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         if (menu.kind === "table") {
           const table = tableNodes.find((node) => node.id === menu.id);
           if (table) {
+            setSelectedBondId("");
             focusTable({ tableId: table.id, cameraTarget: table.position, cameraDistance: 190 });
           }
         } else {
           const asteroid = asteroidNodes.find((node) => node.id === menu.id);
           if (asteroid) {
+            setSelectedBondId("");
             focusAsteroid({ asteroidId: asteroid.id, cameraTarget: asteroid.position, cameraDistance: 54 });
           }
         }
@@ -1639,6 +1715,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
       }
 
       if (action === "back") {
+        setSelectedBondId("");
         backToTables();
         return;
       }
@@ -1646,6 +1723,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
       if (action === "edit") {
         const asteroid = asteroidNodes.find((node) => node.id === menu.id);
         if (asteroid) {
+          setSelectedBondId("");
           focusAsteroid({ asteroidId: asteroid.id, cameraTarget: asteroid.position, cameraDistance: 54 });
           patchPanel("inspector", { collapsed: false });
         }
@@ -1691,13 +1769,16 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         onSelectTable={(tableId) => {
           const table = tableNodes.find((node) => node.id === tableId);
           if (table) {
+            setSelectedBondId("");
             focusTable({ tableId: table.id, cameraTarget: table.position, cameraDistance: 210 });
           }
         }}
         onSelectAsteroid={(asteroidId) => {
           const asteroid = asteroidNodes.find((node) => node.id === asteroidId);
           if (asteroid) {
+            setSelectedBondId("");
             focusAsteroid({ asteroidId: asteroid.id, cameraTarget: asteroid.position, cameraDistance: 56 });
+            patchPanel("inspector", { collapsed: false });
           }
         }}
         onOpenContext={openContextMenu}
@@ -1710,8 +1791,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
         onSelectLink={(link) => {
           const bondId = String(link?.id || "");
           if (!bondId) return;
-          setSelectedBondId(bondId);
-          patchPanel("inspector", { collapsed: false });
+          selectBondInInspector(bondId);
         }}
       />
 
@@ -1791,6 +1871,9 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
           style={{ ...hudButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
         >
           Galaxie
+        </button>
+        <button type="button" onClick={handleQuickCreateGalaxy} style={hudButtonStyle}>
+          Nova galaxie
         </button>
         <button
           type="button"
@@ -2241,6 +2324,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
                     if (!table) return;
                     const node = tableNodes.find((candidate) => candidate.id === String(table.table_id));
                     if (!node) return;
+                    setSelectedBondId("");
                     focusTable({ tableId: node.id, cameraTarget: node.position, cameraDistance: 220 });
                   }}
                   style={{
@@ -2296,6 +2380,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
                   type="button"
                   onClick={() => {
                     if (!tableNode) return;
+                    setSelectedBondId("");
                     focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 205 });
                   }}
                   style={{
@@ -2355,6 +2440,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
                   key={`${item.asteroid_id}`}
                   type="button"
                   onClick={() => {
+                    setSelectedBondId("");
                     if (tableNode) {
                       focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 198 });
                     }
@@ -2419,13 +2505,12 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
                   key={`${item.bond_id}`}
                   type="button"
                   onClick={() => {
-                    setSelectedBondId(String(item.bond_id));
-                    patchPanel("inspector", { collapsed: false });
                     if (sourceNode) {
                       focusAsteroid({ asteroidId: sourceNode.id, cameraTarget: sourceNode.position, cameraDistance: 58 });
                     } else if (targetNode) {
                       focusAsteroid({ asteroidId: targetNode.id, cameraTarget: targetNode.position, cameraDistance: 58 });
                     }
+                    selectBondInInspector(item.bond_id);
                   }}
                   style={{
                     border: "1px solid rgba(102, 196, 227, 0.28)",
@@ -2557,7 +2642,10 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
               </div>
               <div style={{ marginTop: 4, fontSize: 12, opacity: 0.72 }}>{String(selectedBond.id)}</div>
               <div style={{ marginTop: 4, fontSize: 12, opacity: 0.84 }}>
-                {selectedBond.source_id} → {selectedBond.target_id}
+                {selectedBondSourceLabel} → {selectedBondTargetLabel}
+              </div>
+              <div style={{ marginTop: 5, fontSize: 12, opacity: 0.92, color: "#9fe8ff", lineHeight: 1.35 }}>
+                Vyklad: {selectedBondMeaning}
               </div>
               {selectedBondV1 ? (
                 <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
@@ -2667,6 +2755,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout }
                         <input
                           value={currentValue}
                           onFocus={() => {
+                            setSelectedBondId("");
                             const table = resolveTableForAsteroid(tables, row.id);
                             if (table) {
                               const tableNode = tableNodes.find((item) => item.id === String(table.table_id));

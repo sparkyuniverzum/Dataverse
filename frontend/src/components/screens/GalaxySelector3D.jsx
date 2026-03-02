@@ -4,7 +4,14 @@ import { Billboard, OrbitControls, Stars, Text } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { API_BASE, apiFetch } from "../../lib/dataverseApi";
-import { GALAXY_GUIDE, MODEL_PATH_LABEL } from "../../lib/onboarding";
+import {
+  GALAXY_CREATION_PRESETS,
+  GALAXY_GUIDE,
+  GALAXY_PURPOSE_OPTIONS,
+  GALAXY_REGION_OPTIONS,
+  GALAXY_TIMEZONE_OPTIONS,
+  MODEL_PATH_LABEL,
+} from "../../lib/onboarding";
 
 function hashText(input) {
   const text = String(input || "");
@@ -428,6 +435,12 @@ export default function GalaxySelector3D({
 }) {
   const [candidateGalaxyId, setCandidateGalaxyId] = useState(selectedGalaxyId || "");
   const [hoveredGalaxyId, setHoveredGalaxyId] = useState("");
+  const [workspacePurpose, setWorkspacePurpose] = useState("general");
+  const [workspaceOwner, setWorkspaceOwner] = useState("");
+  const [workspaceTeam, setWorkspaceTeam] = useState("");
+  const [workspaceRegion, setWorkspaceRegion] = useState("global");
+  const [workspaceTimezone, setWorkspaceTimezone] = useState("UTC");
+  const [creationPreset, setCreationPreset] = useState("blank");
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
   const [summary, setSummary] = useState(null);
@@ -451,6 +464,14 @@ export default function GalaxySelector3D({
   const hoveredGalaxy = useMemo(
     () => galaxies.find((item) => String(item.id) === String(hoveredGalaxyId || "")) || null,
     [hoveredGalaxyId, galaxies]
+  );
+  const selectedCreationPreset = useMemo(
+    () => GALAXY_CREATION_PRESETS.find((item) => item.key === creationPreset) || GALAXY_CREATION_PRESETS[0],
+    [creationPreset]
+  );
+  const selectedPurposeOption = useMemo(
+    () => GALAXY_PURPOSE_OPTIONS.find((item) => item.key === workspacePurpose) || GALAXY_PURPOSE_OPTIONS[0],
+    [workspacePurpose]
   );
 
   useEffect(() => {
@@ -504,6 +525,7 @@ export default function GalaxySelector3D({
     : health?.status === "YELLOW"
       ? "#ffd28e"
       : "#8fffd2";
+  const noGalaxiesYet = galaxies.length === 0;
 
   return (
     <main style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#02050c" }}>
@@ -524,6 +546,129 @@ export default function GalaxySelector3D({
           }}
         />
       </Canvas>
+
+      {noGalaxiesYet ? (
+        <section
+          style={{
+            position: "fixed",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 33,
+            width: "min(680px, 92vw)",
+            borderRadius: 16,
+            border: "1px solid rgba(99, 192, 224, 0.44)",
+            background: "rgba(3, 11, 21, 0.92)",
+            color: "#dcf8ff",
+            padding: "14px 16px",
+            display: "grid",
+            gap: 10,
+            boxShadow: "0 0 34px rgba(30, 122, 171, 0.3)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <div style={{ fontSize: 18, fontWeight: 800 }}>Start: nejdriv zaloz prvni galaxii</div>
+          <div style={{ fontSize: 13, opacity: 0.9 }}>
+            Nemáš zatim zadny workspace. Udelej 5 kroku: 1) pojmenuj galaxii, 2) vyber ucel, 3) nastav owner/team a lokaci, 4) vyber predvyplneni, 5) klikni Vytvorit prvni galaxii.
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr minmax(190px, 250px)", gap: 8 }}>
+            <input
+              value={newGalaxyName}
+              onChange={(event) => onNameChange(event.target.value)}
+              placeholder="Krok 1: Nazev (napr. Firma 2026)"
+              style={inputStyle}
+            />
+            <select
+              value={workspacePurpose}
+              onChange={(event) => setWorkspacePurpose(event.target.value)}
+              style={selectStyle}
+            >
+              {GALAXY_PURPOSE_OPTIONS.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <input
+              value={workspaceOwner}
+              onChange={(event) => setWorkspaceOwner(event.target.value)}
+              placeholder="Krok 3: Owner (napr. jana.novak)"
+              style={inputStyle}
+            />
+            <input
+              value={workspaceTeam}
+              onChange={(event) => setWorkspaceTeam(event.target.value)}
+              placeholder="Team (napr. finance-core)"
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <select
+              value={workspaceRegion}
+              onChange={(event) => setWorkspaceRegion(event.target.value)}
+              style={selectStyle}
+            >
+              {GALAXY_REGION_OPTIONS.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={workspaceTimezone}
+              onChange={(event) => setWorkspaceTimezone(event.target.value)}
+              style={selectStyle}
+            >
+              {GALAXY_TIMEZONE_OPTIONS.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(190px, 250px) auto", gap: 8, justifyContent: "space-between" }}>
+            <select
+              value={creationPreset}
+              onChange={(event) => setCreationPreset(event.target.value)}
+              style={selectStyle}
+            >
+              {GALAXY_CREATION_PRESETS.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() =>
+                onCreate({
+                  preset: creationPreset,
+                  purpose: workspacePurpose,
+                  owner: workspaceOwner,
+                  team: workspaceTeam,
+                  region: workspaceRegion,
+                  timezone: workspaceTimezone,
+                })
+              }
+              disabled={busy || !newGalaxyName.trim()}
+              style={actionButtonStyle}
+            >
+              Vytvorit prvni galaxii
+            </button>
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.88 }}>
+            Krok 2 detail: <strong>{selectedPurposeOption.label}</strong> - {selectedPurposeOption.description}
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.88 }}>
+            Krok 3 detail: <strong>{selectedCreationPreset.label}</strong> - {selectedCreationPreset.description}
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>
+            Owner/team/region/timezone se ulozi do metadata predvyplnenych zaznamu.
+          </div>
+        </section>
+      ) : null}
 
       <div
         style={{
@@ -591,19 +736,107 @@ export default function GalaxySelector3D({
           <input
             value={newGalaxyName}
             onChange={(event) => onNameChange(event.target.value)}
-            placeholder="Nova galaxie"
+            placeholder="Nova galaxie (napr. Finance-Q2)"
             style={inputStyle}
           />
-          <button type="button" onClick={onCreate} disabled={busy || !newGalaxyName.trim()} style={actionButtonStyle}>
+          <button
+            type="button"
+            onClick={() =>
+              onCreate({
+                preset: creationPreset,
+                purpose: workspacePurpose,
+                owner: workspaceOwner,
+                team: workspaceTeam,
+                region: workspaceRegion,
+                timezone: workspaceTimezone,
+              })
+            }
+            disabled={busy || !newGalaxyName.trim()}
+            style={actionButtonStyle}
+          >
             Vytvořit
           </button>
+        </div>
+        <div style={{ display: "grid", gap: 6 }}>
+          <div style={{ fontSize: 11, letterSpacing: 0.5, opacity: 0.76 }}>Ucel workspace</div>
+          <select
+            value={workspacePurpose}
+            onChange={(event) => setWorkspacePurpose(event.target.value)}
+            style={selectStyle}
+          >
+            {GALAXY_PURPOSE_OPTIONS.map((item) => (
+              <option key={item.key} value={item.key}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <div style={{ fontSize: 12, opacity: 0.84 }}>{selectedPurposeOption.description}</div>
+        </div>
+        <div style={{ display: "grid", gap: 6 }}>
+          <div style={{ fontSize: 11, letterSpacing: 0.5, opacity: 0.76 }}>Owner, Team a Lokace</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <input
+              value={workspaceOwner}
+              onChange={(event) => setWorkspaceOwner(event.target.value)}
+              placeholder="owner"
+              style={inputStyle}
+            />
+            <input
+              value={workspaceTeam}
+              onChange={(event) => setWorkspaceTeam(event.target.value)}
+              placeholder="team"
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <select
+              value={workspaceRegion}
+              onChange={(event) => setWorkspaceRegion(event.target.value)}
+              style={selectStyle}
+            >
+              {GALAXY_REGION_OPTIONS.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={workspaceTimezone}
+              onChange={(event) => setWorkspaceTimezone(event.target.value)}
+              style={selectStyle}
+            >
+              {GALAXY_TIMEZONE_OPTIONS.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.84 }}>
+            Tyto hodnoty se pouziji jako default metadata pro seed data.
+          </div>
+        </div>
+        <div style={{ display: "grid", gap: 6 }}>
+          <div style={{ fontSize: 11, letterSpacing: 0.5, opacity: 0.76 }}>Preddefinovani pri vytvoreni</div>
+          <select
+            value={creationPreset}
+            onChange={(event) => setCreationPreset(event.target.value)}
+            style={selectStyle}
+          >
+            {GALAXY_CREATION_PRESETS.map((item) => (
+              <option key={item.key} value={item.key}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <div style={{ fontSize: 12, opacity: 0.84 }}>{selectedCreationPreset.description}</div>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
             type="button"
             onClick={() => candidateGalaxyId && onSelect(candidateGalaxyId)}
-            disabled={!candidateGalaxyId}
+            disabled={!candidateGalaxyId || noGalaxiesYet}
             style={actionButtonStyle}
           >
             Vstoupit
@@ -611,7 +844,7 @@ export default function GalaxySelector3D({
           <button
             type="button"
             onClick={() => candidateGalaxyId && onExtinguish(candidateGalaxyId)}
-            disabled={!candidateGalaxyId || busy}
+            disabled={!candidateGalaxyId || busy || noGalaxiesYet}
             style={dangerButtonStyle}
           >
             Zhasnout
@@ -625,7 +858,7 @@ export default function GalaxySelector3D({
         </div>
 
         <div style={{ fontSize: 12, opacity: 0.8 }}>
-          Tip: dvojklik na galaxii = okamžitý vstup.
+          {noGalaxiesYet ? "Nejdriv vytvor galaxii. Potom funguje klik=vyber, dvojklik=vstup." : "Tip: dvojklik na galaxii = okamzity vstup."}
         </div>
 
         <div
@@ -720,6 +953,11 @@ const inputStyle = {
   fontSize: 13,
   outline: "none",
   boxSizing: "border-box",
+};
+
+const selectStyle = {
+  ...inputStyle,
+  appearance: "none",
 };
 
 const actionButtonStyle = {

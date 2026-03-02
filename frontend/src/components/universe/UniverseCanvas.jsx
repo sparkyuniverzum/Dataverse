@@ -287,6 +287,13 @@ function resolveMoonV1Style(metrics) {
   };
 }
 
+function signatureColorFromSeed(seedText) {
+  const hue = (hashText(seedText) % 360) / 360;
+  const color = new THREE.Color();
+  color.setHSL(hue, 0.66, 0.6);
+  return color;
+}
+
 function samplePath(points, t) {
   const safe = Array.isArray(points) ? points : [];
   if (!safe.length) return [0, 0, 0];
@@ -334,12 +341,14 @@ function MouseGuideOverlay({ level, hoveredNode }) {
     ? [
         "LMB klik na Souhvezdi: vstup do Planety.",
         "RMB klik na Souhvezdi: menu (Vstoupit / Zpet).",
+        "Mesice jsou uvnitr planety (male body na orbite). Klikni na planetu.",
         "Drag pozadi: orbit kamery, kolecko: zoom.",
       ]
     : [
         "LMB klik na Mesic: fokus.",
         "RMB klik na Mesic: menu (Upravit / Zhasnout).",
         "RMB drag Mesic -> Mesic: nova vazba (alternativa Shift + LMB drag).",
+        "Vazba: klik na svetelnou krivku nebo jeji popisek (RELATION/FLOW/...).",
       ];
 
   const hoverTip = hoveredNode
@@ -393,6 +402,10 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
     const arc = (emphasized ? 0.1 : 0.08) + stress * 0.04 + flow * 0.02;
     return curvePoints(sourceNode.position, targetNode.position, arc, 40);
   }, [sourceNode, targetNode, emphasized, flow, stress]);
+  const interactionCurve = useMemo(
+    () => new THREE.CatmullRomCurve3(points.map((point) => new THREE.Vector3(point[0], point[1], point[2]))),
+    [points]
+  );
 
   const color = resolveLinkColor(link.type);
   const semantics = resolveLinkSemantic(link);
@@ -411,6 +424,30 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
   const sourcePlanet = String(link.source_planet_name || sourceNode.planetName || sourceNode.label || "Unknown");
   const targetConstellation = String(link.target_constellation_name || targetNode.entityName || "Unknown");
   const targetPlanet = String(link.target_planet_name || targetNode.planetName || targetNode.label || "Unknown");
+  const labelPoint = samplePath(points, 0.5);
+  const typeLabel = String(link.type || "RELATION").toUpperCase();
+  const directionLabel = semantics.directional ? "->" : "<->";
+  const interactionRadius = clamp((emphasized ? 2.8 : 2.4) + (stress + flow) * 0.45, 2.2, 4.2);
+
+  const buildHoverPayload = (event) => ({
+    id: link.id,
+    type: String(link.type || "RELATION"),
+    weight: weight,
+    sourceLabel: sourceNode.label,
+    targetLabel: targetNode.label,
+    sourceConstellation,
+    sourcePlanet,
+    targetConstellation,
+    targetPlanet,
+    directional: semantics.directional,
+    description: semantics.description,
+    v1Status,
+    v1Quality,
+    physicsStress: stress,
+    physicsFlow: flow,
+    x: event.nativeEvent.clientX,
+    y: event.nativeEvent.clientY,
+  });
 
   useFrame((state) => {
     if (dimmed) return;
@@ -436,29 +473,17 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
         lineWidth={lineWidth}
         transparent
         opacity={opacity}
+        raycast={() => null}
+      />
+      <mesh
         onPointerOver={(event) => {
           event.stopPropagation();
           setBodyCursor("pointer");
-          const payload = {
-            id: link.id,
-            type: String(link.type || "RELATION"),
-            weight: weight,
-            sourceLabel: sourceNode.label,
-            targetLabel: targetNode.label,
-            sourceConstellation,
-            sourcePlanet,
-            targetConstellation,
-            targetPlanet,
-            directional: semantics.directional,
-            description: semantics.description,
-            v1Status,
-            v1Quality,
-            physicsStress: stress,
-            physicsFlow: flow,
-            x: event.nativeEvent.clientX,
-            y: event.nativeEvent.clientY,
-          };
-          onHoverLink?.(payload);
+          onHoverLink?.(buildHoverPayload(event));
+        }}
+        onPointerMove={(event) => {
+          event.stopPropagation();
+          onHoverLink?.(buildHoverPayload(event));
         }}
         onClick={(event) => {
           event.stopPropagation();
@@ -477,7 +502,22 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
           setBodyCursor("auto");
           onLeaveLink?.();
         }}
-      />
+      >
+        <tubeGeometry args={[interactionCurve, 54, interactionRadius, 10, false]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <Billboard position={labelPoint}>
+        <Text
+          raycast={() => null}
+          fontSize={emphasized ? 2.15 : 1.85}
+          color={mixedColor}
+          anchorX="center"
+          anchorY="middle"
+          maxWidth={48}
+        >
+          {`${typeLabel} ${directionLabel}`}
+        </Text>
+      </Billboard>
       {!dimmed ? (
         <>
           <mesh ref={pulseRef}>
@@ -505,6 +545,7 @@ function TableNode({
   onLeaveNode,
 }) {
   const groupRef = useRef(null);
+  const previewRef = useRef(null);
   const visual = useMemo(() => buildConstellationVisual(node), [node.id, node.entityName, node.memberCount, node.radius, node.label]);
   const targetScaleRef = useRef(selected ? 1.16 : 1);
   const v1Style = resolvePlanetV1Style(node.v1);
@@ -515,6 +556,14 @@ function TableNode({
   const emissiveBoost = clamp(Number(physics?.emissiveBoost) || 0, 0, 0.9);
   const auraFactor = clamp(Number(physics?.auraFactor) || 1, 0.9, 2.2);
   const alertPressure = clamp(Number(physics?.alertPressure) || 0, 0, 1);
+  const signatureColor = useMemo(
+    () => signatureColorFromSeed(`${node.id}|${node.entityName || node.label}`).getStyle(),
+    [node.entityName, node.id, node.label]
+  );
+  const previewMoonCount = clamp(Number(node.memberCount || 0), 0, 5);
+  const previewOrbitRadius = node.radius * 2.15;
+  const previewMoonRadius = Math.max(0.5, node.radius * 0.11);
+  const previewPhase = useMemo(() => ((hashText(node.id) % 360) / 180) * Math.PI, [node.id]);
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
@@ -522,6 +571,10 @@ function TableNode({
     const nextScale = THREE.MathUtils.damp(groupRef.current.scale.x, targetScaleRef.current, 7, delta);
     groupRef.current.scale.set(nextScale, nextScale, nextScale);
     groupRef.current.rotation.y += delta * visual.spinSpeed * spinFactor;
+    if (previewRef.current) {
+      previewRef.current.rotation.y += delta * (0.24 + stress * 0.18);
+      previewRef.current.rotation.x = Math.sin(performance.now() * 0.00012 + previewPhase) * 0.07;
+    }
   });
 
   const coreMaterial = (
@@ -592,6 +645,17 @@ function TableNode({
           );
         })}
 
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[node.radius * 1.08, node.radius * 0.028, 14, 120]} />
+          <meshStandardMaterial
+            color={signatureColor}
+            emissive={signatureColor}
+            emissiveIntensity={selected ? 1.05 : 0.72}
+            transparent
+            opacity={0.86}
+          />
+        </mesh>
+
         <mesh>
           <sphereGeometry args={[node.radius * 1.2, 22, 22]} />
           <meshBasicMaterial
@@ -601,6 +665,28 @@ function TableNode({
             depthWrite={false}
           />
         </mesh>
+
+        {previewMoonCount > 0 ? (
+          <group ref={previewRef}>
+            {Array.from({ length: previewMoonCount }).map((_, idx) => {
+              const angle = (idx / previewMoonCount) * Math.PI * 2 + previewPhase;
+              const yOffset = (idx % 2 === 0 ? 1 : -1) * node.radius * 0.14;
+              return (
+                <mesh
+                  key={`moon-preview-${idx}`}
+                  position={[
+                    Math.cos(angle) * previewOrbitRadius,
+                    yOffset,
+                    Math.sin(angle) * previewOrbitRadius,
+                  ]}
+                >
+                  <sphereGeometry args={[previewMoonRadius, 10, 10]} />
+                  <meshBasicMaterial color={signatureColor} transparent opacity={0.88} />
+                </mesh>
+              );
+            })}
+          </group>
+        ) : null}
       </group>
 
       <mesh
@@ -633,12 +719,12 @@ function TableNode({
       </Billboard>
       <Billboard position={[0, node.radius + 2.8, 0]}>
         <Text fontSize={2.4} color={hasV1 ? v1Style.tint : "#aee9ff"} anchorX="center" anchorY="middle" maxWidth={76}>
-          {`${node.entityName || node.label} • ${node.memberCount || 0} mesicu`}
+          {`${node.entityName || node.label} • ${node.memberCount || 0} mesicu uvnitr`}
         </Text>
       </Billboard>
       <Billboard position={[0, node.radius + 0.6, 0]}>
         <Text fontSize={1.85} color="#8ccce0" anchorX="center" anchorY="middle" maxWidth={76}>
-          {hasV1 ? `V1 ${node.v1.status} • ${node.v1.quality_score}/100` : visual.archetypeLabel}
+          {hasV1 ? `Klikni pro otevreni • V1 ${node.v1.status}` : `Klikni pro otevreni • ${visual.archetypeLabel}`}
         </Text>
       </Billboard>
     </group>

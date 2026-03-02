@@ -15,6 +15,61 @@ export const GALAXY_GUIDE = [
   "Formule, guardian a vazby nastav v Akcnim centru.",
 ];
 
+export const GALAXY_CREATION_PRESETS = [
+  {
+    key: "blank",
+    label: "Prazdna galaxie",
+    description: "Jen cisty workspace bez dat. Vse zalozis rucne.",
+  },
+  {
+    key: "business",
+    label: "Business starter",
+    description: "Predvyplni CRM + Obchod + Finance a 2 vazby pro rychly start.",
+  },
+  {
+    key: "operations",
+    label: "Operations starter",
+    description: "Predvyplni Sklad + Objednavky + Expedice a tok mezi nimi.",
+  },
+];
+
+export const GALAXY_PURPOSE_OPTIONS = [
+  {
+    key: "general",
+    label: "Obecny",
+    description: "Univerzalni workspace bez oboroveho zamereni.",
+  },
+  {
+    key: "finance",
+    label: "Finance",
+    description: "Vychozi struktura pro cashflow, faktury a financni KPI.",
+  },
+  {
+    key: "crm",
+    label: "CRM",
+    description: "Vychozi struktura pro kontakty, leady a pipeline.",
+  },
+  {
+    key: "logistics",
+    label: "Logistika",
+    description: "Vychozi struktura pro sklad, objednavky a expedici.",
+  },
+];
+
+export const GALAXY_REGION_OPTIONS = [
+  { key: "global", label: "Global" },
+  { key: "eu", label: "Evropa (EU)" },
+  { key: "us", label: "USA" },
+  { key: "cz", label: "Cesko" },
+];
+
+export const GALAXY_TIMEZONE_OPTIONS = [
+  { key: "UTC", label: "UTC" },
+  { key: "Europe/Prague", label: "Europe/Prague" },
+  { key: "America/New_York", label: "America/New_York" },
+  { key: "America/Los_Angeles", label: "America/Los_Angeles" },
+];
+
 export const WORKSPACE_GUIDE = [
   "Nova Entita + Hvezda/Planeta + Mesic: formular Rychle zalozeni.",
   "CSV Import: v Akcnim centru vyber soubor, zvol preview nebo commit a spust import.",

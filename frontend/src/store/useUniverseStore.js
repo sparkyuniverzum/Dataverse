@@ -12,12 +12,12 @@ const DEFAULT_PANELS = {
   command: {
     title: "Navigace, Akce a Prikazy",
     rect: { x: 28, y: 28, width: 460, height: 460 },
-    collapsed: true,
+    collapsed: false,
   },
   inspector: {
     title: "Mesic a Tezba Bunek",
     rect: { x: 28, y: 236, width: 420, height: 330 },
-    collapsed: true,
+    collapsed: false,
   },
   grid: {
     title: "Tabulkovy Prurez",
@@ -99,6 +99,11 @@ export const useUniverseStore = create((set) => ({
         maxDistance: Math.max(620, cameraDistance * 12),
       },
     })),
+
+  clearSelectedAsteroid: () =>
+    set({
+      selectedAsteroidId: "",
+    }),
 
   backToTables: () =>
     set((state) => ({
