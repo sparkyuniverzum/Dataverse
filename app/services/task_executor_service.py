@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, func, or_, select, text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Bond, TableContract
+from app.models import Bond, Event, TableContract
 from app.services.event_store_service import EventStoreService
 from app.services.parser_service import AtomicTask
 from app.services.read_model_projector import ReadModelProjector
@@ -62,7 +62,7 @@ class TaskExecutorService:
         return int.from_bytes(digest, byteorder="big", signed=True)
 
     @staticmethod
-    def _to_projected_bond(bond: Bond) -> ProjectedBond:
+    def _to_projected_bond(bond: Bond, *, current_event_seq: int = 0) -> ProjectedBond:
         return ProjectedBond(
             id=bond.id,
             source_id=bond.source_id,
@@ -71,6 +71,7 @@ class TaskExecutorService:
             is_deleted=bond.is_deleted,
             created_at=bond.created_at,
             deleted_at=bond.deleted_at,
+            current_event_seq=current_event_seq,
         )
 
     @staticmethod
@@ -108,6 +109,50 @@ class TaskExecutorService:
         return None
 
     @staticmethod
+    def _resolve_single_asteroid_by_target(
+        asteroids: list[ProjectedAsteroid],
+        target: str,
+    ) -> ProjectedAsteroid | None:
+        normalized = str(target or "").strip()
+        if not normalized:
+            return None
+
+        target_uuid = TaskExecutorService._parse_uuid(normalized)
+        if target_uuid is not None:
+            for asteroid in asteroids:
+                if asteroid.id == target_uuid:
+                    return asteroid
+            return None
+
+        lowered = normalized.lower()
+        exact_matches = [
+            asteroid
+            for asteroid in asteroids
+            if TaskExecutorService._value_to_text(asteroid.value).strip().lower() == lowered
+        ]
+        if len(exact_matches) == 1:
+            return exact_matches[0]
+        if len(exact_matches) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Ambiguous target '{target}' (multiple exact matches)",
+            )
+
+        contains_matches = [
+            asteroid
+            for asteroid in asteroids
+            if lowered in TaskExecutorService._value_to_text(asteroid.value).lower()
+        ]
+        if len(contains_matches) == 1:
+            return contains_matches[0]
+        if len(contains_matches) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Ambiguous target '{target}' (multiple partial matches)",
+            )
+        return None
+
+    @staticmethod
     def _parse_uuid(value: object) -> UUID | None:
         if value is None:
             return None
@@ -115,6 +160,24 @@ class TaskExecutorService:
             return UUID(str(value))
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _parse_expected_event_seq(value: object, *, field_name: str) -> int | None:
+        if value is None:
+            return None
+        try:
+            parsed = int(str(value).strip())
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"{field_name} must be a non-negative integer",
+            ) from None
+        if parsed < 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"{field_name} must be a non-negative integer",
+            )
+        return parsed
 
     @staticmethod
     def _find_asteroids_by_target(
@@ -133,6 +196,56 @@ class TaskExecutorService:
                 continue
             selected.append(asteroid)
         return selected
+
+    async def _current_entity_event_seq(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: UUID,
+        galaxy_id: UUID,
+        branch_id: UUID | None,
+        entity_id: UUID,
+    ) -> int:
+        stmt = select(func.max(Event.event_seq)).where(
+            Event.user_id == user_id,
+            Event.galaxy_id == galaxy_id,
+            Event.entity_id == entity_id,
+        )
+        if branch_id is None:
+            stmt = stmt.where(Event.branch_id.is_(None))
+        else:
+            stmt = stmt.where(Event.branch_id == branch_id)
+        latest = (await session.execute(stmt)).scalar_one_or_none()
+        return int(latest or 0)
+
+    async def _enforce_expected_entity_event_seq(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: UUID,
+        galaxy_id: UUID,
+        branch_id: UUID | None,
+        entity_id: UUID,
+        expected_event_seq: int | None,
+        context: str,
+    ) -> None:
+        if expected_event_seq is None:
+            return
+        current_event_seq = await self._current_entity_event_seq(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+            entity_id=entity_id,
+        )
+        if current_event_seq != expected_event_seq:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"OCC conflict for {context}: expected_event_seq={expected_event_seq}, "
+                    f"current_event_seq={current_event_seq}"
+                ),
+            )
 
     @staticmethod
     def _canonical_relation_pair(source_id: UUID, target_id: UUID) -> tuple[UUID, UUID]:
@@ -476,6 +589,7 @@ class TaskExecutorService:
                             is_deleted=False,
                             created_at=created_event.timestamp,
                             deleted_at=None,
+                            current_event_seq=int(created_event.event_seq),
                         )
                         asteroids_by_id[asteroid.id] = asteroid
                     else:
@@ -492,11 +606,12 @@ class TaskExecutorService:
                                 asteroids_by_id=asteroids_by_id,
                                 contract_cache=contract_cache,
                             )
-                            await append_and_project_event(
+                            metadata_event = await append_and_project_event(
                                 entity_id=asteroid.id,
                                 event_type="METADATA_UPDATED",
                                 payload={"metadata": metadata_update},
                             )
+                            asteroid.current_event_seq = int(metadata_event.event_seq)
                             asteroid.metadata = next_metadata
 
                     context_asteroid_ids.append(asteroid.id)
@@ -526,6 +641,33 @@ class TaskExecutorService:
                         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source asteroid not found")
                     if target_uuid not in asteroids_by_id:
                         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target asteroid not found")
+
+                    expected_source_event_seq = self._parse_expected_event_seq(
+                        task.params.get("expected_source_event_seq"),
+                        field_name="expected_source_event_seq",
+                    )
+                    expected_target_event_seq = self._parse_expected_event_seq(
+                        task.params.get("expected_target_event_seq"),
+                        field_name="expected_target_event_seq",
+                    )
+                    await self._enforce_expected_entity_event_seq(
+                        session=session,
+                        user_id=user_id,
+                        galaxy_id=galaxy_id,
+                        branch_id=branch_id,
+                        entity_id=source_uuid,
+                        expected_event_seq=expected_source_event_seq,
+                        context=f"LINK source {source_uuid}",
+                    )
+                    await self._enforce_expected_entity_event_seq(
+                        session=session,
+                        user_id=user_id,
+                        galaxy_id=galaxy_id,
+                        branch_id=branch_id,
+                        entity_id=target_uuid,
+                        expected_event_seq=expected_target_event_seq,
+                        context=f"LINK target {target_uuid}",
+                    )
 
                     bond_type = str(task.params.get("type", "RELATION")).strip().upper() or "RELATION"
                     is_relation = bond_type == "RELATION"
@@ -590,7 +732,14 @@ class TaskExecutorService:
                         )
                     ).scalar_one_or_none()
                     if persisted_bond is not None:
-                        projected = self._to_projected_bond(persisted_bond)
+                        persisted_seq = await self._current_entity_event_seq(
+                            session=session,
+                            user_id=user_id,
+                            galaxy_id=galaxy_id,
+                            branch_id=branch_id,
+                            entity_id=persisted_bond.id,
+                        )
+                        projected = self._to_projected_bond(persisted_bond, current_event_seq=persisted_seq)
                         bonds_by_id[projected.id] = projected
                         result.bonds.append(projected)
                         continue
@@ -618,6 +767,7 @@ class TaskExecutorService:
                         is_deleted=False,
                         created_at=bond_event.timestamp,
                         deleted_at=None,
+                        current_event_seq=int(bond_event.event_seq),
                     )
                     bonds_by_id[bond.id] = bond
                     result.bonds.append(bond)
@@ -653,6 +803,19 @@ class TaskExecutorService:
                     asteroid = asteroids_by_id.get(asteroid_uuid)
                     if asteroid is None:
                         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target asteroid not found")
+                    expected_event_seq = self._parse_expected_event_seq(
+                        task.params.get("expected_event_seq"),
+                        field_name="expected_event_seq",
+                    )
+                    await self._enforce_expected_entity_event_seq(
+                        session=session,
+                        user_id=user_id,
+                        galaxy_id=galaxy_id,
+                        branch_id=branch_id,
+                        entity_id=asteroid_uuid,
+                        expected_event_seq=expected_event_seq,
+                        context=f"UPDATE_ASTEROID {asteroid_uuid}",
+                    )
 
                     has_change = False
                     next_value = asteroid.value
@@ -686,11 +849,12 @@ class TaskExecutorService:
                     )
 
                     if asteroid.value != next_value:
-                        await append_and_project_event(
+                        value_event = await append_and_project_event(
                             entity_id=asteroid.id,
                             event_type="ASTEROID_VALUE_UPDATED",
                             payload={"value": next_value},
                         )
+                        asteroid.current_event_seq = int(value_event.event_seq)
                         asteroid.value = next_value
 
                     if asteroid.metadata != next_metadata:
@@ -700,11 +864,12 @@ class TaskExecutorService:
                             if asteroid.metadata.get(key) != value
                         }
                         if metadata_update:
-                            await append_and_project_event(
+                            metadata_event = await append_and_project_event(
                                 entity_id=asteroid.id,
                                 event_type="METADATA_UPDATED",
                                 payload={"metadata": metadata_update},
                             )
+                            asteroid.current_event_seq = int(metadata_event.event_seq)
                             asteroid.metadata = next_metadata
 
                     result.asteroids.append(asteroid)
@@ -720,12 +885,25 @@ class TaskExecutorService:
                             detail="SET_FORMULA task requires target, field, and formula",
                         )
 
-                    target_asteroid = self._find_asteroid_by_target(list(asteroids_by_id.values()), str(target))
+                    target_asteroid = self._resolve_single_asteroid_by_target(list(asteroids_by_id.values()), str(target))
                     if target_asteroid is None:
                         raise HTTPException(
                             status_code=status.HTTP_404_NOT_FOUND,
                             detail="Target asteroid not found",
                         )
+                    expected_event_seq = self._parse_expected_event_seq(
+                        task.params.get("expected_event_seq"),
+                        field_name="expected_event_seq",
+                    )
+                    await self._enforce_expected_entity_event_seq(
+                        session=session,
+                        user_id=user_id,
+                        galaxy_id=galaxy_id,
+                        branch_id=branch_id,
+                        entity_id=target_asteroid.id,
+                        expected_event_seq=expected_event_seq,
+                        context=f"SET_FORMULA {target_asteroid.id}",
+                    )
 
                     field_name = str(field).strip()
                     formula_value = str(formula).strip()
@@ -740,11 +918,12 @@ class TaskExecutorService:
                             asteroids_by_id=asteroids_by_id,
                             contract_cache=contract_cache,
                         )
-                        await append_and_project_event(
+                        formula_event = await append_and_project_event(
                             entity_id=target_asteroid.id,
                             event_type="METADATA_UPDATED",
                             payload={"metadata": {field_name: formula_value}},
                         )
+                        target_asteroid.current_event_seq = int(formula_event.event_seq)
                         target_asteroid.metadata = next_metadata
                     result.asteroids.append(target_asteroid)
                     continue
@@ -768,12 +947,25 @@ class TaskExecutorService:
                             detail="ADD_GUARDIAN uses unsupported operator",
                         )
 
-                    target_asteroid = self._find_asteroid_by_target(list(asteroids_by_id.values()), str(target))
+                    target_asteroid = self._resolve_single_asteroid_by_target(list(asteroids_by_id.values()), str(target))
                     if target_asteroid is None:
                         raise HTTPException(
                             status_code=status.HTTP_404_NOT_FOUND,
                             detail="Target asteroid not found",
                         )
+                    expected_event_seq = self._parse_expected_event_seq(
+                        task.params.get("expected_event_seq"),
+                        field_name="expected_event_seq",
+                    )
+                    await self._enforce_expected_entity_event_seq(
+                        session=session,
+                        user_id=user_id,
+                        galaxy_id=galaxy_id,
+                        branch_id=branch_id,
+                        entity_id=target_asteroid.id,
+                        expected_event_seq=expected_event_seq,
+                        context=f"ADD_GUARDIAN {target_asteroid.id}",
+                    )
 
                     existing_guardians = target_asteroid.metadata.get("_guardians", [])
                     guardian_rules = [dict(rule) for rule in existing_guardians if isinstance(rule, dict)]
@@ -815,11 +1007,12 @@ class TaskExecutorService:
                             contract_cache=contract_cache,
                         )
                         guardian_rules.append(new_rule)
-                        await append_and_project_event(
+                        guardian_event = await append_and_project_event(
                             entity_id=target_asteroid.id,
                             event_type="METADATA_UPDATED",
                             payload={"metadata": {"_guardians": guardian_rules}},
                         )
+                        target_asteroid.current_event_seq = int(guardian_event.event_seq)
                         target_asteroid.metadata = {
                             **target_asteroid.metadata,
                             "_guardians": guardian_rules,
@@ -865,9 +1058,27 @@ class TaskExecutorService:
                             status_code=status.HTTP_404_NOT_FOUND,
                             detail="Target asteroid not found",
                         )
+                    expected_event_seq = self._parse_expected_event_seq(
+                        task.params.get("expected_event_seq"),
+                        field_name="expected_event_seq",
+                    )
+                    if expected_event_seq is not None and len(targets) != 1:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="expected_event_seq can be used only with a single delete target",
+                        )
 
                     processed_bond_ids: set[UUID] = set()
                     for asteroid in targets:
+                        await self._enforce_expected_entity_event_seq(
+                            session=session,
+                            user_id=user_id,
+                            galaxy_id=galaxy_id,
+                            branch_id=branch_id,
+                            entity_id=asteroid.id,
+                            expected_event_seq=expected_event_seq,
+                            context=f"DELETE/EXTINGUISH {asteroid.id}",
+                        )
                         deleted_event = await append_and_project_event(
                             entity_id=asteroid.id,
                             event_type="ASTEROID_SOFT_DELETED",
@@ -875,6 +1086,7 @@ class TaskExecutorService:
                         )
                         asteroid.is_deleted = True
                         asteroid.deleted_at = deleted_event.timestamp
+                        asteroid.current_event_seq = int(deleted_event.event_seq)
                         result.extinguished_asteroids.append(asteroid)
                         if asteroid.id not in result.extinguished_asteroid_ids:
                             result.extinguished_asteroid_ids.append(asteroid.id)
@@ -893,6 +1105,7 @@ class TaskExecutorService:
                             )
                             bond.is_deleted = True
                             bond.deleted_at = bond_deleted_event.timestamp
+                            bond.current_event_seq = int(bond_deleted_event.event_seq)
                             processed_bond_ids.add(bond.id)
                             if bond.id not in result.extinguished_bond_ids:
                                 result.extinguished_bond_ids.append(bond.id)

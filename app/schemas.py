@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class AsteroidIngestRequest(BaseModel):
     value: Any
     metadata: dict[str, Any] = Field(default_factory=dict)
+    idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
 
@@ -15,6 +16,8 @@ class AsteroidIngestRequest(BaseModel):
 class AsteroidMutateRequest(BaseModel):
     value: Any | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    expected_event_seq: int | None = Field(default=None, ge=0)
+    idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
 
@@ -34,12 +37,16 @@ class AsteroidResponse(BaseModel):
     is_deleted: bool
     created_at: datetime
     deleted_at: datetime | None
+    current_event_seq: int = 0
 
 
 class BondCreateRequest(BaseModel):
     source_id: uuid.UUID
     target_id: uuid.UUID
     type: str
+    expected_source_event_seq: int | None = Field(default=None, ge=0)
+    expected_target_event_seq: int | None = Field(default=None, ge=0)
+    idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
 
@@ -54,11 +61,14 @@ class BondResponse(BaseModel):
     is_deleted: bool
     created_at: datetime
     deleted_at: datetime | None
+    current_event_seq: int = 0
 
 
 class ParseCommandRequest(BaseModel):
     text: str | None = None
     query: str | None = None
+    parser_version: str = "v2"
+    idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
 
@@ -77,6 +87,12 @@ class ParseCommandRequest(BaseModel):
 
         if text and query and text != query:
             raise ValueError("'text' and 'query' must match when both are provided")
+
+        version = (self.parser_version or "v2").strip().lower()
+        if version not in {"v1", "v2"}:
+            raise ValueError("`parser_version` must be either 'v1' or 'v2'")
+        if self.parser_version != version:
+            self.parser_version = version
 
         return self
 
@@ -116,6 +132,7 @@ class UniverseAsteroidSnapshot(BaseModel):
     calculated_values: dict[str, Any] = Field(default_factory=dict)
     active_alerts: list[str] = Field(default_factory=list)
     created_at: datetime
+    current_event_seq: int = 0
 
 
 class UniverseBondSnapshot(BaseModel):
@@ -131,6 +148,7 @@ class UniverseBondSnapshot(BaseModel):
     target_table_name: str
     target_constellation_name: str
     target_planet_name: str
+    current_event_seq: int = 0
 
 
 class UniverseSnapshotResponse(BaseModel):

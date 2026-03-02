@@ -9,7 +9,7 @@ from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Atom, Bond, Branch, Event, Galaxy
@@ -70,6 +70,7 @@ class ProjectedAsteroid:
     is_deleted: bool
     created_at: datetime
     deleted_at: datetime | None
+    current_event_seq: int = 0
 
 
 @dataclass
@@ -81,6 +82,7 @@ class ProjectedBond:
     is_deleted: bool
     created_at: datetime
     deleted_at: datetime | None
+    current_event_seq: int = 0
 
 
 class UniverseService:
@@ -111,6 +113,7 @@ class UniverseService:
                 is_deleted=False,
                 created_at=event.timestamp,
                 deleted_at=None,
+                current_event_seq=int(event.event_seq),
             )
             return
 
@@ -121,6 +124,7 @@ class UniverseService:
             metadata_patch = payload.get("metadata", {})
             if isinstance(metadata_patch, dict):
                 asteroid.metadata = {**asteroid.metadata, **metadata_patch}
+            asteroid.current_event_seq = int(event.event_seq)
             return
 
         if event.event_type == "ASTEROID_VALUE_UPDATED":
@@ -128,6 +132,7 @@ class UniverseService:
             if asteroid is None:
                 return
             asteroid.value = payload.get("value")
+            asteroid.current_event_seq = int(event.event_seq)
             return
 
         if event.event_type == "ASTEROID_SOFT_DELETED":
@@ -136,6 +141,7 @@ class UniverseService:
                 return
             asteroid.is_deleted = True
             asteroid.deleted_at = event.timestamp
+            asteroid.current_event_seq = int(event.event_seq)
             return
 
         if event.event_type == "BOND_FORMED":
@@ -152,6 +158,7 @@ class UniverseService:
                 is_deleted=False,
                 created_at=event.timestamp,
                 deleted_at=None,
+                current_event_seq=int(event.event_seq),
             )
             return
 
@@ -161,6 +168,36 @@ class UniverseService:
                 return
             bond.is_deleted = True
             bond.deleted_at = event.timestamp
+            bond.current_event_seq = int(event.event_seq)
+
+    async def _entity_event_seq_map(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        branch_id: UUID | None,
+        entity_ids: list[UUID],
+    ) -> dict[UUID, int]:
+        if not entity_ids:
+            return {}
+        stmt = (
+            select(Event.entity_id, func.max(Event.event_seq))
+            .where(
+                and_(
+                    Event.user_id == user_id,
+                    Event.galaxy_id == galaxy_id,
+                    Event.entity_id.in_(entity_ids),
+                )
+            )
+            .group_by(Event.entity_id)
+        )
+        if branch_id is None:
+            stmt = stmt.where(Event.branch_id.is_(None))
+        else:
+            stmt = stmt.where(Event.branch_id == branch_id)
+        rows = (await session.execute(stmt)).all()
+        return {entity_id: int(max_seq or 0) for entity_id, max_seq in rows}
 
     @staticmethod
     def _sector_center(index: int, total: int, spacing: int = 500) -> tuple[float, float, float]:
@@ -208,6 +245,15 @@ class UniverseService:
             for asteroid in asteroid_rows
         ]
         active_ids = {asteroid.id for asteroid in active_asteroids}
+        asteroid_seq_map = await self._entity_event_seq_map(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=None,
+            entity_ids=[item.id for item in active_asteroids],
+        )
+        for asteroid in active_asteroids:
+            asteroid.current_event_seq = asteroid_seq_map.get(asteroid.id, 0)
 
         bond_rows = list(
             (
@@ -239,6 +285,15 @@ class UniverseService:
             for bond in bond_rows
             if bond.source_id in active_ids and bond.target_id in active_ids
         ]
+        bond_seq_map = await self._entity_event_seq_map(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=None,
+            entity_ids=[item.id for item in active_bonds],
+        )
+        for bond in active_bonds:
+            bond.current_event_seq = bond_seq_map.get(bond.id, 0)
         return active_asteroids, active_bonds
 
     async def _project_state_from_events(
@@ -393,11 +448,13 @@ class UniverseService:
                     "value": asteroid.value,
                     "metadata": asteroid.metadata,
                     "created_at": asteroid.created_at,
+                    "current_event_seq": int(getattr(asteroid, "current_event_seq", 0) or 0),
                 }
                 for asteroid in active_asteroids
             ],
             active_bonds,
         )
+        seq_index = {asteroid.id: int(getattr(asteroid, "current_event_seq", 0) or 0) for asteroid in active_asteroids}
         enriched: list[dict[str, Any]] = []
         for asteroid in evaluated:
             metadata = asteroid.get("metadata", {})
@@ -410,6 +467,7 @@ class UniverseService:
                     "metadata": metadata,
                     "table_name": table_name,
                     "table_id": derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
+                    "current_event_seq": seq_index.get(asteroid.get("id"), 0),
                 }
             )
 

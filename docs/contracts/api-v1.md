@@ -10,6 +10,8 @@ Date: 2026-02-28
 - `galaxy_id` query/body is optional on many endpoints; if omitted, first active user galaxy is used.
 - Time machine is supported via `as_of` on read endpoints.
 - If table contract exists for resolved table, all effective writes are validated against it before events are appended.
+- Canonical domain language and semantics are defined in `docs/contracts/semantic-constitution-v1.md`.
+- Write endpoints support optional `idempotency_key`; same key + same payload in same scope replays stored response, same key + different payload returns `409`.
 
 ## Auth
 ### `POST /auth/register`
@@ -77,31 +79,51 @@ Date: 2026-02-28
 ## Asteroids and bonds
 ### `POST /asteroids/ingest`
 - Auth required.
-- Request: `{ "value": any, "metadata"?: object, "galaxy_id"?: uuid, "branch_id"?: uuid }`
+- Request: `{ "value": any, "metadata"?: object, "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
 - Behavior: find-or-create active asteroid by exact `value`; metadata may be merged by event.
 - Response `200`: `AsteroidResponse`.
 
 ### `PATCH /asteroids/{asteroid_id}/extinguish`
 - Auth required.
-- Query: `galaxy_id?`, `branch_id?`
+- Query: `galaxy_id?`, `branch_id?`, `expected_event_seq?`, `idempotency_key?`
 - Behavior: soft-deletes asteroid and connected bonds (event-sourced cascade).
+- OCC (optional): if `expected_event_seq` is provided and current entity event sequence differs, endpoint returns `409`.
 - Response `200`: deleted `AsteroidResponse` (`is_deleted=true`, `deleted_at!=null`).
-- Errors: `404` not found.
+- Errors: `404` not found, `409` optimistic concurrency conflict.
+
+### `PATCH /asteroids/{asteroid_id}/mutate`
+- Auth required.
+- Request: `{ "value"?: any, "metadata"?: object, "expected_event_seq"?: int>=0, "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
+- Behavior: updates value/metadata via event log (`ASTEROID_VALUE_UPDATED`, `METADATA_UPDATED`).
+- OCC (optional): if `expected_event_seq` is provided and current entity event sequence differs, endpoint returns `409`.
+- Response `200`: updated `AsteroidResponse`.
+- Errors: `404` not found, `409` optimistic concurrency conflict.
 
 ### `POST /bonds/link`
 - Auth required.
-- Request: `{ "source_id": uuid, "target_id": uuid, "type": string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
+- Request: `{ "source_id": uuid, "target_id": uuid, "type": string, "expected_source_event_seq"?: int>=0, "expected_target_event_seq"?: int>=0, "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
 - Response `200`: `BondResponse`.
 - `RELATION` semantics: canonical undirected pair (A-B equals B-A), reverse direction reuses existing active bond.
-- Errors: `422` same source/target or invalid context, `404` endpoint asteroid missing.
+- OCC (optional): if expected source/target sequence is provided and differs from current sequence, endpoint returns `409`.
+- Errors: `422` same source/target or invalid context, `404` endpoint asteroid missing, `409` optimistic concurrency conflict.
 
 ## Parser execution
 ### `POST /parser/execute`
 - Auth required.
-- Request: `{ "query"?: string, "text"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
+- Request: `{ "query"?: string, "text"?: string, "parser_version"?: "v1"|"v2", "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
 - Validation:
 - At least one of `query`/`text` must be present and non-empty.
 - If both are present, they must be equal.
+- `parser_version` default = `v2`; unsupported value -> `422`.
+- `parser_version=v1`: V1 parser pipeline.
+- `parser_version=v2`: Parser2 pipeline (`lexer -> AST -> planner -> bridge`) over the same executor.
+- `parser_version=v2` resolver: existující uzly se přednostně mapují z aktivního branch-aware snapshotu (`NAME -> ID`) před vytvořením nového uzlu.
+- Legacy verb commands (`show/find/ukaz/najdi/delete/zhasni/smaz/hlidej/spocitej/spoj`) are natively compiled in Parser2 with V1-compatible semantics.
+- Legacy metadata syntax (`Entity (k: v, x=y)`) is natively compiled in Parser2 with V1-compatible semantics.
+- Unquoted UUID operands and unquoted hyphenated labels (e.g. `63b9d... + Projekt`, `Node-ABC + Team-1`) are accepted in `v2`.
+- Resolver nejednoznačnosti ve `v2` vrací deterministicky `422` (`PLAN_RESOLVE_AMBIGUOUS_NAME`).
+- Compatibility fallback: pokud klient `parser_version` neposílá a `v2` parse selže, endpoint může zkusit legacy `v1` parser.
+- Rollout flag: `DATAVERSE_PARSER_V2_FALLBACK_TO_V1` (default `false`), `true` fallback dočasně zapne.
 - Response `200` (`ParseCommandResponse`):
 - `tasks[]`: parsed atomic tasks.
 - `asteroids[]`, `bonds[]`: touched/created entities.
@@ -115,7 +137,8 @@ Date: 2026-02-28
 - Query: `galaxy_id?: uuid`, `as_of?: datetime`, `branch_id?: uuid`.
 - Response `200`:
 - `asteroids[]`: `{ id, value, table_id, table_name, metadata, calculated_values, active_alerts, created_at }`
-- `bonds[]`: `{ id, source_id, target_id, type, source_table_id, source_table_name, target_table_id, target_table_name }`
+- `asteroids[]` include `current_event_seq` (latest event sequence visible in selected timeline).
+- `bonds[]`: `{ id, source_id, target_id, type, source_table_id, source_table_name, target_table_id, target_table_name, current_event_seq }`
 - `as_of` behavior: only events with `timestamp <= as_of` are projected.
 - Access errors: `403` foreign galaxy, `404` galaxy not found/deleted.
 

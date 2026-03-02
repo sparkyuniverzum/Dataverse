@@ -1,4 +1,4 @@
-.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts ops-smoke v1-release-gate v1-release-full
+.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full
 
 install:
 	./.venv/bin/pip install -r requirements.txt
@@ -61,6 +61,17 @@ test-contracts:
 	$(MAKE) wait-api; \
 	./.venv/bin/pip install -r requirements-dev.txt; \
 	./.venv/bin/pytest tests/test_api_integration.py -q -k "snapshot_v1_contract or tables_v1_contract"
+
+test-contracts-v2:
+	@set -e; \
+	trap 'docker compose down' EXIT; \
+	docker compose up -d --build api; \
+	$(MAKE) wait-api; \
+	./.venv/bin/pip install -r requirements-dev.txt; \
+	./.venv/bin/pytest -q tests/test_parser2_spec_contract.py tests/test_parser2_lexer.py tests/test_parser2_ast.py tests/test_parser2_planner.py tests/test_parser2_resolver.py; \
+	DATAVERSE_API_BASE=http://127.0.0.1:$${API_PORT:-8000} ./.venv/bin/pytest -q tests/test_api_integration.py -k "parser_v2_contract_gate or parser_v2_legacy_ or parser_v2_resolves_existing_names_to_ids_without_ingest or parser_v2_returns_bridge_error_for_mixed_id_and_name_selectors"
+
+parser2-release-gate: test-contracts-v2
 
 test-backend: test-backend-unit test-backend-integration
 

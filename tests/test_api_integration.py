@@ -20,6 +20,25 @@ def _parse_iso_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
+def _latest_entity_event_seq(client: httpx.Client, *, galaxy_id: str, entity_id: str) -> int:
+    activity = client.get(f"/galaxies/{galaxy_id}/activity", params={"limit": 200})
+    assert activity.status_code == 200, activity.text
+    items = activity.json().get("items", [])
+    for item in items:
+        if item.get("entity_id") == entity_id:
+            return int(item["event_seq"])
+    raise AssertionError(f"No activity event found for entity_id={entity_id}")
+
+
+def _snapshot_asteroid(client: httpx.Client, *, galaxy_id: str, asteroid_id: str) -> dict:
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    for asteroid in snapshot.json().get("asteroids", []):
+        if asteroid.get("id") == asteroid_id:
+            return asteroid
+    raise AssertionError(f"Asteroid {asteroid_id} not found in snapshot")
+
+
 @pytest.fixture(scope="session")
 def client() -> httpx.Client:
     client = httpx.Client(base_url=API_BASE_URL, timeout=20.0)
@@ -71,6 +90,245 @@ def test_parser_rejects_mismatched_query_and_text(auth_client: tuple[httpx.Clien
     resp = client.post("/parser/execute", json={"query": "A", "text": "B", "galaxy_id": galaxy_id})
     assert resp.status_code == 422
     assert "must match" in resp.text
+
+
+def test_parser_v2_executes_relation_command(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    left = f"V2A{uuid.uuid4().hex}"
+    right = f"V2B{uuid.uuid4().hex}"
+
+    execute = client.post(
+        "/parser/execute",
+        json={"query": f"{left} + {right}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 200, execute.text
+    body = execute.json()
+    actions = [task["action"] for task in body["tasks"]]
+    assert "LINK" in actions
+    assert actions.count("INGEST") >= 2
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    values = {_stringify(atom["value"]) for atom in snapshot.json()["asteroids"]}
+    assert left in values
+    assert right in values
+
+
+def test_parser_v2_returns_parse_error_for_invalid_syntax(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    execute = client.post(
+        "/parser/execute",
+        json={"query": "Erik +", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 422
+    assert "Parse error" in execute.text
+
+
+def test_parser_v2_resolves_existing_names_to_ids_without_ingest(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    left = f"ResolveA{uuid.uuid4().hex}"
+    right = f"ResolveB{uuid.uuid4().hex}"
+
+    created_left = client.post("/asteroids/ingest", json={"value": left, "galaxy_id": galaxy_id})
+    created_right = client.post("/asteroids/ingest", json={"value": right, "galaxy_id": galaxy_id})
+    assert created_left.status_code == 200, created_left.text
+    assert created_right.status_code == 200, created_right.text
+
+    execute = client.post(
+        "/parser/execute",
+        json={"query": f"{left} + {right}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 200, execute.text
+    body = execute.json()
+
+    actions = [task["action"] for task in body["tasks"]]
+    assert actions == ["LINK"]
+    assert "source_id" in body["tasks"][0]["params"]
+    assert "target_id" in body["tasks"][0]["params"]
+    assert body["tasks"][0]["params"]["type"] == "RELATION"
+
+
+def test_parser_v2_returns_bridge_error_for_mixed_id_and_name_selectors(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    id_literal = str(uuid.uuid4())
+    label = f"V2Bridge{uuid.uuid4().hex}"
+
+    execute = client.post(
+        "/parser/execute",
+        json={"query": f'"{id_literal}" + {label}', "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 422
+    assert "requires both selectors as NAME or both as ID" in execute.text
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    values = {_stringify(atom["value"]) for atom in snapshot.json()["asteroids"]}
+    assert label not in values
+
+
+def test_parser_v2_contract_gate_accepts_unquoted_uuid_selectors(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    left = f"UUIDLeft{uuid.uuid4().hex}"
+    right = f"UUIDRight{uuid.uuid4().hex}"
+
+    left_created = client.post("/asteroids/ingest", json={"value": left, "galaxy_id": galaxy_id})
+    right_created = client.post("/asteroids/ingest", json={"value": right, "galaxy_id": galaxy_id})
+    assert left_created.status_code == 200, left_created.text
+    assert right_created.status_code == 200, right_created.text
+
+    left_id = left_created.json()["id"]
+    right_id = right_created.json()["id"]
+    execute = client.post(
+        "/parser/execute",
+        json={"query": f"{left_id} + {right_id}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 200, execute.text
+    body = execute.json()
+    assert [task["action"] for task in body["tasks"]] == ["LINK"]
+    assert body["tasks"][0]["params"]["source_id"] == left_id
+    assert body["tasks"][0]["params"]["target_id"] == right_id
+
+
+def test_parser_v2_contract_gate_accepts_unquoted_hyphen_names(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    left = f"Node-{uuid.uuid4().hex[:8]}"
+    right = f"Team-{uuid.uuid4().hex[:8]}"
+
+    execute = client.post(
+        "/parser/execute",
+        json={"query": f"{left} + {right}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 200, execute.text
+    body = execute.json()
+    actions = [task["action"] for task in body["tasks"]]
+    assert "LINK" in actions
+    assert actions.count("INGEST") >= 2
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    values = {_stringify(atom["value"]) for atom in snapshot.json()["asteroids"]}
+    assert left in values
+    assert right in values
+
+
+def test_parser_v2_contract_gate_returns_ambiguous_name_error(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    created_a = client.post("/asteroids/ingest", json={"value": "Erik", "galaxy_id": galaxy_id})
+    created_b = client.post("/asteroids/ingest", json={"value": "ERIK", "galaxy_id": galaxy_id})
+    assert created_a.status_code == 200, created_a.text
+    assert created_b.status_code == 200, created_b.text
+
+    execute = client.post(
+        "/parser/execute",
+        json={"query": "- erik", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 422
+    body = execute.json()
+    assert "Ambiguous" in body["detail"]
+
+
+def test_parser_v2_contract_gate_returns_not_found_error_on_lookup(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    missing = f"Missing-{uuid.uuid4().hex}"
+
+    execute = client.post(
+        "/parser/execute",
+        json={"query": f"- {missing}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 422
+    body = execute.json()
+    assert "was not found" in body["detail"]
+
+
+def test_parser_v2_respects_branch_timeline(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    branch_label = f"V2Branch{uuid.uuid4().hex}"
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"ParserV2Branch-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    execute = client.post(
+        "/parser/execute",
+        json={
+            "query": branch_label,
+            "parser_version": "v2",
+            "galaxy_id": galaxy_id,
+            "branch_id": branch_id,
+        },
+    )
+    assert execute.status_code == 200, execute.text
+
+    snapshot_main = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_main.status_code == 200, snapshot_main.text
+    main_values = {_stringify(atom["value"]) for atom in snapshot_main.json()["asteroids"]}
+    assert branch_label not in main_values
+
+    snapshot_branch = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id, "branch_id": branch_id})
+    assert snapshot_branch.status_code == 200, snapshot_branch.text
+    branch_values = {_stringify(atom["value"]) for atom in snapshot_branch.json()["asteroids"]}
+    assert branch_label in branch_values
+
+
+def test_parser_v2_legacy_select_command_uses_v1_semantics(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"LegacySelect{uuid.uuid4().hex}"
+    created = client.post("/asteroids/ingest", json={"value": label, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+
+    execute = client.post(
+        "/parser/execute",
+        json={"query": f"show : {label}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 200, execute.text
+    body = execute.json()
+    assert body["tasks"][0]["action"] == "SELECT"
+    selected_values = {_stringify(item["value"]) for item in body["selected_asteroids"]}
+    assert label in selected_values
+
+
+def test_parser_v2_legacy_delete_command_uses_v1_semantics(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"LegacyDelete{uuid.uuid4().hex}"
+    created = client.post("/asteroids/ingest", json={"value": label, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+    asteroid_id = created.json()["id"]
+
+    execute = client.post(
+        "/parser/execute",
+        json={"query": f"Delete : {label}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 200, execute.text
+    body = execute.json()
+    assert body["tasks"][0]["action"] == "DELETE"
+    assert asteroid_id in body["extinguished_asteroid_ids"]
+
+
+def test_parser_v2_legacy_guardian_command_uses_v1_semantics(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    project = f"LegacyGuardian{uuid.uuid4().hex}"
+    created = client.post(
+        "/asteroids/ingest",
+        json={"value": project, "metadata": {"celkem": 1200}, "galaxy_id": galaxy_id},
+    )
+    assert created.status_code == 200, created.text
+
+    execute = client.post(
+        "/parser/execute",
+        json={"query": f"Hlídej : {project}.celkem > 1000 -> pulse", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert execute.status_code == 200, execute.text
+    body = execute.json()
+    assert body["tasks"][0]["action"] == "ADD_GUARDIAN"
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    by_value = {_stringify(atom["value"]): atom for atom in snapshot.json()["asteroids"]}
+    guardians = by_value[project]["metadata"].get("_guardians", [])
+    assert any(isinstance(rule, dict) and rule.get("action") == "pulse" for rule in guardians)
 
 
 def test_task_executor_rolls_back_on_failed_link(auth_client: tuple[httpx.Client, str]) -> None:
@@ -347,6 +605,199 @@ def test_mutate_asteroid_updates_value_and_metadata(auth_client: tuple[httpx.Cli
     assert by_value[renamed]["metadata"]["stav"] == "aktivni"
 
 
+def test_mutate_asteroid_occ_rejects_stale_expected_event_seq(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    original = f"OCC-Mutate-{uuid.uuid4()}"
+    renamed = f"OCC-Mutate-Renamed-{uuid.uuid4()}"
+
+    created = client.post("/asteroids/ingest", json={"value": original, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+    asteroid_id = created.json()["id"]
+    initial_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=asteroid_id)
+
+    ok_mutate = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={"value": renamed, "expected_event_seq": initial_seq, "galaxy_id": galaxy_id},
+    )
+    assert ok_mutate.status_code == 200, ok_mutate.text
+
+    stale_mutate = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={"metadata": {"status": "stale-write"}, "expected_event_seq": initial_seq, "galaxy_id": galaxy_id},
+    )
+    assert stale_mutate.status_code == 409, stale_mutate.text
+    assert "OCC conflict" in stale_mutate.text
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    by_value = {_stringify(atom["value"]): atom for atom in snapshot.json()["asteroids"]}
+    assert renamed in by_value
+    assert by_value[renamed]["metadata"].get("status") != "stale-write"
+
+
+def test_snapshot_and_write_responses_expose_current_event_seq(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"SeqProbe-{uuid.uuid4()}"
+    renamed = f"SeqProbe-Renamed-{uuid.uuid4()}"
+
+    created = client.post("/asteroids/ingest", json={"value": label, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+    asteroid = created.json()
+    asteroid_id = asteroid["id"]
+    assert isinstance(asteroid.get("current_event_seq"), int)
+    assert asteroid["current_event_seq"] > 0
+
+    snapshot_before = _snapshot_asteroid(client, galaxy_id=galaxy_id, asteroid_id=asteroid_id)
+    assert snapshot_before["current_event_seq"] == asteroid["current_event_seq"]
+
+    mutated = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={"value": renamed, "galaxy_id": galaxy_id},
+    )
+    assert mutated.status_code == 200, mutated.text
+    mutated_body = mutated.json()
+    assert mutated_body["current_event_seq"] > asteroid["current_event_seq"]
+
+    snapshot_after = _snapshot_asteroid(client, galaxy_id=galaxy_id, asteroid_id=asteroid_id)
+    assert snapshot_after["current_event_seq"] == mutated_body["current_event_seq"]
+
+
+def test_mutate_idempotency_key_replays_success_and_guards_payload(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"IdemMut-{uuid.uuid4()}"
+    key = f"idem-{uuid.uuid4()}"
+
+    created = client.post("/asteroids/ingest", json={"value": label, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+    asteroid_id = created.json()["id"]
+
+    first = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={"metadata": {"stage": "done"}, "idempotency_key": key, "galaxy_id": galaxy_id},
+    )
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+
+    replay = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={"metadata": {"stage": "done"}, "idempotency_key": key, "galaxy_id": galaxy_id},
+    )
+    assert replay.status_code == 200, replay.text
+    replay_body = replay.json()
+    assert replay_body["id"] == first_body["id"]
+    assert replay_body["current_event_seq"] == first_body["current_event_seq"]
+
+    no_key_repeat = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={"metadata": {"stage": "done"}, "galaxy_id": galaxy_id},
+    )
+    assert no_key_repeat.status_code == 422
+
+    key_conflict = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={"metadata": {"stage": "other"}, "idempotency_key": key, "galaxy_id": galaxy_id},
+    )
+    assert key_conflict.status_code == 409
+    assert "Idempotency key" in key_conflict.text
+
+
+def test_parser_execute_idempotency_key_replays_and_conflicts(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"IdemParser-{uuid.uuid4()}"
+    key = f"idem-parser-{uuid.uuid4()}"
+
+    first = client.post(
+        "/parser/execute",
+        json={"query": label, "idempotency_key": key, "galaxy_id": galaxy_id},
+    )
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+    assert first_body["asteroids"]
+    asteroid_id = first_body["asteroids"][0]["id"]
+    first_seq = first_body["asteroids"][0]["current_event_seq"]
+
+    replay = client.post(
+        "/parser/execute",
+        json={"query": label, "idempotency_key": key, "galaxy_id": galaxy_id},
+    )
+    assert replay.status_code == 200, replay.text
+    replay_body = replay.json()
+    assert replay_body["asteroids"][0]["id"] == asteroid_id
+    assert replay_body["asteroids"][0]["current_event_seq"] == first_seq
+
+    snapshot = _snapshot_asteroid(client, galaxy_id=galaxy_id, asteroid_id=asteroid_id)
+    assert snapshot["current_event_seq"] == first_seq
+
+    conflict = client.post(
+        "/parser/execute",
+        json={"query": f"{label}-other", "idempotency_key": key, "galaxy_id": galaxy_id},
+    )
+    assert conflict.status_code == 409
+    assert "Idempotency key" in conflict.text
+
+
+def test_extinguish_asteroid_occ_rejects_stale_expected_event_seq(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"OCC-Delete-{uuid.uuid4()}"
+
+    created = client.post("/asteroids/ingest", json={"value": label, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+    asteroid_id = created.json()["id"]
+    initial_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=asteroid_id)
+
+    updated = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={"metadata": {"phase": "updated"}, "galaxy_id": galaxy_id},
+    )
+    assert updated.status_code == 200, updated.text
+
+    stale_delete = client.patch(
+        f"/asteroids/{asteroid_id}/extinguish",
+        params={"galaxy_id": galaxy_id, "expected_event_seq": initial_seq},
+    )
+    assert stale_delete.status_code == 409, stale_delete.text
+    assert "OCC conflict" in stale_delete.text
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    values = {_stringify(atom["value"]) for atom in snapshot.json()["asteroids"]}
+    assert label in values
+
+
+def test_link_occ_rejects_stale_expected_source_seq(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    source_label = f"OCC-Link-S-{uuid.uuid4()}"
+    target_label = f"OCC-Link-T-{uuid.uuid4()}"
+
+    source = client.post("/asteroids/ingest", json={"value": source_label, "galaxy_id": galaxy_id})
+    target = client.post("/asteroids/ingest", json={"value": target_label, "galaxy_id": galaxy_id})
+    assert source.status_code == 200, source.text
+    assert target.status_code == 200, target.text
+    source_id = source.json()["id"]
+    target_id = target.json()["id"]
+    source_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=source_id)
+    target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_id)
+
+    source_mutate = client.patch(
+        f"/asteroids/{source_id}/mutate",
+        json={"metadata": {"touch": "new"}, "galaxy_id": galaxy_id},
+    )
+    assert source_mutate.status_code == 200, source_mutate.text
+
+    stale_link = client.post(
+        "/bonds/link",
+        json={
+            "source_id": source_id,
+            "target_id": target_id,
+            "type": "RELATION",
+            "expected_source_event_seq": source_seq,
+            "expected_target_event_seq": target_seq,
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert stale_link.status_code == 409, stale_link.text
+    assert "OCC conflict" in stale_link.text
+
 def test_guardian_command_is_idempotent_for_same_rule(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     project = f"GuardianProjekt-{uuid.uuid4()}"
@@ -441,6 +892,7 @@ def test_snapshot_v1_contract_contains_table_projection_fields(auth_client: tupl
     assert "calculated_values" in asteroid
     assert "active_alerts" in asteroid
     assert "created_at" in asteroid
+    assert "current_event_seq" in asteroid and isinstance(asteroid["current_event_seq"], int)
 
     if body["bonds"]:
         bond = body["bonds"][0]
@@ -452,6 +904,7 @@ def test_snapshot_v1_contract_contains_table_projection_fields(auth_client: tupl
         assert "target_table_name" in bond
         assert "target_constellation_name" in bond
         assert "target_planet_name" in bond
+        assert "current_event_seq" in bond and isinstance(bond["current_event_seq"], int)
 
 
 def test_galaxy_dashboard_v1_endpoints_return_read_model_views(auth_client: tuple[httpx.Client, str]) -> None:
@@ -572,6 +1025,7 @@ def test_moon_layer_v1_endpoint_returns_l4_moon_metrics(auth_client: tuple[httpx
         "/parser/execute",
         json={
             "query": f"{label} (table: Finance > Orion, cena: 10, marze: =SUM(cena))",
+            "parser_version": "v1",
             "galaxy_id": galaxy_id,
         },
     )

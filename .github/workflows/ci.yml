@@ -45,6 +45,10 @@ jobs:
       - name: Backend unit tests
         run: pytest -q tests/test_parser_service.py tests/test_calc_service.py
 
+      - name: Parser2 spec contract tests
+        run: |
+          pytest -q tests/test_parser2_spec_contract.py tests/test_parser2_lexer.py tests/test_parser2_ast.py tests/test_parser2_planner.py tests/test_parser2_resolver.py
+
       - name: Start API
         run: |
           uvicorn app.main:app --host 127.0.0.1 --port 8000 &
@@ -53,6 +57,10 @@ jobs:
       - name: Backend integration smoke
         run: |
           pytest -q tests/test_api_integration.py -k "snapshot_v1_contract or tables_v1_contract or task_executor_rolls_back_on_failed_link or execute_tasks_rollback_after_partial_write or guardian_command_is_idempotent_for_same_rule"
+
+      - name: Parser2 release gate integration tests
+        run: |
+          pytest -q tests/test_api_integration.py -k "parser_v2_contract_gate or parser_v2_legacy_ or parser_v2_resolves_existing_names_to_ids_without_ingest or parser_v2_returns_bridge_error_for_mixed_id_and_name_selectors"
 
   frontend:
     runs-on: ubuntu-latest

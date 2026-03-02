@@ -339,6 +339,55 @@ class Branch(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class IdempotencyRecord(Base):
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        Index(
+            "ux_idempotency_scope_key",
+            "user_id",
+            "galaxy_id",
+            "branch_scope",
+            "endpoint",
+            "idempotency_key",
+            unique=True,
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
+    galaxy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("galaxies.id"),
+        nullable=False,
+        index=True,
+    )
+    branch_scope: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'main'"))
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    request_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    response_payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("200"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+
 class TableContract(Base):
     __tablename__ = "table_contracts"
     __table_args__ = (

@@ -17,7 +17,8 @@ describe("buildParserPayload", () => {
   it("builds unified payload for parser contract", () => {
     expect(buildParserPayload("  Pavel + Audi  ")).toEqual({
       query: "Pavel + Audi",
-      text: "Pavel + Audi"
+      text: "Pavel + Audi",
+      parser_version: "v2",
     });
   });
 
@@ -25,6 +26,7 @@ describe("buildParserPayload", () => {
     expect(buildParserPayload("A + B", "g-1", "br-1")).toEqual({
       query: "A + B",
       text: "A + B",
+      parser_version: "v2",
       galaxy_id: "g-1",
       branch_id: "br-1",
     });

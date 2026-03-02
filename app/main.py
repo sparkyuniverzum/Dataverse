@@ -60,8 +60,15 @@ from app.services.cosmos_service import CosmosService
 from app.services.constellation_dashboard_service import ConstellationDashboardService
 from app.services.event_store_service import EventStoreService
 from app.services.galaxy_dashboard_service import GalaxyDashboardService
+from app.services.idempotency_service import IdempotencyService
 from app.services.io_service import ImportExportService, ImportMode
 from app.services.moon_dashboard_service import MoonDashboardService
+from app.services.parser2 import (
+    Parser2ExecutorBridge,
+    Parser2SemanticPlanner,
+    SnapshotSemanticResolver,
+    parser_v2_fallback_to_v1_enabled,
+)
 from app.services.parser_service import AtomicTask, ParserService
 from app.services.planet_dashboard_service import PlanetDashboardService
 from app.services.task_executor_service import TaskExecutionResult, TaskExecutorService
@@ -87,6 +94,8 @@ app.add_middleware(
 event_store = EventStoreService()
 universe_service = UniverseService(event_store=event_store)
 parser_service = ParserService()
+parser2_planner = Parser2SemanticPlanner()
+parser2_executor_bridge = Parser2ExecutorBridge()
 task_executor_service = TaskExecutorService(event_store=event_store, universe_service=universe_service)
 auth_service = AuthService()
 io_service = ImportExportService(task_executor=task_executor_service, universe_service=universe_service)
@@ -96,6 +105,7 @@ constellation_dashboard_service = ConstellationDashboardService(universe_service
 planet_dashboard_service = PlanetDashboardService(universe_service=universe_service)
 moon_dashboard_service = MoonDashboardService(universe_service=universe_service)
 bond_dashboard_service = BondDashboardService(universe_service=universe_service)
+idempotency_service = IdempotencyService()
 
 
 def user_to_public(user: User) -> UserPublic:
@@ -311,6 +321,11 @@ async def commit_if_active(session: AsyncSession) -> None:
         await session.commit()
 
 
+def normalize_idempotency_key(raw: str | None) -> str | None:
+    candidate = str(raw or "").strip()
+    return candidate if candidate else None
+
+
 def sse_frame(*, event: str, data: Mapping[str, Any], event_id: int | None = None) -> str:
     lines = []
     if event_id is not None:
@@ -330,6 +345,7 @@ def asteroid_to_response(asteroid: ProjectedAsteroid | Mapping[str, Any]) -> Ast
             is_deleted=bool(asteroid.get("is_deleted", False)),
             created_at=asteroid["created_at"],
             deleted_at=asteroid.get("deleted_at"),
+            current_event_seq=int(asteroid.get("current_event_seq", 0) or 0),
         )
     return AsteroidResponse(
         id=asteroid.id,
@@ -338,6 +354,7 @@ def asteroid_to_response(asteroid: ProjectedAsteroid | Mapping[str, Any]) -> Ast
         is_deleted=asteroid.is_deleted,
         created_at=asteroid.created_at,
         deleted_at=asteroid.deleted_at,
+        current_event_seq=int(getattr(asteroid, "current_event_seq", 0) or 0),
     )
 
 
@@ -351,6 +368,7 @@ def bond_to_response(bond: ProjectedBond | Mapping[str, Any]) -> BondResponse:
             is_deleted=bool(bond.get("is_deleted", False)),
             created_at=bond["created_at"],
             deleted_at=bond.get("deleted_at"),
+            current_event_seq=int(bond.get("current_event_seq", 0) or 0),
         )
     return BondResponse(
         id=bond.id,
@@ -360,6 +378,7 @@ def bond_to_response(bond: ProjectedBond | Mapping[str, Any]) -> BondResponse:
         is_deleted=bond.is_deleted,
         created_at=bond.created_at,
         deleted_at=bond.deleted_at,
+        current_event_seq=int(getattr(bond, "current_event_seq", 0) or 0),
     )
 
 
@@ -419,6 +438,7 @@ def universe_asteroid_to_snapshot(
             calculated_values=calculated_values,
             active_alerts=[str(alert) for alert in active_alerts],
             created_at=asteroid["created_at"],
+            current_event_seq=int(asteroid.get("current_event_seq", 0) or 0),
         )
 
     table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
@@ -434,6 +454,7 @@ def universe_asteroid_to_snapshot(
         calculated_values={},
         active_alerts=[],
         created_at=asteroid.created_at,
+        current_event_seq=int(getattr(asteroid, "current_event_seq", 0) or 0),
     )
 
 
@@ -467,6 +488,7 @@ def universe_bond_to_snapshot(
             target_table_name=target_table_name,
             target_constellation_name=target_constellation_name,
             target_planet_name=target_planet_name,
+            current_event_seq=int(bond.get("current_event_seq", 0) or 0),
         )
     source_table_id, source_table_name, source_constellation_name, source_planet_name = table_index.get(
         bond.source_id,
@@ -489,6 +511,7 @@ def universe_bond_to_snapshot(
         target_table_name=target_table_name,
         target_constellation_name=target_constellation_name,
         target_planet_name=target_planet_name,
+        current_event_seq=int(getattr(bond, "current_event_seq", 0) or 0),
     )
 
 
@@ -1018,6 +1041,10 @@ async def ingest_asteroid(
     current_user: User = Depends(get_current_user),
 ) -> AsteroidResponse:
     tasks = [AtomicTask(action="INGEST", params={"value": payload.value, "metadata": payload.metadata})]
+    replayed_response: AsteroidResponse | None = None
+    response_to_store: AsteroidResponse | None = None
+    idempotency_key = normalize_idempotency_key(payload.idempotency_key)
+    endpoint_key = "POST:/asteroids/ingest"
     async with transactional_context(session):
         target_galaxy_id = await resolve_galaxy_id_for_user(
             session=session,
@@ -1030,18 +1057,63 @@ async def ingest_asteroid(
             galaxy_id=target_galaxy_id,
             branch_id=payload.branch_id,
         )
-        execution = await task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
-        )
+        request_hash = None
+        if idempotency_key is not None:
+            request_hash = idempotency_service.request_hash(
+                {"value": payload.value, "metadata": payload.metadata}
+            )
+            replay = await idempotency_service.check_replay(
+                session=session,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                endpoint=endpoint_key,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+            )
+            if replay is not None:
+                replayed_response = AsteroidResponse.model_validate(replay.response_payload)
+            else:
+                execution = await task_executor_service.execute_tasks(
+                    session=session,
+                    tasks=tasks,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    manage_transaction=False,
+                )
+                if not execution.asteroids:
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Asteroid ingest failed")
+                response_to_store = asteroid_to_response(execution.asteroids[0])
+                await idempotency_service.store_response(
+                    session=session,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    endpoint=endpoint_key,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    status_code=status.HTTP_200_OK,
+                    response_payload=response_to_store.model_dump(mode="json"),
+                )
+        else:
+            execution = await task_executor_service.execute_tasks(
+                session=session,
+                tasks=tasks,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                manage_transaction=False,
+            )
+            if not execution.asteroids:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Asteroid ingest failed")
+            response_to_store = asteroid_to_response(execution.asteroids[0])
     await commit_if_active(session)
-    if not execution.asteroids:
+    if replayed_response is not None:
+        return replayed_response
+    if response_to_store is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Asteroid ingest failed")
-    return asteroid_to_response(execution.asteroids[0])
+    return response_to_store
 
 
 @app.patch("/asteroids/{asteroid_id}/extinguish", response_model=AsteroidResponse, status_code=status.HTTP_200_OK)
@@ -1049,10 +1121,20 @@ async def extinguish_asteroid(
     asteroid_id: UUID,
     galaxy_id: UUID | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
+    expected_event_seq: int | None = Query(default=None, ge=0),
+    idempotency_key: str | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> AsteroidResponse:
-    tasks = [AtomicTask(action="EXTINGUISH", params={"asteroid_id": str(asteroid_id)})]
+    params: dict[str, Any] = {"asteroid_id": str(asteroid_id)}
+    if expected_event_seq is not None:
+        params["expected_event_seq"] = expected_event_seq
+    tasks = [AtomicTask(action="EXTINGUISH", params=params)]
+    normalized_idempotency_key = normalize_idempotency_key(idempotency_key)
+    endpoint_key = "PATCH:/asteroids/{asteroid_id}/extinguish"
+    replayed_response: AsteroidResponse | None = None
+    response_to_store: AsteroidResponse | None = None
+    extinguish_found = False
     async with transactional_context(session):
         target_galaxy_id = await resolve_galaxy_id_for_user(
             session=session,
@@ -1065,25 +1147,80 @@ async def extinguish_asteroid(
             galaxy_id=target_galaxy_id,
             branch_id=branch_id,
         )
-        execution = await task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
-        )
+        request_hash = None
+        if normalized_idempotency_key is not None:
+            request_hash = idempotency_service.request_hash(
+                {"asteroid_id": str(asteroid_id), "expected_event_seq": expected_event_seq}
+            )
+            replay = await idempotency_service.check_replay(
+                session=session,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                endpoint=endpoint_key,
+                idempotency_key=normalized_idempotency_key,
+                request_hash=request_hash,
+            )
+            if replay is not None:
+                replayed_response = AsteroidResponse.model_validate(replay.response_payload)
+            else:
+                execution = await task_executor_service.execute_tasks(
+                    session=session,
+                    tasks=tasks,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    manage_transaction=False,
+                )
+                extinguish_found = asteroid_id in execution.extinguished_asteroid_ids
+                if not extinguish_found:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asteroid not found")
+                deleted_asteroid = next(
+                    (asteroid for asteroid in execution.extinguished_asteroids if asteroid.id == asteroid_id),
+                    None,
+                )
+                if deleted_asteroid is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Extinguish result is inconsistent",
+                    )
+                response_to_store = asteroid_to_response(deleted_asteroid)
+                await idempotency_service.store_response(
+                    session=session,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    endpoint=endpoint_key,
+                    idempotency_key=normalized_idempotency_key,
+                    request_hash=request_hash,
+                    status_code=status.HTTP_200_OK,
+                    response_payload=response_to_store.model_dump(mode="json"),
+                )
+        else:
+            execution = await task_executor_service.execute_tasks(
+                session=session,
+                tasks=tasks,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                manage_transaction=False,
+            )
+            extinguish_found = asteroid_id in execution.extinguished_asteroid_ids
+            if not extinguish_found:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asteroid not found")
+            deleted_asteroid = next(
+                (asteroid for asteroid in execution.extinguished_asteroids if asteroid.id == asteroid_id),
+                None,
+            )
+            if deleted_asteroid is None:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Extinguish result is inconsistent")
+            response_to_store = asteroid_to_response(deleted_asteroid)
     await commit_if_active(session)
-    if asteroid_id not in execution.extinguished_asteroid_ids:
+    if replayed_response is not None:
+        return replayed_response
+    if not extinguish_found or response_to_store is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asteroid not found")
-
-    deleted_asteroid = next(
-        (asteroid for asteroid in execution.extinguished_asteroids if asteroid.id == asteroid_id),
-        None,
-    )
-    if deleted_asteroid is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Extinguish result is inconsistent")
-    return asteroid_to_response(deleted_asteroid)
+    return response_to_store
 
 
 @app.patch("/asteroids/{asteroid_id}/mutate", response_model=AsteroidResponse, status_code=status.HTTP_200_OK)
@@ -1098,8 +1235,14 @@ async def mutate_asteroid(
         params["value"] = payload.value
     if payload.metadata:
         params["metadata"] = payload.metadata
+    if payload.expected_event_seq is not None:
+        params["expected_event_seq"] = payload.expected_event_seq
 
     tasks = [AtomicTask(action="UPDATE_ASTEROID", params=params)]
+    normalized_idempotency_key = normalize_idempotency_key(payload.idempotency_key)
+    endpoint_key = "PATCH:/asteroids/{asteroid_id}/mutate"
+    replayed_response: AsteroidResponse | None = None
+    response_to_store: AsteroidResponse | None = None
     async with transactional_context(session):
         target_galaxy_id = await resolve_galaxy_id_for_user(
             session=session,
@@ -1112,20 +1255,70 @@ async def mutate_asteroid(
             galaxy_id=target_galaxy_id,
             branch_id=payload.branch_id,
         )
-        execution = await task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
-        )
+        request_hash = None
+        if normalized_idempotency_key is not None:
+            request_hash = idempotency_service.request_hash(
+                {
+                    "asteroid_id": str(asteroid_id),
+                    "value": payload.value,
+                    "metadata": payload.metadata,
+                    "expected_event_seq": payload.expected_event_seq,
+                }
+            )
+            replay = await idempotency_service.check_replay(
+                session=session,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                endpoint=endpoint_key,
+                idempotency_key=normalized_idempotency_key,
+                request_hash=request_hash,
+            )
+            if replay is not None:
+                replayed_response = AsteroidResponse.model_validate(replay.response_payload)
+            else:
+                execution = await task_executor_service.execute_tasks(
+                    session=session,
+                    tasks=tasks,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    manage_transaction=False,
+                )
+                if not execution.asteroids:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asteroid not found")
+                mutated = next((asteroid for asteroid in execution.asteroids if asteroid.id == asteroid_id), execution.asteroids[0])
+                response_to_store = asteroid_to_response(mutated)
+                await idempotency_service.store_response(
+                    session=session,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    endpoint=endpoint_key,
+                    idempotency_key=normalized_idempotency_key,
+                    request_hash=request_hash,
+                    status_code=status.HTTP_200_OK,
+                    response_payload=response_to_store.model_dump(mode="json"),
+                )
+        else:
+            execution = await task_executor_service.execute_tasks(
+                session=session,
+                tasks=tasks,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                manage_transaction=False,
+            )
+            if not execution.asteroids:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asteroid not found")
+            mutated = next((asteroid for asteroid in execution.asteroids if asteroid.id == asteroid_id), execution.asteroids[0])
+            response_to_store = asteroid_to_response(mutated)
     await commit_if_active(session)
-
-    if not execution.asteroids:
+    if replayed_response is not None:
+        return replayed_response
+    if response_to_store is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asteroid not found")
-    mutated = next((asteroid for asteroid in execution.asteroids if asteroid.id == asteroid_id), execution.asteroids[0])
-    return asteroid_to_response(mutated)
+    return response_to_store
 
 
 @app.post("/bonds/link", response_model=BondResponse, status_code=status.HTTP_200_OK)
@@ -1141,9 +1334,23 @@ async def link_bond(
                 "source_id": str(payload.source_id),
                 "target_id": str(payload.target_id),
                 "type": payload.type,
+                **(
+                    {"expected_source_event_seq": payload.expected_source_event_seq}
+                    if payload.expected_source_event_seq is not None
+                    else {}
+                ),
+                **(
+                    {"expected_target_event_seq": payload.expected_target_event_seq}
+                    if payload.expected_target_event_seq is not None
+                    else {}
+                ),
             },
         )
     ]
+    normalized_idempotency_key = normalize_idempotency_key(payload.idempotency_key)
+    endpoint_key = "POST:/bonds/link"
+    replayed_response: BondResponse | None = None
+    response_to_store: BondResponse | None = None
     async with transactional_context(session):
         target_galaxy_id = await resolve_galaxy_id_for_user(
             session=session,
@@ -1156,18 +1363,69 @@ async def link_bond(
             galaxy_id=target_galaxy_id,
             branch_id=payload.branch_id,
         )
-        execution = await task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
-        )
+        request_hash = None
+        if normalized_idempotency_key is not None:
+            request_hash = idempotency_service.request_hash(
+                {
+                    "source_id": str(payload.source_id),
+                    "target_id": str(payload.target_id),
+                    "type": payload.type,
+                    "expected_source_event_seq": payload.expected_source_event_seq,
+                    "expected_target_event_seq": payload.expected_target_event_seq,
+                }
+            )
+            replay = await idempotency_service.check_replay(
+                session=session,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                endpoint=endpoint_key,
+                idempotency_key=normalized_idempotency_key,
+                request_hash=request_hash,
+            )
+            if replay is not None:
+                replayed_response = BondResponse.model_validate(replay.response_payload)
+            else:
+                execution = await task_executor_service.execute_tasks(
+                    session=session,
+                    tasks=tasks,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    manage_transaction=False,
+                )
+                if not execution.bonds:
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Bond link failed")
+                response_to_store = bond_to_response(execution.bonds[0])
+                await idempotency_service.store_response(
+                    session=session,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                    endpoint=endpoint_key,
+                    idempotency_key=normalized_idempotency_key,
+                    request_hash=request_hash,
+                    status_code=status.HTTP_200_OK,
+                    response_payload=response_to_store.model_dump(mode="json"),
+                )
+        else:
+            execution = await task_executor_service.execute_tasks(
+                session=session,
+                tasks=tasks,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                manage_transaction=False,
+            )
+            if not execution.bonds:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Bond link failed")
+            response_to_store = bond_to_response(execution.bonds[0])
     await commit_if_active(session)
-    if not execution.bonds:
+    if replayed_response is not None:
+        return replayed_response
+    if response_to_store is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Bond link failed")
-    return bond_to_response(execution.bonds[0])
+    return response_to_store
 
 
 @app.post("/parser/execute", response_model=ParseCommandResponse, status_code=status.HTTP_200_OK)
@@ -1176,36 +1434,141 @@ async def parse_and_execute(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> ParseCommandResponse:
-    parse_result = parser_service.parse_with_diagnostics(payload.command)
-    if parse_result.errors:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Parse error: {parse_result.errors[0]}",
-        )
-    tasks = parse_result.tasks
+    target_galaxy_id: UUID | None = None
+    target_branch_id: UUID | None = None
 
-    async with transactional_context(session):
-        target_galaxy_id = await resolve_galaxy_id_for_user(
+    async def ensure_scope() -> tuple[UUID, UUID | None]:
+        nonlocal target_galaxy_id, target_branch_id
+        if target_galaxy_id is None:
+            target_galaxy_id = await resolve_galaxy_id_for_user(
+                session=session,
+                user=current_user,
+                galaxy_id=payload.galaxy_id,
+            )
+            target_branch_id = await resolve_branch_id_for_user(
+                session=session,
+                user=current_user,
+                galaxy_id=target_galaxy_id,
+                branch_id=payload.branch_id,
+            )
+        return target_galaxy_id, target_branch_id
+
+    tasks: list[AtomicTask]
+    parser_version_explicit = "parser_version" in payload.model_fields_set
+    if payload.parser_version == "v2":
+        v2_error_message: str | None = None
+        scoped_galaxy_id, scoped_branch_id = await ensure_scope()
+        active_asteroids, _ = await universe_service.project_state(
             session=session,
-            user=current_user,
-            galaxy_id=payload.galaxy_id,
-        )
-        target_branch_id = await resolve_branch_id_for_user(
-            session=session,
-            user=current_user,
-            galaxy_id=target_galaxy_id,
-            branch_id=payload.branch_id,
-        )
-        execution = await task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
             user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
+            galaxy_id=scoped_galaxy_id,
+            branch_id=scoped_branch_id,
+            apply_calculations=False,
         )
+        planner = Parser2SemanticPlanner(
+            parser=parser2_planner.parser,
+            resolver=SnapshotSemanticResolver(active_asteroids),
+        )
+        plan_result = planner.plan_text(payload.command)
+        if plan_result.errors:
+            v2_error_message = plan_result.errors[0].message
+        elif plan_result.envelope is None:
+            v2_error_message = "Parser2 did not produce intent envelope"
+        else:
+            bridge_result = parser2_executor_bridge.to_atomic_tasks(plan_result.envelope)
+            if bridge_result.errors:
+                v2_error_message = bridge_result.errors[0].message
+            else:
+                tasks = bridge_result.tasks
+
+        if v2_error_message is not None:
+            # Keep backwards compatibility for legacy callers that do not send parser_version.
+            # Explicit parser_version=v2 remains strict and does not fall back.
+            # Fallback can be globally disabled via DATAVERSE_PARSER_V2_FALLBACK_TO_V1.
+            if parser_version_explicit or not parser_v2_fallback_to_v1_enabled():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Parse error: {v2_error_message}",
+                )
+
+            parse_result = parser_service.parse_with_diagnostics(payload.command)
+            if parse_result.errors:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Parse error: {v2_error_message}",
+                )
+            tasks = parse_result.tasks
+    else:
+        parse_result = parser_service.parse_with_diagnostics(payload.command)
+        if parse_result.errors:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Parse error: {parse_result.errors[0]}",
+            )
+        tasks = parse_result.tasks
+
+    resolved_galaxy_id, resolved_branch_id = await ensure_scope()
+    normalized_idempotency_key = normalize_idempotency_key(payload.idempotency_key)
+    endpoint_key = "POST:/parser/execute"
+    replayed_response: ParseCommandResponse | None = None
+    response_to_store: ParseCommandResponse | None = None
+    async with transactional_context(session):
+        request_hash = None
+        if normalized_idempotency_key is not None:
+            request_hash = idempotency_service.request_hash(
+                {
+                    "command": payload.command,
+                    "parser_version": payload.parser_version,
+                }
+            )
+            replay = await idempotency_service.check_replay(
+                session=session,
+                user_id=current_user.id,
+                galaxy_id=resolved_galaxy_id,
+                branch_id=resolved_branch_id,
+                endpoint=endpoint_key,
+                idempotency_key=normalized_idempotency_key,
+                request_hash=request_hash,
+            )
+            if replay is not None:
+                replayed_response = ParseCommandResponse.model_validate(replay.response_payload)
+            else:
+                execution = await task_executor_service.execute_tasks(
+                    session=session,
+                    tasks=tasks,
+                    user_id=current_user.id,
+                    galaxy_id=resolved_galaxy_id,
+                    branch_id=resolved_branch_id,
+                    manage_transaction=False,
+                )
+                response_to_store = execution_to_response(tasks=tasks, execution=execution)
+                await idempotency_service.store_response(
+                    session=session,
+                    user_id=current_user.id,
+                    galaxy_id=resolved_galaxy_id,
+                    branch_id=resolved_branch_id,
+                    endpoint=endpoint_key,
+                    idempotency_key=normalized_idempotency_key,
+                    request_hash=request_hash,
+                    status_code=status.HTTP_200_OK,
+                    response_payload=response_to_store.model_dump(mode="json"),
+                )
+        else:
+            execution = await task_executor_service.execute_tasks(
+                session=session,
+                tasks=tasks,
+                user_id=current_user.id,
+                galaxy_id=resolved_galaxy_id,
+                branch_id=resolved_branch_id,
+                manage_transaction=False,
+            )
+            response_to_store = execution_to_response(tasks=tasks, execution=execution)
     await commit_if_active(session)
-    return execution_to_response(tasks=tasks, execution=execution)
+    if replayed_response is not None:
+        return replayed_response
+    if response_to_store is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Parser execution failed")
+    return response_to_store
 
 
 @app.get("/universe/snapshot", response_model=UniverseSnapshotResponse, status_code=status.HTTP_200_OK)
