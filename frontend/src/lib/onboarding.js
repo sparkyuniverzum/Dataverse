@@ -1,17 +1,18 @@
-export const MODEL_PATH_LABEL = "Galaxie / Souhvezdi-Entity / Hvezda-Planeta / Mesic / Bunky";
+export const MODEL_PATH_LABEL = "Galaxie (workspace) / Souhvezdi (oblasti) / Planety (tabulky) / Mesice (radky) / Nerosty (bunky)";
 
 export const LANDING_GUIDE = [
   "Prihlas nebo registruj ucet.",
   "V levelu Galaxie vytvor nebo vyber workspace.",
-  "Hvezda/Planeta se vytvori pri zalozeni prvniho Mesice.",
-  "Mesice propoj vazbou a uprav bunky (metadata).",
+  "Souhvezdi je logicka oblast (napr. Sklad, Expedice, QA).",
+  "Planeta je tabulka a Mesic je jeji radek.",
+  "Mesice propoj vazbou a uprav nerosty (bunky/metadata).",
   "Mazani je jen soft delete: Zhasnout.",
 ];
 
 export const GALAXY_GUIDE = [
   "Klik na galaxii = vyber, dvojklik = vstup.",
   "Nova galaxie znamena novy workspace.",
-  "Po vstupu zaloz Entitu + Hvezdu/Planetu + Mesic.",
+  "Po vstupu zaloz Souhvezdi + Planetu + Mesic.",
   "Formule, guardian a vazby nastav v Akcnim centru.",
 ];
 
@@ -71,12 +72,12 @@ export const GALAXY_TIMEZONE_OPTIONS = [
 ];
 
 export const WORKSPACE_GUIDE = [
-  "Nova Entita + Hvezda/Planeta + Mesic: formular Rychle zalozeni.",
+  "Nove Souhvezdi + Planeta + Mesic: formular Rychle zalozeni.",
   "CSV Import: v Akcnim centru vyber soubor, zvol preview nebo commit a spust import.",
-  "L2 Souhvezdi/Entity v 3D: levy klik = vstup do Planety, pravy klik = kontext menu.",
+  "L2 Souhvezdi v 3D: levy klik = vstup do Planety, pravy klik = kontext menu.",
   "L3 Mesice v 3D: levy klik = fokus, pravy klik = menu, pravy drag Mesic -> Mesic = nova vazba (alternativa Shift + levy drag).",
   "Kamera: drag prazdneho pozadi = orbit, kolecko = zoom.",
-  "Editace bunek: Tabulkovy Prurez nebo Mesic a Tezba Bunek.",
+  "Editace nerostu/bunek: Tabulkovy Prurez nebo Detail Mesice.",
   "Formula, Guardian, Soft Delete: sekce Akce nad existujicim Mesicem.",
   "Najit objekt: Fokus na Mesic nebo prikaz Ukaz : ...",
 ];

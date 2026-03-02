@@ -336,12 +336,12 @@ const FALLBACK_LINK_PHYSICS = Object.freeze({
 
 function MouseGuideOverlay({ level, hoveredNode }) {
   const isTablesLevel = level < 3;
-  const title = isTablesLevel ? "L2 objekty: Souhvezdi / Entity" : "L3 objekty: Mesice";
+  const title = isTablesLevel ? "L2 objekty: Souhvezdi / Planety" : "L3 objekty: Mesice";
   const lines = isTablesLevel
     ? [
         "LMB klik na Souhvezdi: vstup do Planety.",
         "RMB klik na Souhvezdi: menu (Vstoupit / Zpet).",
-        "Mesice jsou uvnitr planety (male body na orbite). Klikni na planetu.",
+        "Male body kolem planety jsou mesice (nahled). Pro detail klikni planetu.",
         "Drag pozadi: orbit kamery, kolecko: zoom.",
       ]
     : [
@@ -719,7 +719,7 @@ function TableNode({
       </Billboard>
       <Billboard position={[0, node.radius + 2.8, 0]}>
         <Text fontSize={2.4} color={hasV1 ? v1Style.tint : "#aee9ff"} anchorX="center" anchorY="middle" maxWidth={76}>
-          {`${node.entityName || node.label} • ${node.memberCount || 0} mesicu uvnitr`}
+          {`${node.entityName || node.label} • ${node.memberCount || 0} mesicu kolem`}
         </Text>
       </Billboard>
       <Billboard position={[0, node.radius + 0.6, 0]}>

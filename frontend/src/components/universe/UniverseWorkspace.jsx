@@ -1572,7 +1572,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     const planet = draftPlanetName.trim();
     const moon = draftMoonLabel.trim();
     if (!entity || !planet || !moon) {
-      setError("Pro zalozeni vypln Entitu, Hvezdu/Planetu a Mesic.");
+      setError("Pro zalozeni vypln Souhvezdi, Planetu a Mesic.");
       return;
     }
 
@@ -1741,7 +1741,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [asteroidNodes, backToTables, closeContextMenu, extinguishAsteroid, focusAsteroid, focusTable, patchPanel, tableNodes]
   );
 
-  const breadcrumb = `L2 Souhvezdi/Entity${level >= 3 && selectedTable ? ` / ${selectedSemantic.entityName} / Planeta ${selectedSemantic.planetName}` : ""}${level >= 3 && selectedAsteroid ? ` / Mesic ${valueToLabel(selectedAsteroid.value)}` : ""}`;
+  const levelLabel = level >= 3 ? "L3: Planeta a Mesice" : "L2: Souhvezdi a Planety";
+  const selectedMoonLabel = selectedAsteroid ? valueToLabel(selectedAsteroid.value) : "";
+  const selectedBondLabel = selectedBond ? `${selectedBond.type} ${selectedBond.directional ? "->" : "<->"}` : "";
 
   const minimizedPanels = Object.entries(panels)
     .filter(([, cfg]) => cfg.collapsed)
@@ -1802,86 +1804,102 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 39,
-          borderRadius: 999,
+          borderRadius: 16,
           border: "1px solid rgba(96, 189, 223, 0.42)",
           background: "rgba(5, 13, 24, 0.84)",
           color: "#d9f8ff",
-          padding: "8px 13px",
+          padding: "8px 10px",
           fontSize: 12,
-          display: "flex",
-          alignItems: "center",
-          gap: 9,
+          display: "grid",
+          gap: 7,
           backdropFilter: "blur(7px)",
+          width: "min(1180px, calc(100vw - 26px))",
         }}
       >
-        <strong>{galaxy?.name || "Galaxie"}</strong>
-        <span style={{ opacity: 0.85 }}>{breadcrumb}</span>
-        {historicalMode ? <span style={{ color: "#ffd9a4" }}>Historical</span> : null}
-        {loading ? <span style={{ color: "#9de7ff" }}>Loading...</span> : null}
-        {!historicalMode ? (
-          <span
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center" }}>
+          <span style={{ ...hudBadgeStyle, fontWeight: 800 }}>{galaxy?.name || "Galaxie"}</span>
+          <span style={hudBadgeStyle}>{levelLabel}</span>
+          <span style={hudBadgeStyle}>
+            Rezim: <strong style={{ color: activeBranchId ? "#8affde" : "#d9f8ff" }}>{activeWorkspaceLabel}</strong>
+          </span>
+          {!historicalMode ? (
+            <span
+              style={{
+                ...hudBadgeStyle,
+                color: streamState === "LIVE" ? "#9affd7" : streamState === "RETRY" ? "#ffd58f" : "#9ec9ff",
+              }}
+            >
+              Stream: {streamState}
+            </span>
+          ) : (
+            <span style={{ ...hudBadgeStyle, color: "#ffd9a4" }}>Historicky rezim (jen cteni)</span>
+          )}
+          {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam data...</span> : null}
+          {selectedTable ? (
+            <span style={hudBadgeStyle}>
+              Souhvezdi: <strong>{selectedSemantic.entityName}</strong>
+            </span>
+          ) : null}
+          {selectedTable ? (
+            <span style={hudBadgeStyle}>
+              Planeta: <strong>{selectedSemantic.planetName}</strong>
+            </span>
+          ) : null}
+          {selectedMoonLabel ? (
+            <span style={hudBadgeStyle}>
+              Mesic: <strong>{selectedMoonLabel}</strong>
+            </span>
+          ) : null}
+          {selectedBondLabel ? (
+            <span style={hudBadgeStyle}>
+              Vazba: <strong>{selectedBondLabel}</strong>
+            </span>
+          ) : null}
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>Hierarchie: {MODEL_PATH_LABEL}</span>
+          <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>Vazby: RELATION, TYPE, FLOW, GUARDIAN</span>
+          <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>Kvalita: GREEN / YELLOW / RED</span>
+          <select
+            value={selectedBranchId}
+            onChange={(event) => setSelectedBranchId(event.target.value)}
+            disabled={branchBusy || branchesLoading}
             style={{
-              color: streamState === "LIVE" ? "#9affd7" : streamState === "RETRY" ? "#ffd58f" : "#9ec9ff",
+              ...selectStyle,
+              width: 170,
+              fontSize: 11,
+              padding: "4px 7px",
+              borderRadius: 999,
             }}
           >
-            Stream: {streamState}
-          </span>
-        ) : null}
-        <span style={{ opacity: 0.82 }}>
-          Workspace: <strong style={{ color: activeBranchId ? "#8affde" : "#d9f8ff" }}>{activeWorkspaceLabel}</strong>
-        </span>
-        <select
-          value={selectedBranchId}
-          onChange={(event) => setSelectedBranchId(event.target.value)}
-          disabled={branchBusy || branchesLoading}
-          style={{
-            ...selectStyle,
-            width: 180,
-            fontSize: 11,
-            padding: "4px 7px",
-            borderRadius: 999,
-          }}
-        >
-          <option value="">Main</option>
-          {branches.map((branch) => (
-            <option key={branch.id} value={branch.id}>
-              {branch.name}
-            </option>
-          ))}
-        </select>
-        <span style={{ opacity: 0.8 }}>Model: {MODEL_PATH_LABEL}</span>
-        <span style={{ opacity: 0.78 }}>
-          Vazby:
-          <span style={{ marginLeft: 5, color: "#58d2ff" }}>RELATION</span>
-          <span style={{ marginLeft: 6, color: "#91a8ff" }}>TYPE</span>
-          <span style={{ marginLeft: 6, color: "#84ffd1" }}>FLOW</span>
-          <span style={{ marginLeft: 6, color: "#ffb15f" }}>GUARDIAN</span>
-        </span>
-        <span style={{ opacity: 0.78 }}>
-          V1:
-          <span style={{ marginLeft: 5, color: resolveStatusColor("GREEN") }}>GREEN</span>
-          <span style={{ marginLeft: 6, color: resolveStatusColor("YELLOW") }}>YELLOW</span>
-          <span style={{ marginLeft: 6, color: resolveStatusColor("RED") }}>RED</span>
-        </span>
-        <button type="button" onClick={backToTables} style={hudButtonStyle}>Souhvezdi</button>
-        <button type="button" onClick={loadUniverse} style={hudButtonStyle}>Refresh</button>
-        <button
-          type="button"
-          onClick={onBackToGalaxies}
-          style={{ ...hudButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
-        >
-          Galaxie
-        </button>
-        <button type="button" onClick={handleQuickCreateGalaxy} style={hudButtonStyle}>
-          Nova galaxie
-        </button>
-        <button
-          type="button"
-          onClick={onLogout}
-          style={{ ...hudButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
-        >
-          Logout
-        </button>
+            <option value="">Main</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
+          <button type="button" onClick={backToTables} style={hudButtonStyle}>Souhvezdi</button>
+          <button type="button" onClick={loadUniverse} style={hudButtonStyle}>Refresh</button>
+          <button
+            type="button"
+            onClick={onBackToGalaxies}
+            style={{ ...hudButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
+          >
+            Galaxie
+          </button>
+          <button type="button" onClick={handleQuickCreateGalaxy} style={hudButtonStyle}>
+            Nova galaxie
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            style={{ ...hudButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       <FloatingPanel
@@ -1893,8 +1911,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 7 }}>
-          Akcni centrum: uzivatel muze vse zakladni provest primo tlacitky bez hadani syntaxe.
-          Model nema samostatny objekt "hvezda" - hvezda/planeta vznikne pri zalozeni prvniho Mesice.
+          Akcni centrum: vsechno zakladni udelas pres tlacitka bez znalosti syntaxe.
+          Hierarchie: Galaxie (workspace), Souhvezdi (oblast), Planeta (tabulka), Mesic (radek), Nerosty (bunky).
         </div>
         <form onSubmit={handleCommand} style={{ display: "flex", gap: 8 }}>
           <input
@@ -2066,19 +2084,19 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           ))}
         </div>
         <div style={guideSectionStyle}>
-          <div style={guideTitleStyle}>RYCHLE ZALOZENI (nova hvezda/planeta i mesic)</div>
+          <div style={guideTitleStyle}>RYCHLE ZALOZENI (nove souhvezdi/planeta/mesic)</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <input
               value={draftEntityName}
               onChange={(event) => setDraftEntityName(event.target.value)}
-              placeholder="Entita / Souhvezdi"
+              placeholder="Souhvezdi (oblast)"
               style={inputStyle}
               disabled={busy || historicalMode}
             />
             <input
               value={draftPlanetName}
               onChange={(event) => setDraftPlanetName(event.target.value)}
-              placeholder="Hvezda / Planeta"
+              placeholder="Planeta (tabulka)"
               style={inputStyle}
               disabled={busy || historicalMode}
             />
@@ -2116,7 +2134,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
               type="button"
               onClick={() =>
                 setQuery(
-                  `${draftMoonLabel.trim() || "NovyMesic"} (table: ${draftEntityName.trim() || "Entita"} > ${
+                  `${draftMoonLabel.trim() || "NovyMesic"} (table: ${draftEntityName.trim() || "Souhvezdi"} > ${
                     draftPlanetName.trim() || "Planeta"
                   })`
                 )
@@ -2302,7 +2320,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: 12, opacity: 0.82, marginBottom: 8 }}>
-          L2 vrstva: Souhvezdi/Entity s agregovanou kvalitou dat.
+          L2 vrstva: Souhvezdi (logicke oblasti) s agregovanou kvalitou dat.
         </div>
         {constellationsLoading ? <div style={{ fontSize: 12, color: "#9de6ff" }}>Nacitam souhvezdi...</div> : null}
         {!constellationsLoading && !constellations.length ? (
@@ -2363,7 +2381,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: 12, opacity: 0.82, marginBottom: 8 }}>
-          L3 vrstva: Planety (tabulky) s V1 metrikami a kvalitou.
+          L3 vrstva: Planety = tabulky s V1 metrikami a kvalitou.
         </div>
         {planetsLoading ? <div style={{ fontSize: 12, color: "#9de6ff" }}>Nacitam planety...</div> : null}
         {!planetsLoading && !planets.length ? (
@@ -2423,7 +2441,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: 12, opacity: 0.82, marginBottom: 8 }}>
-          L4 vrstva: Mesice (radky) s V1 kvalitou dat.
+          L4 vrstva: Mesice = radky tabulek s V1 kvalitou dat.
         </div>
         {moonsLoading ? <div style={{ fontSize: 12, color: "#9de6ff" }}>Nacitam mesice...</div> : null}
         {!moonsLoading && !moons.length ? (
@@ -2719,7 +2737,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: 12, opacity: 0.78, marginBottom: 8 }}>
-          LEVEL 3 / TABULKA: souhvezdi = entita, radky = mesice, bunky = nerosty/suroviny.
+          TABULKA PLANETY: sloupce = nerosty (bunky), radky = mesice.
         </div>
         <div style={{ overflow: "auto", border: "1px solid rgba(96, 186, 220, 0.18)", borderRadius: 8 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
@@ -2958,6 +2976,16 @@ const selectStyle = {
   ...inputStyle,
   padding: "6px 8px",
   appearance: "none",
+};
+
+const hudBadgeStyle = {
+  border: "1px solid rgba(101, 191, 223, 0.3)",
+  background: "rgba(8, 18, 31, 0.85)",
+  color: "#d8f6ff",
+  borderRadius: 999,
+  padding: "4px 8px",
+  fontSize: 11,
+  lineHeight: 1.2,
 };
 
 const hudButtonStyle = {
