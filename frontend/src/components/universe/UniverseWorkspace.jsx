@@ -25,6 +25,7 @@ import {
 } from "../../lib/dataverseApi";
 import { MODEL_PATH_LABEL, WORKSPACE_GUIDE } from "../../lib/onboarding";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
+import { buildHierarchyTree } from "../../lib/universe_viewmodel";
 import {
   DEFAULT_NODE_PHYSICS,
   deriveAsteroidBondDensityMap,
@@ -148,6 +149,100 @@ function splitEntityAndPlanetName(table) {
     entityName: raw,
     planetName: raw,
   };
+}
+
+function buildHierarchyGraphInputs(tables, snapshot) {
+  const safeTables = Array.isArray(tables) ? tables : [];
+  const safeAsteroids = Array.isArray(snapshot?.asteroids) ? snapshot.asteroids : [];
+  const safeBonds = Array.isArray(snapshot?.bonds) ? snapshot.bonds : [];
+
+  const nodes = [];
+  const edges = [];
+  const nodeIds = new Set();
+  const edgeKeys = new Set();
+
+  const addNode = (node) => {
+    const id = String(node?.id || "").trim();
+    if (!id || nodeIds.has(id)) return;
+    nodeIds.add(id);
+    nodes.push(node);
+  };
+
+  const addEdge = (edge) => {
+    const sourceId = String(edge?.source_id || edge?.source || "").trim();
+    const targetId = String(edge?.target_id || edge?.target || "").trim();
+    const type = String(edge?.edge_type || edge?.type || "").trim().toUpperCase();
+    if (!sourceId || !targetId) return;
+    const key = `${type}:${sourceId}:${targetId}`;
+    if (edgeKeys.has(key)) return;
+    edgeKeys.add(key);
+    edges.push(edge);
+  };
+
+  safeTables.forEach((table) => {
+    const tableId = String(table?.table_id || table?.id || "").trim();
+    if (!tableId) return;
+    addNode({
+      id: tableId,
+      semantic_type: "PLANET",
+      label: String(table?.planet_name || table?.name || tableId),
+      ...table,
+    });
+  });
+
+  safeAsteroids.forEach((asteroid) => {
+    const asteroidId = String(asteroid?.id || "").trim();
+    if (!asteroidId) return;
+    addNode({
+      id: asteroidId,
+      semantic_type: "MOON",
+      label: valueToLabel(asteroid?.value) || asteroidId,
+      ...asteroid,
+    });
+    const tableId = String(asteroid?.table_id || "").trim();
+    if (tableId) {
+      addEdge({
+        id: `inst:${asteroidId}:${tableId}`,
+        edge_type: "INSTANCE_OF",
+        source_id: asteroidId,
+        target_id: tableId,
+      });
+    }
+  });
+
+  safeTables.forEach((table) => {
+    const tableId = String(table?.table_id || table?.id || "").trim();
+    if (!tableId) return;
+    const members = Array.isArray(table?.members) ? table.members : [];
+    members.forEach((member) => {
+      const moonId = String(member?.id || "").trim();
+      if (!moonId) return;
+      addNode({
+        id: moonId,
+        semantic_type: "MOON",
+        label: valueToLabel(member?.value) || moonId,
+        ...member,
+      });
+      addEdge({
+        id: `inst:${moonId}:${tableId}`,
+        edge_type: "INSTANCE_OF",
+        source_id: moonId,
+        target_id: tableId,
+      });
+    });
+  });
+
+  safeBonds.forEach((bond) => {
+    addEdge({
+      id: String(bond?.id || ""),
+      edge_type: String(bond?.type || "RELATION"),
+      source_id: String(bond?.source_id || ""),
+      target_id: String(bond?.target_id || ""),
+      ...bond,
+    });
+  });
+
+  return { nodes, edges };
 }
 
 function resolveStatusColor(status) {
@@ -591,6 +686,10 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [branches, selectedBranchId]
   );
   const activeWorkspaceLabel = selectedBranch ? `branch:${selectedBranch.name}` : "main";
+  const hierarchyView = useMemo(() => {
+    const graph = buildHierarchyGraphInputs(tables, snapshot);
+    return buildHierarchyTree(graph.nodes, graph.edges);
+  }, [snapshot.asteroids, snapshot.bonds, tables]);
   const commandSuggestions = useMemo(() => {
     const staticSuggestions = [
       { key: "refresh", label: ":refresh", insert: ":refresh", hint: "Obnovi snapshot a tabulky" },
@@ -607,7 +706,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     ];
     const moonSuggestions = [];
     const seen = new Set();
-    snapshot.asteroids.forEach((asteroid) => {
+    hierarchyView.indexes.moonById.forEach((moon) => {
+      const asteroid = moon?.originalNode || {};
       const label = valueToLabel(asteroid?.value).trim();
       const normalized = normalizeText(label);
       if (!label || !normalized || seen.has(normalized)) return;
@@ -629,7 +729,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     return source
       .filter((item) => normalizeText(`${item.label} ${item.insert} ${item.hint}`).replace(/\s+/g, "").includes(needle))
       .slice(0, 9);
-  }, [query, snapshot.asteroids]);
+  }, [query, hierarchyView]);
 
   useEffect(() => {
     tablesRef.current = tables;
@@ -1186,19 +1286,28 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
   useEffect(() => {
     if (!selectedTableId) return;
-    const exists = tables.some((table) => String(table.table_id) === String(selectedTableId));
+    const exists = hierarchyView.indexes.planetById.has(String(selectedTableId));
     if (!exists) {
       backToTables();
     }
-  }, [backToTables, selectedTableId, tables]);
+  }, [backToTables, hierarchyView, selectedTableId]);
 
+  const hierarchyAsteroids = useMemo(
+    () =>
+      [...hierarchyView.indexes.moonById.values()].map((moon) => {
+        const original = moon?.originalNode;
+        if (original && typeof original === "object") return original;
+        return { id: moon.id, value: moon.label || moon.id, metadata: {} };
+      }),
+    [hierarchyView]
+  );
   const asteroidById = useMemo(() => {
     const map = new Map();
-    snapshot.asteroids.forEach((asteroid) => {
+    hierarchyAsteroids.forEach((asteroid) => {
       map.set(String(asteroid.id), asteroid);
     });
     return map;
-  }, [snapshot.asteroids]);
+  }, [hierarchyAsteroids]);
   const snapshotBondById = useMemo(() => {
     const map = new Map();
     snapshot.bonds.forEach((bond) => {
@@ -1266,7 +1375,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   }, [constellationMetricsByName, planetMetricsByTableId, tables]);
   const asteroidPhysicsById = useMemo(() => {
     const map = new Map();
-    snapshot.asteroids.forEach((asteroid) => {
+    hierarchyAsteroids.forEach((asteroid) => {
       const asteroidId = String(asteroid?.id || "");
       if (!asteroidId) return;
       const moonMetric = moonMetricsByAsteroidId.get(asteroidId) || null;
@@ -1280,7 +1389,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       );
     });
     return map;
-  }, [asteroidBondDensityById, moonMetricsByAsteroidId, snapshot.asteroids]);
+  }, [asteroidBondDensityById, hierarchyAsteroids, moonMetricsByAsteroidId]);
 
   const layout = useMemo(() => {
     const next = calculateHierarchyLayout({
@@ -1368,8 +1477,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   );
 
   const selectedAsteroid = useMemo(
-    () => snapshot.asteroids.find((asteroid) => String(asteroid.id) === String(selectedAsteroidId || "")) || null,
-    [selectedAsteroidId, snapshot.asteroids]
+    () => asteroidById.get(String(selectedAsteroidId || "")) || null,
+    [asteroidById, selectedAsteroidId]
   );
   const selectedBond = useMemo(
     () => snapshot.bonds.find((bond) => String(bond.id) === String(selectedBondId || "")) || null,
@@ -1408,20 +1517,148 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [selectedTable]
   );
   const moonQuickOptions = useMemo(
+    () => {
+      const options = [];
+      hierarchyView.indexes.moonById.forEach((moon, moonId) => {
+        const asteroid = moon?.originalNode || {};
+        const id = String(moonId);
+        const label = valueToLabel(asteroid?.value) || moon?.label || id.slice(0, 8);
+        const planetId = hierarchyView.indexes.moonToPlanet.get(id);
+        const planet = planetId ? hierarchyView.indexes.planetById.get(planetId) : null;
+        const semantic = planet?.originalNode
+          ? splitEntityAndPlanetName(planet.originalNode)
+          : { entityName: "Sirotci", planetName: "Bez planety" };
+        options.push({
+          id,
+          label: `${label} • ${semantic.entityName}/${semantic.planetName}`,
+        });
+      });
+      return options.sort((a, b) => a.label.localeCompare(b.label));
+    },
+    [hierarchyView]
+  );
+  const asteroidNodeById = useMemo(() => new Map(asteroidNodes.map((node) => [String(node.id), node])), [asteroidNodes]);
+  const hierarchyDiagnosticsSummary = useMemo(
+    () => ({
+      warnings: Array.isArray(hierarchyView?.diagnostics?.warnings) ? hierarchyView.diagnostics.warnings.length : 0,
+      droppedEdges: Array.isArray(hierarchyView?.diagnostics?.droppedEdges) ? hierarchyView.diagnostics.droppedEdges.length : 0,
+      orphans: Array.isArray(hierarchyView?.orphans) ? hierarchyView.orphans.length : 0,
+    }),
+    [hierarchyView]
+  );
+  const constellationPanelItems = useMemo(() => {
+    const buckets = new Map();
+    const statusRank = { GREEN: 0, YELLOW: 1, RED: 2 };
+    const takeWorseStatus = (current, next) => {
+      const normalizedCurrent = String(current || "GREEN").toUpperCase();
+      const normalizedNext = String(next || "GREEN").toUpperCase();
+      return (statusRank[normalizedNext] || 0) > (statusRank[normalizedCurrent] || 0) ? normalizedNext : normalizedCurrent;
+    };
+    hierarchyView.planets.forEach((planet) => {
+      const tableId = String(planet.id || "");
+      const semantic = splitEntityAndPlanetName(planet.originalNode);
+      const key = semantic.entityName || "Uncategorized";
+      const metric = planetMetricsByTableId.get(tableId) || null;
+      const qualityScore = Number(metric?.quality_score ?? 100);
+      const status = String(metric?.status || "GREEN").toUpperCase();
+      const tableNode = tableNodeById.get(tableId) || null;
+      const existing = buckets.get(key);
+      if (!existing) {
+        buckets.set(key, {
+          name: key,
+          planetsCount: 1,
+          moonsCount: Array.isArray(planet.moons) ? planet.moons.length : 0,
+          qualityTotal: Number.isFinite(qualityScore) ? qualityScore : 100,
+          qualityCount: 1,
+          status,
+          focusNode: tableNode,
+        });
+        return;
+      }
+      existing.planetsCount += 1;
+      existing.moonsCount += Array.isArray(planet.moons) ? planet.moons.length : 0;
+      existing.qualityTotal += Number.isFinite(qualityScore) ? qualityScore : 100;
+      existing.qualityCount += 1;
+      existing.status = takeWorseStatus(existing.status, status);
+      if (!existing.focusNode && tableNode) {
+        existing.focusNode = tableNode;
+      }
+    });
+
+    return [...buckets.values()]
+      .map((item) => ({
+        ...item,
+        qualityScore: Math.round(item.qualityTotal / Math.max(1, item.qualityCount)),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [hierarchyView, planetMetricsByTableId, tableNodeById]);
+  const planetPanelItems = useMemo(
     () =>
-      snapshot.asteroids
-        .map((asteroid) => {
-          const id = String(asteroid.id);
-          const label = valueToLabel(asteroid.value) || id.slice(0, 8);
-          const table = resolveTableForAsteroid(tables, asteroid.id);
-          const semantic = splitEntityAndPlanetName(table);
+      hierarchyView.planets
+        .map((planet) => {
+          const tableId = String(planet.id || "");
+          const semantic = splitEntityAndPlanetName(planet.originalNode);
+          const metric = planetMetricsByTableId.get(tableId) || null;
           return {
-            id,
-            label: `${label} • ${semantic.entityName}/${semantic.planetName}`,
+            tableId,
+            name: semantic.planetName || tableId,
+            constellationName: semantic.entityName || "Uncategorized",
+            moonsCount: Array.isArray(planet.moons) ? planet.moons.length : 0,
+            schemaFieldsCount: Number(metric?.schema_fields_count ?? 0),
+            formulaFieldsCount: Number(metric?.formula_fields_count ?? 0),
+            bondCount: Number(metric?.internal_bonds_count ?? 0) + Number(metric?.external_bonds_count ?? 0),
+            sectorMode: String(metric?.sector_mode || "graph"),
+            qualityScore: Number(metric?.quality_score ?? 100),
+            status: String(metric?.status || "GREEN").toUpperCase(),
+            tableNode: tableNodeById.get(tableId) || null,
           };
         })
-        .sort((a, b) => a.label.localeCompare(b.label)),
-    [snapshot.asteroids, tables]
+        .sort((a, b) => `${a.constellationName}/${a.name}`.localeCompare(`${b.constellationName}/${b.name}`)),
+    [hierarchyView, planetMetricsByTableId, tableNodeById]
+  );
+  const moonPanelItems = useMemo(
+    () =>
+      [...hierarchyView.indexes.moonById.values()]
+        .map((moon) => {
+          const moonId = String(moon.id || "");
+          const asteroid = moon?.originalNode && typeof moon.originalNode === "object" ? moon.originalNode : { id: moonId, metadata: {} };
+          const planetId = hierarchyView.indexes.moonToPlanet.get(moonId);
+          const planet = planetId ? hierarchyView.indexes.planetById.get(planetId) : null;
+          const semantic = planet?.originalNode
+            ? splitEntityAndPlanetName(planet.originalNode)
+            : { entityName: "Sirotci", planetName: "Bez planety" };
+          const metric = moonMetricsByAsteroidId.get(moonId) || null;
+          const metadataCount = Object.keys(safeMetadata(asteroid?.metadata)).filter(
+            (field) => !RESERVED_METADATA_KEYS.has(String(field))
+          ).length;
+          const calculated = asteroid?.calculated_values && typeof asteroid.calculated_values === "object" ? asteroid.calculated_values : {};
+          const calculatedCount = Object.keys(calculated).length;
+          const alertsCount = Array.isArray(asteroid?.active_alerts)
+            ? asteroid.active_alerts.length
+            : Number(metric?.active_alerts_count ?? 0);
+          return {
+            asteroidId: moonId,
+            label: valueToLabel(asteroid?.value) || moon?.label || moonId,
+            constellationName: semantic.entityName,
+            planetName: semantic.planetName,
+            tableId: planetId || "",
+            metadataFieldsCount: Number(metric?.metadata_fields_count ?? metadataCount),
+            calculatedFieldsCount: Number(metric?.calculated_fields_count ?? calculatedCount),
+            activeAlertsCount: Number(metric?.active_alerts_count ?? alertsCount),
+            qualityScore: Number(metric?.quality_score ?? 100),
+            status: String(metric?.status || "GREEN").toUpperCase(),
+            tableNode: planetId ? tableNodeById.get(String(planetId)) || null : null,
+            moonNode: asteroidNodeById.get(moonId) || null,
+            isOrphan: !planetId,
+          };
+        })
+        .sort((a, b) => {
+          if (a.isOrphan !== b.isOrphan) return a.isOrphan ? -1 : 1;
+          return `${a.constellationName}/${a.planetName}/${a.label}`.localeCompare(
+            `${b.constellationName}/${b.planetName}/${b.label}`
+          );
+        }),
+    [asteroidNodeById, hierarchyView, moonMetricsByAsteroidId, tableNodeById]
   );
   const selectedQuickLinkTypeOption = useMemo(
     () => QUICK_LINK_TYPE_OPTIONS.find((item) => item.value === quickLinkType) || QUICK_LINK_TYPE_OPTIONS[0],
@@ -1438,6 +1675,14 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     },
     [clearSelectedAsteroid, patchPanel]
   );
+  const focusFirstOrphanMoon = useCallback(() => {
+    const orphan = moonPanelItems.find((item) => item.isOrphan);
+    if (!orphan?.moonNode) return;
+    setSelectedBondId("");
+    focusAsteroid({ asteroidId: orphan.moonNode.id, cameraTarget: orphan.moonNode.position, cameraDistance: 56 });
+    patchPanel("moons", { collapsed: false });
+    patchPanel("inspector", { collapsed: false });
+  }, [focusAsteroid, moonPanelItems, patchPanel]);
 
   useEffect(() => {
     if (!moonQuickOptions.length) {
@@ -1476,15 +1721,17 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   }, [selectedBond]);
 
   const tableRows = useMemo(() => {
-    if (!selectedTable) return [];
-    const members = Array.isArray(selectedTable.members) ? selectedTable.members : [];
-    return members
-      .map((member) => {
-        const asteroid = asteroidById.get(String(member.id));
-        return asteroid || { id: member.id, value: member.value || member.id, metadata: {} };
+    if (!selectedTableId) return [];
+    const planet = hierarchyView.indexes.planetById.get(String(selectedTableId));
+    if (!planet) return [];
+    return [...(Array.isArray(planet.moons) ? planet.moons : [])]
+      .map((moon) => {
+        const asteroid = moon?.originalNode;
+        if (asteroid && typeof asteroid === "object") return asteroid;
+        return { id: moon.id, value: moon.label || moon.id, metadata: {} };
       })
       .sort((a, b) => valueToLabel(a.value).localeCompare(valueToLabel(b.value)));
-  }, [selectedTable, asteroidById]);
+  }, [hierarchyView, selectedTableId]);
 
   const focusFirstMoonInSelectedTable = useCallback(() => {
     if (!tableRows.length) return false;
@@ -1897,19 +2144,19 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [tableRows]
   );
   const asteroidRowById = useMemo(
-    () => new Map(snapshot.asteroids.map((row) => [String(row.id), row])),
-    [snapshot.asteroids]
+    () => new Map([...asteroidById.entries()]),
+    [asteroidById]
   );
   const asteroidIdsByNormalizedLabel = useMemo(() => {
     const map = new Map();
-    snapshot.asteroids.forEach((asteroid) => {
+    asteroidById.forEach((asteroid) => {
       const key = normalizeText(valueToLabel(asteroid.value));
       if (!key) return;
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(String(asteroid.id));
     });
     return map;
-  }, [snapshot.asteroids]);
+  }, [asteroidById]);
   const gridChangeCount = useMemo(() => Object.keys(gridChangeSet).length, [gridChangeSet]);
   const gridExtinguishCount = useMemo(
     () => Object.keys(gridPendingExtinguishIds).length,
@@ -3010,8 +3257,14 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const selectedMoonLabel = selectedAsteroid ? valueToLabel(selectedAsteroid.value) : "";
   const selectedBondLabel = selectedBond ? `${formatBondTypeLabel(selectedBond.type)} ${selectedBond.directional ? "->" : "<->"}` : "";
   const hasMoonsInSelectedPlanet = tableRows.length > 0;
+  const hasHierarchyIssues =
+    hierarchyDiagnosticsSummary.orphans > 0 ||
+    hierarchyDiagnosticsSummary.warnings > 0 ||
+    hierarchyDiagnosticsSummary.droppedEdges > 0;
   const nextStepHint = level < 3
     ? "Klikni na planetu. Otevre se detail planety a prvni mesic."
+    : hierarchyDiagnosticsSummary.orphans > 0
+      ? `Mas ${hierarchyDiagnosticsSummary.orphans} sirotku bez planety. Oprav INSTANCE_OF nebo je prirad v tabulce.`
     : !hasMoonsInSelectedPlanet
       ? "Tahle planeta je prazdna. V panelu Mesic a Tezba Bunek zaloz prvni mesic."
       : selectedAsteroid
@@ -3104,6 +3357,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           {selectedBondLabel ? (
             <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>
               Vazba: <strong>{selectedBondLabel}</strong>
+            </span>
+          ) : null}
+          {hasHierarchyIssues ? (
+            <span style={{ ...hudBadgeStyle, color: "#ffd2a1", borderColor: "rgba(255, 176, 115, 0.45)" }}>
+              Diagnostika: {hierarchyDiagnosticsSummary.orphans} sirotku · {hierarchyDiagnosticsSummary.warnings} warning ·{" "}
+              {hierarchyDiagnosticsSummary.droppedEdges} drop
             </span>
           ) : null}
           {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam data...</span> : null}
@@ -3278,6 +3537,35 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           <button type="button" onClick={() => patchPanel("grid", { collapsed: false })} style={ghostButtonStyle}>
             Otevrit tabulku
           </button>
+        </div>
+        <div style={guideSectionStyle}>
+          <div style={guideTitleStyle}>SEMANTICKA DIAGNOSTIKA</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84, lineHeight: "var(--dv-lh-base)" }}>
+            Kontrola hierarchie pred renderem: kazdy Mesic ma patrit pod prave jednu Planetu.
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <span style={hudBadgeStyle}>Planety: {hierarchyView.planets.length}</span>
+            <span style={hudBadgeStyle}>Mesice: {hierarchyView.indexes.moonById.size}</span>
+            <span style={{ ...hudBadgeStyle, color: hierarchyDiagnosticsSummary.orphans ? "#ffd2a1" : "#9fe8ff" }}>
+              Sirotci: {hierarchyDiagnosticsSummary.orphans}
+            </span>
+            <span style={{ ...hudBadgeStyle, color: hierarchyDiagnosticsSummary.warnings ? "#ffd2a1" : "#9fe8ff" }}>
+              Warning: {hierarchyDiagnosticsSummary.warnings}
+            </span>
+            <span style={{ ...hudBadgeStyle, color: hierarchyDiagnosticsSummary.droppedEdges ? "#ffd2a1" : "#9fe8ff" }}>
+              Drop edges: {hierarchyDiagnosticsSummary.droppedEdges}
+            </span>
+          </div>
+          {hierarchyDiagnosticsSummary.orphans > 0 ? (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button type="button" onClick={focusFirstOrphanMoon} style={ghostButtonStyle}>
+                Fokus prvni sirotek
+              </button>
+              <button type="button" onClick={() => patchPanel("moons", { collapsed: false })} style={ghostButtonStyle}>
+                Otevrit panel Mesice
+              </button>
+            </div>
+          ) : null}
         </div>
         <div style={guideSectionStyle}>
           <div style={guideTitleStyle}>PARSER + SEMANTIKA (V2)</div>
@@ -3764,27 +4052,24 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
-          L2 vrstva: Souhvezdi (logicke oblasti) s agregovanou kvalitou dat.
+          L2 vrstva: Souhvezdi (logicke oblasti) agregovane z hierarchy transformace.
         </div>
-        {constellationsLoading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam souhvezdi...</div> : null}
-        {!constellationsLoading && !constellations.length ? (
+        {constellationsLoading && !constellationPanelItems.length ? (
+          <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam souhvezdi...</div>
+        ) : null}
+        {!constellationsLoading && !constellationPanelItems.length ? (
           <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Zatim nejsou dostupna data souhvezdi.</div>
         ) : null}
-        {!constellationsLoading && constellations.length ? (
+        {!constellationsLoading && constellationPanelItems.length ? (
           <div style={{ display: "grid", gap: 7 }}>
-            {constellations.map((item) => {
+            {constellationPanelItems.map((item) => {
               const statusColor = resolveStatusColor(item.status);
               return (
                 <button
                   key={item.name}
                   type="button"
                   onClick={() => {
-                    const table = tables.find((candidate) => {
-                      const semantic = splitEntityAndPlanetName(candidate);
-                      return normalizeText(semantic.entityName) === normalizeText(item.name);
-                    });
-                    if (!table) return;
-                    const node = tableNodes.find((candidate) => candidate.id === String(table.table_id));
+                    const node = item.focusNode;
                     if (!node) return;
                     setSelectedBondId("");
                     focusTable({ tableId: node.id, cameraTarget: node.position, cameraDistance: 220 });
@@ -3803,10 +4088,10 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 >
                   <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>{item.name}</div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-                    Planety {item.planets_count} · Mesice {item.moons_count} · Vazby {item.internal_bonds_count + item.external_bonds_count}
+                    Planety {item.planetsCount} · Mesice {item.moonsCount}
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-                    Kvalita <strong style={{ color: statusColor }}>{item.status}</strong> ({item.quality_score}/100)
+                    Kvalita <strong style={{ color: statusColor }}>{item.status}</strong> ({item.qualityScore}/100)
                   </div>
                 </button>
               );
@@ -3825,20 +4110,20 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
-          L3 vrstva: Planety = tabulky s V1 metrikami a kvalitou.
+          L3 vrstva: Planety = tabulky; seznam je rizeny hierarchy ViewModelem.
         </div>
-        {planetsLoading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam planety...</div> : null}
-        {!planetsLoading && !planets.length ? (
+        {planetsLoading && !planetPanelItems.length ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam planety...</div> : null}
+        {!planetsLoading && !planetPanelItems.length ? (
           <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Zatim nejsou dostupna data planet.</div>
         ) : null}
-        {!planetsLoading && planets.length ? (
+        {!planetsLoading && planetPanelItems.length ? (
           <div style={{ display: "grid", gap: 7, maxHeight: 290, overflowY: "auto", paddingRight: 2 }}>
-            {planets.map((item) => {
+            {planetPanelItems.map((item) => {
               const statusColor = resolveStatusColor(item.status);
-              const tableNode = tableNodes.find((candidate) => candidate.id === String(item.table_id));
+              const tableNode = item.tableNode;
               return (
                 <button
-                  key={`${item.table_id}`}
+                  key={`${item.tableId}`}
                   type="button"
                   onClick={() => {
                     if (!tableNode) return;
@@ -3860,13 +4145,13 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 >
                   <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>{item.name}</div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-                    {item.constellation_name} · Mesice {item.moons_count} · Schema {item.schema_fields_count}
+                    {item.constellationName} · Mesice {item.moonsCount} · Schema {item.schemaFieldsCount}
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-                    Formula {item.formula_fields_count} · Vazby {item.internal_bonds_count + item.external_bonds_count} · Rezim {item.sector_mode}
+                    Formula {item.formulaFieldsCount} · Vazby {item.bondCount} · Rezim {item.sectorMode}
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-                    Kvalita <strong style={{ color: statusColor }}>{item.status}</strong> ({item.quality_score}/100)
+                    Kvalita <strong style={{ color: statusColor }}>{item.status}</strong> ({item.qualityScore}/100)
                   </div>
                 </button>
               );
@@ -3885,21 +4170,21 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
-          L4 vrstva: Mesice = radky tabulek s V1 kvalitou dat.
+          L4 vrstva: Mesice = radky tabulek. Sirotci jsou viditelni samostatne.
         </div>
-        {moonsLoading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam mesice...</div> : null}
-        {!moonsLoading && !moons.length ? (
+        {moonsLoading && !moonPanelItems.length ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam mesice...</div> : null}
+        {!moonsLoading && !moonPanelItems.length ? (
           <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Zatim nejsou dostupna data mesicu.</div>
         ) : null}
-        {!moonsLoading && moons.length ? (
+        {!moonsLoading && moonPanelItems.length ? (
           <div style={{ display: "grid", gap: 7, maxHeight: 290, overflowY: "auto", paddingRight: 2 }}>
-            {moons.map((item) => {
+            {moonPanelItems.map((item) => {
               const statusColor = resolveStatusColor(item.status);
-              const tableNode = tableNodes.find((candidate) => candidate.id === String(item.table_id));
-              const moonNode = asteroidNodes.find((candidate) => candidate.id === String(item.asteroid_id));
+              const tableNode = item.tableNode;
+              const moonNode = item.moonNode;
               return (
                 <button
-                  key={`${item.asteroid_id}`}
+                  key={`${item.asteroidId}`}
                   type="button"
                   onClick={() => {
                     setSelectedBondId("");
@@ -3911,9 +4196,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                     }
                   }}
                   style={{
-                    border: "1px solid rgba(102, 196, 227, 0.28)",
+                    border: item.isOrphan ? "1px solid rgba(255, 176, 116, 0.45)" : "1px solid rgba(102, 196, 227, 0.28)",
                     borderRadius: 8,
-                    background: "rgba(6, 16, 30, 0.72)",
+                    background: item.isOrphan ? "rgba(41, 21, 8, 0.6)" : "rgba(6, 16, 30, 0.72)",
                     color: "#d8f6ff",
                     padding: "7px 8px",
                     textAlign: "left",
@@ -3923,15 +4208,17 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                     opacity: moonNode ? 1 : 0.7,
                   }}
                 >
-                  <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>{item.label || "Mesic"}</div>
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-                    {item.constellation_name} / {item.planet_name}
+                  <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>
+                    {item.label || "Mesic"} {item.isOrphan ? "• SIROTEK" : ""}
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-                    Metadata {item.metadata_fields_count} · Formula {item.calculated_fields_count} · Alerty {item.active_alerts_count}
+                    {item.constellationName} / {item.planetName}
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-                    Kvalita <strong style={{ color: statusColor }}>{item.status}</strong> ({item.quality_score}/100)
+                    Metadata {item.metadataFieldsCount} · Formula {item.calculatedFieldsCount} · Alerty {item.activeAlertsCount}
+                  </div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
+                    Kvalita <strong style={{ color: statusColor }}>{item.status}</strong> ({item.qualityScore}/100)
                   </div>
                 </button>
               );
