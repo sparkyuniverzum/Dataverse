@@ -12,7 +12,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Atom, Bond, Branch, Event, Galaxy
+from app.models import Atom, Bond, Branch, CalcStateRM, Event, Galaxy, PhysicsStateRM
 from app.services.bond_semantics import bond_semantics, normalize_bond_type
 from app.services.calc_service import evaluate_universe
 from app.services.event_store_service import EventStoreService
@@ -307,6 +307,163 @@ class UniverseService:
             bond.current_event_seq = bond_seq_map.get(bond.id, 0)
         return active_asteroids, active_bonds
 
+    async def _load_calc_state_by_asteroid_id(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        asteroid_ids: set[UUID],
+    ) -> dict[UUID, dict[str, Any]]:
+        if not asteroid_ids:
+            return {}
+        rows = list(
+            (
+                await session.execute(
+                    select(CalcStateRM).where(
+                        and_(
+                            CalcStateRM.user_id == user_id,
+                            CalcStateRM.galaxy_id == galaxy_id,
+                            CalcStateRM.deleted_at.is_(None),
+                            CalcStateRM.asteroid_id.in_(asteroid_ids),
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return {
+            row.asteroid_id: {
+                "calculated_values": row.calculated_values if isinstance(row.calculated_values, dict) else {},
+                "calc_errors": row.calc_errors if isinstance(row.calc_errors, list) else [],
+                "error_count": int(row.error_count or 0),
+                "circular_fields_count": int(row.circular_fields_count or 0),
+                "source_event_seq": int(row.source_event_seq or 0),
+                "engine_version": str(row.engine_version or ""),
+            }
+            for row in rows
+            if isinstance(row.asteroid_id, UUID)
+        }
+
+    async def _load_physics_state_by_asteroid_id(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        asteroid_ids: set[UUID],
+    ) -> dict[UUID, dict[str, Any]]:
+        if not asteroid_ids:
+            return {}
+        rows = list(
+            (
+                await session.execute(
+                    select(PhysicsStateRM).where(
+                        and_(
+                            PhysicsStateRM.user_id == user_id,
+                            PhysicsStateRM.galaxy_id == galaxy_id,
+                            PhysicsStateRM.entity_kind == "asteroid",
+                            PhysicsStateRM.deleted_at.is_(None),
+                            PhysicsStateRM.entity_id.in_(asteroid_ids),
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return {
+            row.entity_id: {
+                "source_event_seq": int(row.source_event_seq or 0),
+                "engine_version": str(row.engine_version or ""),
+                "stress_score": float(row.stress_score),
+                "mass_factor": float(row.mass_factor),
+                "radius_factor": float(row.radius_factor),
+                "emissive_boost": float(row.emissive_boost),
+                "pulse_factor": float(row.pulse_factor),
+                "opacity_factor": float(row.opacity_factor),
+                "attraction_factor": float(row.attraction_factor),
+                "payload": row.payload if isinstance(row.payload, dict) else {},
+            }
+            for row in rows
+            if isinstance(row.entity_id, UUID)
+        }
+
+    async def _enrich_main_timeline_from_read_models(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        active_asteroids: list[ProjectedAsteroid],
+        active_bonds: list[ProjectedBond],
+    ) -> list[dict[str, Any]] | None:
+        if not active_asteroids:
+            return []
+
+        has_formula_metadata = any(
+            isinstance(value, str) and value.strip().startswith("=")
+            for asteroid in active_asteroids
+            for value in (asteroid.metadata if isinstance(asteroid.metadata, dict) else {}).values()
+        )
+        has_non_flow_bonds = any(normalize_bond_type(bond.type) != "FLOW" for bond in active_bonds)
+        # Keep legacy V1 semantics for relation-driven formulas until calc read model reaches parity.
+        if has_formula_metadata and has_non_flow_bonds:
+            return None
+
+        asteroid_ids = {asteroid.id for asteroid in active_asteroids}
+        calc_by_id = await self._load_calc_state_by_asteroid_id(
+            session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            asteroid_ids=asteroid_ids,
+        )
+        # Require full calc coverage to avoid mixed semantics in one snapshot.
+        if len(calc_by_id) < len(asteroid_ids):
+            return None
+        physics_by_id = await self._load_physics_state_by_asteroid_id(
+            session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            asteroid_ids=asteroid_ids,
+        )
+
+        enriched: list[dict[str, Any]] = []
+        for asteroid in active_asteroids:
+            calc_state = calc_by_id.get(asteroid.id)
+            if calc_state is None:
+                return None
+            calculated_values = calc_state.get("calculated_values", {})
+            if not isinstance(calculated_values, dict):
+                calculated_values = {}
+            raw_metadata = asteroid.metadata if isinstance(asteroid.metadata, dict) else {}
+            # Keep V1 snapshot behavior: metadata fields are projected to resolved values.
+            projected_metadata = dict(raw_metadata)
+            for key, value in calculated_values.items():
+                if key in projected_metadata:
+                    projected_metadata[key] = value
+            table_name = derive_table_name(value=asteroid.value, metadata=projected_metadata)
+            constellation_name, planet_name = split_constellation_and_planet_name(table_name)
+            enriched.append(
+                {
+                    "id": asteroid.id,
+                    "value": asteroid.value,
+                    "metadata": projected_metadata,
+                    "calculated_values": dict(calculated_values),
+                    "calc_errors": calc_state.get("calc_errors", []),
+                    "table_name": table_name,
+                    "table_id": derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
+                    "constellation_name": constellation_name,
+                    "planet_name": planet_name,
+                    "physics": physics_by_id.get(asteroid.id, {}),
+                    "created_at": asteroid.created_at,
+                    "current_event_seq": int(getattr(asteroid, "current_event_seq", 0) or 0),
+                }
+            )
+
+        return evaluate_guardians(enriched)
+
     async def _project_state_from_events(
         self,
         session: AsyncSession,
@@ -441,6 +598,7 @@ class UniverseService:
         apply_calculations: bool = True,
     ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond]]:
         await self._ensure_galaxy_access(session, user_id=user_id, galaxy_id=galaxy_id)
+        projection_source = "events"
         if branch_id is not None:
             active_asteroids, active_bonds = await self._project_state_from_branch(
                 session=session,
@@ -449,12 +607,14 @@ class UniverseService:
                 branch_id=branch_id,
                 as_of=as_of,
             )
+            projection_source = "branch"
         elif as_of is None:
             active_asteroids, active_bonds = await self._project_state_from_read_model(
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
             )
+            projection_source = "read_model"
             # Fallback for galaxies not yet backfilled into read model.
             if not active_asteroids and not active_bonds:
                 active_asteroids, active_bonds = await self._project_state_from_events(
@@ -464,6 +624,7 @@ class UniverseService:
                     branch_id=None,
                     as_of=as_of,
                 )
+                projection_source = "events"
         else:
             active_asteroids, active_bonds = await self._project_state_from_events(
                 session=session,
@@ -472,9 +633,21 @@ class UniverseService:
                 branch_id=None,
                 as_of=as_of,
             )
+            projection_source = "events"
 
         if not apply_calculations:
             return active_asteroids, active_bonds
+
+        if projection_source == "read_model":
+            main_enriched = await self._enrich_main_timeline_from_read_models(
+                session,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+                active_asteroids=active_asteroids,
+                active_bonds=active_bonds,
+            )
+            if main_enriched is not None:
+                return main_enriched, active_bonds
 
         evaluated = evaluate_universe(
             [

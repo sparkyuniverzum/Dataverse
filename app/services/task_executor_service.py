@@ -3,14 +3,16 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+import json
 from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_, select, text as sql_text
+from sqlalchemy import and_, cast, func, literal, or_, select, text as sql_text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Bond, Event, TableContract
+from app.models import Atom, Bond, Event, TableContract
 from app.services.bond_semantics import normalize_bond_type
 from app.services.event_store_service import EventStoreService
 from app.services.parser_service import AtomicTask
@@ -51,6 +53,15 @@ class _TaskExecutionContext:
     contract_cache: dict[UUID, TableContract | None]
     appended_events: list[Event]
     append_and_project_event: Callable[..., Awaitable[Event]]
+    preload_scope: str = "full"
+
+
+@dataclass(frozen=True)
+class _PreloadPlan:
+    scope: str
+    asteroid_ids: frozenset[UUID] = frozenset()
+    bond_ids: frozenset[UUID] = frozenset()
+    include_connected_bonds: bool = False
 
 
 class TaskExecutorService:
@@ -245,16 +256,396 @@ class TaskExecutorService:
         metadata: dict[str, Any],
         asteroids_by_id: dict[UUID, ProjectedAsteroid],
         contract_cache: dict[UUID, TableContract | None],
+        execution_context: _TaskExecutionContext | None = None,
     ) -> None:
+        current_asteroids_by_id = asteroids_by_id
+        if execution_context is not None and execution_context.preload_scope == "partial":
+            table_name = derive_table_name(value=value, metadata=metadata)
+            table_id = derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
+            contract = await self._load_latest_table_contract(
+                session=session,
+                galaxy_id=galaxy_id,
+                table_id=table_id,
+                cache=contract_cache,
+            )
+            unique_rules = contract.unique_rules if contract and isinstance(contract.unique_rules, list) else []
+            if unique_rules:
+                await self._hydrate_context_to_full_scope(execution_context)
+            current_asteroids_by_id = execution_context.asteroids_by_id
+
         await self.contract_validator.validate_write(
             session=session,
             galaxy_id=galaxy_id,
             asteroid_id=asteroid_id,
             value=value,
             metadata=metadata,
-            asteroids_by_id=asteroids_by_id,
+            asteroids_by_id=current_asteroids_by_id,
             cache=contract_cache,
         )
+
+    async def _hydrate_context_to_full_scope(self, ctx: _TaskExecutionContext) -> None:
+        if ctx.preload_scope != "partial":
+            return
+        active_asteroids, active_bonds = await self.universe_service.project_state(
+            session=ctx.session,
+            user_id=ctx.user_id,
+            galaxy_id=ctx.galaxy_id,
+            branch_id=ctx.branch_id,
+            apply_calculations=False,
+        )
+        merged_asteroids: dict[UUID, ProjectedAsteroid] = {item.id: item for item in active_asteroids}
+        merged_asteroids.update(ctx.asteroids_by_id)
+        for asteroid_id in ctx.result.extinguished_asteroid_ids:
+            merged_asteroids.pop(asteroid_id, None)
+
+        merged_bonds: dict[UUID, ProjectedBond] = {item.id: item for item in active_bonds}
+        merged_bonds.update(ctx.bonds_by_id)
+        for bond_id in ctx.result.extinguished_bond_ids:
+            merged_bonds.pop(bond_id, None)
+        merged_bonds = {
+            bond_id: bond
+            for bond_id, bond in merged_bonds.items()
+            if bond.source_id in merged_asteroids and bond.target_id in merged_asteroids
+        }
+
+        ctx.asteroids_by_id = merged_asteroids
+        ctx.bonds_by_id = merged_bonds
+        ctx.preload_scope = "full"
+
+    @staticmethod
+    def _full_preload_plan() -> _PreloadPlan:
+        return _PreloadPlan(scope="full")
+
+    def _build_preload_plan(self, *, tasks: list[AtomicTask], branch_id: UUID | None) -> _PreloadPlan:
+        # Branch timelines are reconstructed from events on read, so partial read-model preload is unsafe there.
+        if branch_id is not None:
+            return self._full_preload_plan()
+
+        asteroid_ids: set[UUID] = set()
+        bond_ids: set[UUID] = set()
+        include_connected_bonds = False
+
+        for task in tasks:
+            action = str(task.action or "").strip().upper()
+            params = task.params if isinstance(task.params, dict) else {}
+
+            if action == "INGEST":
+                # INGEST can start from empty scope; existing row lookup is resolved on-demand by value.
+                continue
+
+            if action == "LINK":
+                source_uuid = self._parse_uuid(params.get("source_id"))
+                target_uuid = self._parse_uuid(params.get("target_id"))
+                if source_uuid is None or target_uuid is None:
+                    return self._full_preload_plan()
+                asteroid_ids.add(source_uuid)
+                asteroid_ids.add(target_uuid)
+                continue
+
+            if action == "UPDATE_ASTEROID":
+                asteroid_uuid = self._parse_uuid(params.get("asteroid_id"))
+                if asteroid_uuid is None:
+                    return self._full_preload_plan()
+                asteroid_ids.add(asteroid_uuid)
+                continue
+
+            if action in {"UPDATE_BOND", "EXTINGUISH_BOND"}:
+                bond_uuid = self._parse_uuid(params.get("bond_id"))
+                if bond_uuid is None:
+                    return self._full_preload_plan()
+                bond_ids.add(bond_uuid)
+                continue
+
+            if action in {"SET_FORMULA", "ADD_GUARDIAN"}:
+                target_uuid = self._parse_uuid(params.get("target"))
+                if target_uuid is None:
+                    return self._full_preload_plan()
+                asteroid_ids.add(target_uuid)
+                continue
+
+            if action in {"DELETE", "EXTINGUISH"}:
+                # Any fuzzy target needs global context.
+                if params.get("target_asteroid") or params.get("target_planet") or params.get("condition"):
+                    return self._full_preload_plan()
+
+                asteroid_uuid = self._parse_uuid(params.get("asteroid_id") or params.get("atom_id"))
+                if asteroid_uuid is None and params.get("target"):
+                    asteroid_uuid = self._parse_uuid(params.get("target"))
+                if asteroid_uuid is None:
+                    return self._full_preload_plan()
+                asteroid_ids.add(asteroid_uuid)
+                include_connected_bonds = True
+                continue
+
+            # Remaining actions currently depend on broader graph context
+            # (SELECT and parser-style fuzzy targeting).
+            return self._full_preload_plan()
+
+        return _PreloadPlan(
+            scope="partial",
+            asteroid_ids=frozenset(asteroid_ids),
+            bond_ids=frozenset(bond_ids),
+            include_connected_bonds=include_connected_bonds,
+        )
+
+    async def _load_active_asteroid_by_value(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: UUID,
+        galaxy_id: UUID,
+        value: Any,
+    ) -> ProjectedAsteroid | None:
+        try:
+            value_json = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        except TypeError:
+            # Non-JSON-serializable value cannot be matched safely via DB equality lookup.
+            return None
+
+        row = (
+            await session.execute(
+                select(Atom).where(
+                    and_(
+                        Atom.user_id == user_id,
+                        Atom.galaxy_id == galaxy_id,
+                        Atom.is_deleted.is_(False),
+                        Atom.value == cast(literal(value_json), JSONB),
+                    )
+                )
+            )
+        ).scalars().first()
+        if row is None:
+            return None
+
+        event_seq_map = await self._entity_event_seq_map(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=None,
+            entity_ids={row.id},
+        )
+        return ProjectedAsteroid(
+            id=row.id,
+            value=row.value,
+            metadata=row.metadata_ if isinstance(row.metadata_, dict) else {},
+            is_deleted=row.is_deleted,
+            created_at=row.created_at,
+            deleted_at=row.deleted_at,
+            current_event_seq=event_seq_map.get(row.id, 0),
+        )
+
+    async def _entity_event_seq_map(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: UUID,
+        galaxy_id: UUID,
+        branch_id: UUID | None,
+        entity_ids: set[UUID],
+    ) -> dict[UUID, int]:
+        if not entity_ids:
+            return {}
+        stmt = (
+            select(Event.entity_id, func.max(Event.event_seq))
+            .where(
+                and_(
+                    Event.user_id == user_id,
+                    Event.galaxy_id == galaxy_id,
+                    Event.entity_id.in_(entity_ids),
+                )
+            )
+            .group_by(Event.entity_id)
+        )
+        if branch_id is None:
+            stmt = stmt.where(Event.branch_id.is_(None))
+        else:
+            stmt = stmt.where(Event.branch_id == branch_id)
+        rows = (await session.execute(stmt)).all()
+        return {entity_id: int(max_seq or 0) for entity_id, max_seq in rows}
+
+    async def _load_partial_main_state(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: UUID,
+        galaxy_id: UUID,
+        plan: _PreloadPlan,
+    ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+        asteroid_rows_by_id: dict[UUID, Atom] = {}
+        bond_rows_by_id: dict[UUID, Bond] = {}
+
+        if plan.asteroid_ids:
+            asteroid_rows = list(
+                (
+                    await session.execute(
+                        select(Atom).where(
+                            and_(
+                                Atom.user_id == user_id,
+                                Atom.galaxy_id == galaxy_id,
+                                Atom.is_deleted.is_(False),
+                                Atom.id.in_(plan.asteroid_ids),
+                            )
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            asteroid_rows_by_id = {item.id: item for item in asteroid_rows}
+
+        if plan.bond_ids:
+            primary_bond_rows = list(
+                (
+                    await session.execute(
+                        select(Bond).where(
+                            and_(
+                                Bond.user_id == user_id,
+                                Bond.galaxy_id == galaxy_id,
+                                Bond.is_deleted.is_(False),
+                                Bond.id.in_(plan.bond_ids),
+                            )
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for row in primary_bond_rows:
+                bond_rows_by_id[row.id] = row
+
+            # For UPDATE_BOND conflict checks we also need sibling active bonds on the same edge pair.
+            pair_conditions = []
+            for row in primary_bond_rows:
+                source_id = row.source_id
+                target_id = row.target_id
+                pair_conditions.append(and_(Bond.source_id == source_id, Bond.target_id == target_id))
+                pair_conditions.append(and_(Bond.source_id == target_id, Bond.target_id == source_id))
+            if pair_conditions:
+                related_bond_rows = list(
+                    (
+                        await session.execute(
+                            select(Bond).where(
+                                and_(
+                                    Bond.user_id == user_id,
+                                    Bond.galaxy_id == galaxy_id,
+                                    Bond.is_deleted.is_(False),
+                                    or_(*pair_conditions),
+                                )
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                for row in related_bond_rows:
+                    bond_rows_by_id[row.id] = row
+
+            # Ensure endpoints for loaded bonds are available for existence checks.
+            endpoint_ids = {
+                endpoint_id
+                for row in bond_rows_by_id.values()
+                for endpoint_id in (row.source_id, row.target_id)
+                if isinstance(endpoint_id, UUID)
+            }
+            missing_endpoint_ids = endpoint_ids - set(asteroid_rows_by_id.keys())
+            if missing_endpoint_ids:
+                missing_endpoints = list(
+                    (
+                        await session.execute(
+                            select(Atom).where(
+                                and_(
+                                    Atom.user_id == user_id,
+                                    Atom.galaxy_id == galaxy_id,
+                                    Atom.is_deleted.is_(False),
+                                    Atom.id.in_(missing_endpoint_ids),
+                                )
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                for row in missing_endpoints:
+                    asteroid_rows_by_id[row.id] = row
+
+        if plan.include_connected_bonds and asteroid_rows_by_id:
+            asteroid_scope_ids = set(asteroid_rows_by_id.keys())
+            connected_rows = list(
+                (
+                    await session.execute(
+                        select(Bond).where(
+                            and_(
+                                Bond.user_id == user_id,
+                                Bond.galaxy_id == galaxy_id,
+                                Bond.is_deleted.is_(False),
+                                or_(
+                                    Bond.source_id.in_(asteroid_scope_ids),
+                                    Bond.target_id.in_(asteroid_scope_ids),
+                                ),
+                            )
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for row in connected_rows:
+                bond_rows_by_id[row.id] = row
+
+        entity_ids: set[UUID] = set(asteroid_rows_by_id.keys()) | set(bond_rows_by_id.keys())
+        event_seq_map = await self._entity_event_seq_map(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=None,
+            entity_ids=entity_ids,
+        )
+
+        asteroids = [
+            ProjectedAsteroid(
+                id=row.id,
+                value=row.value,
+                metadata=row.metadata_ if isinstance(row.metadata_, dict) else {},
+                is_deleted=row.is_deleted,
+                created_at=row.created_at,
+                deleted_at=row.deleted_at,
+                current_event_seq=event_seq_map.get(row.id, 0),
+            )
+            for row in asteroid_rows_by_id.values()
+        ]
+        bonds = [
+            self._to_projected_bond(row, current_event_seq=event_seq_map.get(row.id, 0))
+            for row in bond_rows_by_id.values()
+        ]
+        return asteroids, bonds
+
+    async def _load_initial_context_state(
+        self,
+        *,
+        session: AsyncSession,
+        tasks: list[AtomicTask],
+        user_id: UUID,
+        galaxy_id: UUID,
+        branch_id: UUID | None,
+    ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond], str]:
+        preload_plan = self._build_preload_plan(tasks=tasks, branch_id=branch_id)
+        if preload_plan.scope == "partial":
+            asteroids, bonds = await self._load_partial_main_state(
+                session=session,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+                plan=preload_plan,
+            )
+            return asteroids, bonds, preload_plan.scope
+
+        asteroids, bonds = await self.universe_service.project_state(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+            apply_calculations=False,
+        )
+        return asteroids, bonds, preload_plan.scope
 
     async def _handle_ingest_update_family(self, *, task: AtomicTask, ctx: _TaskExecutionContext) -> bool:
         action = task.action.upper()
@@ -276,6 +667,15 @@ class TaskExecutorService:
                 ),
                 None,
             )
+            if existing is None and ctx.preload_scope == "partial":
+                existing = await self._load_active_asteroid_by_value(
+                    session=ctx.session,
+                    user_id=ctx.user_id,
+                    galaxy_id=ctx.galaxy_id,
+                    value=value,
+                )
+                if existing is not None:
+                    ctx.asteroids_by_id[existing.id] = existing
 
             if existing is None:
                 await self._validate_table_contract_write(
@@ -286,6 +686,7 @@ class TaskExecutorService:
                     metadata=dict(metadata),
                     asteroids_by_id=ctx.asteroids_by_id,
                     contract_cache=ctx.contract_cache,
+                    execution_context=ctx,
                 )
                 asteroid_id = uuid4()
                 created_event = await ctx.append_and_project_event(
@@ -316,6 +717,7 @@ class TaskExecutorService:
                         metadata=next_metadata,
                         asteroids_by_id=ctx.asteroids_by_id,
                         contract_cache=ctx.contract_cache,
+                        execution_context=ctx,
                     )
                     metadata_event = await ctx.append_and_project_event(
                         entity_id=asteroid.id,
@@ -383,6 +785,7 @@ class TaskExecutorService:
                 metadata=next_metadata,
                 asteroids_by_id=ctx.asteroids_by_id,
                 contract_cache=ctx.contract_cache,
+                execution_context=ctx,
             )
 
             if asteroid.value != next_value:
@@ -888,6 +1291,7 @@ class TaskExecutorService:
                     metadata=next_metadata,
                     asteroids_by_id=ctx.asteroids_by_id,
                     contract_cache=ctx.contract_cache,
+                    execution_context=ctx,
                 )
                 formula_event = await ctx.append_and_project_event(
                     entity_id=target_asteroid.id,
@@ -976,6 +1380,7 @@ class TaskExecutorService:
                     metadata=next_metadata,
                     asteroids_by_id=ctx.asteroids_by_id,
                     contract_cache=ctx.contract_cache,
+                    execution_context=ctx,
                 )
                 guardian_rules.append(new_rule)
                 guardian_event = await ctx.append_and_project_event(
@@ -1014,12 +1419,12 @@ class TaskExecutorService:
         branch_id: UUID | None = None,
         manage_transaction: bool = True,
     ) -> TaskExecutionResult:
-        active_asteroids, active_bonds = await self.universe_service.project_state(
+        active_asteroids, active_bonds, preload_scope = await self._load_initial_context_state(
             session=session,
+            tasks=tasks,
             user_id=user_id,
             galaxy_id=galaxy_id,
             branch_id=branch_id,
-            apply_calculations=False,
         )
         if not manage_transaction and not session.in_transaction():
             raise HTTPException(
@@ -1065,6 +1470,7 @@ class TaskExecutorService:
                 contract_cache={},
                 appended_events=[],
                 append_and_project_event=append_and_project_event,
+                preload_scope=preload_scope,
             )
 
             async def append_with_tracking(*, entity_id: UUID, event_type: str, payload: dict) -> Event:

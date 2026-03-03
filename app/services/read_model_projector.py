@@ -57,25 +57,31 @@ class ReadModelProjector:
         self.physics_engine = physics_engine or PhysicsEngineService()
 
     async def apply_events(self, session: AsyncSession, events: list[Event]) -> None:
-        affected_pairs: dict[tuple[UUID, UUID], int] = {}
+        affected_pairs: dict[tuple[UUID, UUID], dict[str, Any]] = {}
         for event in events:
             touched = await self._apply_event_without_rollups(session=session, event=event)
             if touched is not None:
                 event_seq = int(getattr(event, "event_seq", 0) or 0)
-                previous = affected_pairs.get(touched, 0)
-                affected_pairs[touched] = max(previous, event_seq)
+                state = affected_pairs.setdefault(touched, {"source_event_seq": 0, "needs_rollups": False})
+                state["source_event_seq"] = max(int(state["source_event_seq"]), event_seq)
+                if not await self._can_skip_rollups_for_event(session=session, event=event):
+                    state["needs_rollups"] = True
 
-        for (user_id, galaxy_id), source_event_seq in affected_pairs.items():
+        for (user_id, galaxy_id), state in affected_pairs.items():
+            if not bool(state.get("needs_rollups")):
+                continue
             await self._refresh_galaxy_rollups(
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
-                source_event_seq=source_event_seq,
+                source_event_seq=int(state.get("source_event_seq") or 0),
             )
 
     async def apply_event(self, session: AsyncSession, event: Event) -> None:
         touched = await self._apply_event_without_rollups(session=session, event=event)
         if touched is not None:
+            if await self._can_skip_rollups_for_event(session=session, event=event):
+                return
             await self._refresh_galaxy_rollups(
                 session=session,
                 user_id=touched[0],
@@ -246,6 +252,71 @@ class ReadModelProjector:
         )
         stmt = stmt.on_conflict_do_nothing(index_elements=[GalaxyActivityRM.event_id])
         await session.execute(stmt)
+
+    @staticmethod
+    def _metadata_update_may_skip_rollups(
+        *,
+        metadata_patch: dict[str, Any],
+        bonds_count: int,
+        formula_fields_count: int,
+        guardian_rules_count: int,
+    ) -> bool:
+        if not metadata_patch:
+            return True
+        if bonds_count > 0 or formula_fields_count > 0 or guardian_rules_count > 0:
+            return False
+
+        structural_keys = {"table", "table_name", "category", "kategorie", "type", "typ", "_guardians"}
+        for key, value in metadata_patch.items():
+            normalized_key = str(key).strip().lower()
+            if normalized_key in structural_keys:
+                return False
+            if isinstance(value, str) and value.strip().startswith("="):
+                return False
+        return True
+
+    async def _can_skip_rollups_for_event(self, *, session: AsyncSession, event: Event) -> bool:
+        if event.branch_id is not None:
+            return True
+
+        event_type = str(event.event_type or "").upper()
+        if event_type != "METADATA_UPDATED":
+            return False
+
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        metadata_patch = payload.get("metadata")
+        if not isinstance(metadata_patch, dict):
+            metadata_patch = {}
+
+        summary = (
+            await session.execute(
+                select(GalaxySummaryRM).where(
+                    and_(
+                        GalaxySummaryRM.user_id == event.user_id,
+                        GalaxySummaryRM.galaxy_id == event.galaxy_id,
+                    )
+                )
+            )
+        ).scalar_one_or_none()
+        health = (
+            await session.execute(
+                select(GalaxyHealthRM).where(
+                    and_(
+                        GalaxyHealthRM.user_id == event.user_id,
+                        GalaxyHealthRM.galaxy_id == event.galaxy_id,
+                    )
+                )
+            )
+        ).scalar_one_or_none()
+        if summary is None or health is None:
+            return False
+
+        return self._metadata_update_may_skip_rollups(
+            metadata_patch=metadata_patch,
+            bonds_count=int(summary.bonds_count or 0),
+            formula_fields_count=int(summary.formula_fields_count or 0),
+            guardian_rules_count=int(health.guardian_rules_count or 0),
+        )
 
     async def _refresh_galaxy_rollups(
         self,

@@ -532,6 +532,9 @@ def universe_asteroid_to_snapshot(
         calculated_values = asteroid.get("calculated_values", {})
         if not isinstance(calculated_values, dict):
             calculated_values = {}
+        physics = asteroid.get("physics", {})
+        if not isinstance(physics, dict):
+            physics = {}
         active_alerts = asteroid.get("active_alerts", [])
         if not isinstance(active_alerts, list):
             active_alerts = []
@@ -560,6 +563,7 @@ def universe_asteroid_to_snapshot(
             metadata=metadata,
             calculated_values=calculated_values,
             active_alerts=[str(alert) for alert in active_alerts],
+            physics=physics,
             facts=build_moon_facts(value=asteroid.get("value"), metadata=metadata, calculated_values=calculated_values),
             created_at=asteroid["created_at"],
             current_event_seq=int(asteroid.get("current_event_seq", 0) or 0),
@@ -577,6 +581,7 @@ def universe_asteroid_to_snapshot(
         metadata=asteroid.metadata,
         calculated_values={},
         active_alerts=[],
+        physics={},
         facts=build_moon_facts(value=asteroid.value, metadata=asteroid.metadata, calculated_values={}),
         created_at=asteroid.created_at,
         current_event_seq=int(getattr(asteroid, "current_event_seq", 0) or 0),

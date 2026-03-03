@@ -97,3 +97,85 @@ def test_handle_formula_guardian_select_family_selects_by_target_substring() -> 
 
     assert handled is True
     assert [item.id for item in ctx.result.selected_asteroids] == [first.id]
+
+
+def test_build_preload_plan_partial_for_id_only_tasks() -> None:
+    service = TaskExecutorService()
+    source_id = uuid4()
+    target_id = uuid4()
+    bond_id = uuid4()
+    asteroid_id = uuid4()
+    tasks = [
+        AtomicTask(action="LINK", params={"source_id": str(source_id), "target_id": str(target_id), "type": "RELATION"}),
+        AtomicTask(action="EXTINGUISH_BOND", params={"bond_id": str(bond_id)}),
+        AtomicTask(action="UPDATE_ASTEROID", params={"asteroid_id": str(asteroid_id), "metadata": {"x": 1}}),
+        AtomicTask(action="SET_FORMULA", params={"target": str(asteroid_id), "field": "f", "formula": "=1"}),
+        AtomicTask(action="ADD_GUARDIAN", params={"target": str(asteroid_id), "field": "f", "operator": ">", "threshold": 1, "action": "alert"}),
+    ]
+
+    plan = service._build_preload_plan(tasks=tasks, branch_id=None)
+
+    assert plan.scope == "partial"
+    assert source_id in plan.asteroid_ids
+    assert target_id in plan.asteroid_ids
+    assert asteroid_id in plan.asteroid_ids
+    assert bond_id in plan.bond_ids
+    assert plan.include_connected_bonds is False
+
+
+def test_build_preload_plan_partial_for_ingest_only_batch() -> None:
+    service = TaskExecutorService()
+    tasks = [AtomicTask(action="INGEST", params={"value": "Material", "metadata": {"table": "Sklad"}})]
+
+    plan = service._build_preload_plan(tasks=tasks, branch_id=None)
+
+    assert plan.scope == "partial"
+    assert plan.asteroid_ids == frozenset()
+    assert plan.bond_ids == frozenset()
+    assert plan.include_connected_bonds is False
+
+
+def test_build_preload_plan_partial_for_explicit_extinguish() -> None:
+    service = TaskExecutorService()
+    asteroid_id = uuid4()
+    tasks = [AtomicTask(action="EXTINGUISH", params={"asteroid_id": str(asteroid_id)})]
+
+    plan = service._build_preload_plan(tasks=tasks, branch_id=None)
+
+    assert plan.scope == "partial"
+    assert asteroid_id in plan.asteroid_ids
+    assert plan.include_connected_bonds is True
+
+
+def test_build_preload_plan_falls_back_for_fuzzy_or_branch_tasks() -> None:
+    service = TaskExecutorService()
+    fuzzy_tasks = [AtomicTask(action="DELETE", params={"target": "pipeline"})]
+    branch_tasks = [AtomicTask(action="LINK", params={"source_id": str(uuid4()), "target_id": str(uuid4())})]
+
+    fuzzy_plan = service._build_preload_plan(tasks=fuzzy_tasks, branch_id=None)
+    branch_plan = service._build_preload_plan(tasks=branch_tasks, branch_id=uuid4())
+
+    assert fuzzy_plan.scope == "full"
+    assert branch_plan.scope == "full"
+
+
+def test_handle_ingest_update_family_partial_scope_reuses_existing_from_db_lookup() -> None:
+    service = TaskExecutorService()
+    existing = _asteroid(value="Material")
+    ctx = _context(asteroids=[])
+    ctx.preload_scope = "partial"
+    task = AtomicTask(action="INGEST", params={"value": "Material", "metadata": {}})
+
+    async def _fake_lookup(*, session, user_id, galaxy_id, value):  # noqa: ANN001
+        assert value == "Material"
+        return existing
+
+    service._load_active_asteroid_by_value = _fake_lookup  # type: ignore[method-assign]
+
+    handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
+
+    assert handled is True
+    assert len(ctx.result.asteroids) == 1
+    assert ctx.result.asteroids[0].id == existing.id
+    assert ctx.context_asteroid_ids == [existing.id]
+    assert existing.id in ctx.asteroids_by_id

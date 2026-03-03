@@ -77,6 +77,12 @@ Definition of done:
 - Same numbers between snapshot and calc projection tables.
 - Add integration test asserting parity between `/universe/snapshot` and `calc_state_rm`.
 
+Status (2026-03-03):
+- implemented
+- main timeline (`branch_id=None`, `as_of=None`) now enriches asteroid snapshot from `calc_state_rm` and `physics_state_rm` in `UniverseService`.
+- if calc coverage is incomplete, service falls back to legacy in-memory evaluation to preserve response continuity.
+- branch and historical (`as_of`) timelines keep legacy replay/evaluation path unchanged.
+
 ### Stage 1B: Executor scoped preload strategy
 
 Deliverables:
@@ -88,6 +94,12 @@ Deliverables:
 Definition of done:
 - No contract/OCC behavior change.
 - Latency for ID-only batch is independent of total galaxy size.
+
+Status (2026-03-03):
+- implemented
+- `TaskExecutorService` now analyzes batch tasks and uses partial preload for main-timeline ID-only actions (`LINK`, `UPDATE_BOND`, `EXTINGUISH_BOND`, explicit `DELETE/EXTINGUISH` by UUID).
+- partial preload loads only required asteroids/bonds (+ connected bonds for explicit asteroid delete), supports UUID-targeted `UPDATE_ASTEROID` / `SET_FORMULA` / `ADD_GUARDIAN`, and supports ingest-only batches with lazy existing-row lookup by `value`.
+- contract validation hydrates partial context to full only when table `unique_rules` require global table scope; fuzzy/name-based actions and all branch timelines still fall back to full preload.
 
 ### Stage 1C: Import error path hardening
 
@@ -109,6 +121,11 @@ Definition of done:
 - One canonical access check path.
 - Existing auth/cosmos tests still green.
 
+Status (2026-03-03):
+- implemented
+- added shared resolver `app/services/galaxy_scope_service.py` (`resolve_user_galaxy_for_user`).
+- `AuthService.resolve_user_galaxy` and `CosmosService._resolve_user_galaxy` now delegate to the same resolver (single policy source).
+
 ### Stage 1E: 422 constant migration
 
 Deliverables:
@@ -119,11 +136,7 @@ Definition of done:
 
 ## Recommended execution order
 
-1. Stage 1E (quick hygiene)
-2. Stage 1C (error model maintainability)
-3. Stage 1B (executor latency)
-4. Stage 1A (calc/physics parity, highest impact)
-5. Stage 1D (scope cleanup)
+1. Stage 1D (scope cleanup)
 
 Reasoning:
 - 1E+1C are low-risk and clean up diagnostics first.

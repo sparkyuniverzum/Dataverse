@@ -671,6 +671,7 @@ def test_set_formula_command_is_calculated_in_snapshot_output(auth_client: tuple
     assert snapshot.status_code == 200, snapshot.text
     atoms_by_value = {_stringify(atom["value"]): atom for atom in snapshot.json()["asteroids"]}
     assert atoms_by_value[project]["metadata"]["celkem"] == 150
+    assert atoms_by_value[project]["calculated_values"]["celkem"] == 150
 
 
 def test_mutate_asteroid_updates_value_and_metadata(auth_client: tuple[httpx.Client, str]) -> None:
@@ -1021,6 +1022,9 @@ def test_snapshot_v1_contract_contains_table_projection_fields(auth_client: tupl
     assert "metadata" in asteroid
     assert "calculated_values" in asteroid
     assert "active_alerts" in asteroid
+    assert "physics" in asteroid and isinstance(asteroid["physics"], dict)
+    assert isinstance(asteroid["physics"].get("engine_version"), str) and asteroid["physics"]["engine_version"]
+    assert "stress_score" in asteroid["physics"]
     assert "created_at" in asteroid
     assert "current_event_seq" in asteroid and isinstance(asteroid["current_event_seq"], int)
 
