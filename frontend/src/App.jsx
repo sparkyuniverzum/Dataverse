@@ -153,6 +153,7 @@ export default function App() {
       team: String(profile?.team || "").trim() || "core",
       region: String(profile?.region || "").trim() || "global",
       timezone: String(profile?.timezone || "").trim() || "UTC",
+      workspace_profile: String(profile?.profileNote || "").trim() || "general workspace",
     };
     const withProfile = (metadata) => ({
       ...defaults,
@@ -285,6 +286,7 @@ export default function App() {
       const timezoneKey = KNOWN_TIMEZONE_KEYS.has(requestedTimezone) ? requestedTimezone : "UTC";
       const owner = String(options?.owner || "").trim();
       const team = String(options?.team || "").trim();
+      const profileNote = String(options?.profileNote || "").trim();
       if (galaxyBusy) {
         throw new Error("Prave probiha jina akce. Zkus to za chvili.");
       }
@@ -309,6 +311,7 @@ export default function App() {
               team,
               region: regionKey,
               timezone: timezoneKey,
+              profileNote,
             });
           } catch (seedError) {
             seedWarning = seedError.message || "seed failed";

@@ -25,7 +25,7 @@ import {
 } from "../../lib/dataverseApi";
 import { MODEL_PATH_LABEL, WORKSPACE_GUIDE } from "../../lib/onboarding";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
-import { buildHierarchyTree } from "../../lib/universe_viewmodel";
+import { buildHierarchyTree, normalizeEdgeSemanticType } from "../../lib/universe_viewmodel";
 import {
   DEFAULT_NODE_PHYSICS,
   deriveAsteroidBondDensityMap,
@@ -60,6 +60,10 @@ function normalizeText(value) {
     .trim();
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function resolveTableForAsteroid(tables, asteroidId) {
   for (const table of tables) {
     const members = Array.isArray(table.members) ? table.members : [];
@@ -76,6 +80,27 @@ function resolveLinkEndpointValue(value) {
     return String(value.id || value.source_id || value.target_id || "");
   }
   return String(value);
+}
+
+function resolveCameraTarget(cameraState) {
+  if (Array.isArray(cameraState?.target) && cameraState.target.length === 3) {
+    const [x, y, z] = cameraState.target;
+    if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+      return [x, y, z];
+    }
+  }
+  return [0, 0, 0];
+}
+
+function resolveCameraDistance(cameraState, fallback = 96) {
+  const position = Array.isArray(cameraState?.position) ? cameraState.position : null;
+  const target = Array.isArray(cameraState?.target) ? cameraState.target : null;
+  if (!position || !target || position.length !== 3 || target.length !== 3) return fallback;
+  const dx = Number(position[0]) - Number(target[0]);
+  const dy = Number(position[1]) - Number(target[1]);
+  const dz = Number(position[2]) - Number(target[2]);
+  const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  return Number.isFinite(distance) && distance > 0 ? distance : fallback;
 }
 
 function parseSseMessage(block) {
@@ -160,6 +185,7 @@ function buildHierarchyGraphInputs(tables, snapshot) {
   const edges = [];
   const nodeIds = new Set();
   const edgeKeys = new Set();
+  const duplicateEdgeKeysWarned = new Set();
 
   const addNode = (node) => {
     const id = String(node?.id || "").trim();
@@ -171,10 +197,18 @@ function buildHierarchyGraphInputs(tables, snapshot) {
   const addEdge = (edge) => {
     const sourceId = String(edge?.source_id || edge?.source || "").trim();
     const targetId = String(edge?.target_id || edge?.target || "").trim();
-    const type = String(edge?.edge_type || edge?.type || "").trim().toUpperCase();
+    const rawType = String(edge?.edge_type || edge?.type || "").trim();
+    const normalizedType = normalizeEdgeSemanticType(rawType);
+    const dedupeType = normalizedType === "UNKNOWN" ? rawType.toUpperCase() : normalizedType;
     if (!sourceId || !targetId) return;
-    const key = `${type}:${sourceId}:${targetId}`;
-    if (edgeKeys.has(key)) return;
+    const key = `${dedupeType}:${sourceId}:${targetId}`;
+    if (edgeKeys.has(key)) {
+      if (!duplicateEdgeKeysWarned.has(key)) {
+        duplicateEdgeKeysWarned.add(key);
+        console.warn("[hierarchy] duplicate edge skipped", { key, edge });
+      }
+      return;
+    }
     edgeKeys.add(key);
     edges.push(edge);
   };
@@ -670,6 +704,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const [importErrors, setImportErrors] = useState([]);
   const [streamState, setStreamState] = useState("OFF");
   const [moonDeleteHover, setMoonDeleteHover] = useState(false);
+  const [pendingMoonFocusId, setPendingMoonFocusId] = useState("");
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const streamCursorRef = useRef(null);
@@ -677,6 +712,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const tablesRef = useRef(tables);
   const commandInputRef = useRef(null);
   const gridUndoStackRef = useRef([]);
+  const pendingMoonFocusStartedAtRef = useRef(0);
 
   const asOfIso = useMemo(() => toAsOfIso(asOfInput), [asOfInput]);
   const historicalMode = Boolean(asOfIso);
@@ -1675,14 +1711,81 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     },
     [clearSelectedAsteroid, patchPanel]
   );
+  const focusMoonAcrossContext = useCallback(
+    (moonId, { showOrphanHint = false } = {}) => {
+      const normalizedMoonId = String(moonId || "").trim();
+      if (!normalizedMoonId) return false;
+
+      const moon = asteroidById.get(normalizedMoonId);
+      if (!moon) return false;
+
+      const planetId = String(hierarchyView.indexes.moonToPlanet.get(normalizedMoonId) || "");
+      const directMoonNode = asteroidNodeById.get(normalizedMoonId) || null;
+      const tableNode = planetId ? tableNodeById.get(planetId) || null : null;
+
+      setSelectedBondId("");
+      patchPanel("moons", { collapsed: false });
+      patchPanel("inspector", { collapsed: false });
+
+      if (tableNode) {
+        focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 198 });
+        pendingMoonFocusStartedAtRef.current = Date.now();
+        setPendingMoonFocusId(normalizedMoonId);
+        return true;
+      }
+
+      if (directMoonNode) {
+        focusAsteroid({ asteroidId: directMoonNode.id, cameraTarget: directMoonNode.position, cameraDistance: 56 });
+      } else {
+        const fallbackTarget = resolveCameraTarget(camera);
+        const fallbackDistance = clamp(resolveCameraDistance(camera, 96), 52, 220);
+        focusAsteroid({ asteroidId: normalizedMoonId, cameraTarget: fallbackTarget, cameraDistance: fallbackDistance });
+      }
+
+      if (showOrphanHint && !planetId) {
+        setError("Mesic je SIROTEK (bez planety). Nejdriv ho prirad k planete.");
+      }
+      return true;
+    },
+    [asteroidById, asteroidNodeById, camera, focusAsteroid, focusTable, hierarchyView, patchPanel, tableNodeById]
+  );
   const focusFirstOrphanMoon = useCallback(() => {
     const orphan = moonPanelItems.find((item) => item.isOrphan);
-    if (!orphan?.moonNode) return;
-    setSelectedBondId("");
-    focusAsteroid({ asteroidId: orphan.moonNode.id, cameraTarget: orphan.moonNode.position, cameraDistance: 56 });
-    patchPanel("moons", { collapsed: false });
+    if (!orphan) {
+      setError("Sirotci nejsou dostupni.");
+      return;
+    }
+    focusMoonAcrossContext(orphan.asteroidId, { showOrphanHint: true });
+  }, [focusMoonAcrossContext, moonPanelItems]);
+
+  useEffect(() => {
+    if (!pendingMoonFocusId) return;
+    const moonId = String(pendingMoonFocusId);
+    const moonNode = asteroidNodeById.get(moonId);
+    if (!moonNode) {
+      if (!asteroidById.has(moonId)) {
+        pendingMoonFocusStartedAtRef.current = 0;
+        setPendingMoonFocusId("");
+        setError("Fokus selhal: Mesic uz neni dostupny.");
+        return;
+      }
+      const startedAt = pendingMoonFocusStartedAtRef.current || Date.now();
+      pendingMoonFocusStartedAtRef.current = startedAt;
+      if (Date.now() - startedAt < 1200) return;
+      const fallbackTarget = resolveCameraTarget(camera);
+      const fallbackDistance = clamp(resolveCameraDistance(camera, 96), 52, 220);
+      focusAsteroid({ asteroidId: moonId, cameraTarget: fallbackTarget, cameraDistance: fallbackDistance });
+      patchPanel("inspector", { collapsed: false });
+      pendingMoonFocusStartedAtRef.current = 0;
+      setPendingMoonFocusId("");
+      setError("Fokus mesice trval prilis dlouho. Otevren fallback detail bez prepnuti planety.");
+      return;
+    }
+    focusAsteroid({ asteroidId: moonNode.id, cameraTarget: moonNode.position, cameraDistance: 56 });
     patchPanel("inspector", { collapsed: false });
-  }, [focusAsteroid, moonPanelItems, patchPanel]);
+    pendingMoonFocusStartedAtRef.current = 0;
+    setPendingMoonFocusId("");
+  }, [asteroidById, asteroidNodeById, camera, focusAsteroid, patchPanel, pendingMoonFocusId]);
 
   useEffect(() => {
     if (!moonQuickOptions.length) {
@@ -1925,21 +2028,15 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
   const focusGridRow = useCallback(
     (rowId) => {
-      setGridSelectedRowId(String(rowId));
-      setSelectedBondId("");
-      const table = resolveTableForAsteroid(tables, rowId);
-      if (table) {
-        const tableNode = tableNodes.find((item) => item.id === String(table.table_id));
-        if (tableNode) {
-          focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 186 });
-        }
-      }
-      const asteroid = asteroidNodes.find((item) => item.id === String(rowId));
-      if (asteroid) {
-        focusAsteroid({ asteroidId: asteroid.id, cameraTarget: asteroid.position, cameraDistance: 52 });
+      const normalizedRowId = String(rowId || "").trim();
+      if (!normalizedRowId) return;
+      setGridSelectedRowId(normalizedRowId);
+      const focused = focusMoonAcrossContext(normalizedRowId);
+      if (!focused) {
+        setError("Fokus selhal: vybrany Mesic uz neexistuje.");
       }
     },
-    [asteroidNodes, focusAsteroid, focusTable, tableNodes, tables]
+    [focusMoonAcrossContext]
   );
 
   const captureGridStageSnapshot = useCallback(
@@ -2505,24 +2602,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       const targetText = normalizeText(targetRaw);
       if (!targetText) return false;
 
-      const foundAsteroid = snapshot.asteroids.find(
+      const foundAsteroid = [...asteroidById.values()].find(
         (asteroid) => normalizeText(String(asteroid.id)) === targetText || normalizeText(valueToLabel(asteroid.value)) === targetText
       );
       if (foundAsteroid) {
-        setSelectedBondId("");
-        const table = resolveTableForAsteroid(tables, foundAsteroid.id);
-        if (table) {
-          const tableNode = tableNodes.find((node) => node.id === String(table.table_id));
-          if (tableNode) {
-            focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 180 });
-          }
-        }
-        const asteroidNode = asteroidNodes.find((node) => node.id === String(foundAsteroid.id));
-        if (asteroidNode) {
-          focusAsteroid({ asteroidId: asteroidNode.id, cameraTarget: asteroidNode.position, cameraDistance: 56 });
-          patchPanel("inspector", { collapsed: false });
-        }
-        return true;
+        return focusMoonAcrossContext(foundAsteroid.id);
       }
 
       const foundTable = tables.find((table) => {
@@ -2542,7 +2626,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
       return false;
     },
-    [asteroidNodes, focusAsteroid, focusTable, patchPanel, snapshot.asteroids, tableNodes, tables]
+    [asteroidById, focusMoonAcrossContext, focusTable, tableNodes, tables]
   );
 
   const executeParserCommand = useCallback(
@@ -3256,20 +3340,64 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const levelLabel = level >= 3 ? "L3: Planeta a Mesice" : "L2: Souhvezdi a Planety";
   const selectedMoonLabel = selectedAsteroid ? valueToLabel(selectedAsteroid.value) : "";
   const selectedBondLabel = selectedBond ? `${formatBondTypeLabel(selectedBond.type)} ${selectedBond.directional ? "->" : "<->"}` : "";
+  const hasAnyPlanet = hierarchyView.planets.length > 0;
+  const hasAnyMoon = hierarchyView.indexes.moonById.size > 0;
   const hasMoonsInSelectedPlanet = tableRows.length > 0;
   const hasHierarchyIssues =
     hierarchyDiagnosticsSummary.orphans > 0 ||
     hierarchyDiagnosticsSummary.warnings > 0 ||
     hierarchyDiagnosticsSummary.droppedEdges > 0;
-  const nextStepHint = level < 3
-    ? "Klikni na planetu. Otevre se detail planety a prvni mesic."
-    : hierarchyDiagnosticsSummary.orphans > 0
-      ? `Mas ${hierarchyDiagnosticsSummary.orphans} sirotku bez planety. Oprav INSTANCE_OF nebo je prirad v tabulce.`
-    : !hasMoonsInSelectedPlanet
-      ? "Tahle planeta je prazdna. V panelu Mesic a Tezba Bunek zaloz prvni mesic."
-      : selectedAsteroid
-        ? "Mas otevreny mesic. Uprav nerosty v panelu Detail Mesice nebo v Tabulce Planety."
-        : "Vyber mesic kliknutim v prostoru nebo tlacitkem Vybrat prvni mesic.";
+  const nextStepHint = hierarchyDiagnosticsSummary.orphans > 0
+    ? `Mas ${hierarchyDiagnosticsSummary.orphans} sirotku bez planety. Nejdriv je oprav.`
+    : !hasAnyPlanet
+      ? "Zacni zalozenim prvni planety (tabulky)."
+      : !selectedTableId
+        ? "Vyber planetu kliknutim v prostoru nebo v panelu Planety."
+        : !hasMoonsInSelectedPlanet
+          ? "Tato planeta je prazdna. Zaloz prvni mesic (radek)."
+          : !selectedAsteroid
+            ? "Vyber mesic. Otevre se detail a editace bunek."
+            : "Mas vybrany mesic. Pokracuj editaci v detailu nebo v tabulce.";
+  const onboardingProgress = selectedAsteroid ? 3 : hasAnyMoon ? 2 : hasAnyPlanet ? 1 : 0;
+  const primaryGuideAction = hierarchyDiagnosticsSummary.orphans > 0
+    ? { key: "fix-orphans", label: "Opravit sirotky", helper: "Fokus na prvni sirotek" }
+    : !hasAnyPlanet
+      ? { key: "open-setup", label: "1) Otevrit setup", helper: "Panel Akce + sekce Rychle zalozeni" }
+      : !selectedTableId
+        ? { key: "pick-planet", label: "1) Vybrat planetu", helper: "Fokus na prvni planetu" }
+        : !hasMoonsInSelectedPlanet
+          ? { key: "open-setup", label: "2) Zalozit prvni mesic", helper: "Rychle zalozeni v panelu Akce" }
+          : !selectedAsteroid
+            ? { key: "pick-moon", label: "2) Vybrat prvni mesic", helper: "Autofokus v planete" }
+            : { key: "open-grid", label: "3) Otevrit tabulku", helper: "Editace bunek in-place" };
+  const handlePrimaryGuideAction = useCallback(() => {
+    if (primaryGuideAction.key === "fix-orphans") {
+      focusFirstOrphanMoon();
+      return;
+    }
+    if (primaryGuideAction.key === "open-setup") {
+      patchPanel("command", { collapsed: false });
+      patchPanel("moons", { collapsed: false });
+      return;
+    }
+    if (primaryGuideAction.key === "pick-planet") {
+      const firstTable = tableNodes[0];
+      if (!firstTable) {
+        patchPanel("planets", { collapsed: false });
+        return;
+      }
+      setSelectedBondId("");
+      focusTable({ tableId: firstTable.id, cameraTarget: firstTable.position, cameraDistance: 210 });
+      return;
+    }
+    if (primaryGuideAction.key === "pick-moon") {
+      focusFirstMoonInSelectedTable();
+      return;
+    }
+    if (primaryGuideAction.key === "open-grid") {
+      patchPanel("grid", { collapsed: false });
+    }
+  }, [focusFirstMoonInSelectedTable, focusFirstOrphanMoon, focusTable, patchPanel, primaryGuideAction.key, tableNodes]);
   const breadcrumbTrail = [
     galaxy?.name || "Galaxie",
     selectedSemantic?.entityName || "Skupiny",
@@ -3352,6 +3480,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.74 }}>NAVIGACE</div>
         <div style={{ fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-base)", color: "#dff8ff" }}>{breadcrumbTrail}</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          <span style={{ ...hudBadgeStyle, color: "#9fe8ff" }}>Postup {onboardingProgress}/3</span>
           <span style={hudBadgeStyle}>{levelLabel}</span>
           <span style={{ ...hudBadgeStyle, opacity: 0.88 }}>Model: {MODEL_PATH_LABEL}</span>
           {selectedBondLabel ? (
@@ -3361,8 +3490,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           ) : null}
           {hasHierarchyIssues ? (
             <span style={{ ...hudBadgeStyle, color: "#ffd2a1", borderColor: "rgba(255, 176, 115, 0.45)" }}>
-              Diagnostika: {hierarchyDiagnosticsSummary.orphans} sirotku · {hierarchyDiagnosticsSummary.warnings} warning ·{" "}
-              {hierarchyDiagnosticsSummary.droppedEdges} drop
+              Pozor: {hierarchyDiagnosticsSummary.orphans} sirotku · {hierarchyDiagnosticsSummary.warnings} varovani ·{" "}
+              {hierarchyDiagnosticsSummary.droppedEdges} ignorovanych vazeb
             </span>
           ) : null}
           {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam data...</span> : null}
@@ -3438,11 +3567,22 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       >
         <strong style={{ color: "#9fe8ff" }}>Dalsi krok:</strong>
         <span style={{ opacity: 0.92 }}>{nextStepHint}</span>
-        {level >= 3 && !selectedAsteroid && hasMoonsInSelectedPlanet ? (
-          <button type="button" onClick={focusFirstMoonInSelectedTable} style={hudButtonStyle}>
-            Vybrat prvni mesic
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={handlePrimaryGuideAction}
+          style={{
+            ...actionButtonStyle,
+            padding: "6px 10px",
+            background:
+              primaryGuideAction.key === "fix-orphans"
+                ? "linear-gradient(120deg, #ffad67, #ffd7a8)"
+                : "linear-gradient(120deg, #53d6ff, #8be7ff)",
+            color: "#04111f",
+          }}
+        >
+          {primaryGuideAction.label}
+        </button>
+        <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>{primaryGuideAction.helper}</span>
       </div>
 
       <div
@@ -3539,21 +3679,59 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           </button>
         </div>
         <div style={guideSectionStyle}>
+          <div style={guideTitleStyle}>PRVNI KROK (DOPORUCENO)</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <button
+              type="button"
+              onClick={handlePrimaryGuideAction}
+              style={{
+                ...actionButtonStyle,
+                background:
+                  primaryGuideAction.key === "fix-orphans"
+                    ? "linear-gradient(120deg, #ffad67, #ffd7a8)"
+                    : "linear-gradient(120deg, #53d6ff, #8be7ff)",
+                color: "#04111f",
+              }}
+            >
+              {primaryGuideAction.label}
+            </button>
+            <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>{primaryGuideAction.helper}</span>
+          </div>
+        </div>
+        <div style={guideSectionStyle}>
           <div style={guideTitleStyle}>SEMANTICKA DIAGNOSTIKA</div>
           <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84, lineHeight: "var(--dv-lh-base)" }}>
-            Kontrola hierarchie pred renderem: kazdy Mesic ma patrit pod prave jednu Planetu.
+            Jednoducha kontrola: kazdy Mesic ma patrit pod jednu Planetu. Kdyz ne, UI to ukaze jako SIROTEK.
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <span style={hudBadgeStyle}>Planety: {hierarchyView.planets.length}</span>
             <span style={hudBadgeStyle}>Mesice: {hierarchyView.indexes.moonById.size}</span>
-            <span style={{ ...hudBadgeStyle, color: hierarchyDiagnosticsSummary.orphans ? "#ffd2a1" : "#9fe8ff" }}>
+            <span
+              style={{
+                ...hudBadgeStyle,
+                color: hierarchyDiagnosticsSummary.orphans ? "#ffd2a1" : "#9fe8ff",
+                borderColor: hierarchyDiagnosticsSummary.orphans ? "rgba(255, 176, 115, 0.5)" : hudBadgeStyle.borderColor,
+              }}
+            >
               Sirotci: {hierarchyDiagnosticsSummary.orphans}
             </span>
-            <span style={{ ...hudBadgeStyle, color: hierarchyDiagnosticsSummary.warnings ? "#ffd2a1" : "#9fe8ff" }}>
-              Warning: {hierarchyDiagnosticsSummary.warnings}
+            <span
+              style={{
+                ...hudBadgeStyle,
+                color: hierarchyDiagnosticsSummary.warnings ? "#ffd2a1" : "#9fe8ff",
+                borderColor: hierarchyDiagnosticsSummary.warnings ? "rgba(255, 176, 115, 0.5)" : hudBadgeStyle.borderColor,
+              }}
+            >
+              Varovani: {hierarchyDiagnosticsSummary.warnings}
             </span>
-            <span style={{ ...hudBadgeStyle, color: hierarchyDiagnosticsSummary.droppedEdges ? "#ffd2a1" : "#9fe8ff" }}>
-              Drop edges: {hierarchyDiagnosticsSummary.droppedEdges}
+            <span
+              style={{
+                ...hudBadgeStyle,
+                color: hierarchyDiagnosticsSummary.droppedEdges ? "#ffd2a1" : "#9fe8ff",
+                borderColor: hierarchyDiagnosticsSummary.droppedEdges ? "rgba(255, 176, 115, 0.5)" : hudBadgeStyle.borderColor,
+              }}
+            >
+              Ignorovane vazby: {hierarchyDiagnosticsSummary.droppedEdges}
             </span>
           </div>
           {hierarchyDiagnosticsSummary.orphans > 0 ? (
@@ -4052,7 +4230,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
-          L2 vrstva: Souhvezdi (logicke oblasti) agregovane z hierarchy transformace.
+          Skupiny (Souhvezdi): oddeleni/oblasti jako Sklad, QA, Finance. Klikni a vstup do skupiny.
         </div>
         {constellationsLoading && !constellationPanelItems.length ? (
           <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam souhvezdi...</div>
@@ -4110,7 +4288,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
-          L3 vrstva: Planety = tabulky; seznam je rizeny hierarchy ViewModelem.
+          Planety = tabulky. Klikni planetu a zobrazi se jeji mesice (radky).
         </div>
         {planetsLoading && !planetPanelItems.length ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam planety...</div> : null}
         {!planetsLoading && !planetPanelItems.length ? (
@@ -4170,7 +4348,10 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
         <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
-          L4 vrstva: Mesice = radky tabulek. Sirotci jsou viditelni samostatne.
+          Mesice = radky tabulek. Oranzovy zaznam SIROTEK nema prirazenu planetu.
+        </div>
+        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.74, marginBottom: 8 }}>
+          Tip: klik na Mesic = fokus + otevreni detailu. Nejdriv oprav SIROTKY, pak teprve vazby.
         </div>
         {moonsLoading && !moonPanelItems.length ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam mesice...</div> : null}
         {!moonsLoading && !moonPanelItems.length ? (
@@ -4180,19 +4361,16 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           <div style={{ display: "grid", gap: 7, maxHeight: 290, overflowY: "auto", paddingRight: 2 }}>
             {moonPanelItems.map((item) => {
               const statusColor = resolveStatusColor(item.status);
-              const tableNode = item.tableNode;
-              const moonNode = item.moonNode;
+              const canFocusMoon = asteroidById.has(String(item.asteroidId || ""));
               return (
                 <button
                   key={`${item.asteroidId}`}
                   type="button"
                   onClick={() => {
                     setSelectedBondId("");
-                    if (tableNode) {
-                      focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 198 });
-                    }
-                    if (moonNode) {
-                      focusAsteroid({ asteroidId: moonNode.id, cameraTarget: moonNode.position, cameraDistance: 56 });
+                    const focused = focusMoonAcrossContext(item.asteroidId, { showOrphanHint: item.isOrphan });
+                    if (!focused) {
+                      setError("Fokus selhal: Mesic neni dostupny v aktualnim snapshotu.");
                     }
                   }}
                   style={{
@@ -4204,8 +4382,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                     textAlign: "left",
                     display: "grid",
                     gap: 3,
-                    cursor: moonNode ? "pointer" : "default",
-                    opacity: moonNode ? 1 : 0.7,
+                    cursor: canFocusMoon ? "pointer" : "default",
+                    opacity: canFocusMoon ? 1 : 0.7,
                   }}
                 >
                   <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>
@@ -4247,17 +4425,21 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           <div style={{ display: "grid", gap: 7, maxHeight: 290, overflowY: "auto", paddingRight: 2 }}>
             {bondsV1.map((item) => {
               const statusColor = resolveStatusColor(item.status);
-              const sourceNode = asteroidNodes.find((candidate) => candidate.id === String(item.source_id));
-              const targetNode = asteroidNodes.find((candidate) => candidate.id === String(item.target_id));
+              const sourceId = String(item.source_id || "");
+              const targetId = String(item.target_id || "");
+              const canFocusSource = asteroidById.has(sourceId);
+              const canFocusTarget = asteroidById.has(targetId);
+              const canFocusAny = canFocusSource || canFocusTarget;
               return (
                 <button
                   key={`${item.bond_id}`}
                   type="button"
                   onClick={() => {
-                    if (sourceNode) {
-                      focusAsteroid({ asteroidId: sourceNode.id, cameraTarget: sourceNode.position, cameraDistance: 58 });
-                    } else if (targetNode) {
-                      focusAsteroid({ asteroidId: targetNode.id, cameraTarget: targetNode.position, cameraDistance: 58 });
+                    setSelectedBondId("");
+                    const focused =
+                      (canFocusSource && focusMoonAcrossContext(sourceId)) || (canFocusTarget && focusMoonAcrossContext(targetId));
+                    if (!focused) {
+                      setError("Fokus vazby selhal: zdroj ani cil neni dostupny v aktualnim snapshotu.");
                     }
                     selectBondInInspector(item.bond_id);
                   }}
@@ -4270,8 +4452,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                     textAlign: "left",
                     display: "grid",
                     gap: 3,
-                    cursor: sourceNode || targetNode ? "pointer" : "default",
-                    opacity: sourceNode || targetNode ? 1 : 0.7,
+                    cursor: canFocusAny ? "pointer" : "default",
+                    opacity: canFocusAny ? 1 : 0.7,
                   }}
                 >
                   <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>

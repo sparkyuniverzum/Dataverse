@@ -8,8 +8,6 @@ import {
   GALAXY_CREATION_PRESETS,
   GALAXY_GUIDE,
   GALAXY_PURPOSE_OPTIONS,
-  GALAXY_REGION_OPTIONS,
-  GALAXY_TIMEZONE_OPTIONS,
   MODEL_PATH_LABEL,
 } from "../../lib/onboarding";
 
@@ -436,10 +434,7 @@ export default function GalaxySelector3D({
   const [candidateGalaxyId, setCandidateGalaxyId] = useState(selectedGalaxyId || "");
   const [hoveredGalaxyId, setHoveredGalaxyId] = useState("");
   const [workspacePurpose, setWorkspacePurpose] = useState("general");
-  const [workspaceOwner, setWorkspaceOwner] = useState("");
-  const [workspaceTeam, setWorkspaceTeam] = useState("");
-  const [workspaceRegion, setWorkspaceRegion] = useState("global");
-  const [workspaceTimezone, setWorkspaceTimezone] = useState("UTC");
+  const [workspaceProfileNote, setWorkspaceProfileNote] = useState("");
   const [creationPreset, setCreationPreset] = useState("blank");
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
@@ -528,6 +523,26 @@ export default function GalaxySelector3D({
       : "#8fffd2";
   const noGalaxiesYet = galaxies.length === 0;
 
+  useEffect(() => {
+    if (!noGalaxiesYet) return;
+    if (String(newGalaxyName || "").trim()) return;
+    const alias = String(user?.email || "")
+      .split("@")[0]
+      .replace(/[._-]+/g, " ")
+      .trim();
+    const suggestion = alias ? `${alias} workspace` : "Moje galaxie";
+    onNameChange(suggestion);
+  }, [newGalaxyName, noGalaxiesYet, onNameChange, user?.email]);
+
+  const createOptions = useMemo(
+    () => ({
+      preset: creationPreset,
+      purpose: workspacePurpose,
+      profileNote: workspaceProfileNote,
+    }),
+    [creationPreset, workspaceProfileNote, workspacePurpose]
+  );
+
   return (
     <main style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#02050c" }}>
       <Canvas
@@ -570,13 +585,13 @@ export default function GalaxySelector3D({
         >
           <div style={{ fontSize: "var(--dv-fs-4xl)", fontWeight: 800 }}>Start: nejdriv zaloz prvni galaxii</div>
           <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.9 }}>
-            Nemáš zatim zadny workspace. Udelej 5 kroku: 1) pojmenuj galaxii, 2) vyber ucel, 3) nastav owner/team a lokaci, 4) vyber predvyplneni, 5) klikni Vytvorit prvni galaxii.
+            Nemáš zatim zadny workspace. Potrebujes jen 3 veci: 1) nazev, 2) ucel workspace, 3) volitelne predvyplneni.
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr minmax(190px, 250px)", gap: 8 }}>
             <input
               value={newGalaxyName}
               onChange={(event) => onNameChange(event.target.value)}
-              placeholder="Krok 1: Nazev (napr. Firma 2026)"
+              placeholder="Nazev workspace (napr. Finance 2026)"
               style={inputStyle}
             />
             <select
@@ -585,44 +600,6 @@ export default function GalaxySelector3D({
               style={selectStyle}
             >
               {GALAXY_PURPOSE_OPTIONS.map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <input
-              value={workspaceOwner}
-              onChange={(event) => setWorkspaceOwner(event.target.value)}
-              placeholder="Krok 3: Owner (napr. jana.novak)"
-              style={inputStyle}
-            />
-            <input
-              value={workspaceTeam}
-              onChange={(event) => setWorkspaceTeam(event.target.value)}
-              placeholder="Team (napr. finance-core)"
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <select
-              value={workspaceRegion}
-              onChange={(event) => setWorkspaceRegion(event.target.value)}
-              style={selectStyle}
-            >
-              {GALAXY_REGION_OPTIONS.map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={workspaceTimezone}
-              onChange={(event) => setWorkspaceTimezone(event.target.value)}
-              style={selectStyle}
-            >
-              {GALAXY_TIMEZONE_OPTIONS.map((item) => (
                 <option key={item.key} value={item.key}>
                   {item.label}
                 </option>
@@ -643,30 +620,24 @@ export default function GalaxySelector3D({
             </select>
             <button
               type="button"
-              onClick={() =>
-                onCreate({
-                  preset: creationPreset,
-                  purpose: workspacePurpose,
-                  owner: workspaceOwner,
-                  team: workspaceTeam,
-                  region: workspaceRegion,
-                  timezone: workspaceTimezone,
-                })
-              }
+              onClick={() => onCreate(createOptions)}
               disabled={busy || !newGalaxyName.trim()}
               style={actionButtonStyle}
             >
               Vytvorit prvni galaxii
             </button>
           </div>
+          <input
+            value={workspaceProfileNote}
+            onChange={(event) => setWorkspaceProfileNote(event.target.value)}
+            placeholder="Volitelna charakteristika (napr. Interni finance + reporting)"
+            style={inputStyle}
+          />
           <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
-            Krok 2 detail: <strong>{selectedPurposeOption.label}</strong> - {selectedPurposeOption.description}
+            Ucel: <strong>{selectedPurposeOption.label}</strong> - {selectedPurposeOption.description}
           </div>
           <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
-            Krok 3 detail: <strong>{selectedCreationPreset.label}</strong> - {selectedCreationPreset.description}
-          </div>
-          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.8 }}>
-            Owner/team/region/timezone se ulozi do metadata predvyplnenych zaznamu.
+            Predvyplneni: <strong>{selectedCreationPreset.label}</strong> - {selectedCreationPreset.description}
           </div>
         </section>
       ) : null}
@@ -742,16 +713,7 @@ export default function GalaxySelector3D({
           />
           <button
             type="button"
-            onClick={() =>
-              onCreate({
-                preset: creationPreset,
-                purpose: workspacePurpose,
-                owner: workspaceOwner,
-                team: workspaceTeam,
-                region: workspaceRegion,
-                timezone: workspaceTimezone,
-              })
-            }
+            onClick={() => onCreate(createOptions)}
             disabled={busy || !newGalaxyName.trim()}
             style={actionButtonStyle}
           >
@@ -774,48 +736,13 @@ export default function GalaxySelector3D({
           <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.84 }}>{selectedPurposeOption.description}</div>
         </div>
         <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.76 }}>Owner, Team a Lokace</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <input
-              value={workspaceOwner}
-              onChange={(event) => setWorkspaceOwner(event.target.value)}
-              placeholder="owner"
-              style={inputStyle}
-            />
-            <input
-              value={workspaceTeam}
-              onChange={(event) => setWorkspaceTeam(event.target.value)}
-              placeholder="team"
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <select
-              value={workspaceRegion}
-              onChange={(event) => setWorkspaceRegion(event.target.value)}
-              style={selectStyle}
-            >
-              {GALAXY_REGION_OPTIONS.map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={workspaceTimezone}
-              onChange={(event) => setWorkspaceTimezone(event.target.value)}
-              style={selectStyle}
-            >
-              {GALAXY_TIMEZONE_OPTIONS.map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.84 }}>
-            Tyto hodnoty se pouziji jako default metadata pro seed data.
-          </div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.76 }}>Charakteristika (volitelna)</div>
+          <input
+            value={workspaceProfileNote}
+            onChange={(event) => setWorkspaceProfileNote(event.target.value)}
+            placeholder="Napriklad: QA backlog + incidenty"
+            style={inputStyle}
+          />
         </div>
         <div style={{ display: "grid", gap: 6 }}>
           <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.76 }}>Preddefinovani pri vytvoreni</div>
@@ -862,102 +789,106 @@ export default function GalaxySelector3D({
           {noGalaxiesYet ? "Nejdriv vytvor galaxii. Potom funguje klik=vyber, dvojklik=vstup." : "Tip: dvojklik na galaxii = okamzity vstup."}
         </div>
 
-        <div style={{ display: "grid", gap: 6 }}>
-          <button
-            type="button"
-            onClick={() => setShowGuide((prev) => !prev)}
-            style={{
-              ...ghostButtonStyle,
-              justifySelf: "start",
-              borderRadius: 999,
-              width: 30,
-              height: 30,
-              padding: 0,
-              fontSize: "var(--dv-fs-lg)",
-              fontWeight: 700,
-            }}
-            title="Napoveda"
-          >
-            ?
-          </button>
-          {showGuide ? (
-            <div
+        {!noGalaxiesYet ? (
+          <div style={{ display: "grid", gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => setShowGuide((prev) => !prev)}
               style={{
-                border: "1px solid rgba(98, 190, 222, 0.28)",
-                borderRadius: 10,
-                background: "rgba(4, 11, 20, 0.76)",
-                padding: 10,
-                display: "grid",
-                gap: 6,
+                ...ghostButtonStyle,
+                justifySelf: "start",
+                borderRadius: 999,
+                width: 30,
+                height: 30,
+                padding: 0,
+                fontSize: "var(--dv-fs-lg)",
+                fontWeight: 700,
               }}
+              title="Napoveda"
             >
-              <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.78 }}>JAK POKRACOVAT BEZ VAHANI</div>
-              {GALAXY_GUIDE.map((item) => (
-                <div key={item} style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
-                  - {item}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <div
-          style={{
-            border: "1px solid rgba(98, 190, 222, 0.28)",
-            borderRadius: 10,
-            background: "rgba(4, 11, 20, 0.76)",
-            padding: 10,
-            display: "grid",
-            gap: 8,
-          }}
-        >
-          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.78 }}>GALAXY DASHBOARD V1</div>
-          {dashboardLoading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9adfff" }}>Nacitam summary/health/activity...</div> : null}
-          {!dashboardLoading && summary ? (
-            <div style={{ display: "grid", gap: 5, fontSize: "var(--dv-fs-sm)" }}>
-              <div>Souhvezdi: <strong>{summary.constellations_count}</strong></div>
-              <div>Planety: <strong>{summary.planets_count}</strong></div>
-              <div>Mesice: <strong>{summary.moons_count}</strong></div>
-              <div>Vazby: <strong>{summary.bonds_count}</strong></div>
-              <div>Vzorce: <strong>{summary.formula_fields_count}</strong></div>
-            </div>
-          ) : null}
-          {!dashboardLoading && health ? (
-            <div style={{ display: "grid", gap: 5, fontSize: "var(--dv-fs-sm)" }}>
-              <div>
-                Stav:
-                <strong style={{ marginLeft: 6, color: healthColor }}>{health.status}</strong>
-                <span style={{ marginLeft: 6, opacity: 0.84 }}>({health.quality_score}/100)</span>
+              ?
+            </button>
+            {showGuide ? (
+              <div
+                style={{
+                  border: "1px solid rgba(98, 190, 222, 0.28)",
+                  borderRadius: 10,
+                  background: "rgba(4, 11, 20, 0.76)",
+                  padding: 10,
+                  display: "grid",
+                  gap: 6,
+                }}
+              >
+                <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.78 }}>JAK POKRACOVAT BEZ VAHANI</div>
+                {GALAXY_GUIDE.map((item) => (
+                  <div key={item} style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
+                    - {item}
+                  </div>
+                ))}
               </div>
-              <div>Guardian pravidla: <strong>{health.guardian_rules_count}</strong></div>
-              <div>Aktivni alerty: <strong>{health.alerted_asteroids_count}</strong></div>
-              <div>Kruhove odkazy: <strong>{health.circular_fields_count}</strong></div>
-            </div>
-          ) : null}
-          {!dashboardLoading && activity.length ? (
-            <div style={{ display: "grid", gap: 5 }}>
-              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>Posledni aktivita</div>
-              {activity.slice(0, 6).map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    border: "1px solid rgba(96, 180, 210, 0.2)",
-                    borderRadius: 8,
-                    padding: "6px 7px",
-                    background: "rgba(6, 16, 30, 0.68)",
-                    fontSize: "var(--dv-fs-xs)",
-                    display: "grid",
-                    gap: 2,
-                  }}
-                >
-                  <div style={{ color: "#cfeef8" }}>{item.event_type}</div>
-                  <div style={{ opacity: 0.76 }}>{formatDateTime(item.happened_at)}</div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!noGalaxiesYet ? (
+          <div
+            style={{
+              border: "1px solid rgba(98, 190, 222, 0.28)",
+              borderRadius: 10,
+              background: "rgba(4, 11, 20, 0.76)",
+              padding: 10,
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.78 }}>GALAXY DASHBOARD V1</div>
+            {dashboardLoading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9adfff" }}>Nacitam summary/health/activity...</div> : null}
+            {!dashboardLoading && summary ? (
+              <div style={{ display: "grid", gap: 5, fontSize: "var(--dv-fs-sm)" }}>
+                <div>Souhvezdi: <strong>{summary.constellations_count}</strong></div>
+                <div>Planety: <strong>{summary.planets_count}</strong></div>
+                <div>Mesice: <strong>{summary.moons_count}</strong></div>
+                <div>Vazby: <strong>{summary.bonds_count}</strong></div>
+                <div>Vzorce: <strong>{summary.formula_fields_count}</strong></div>
+              </div>
+            ) : null}
+            {!dashboardLoading && health ? (
+              <div style={{ display: "grid", gap: 5, fontSize: "var(--dv-fs-sm)" }}>
+                <div>
+                  Stav:
+                  <strong style={{ marginLeft: 6, color: healthColor }}>{health.status}</strong>
+                  <span style={{ marginLeft: 6, opacity: 0.84 }}>({health.quality_score}/100)</span>
                 </div>
-              ))}
-            </div>
-          ) : null}
-          {dashboardError ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{dashboardError}</div> : null}
-        </div>
+                <div>Guardian pravidla: <strong>{health.guardian_rules_count}</strong></div>
+                <div>Aktivni alerty: <strong>{health.alerted_asteroids_count}</strong></div>
+                <div>Kruhove odkazy: <strong>{health.circular_fields_count}</strong></div>
+              </div>
+            ) : null}
+            {!dashboardLoading && activity.length ? (
+              <div style={{ display: "grid", gap: 5 }}>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>Posledni aktivita</div>
+                {activity.slice(0, 6).map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      border: "1px solid rgba(96, 180, 210, 0.2)",
+                      borderRadius: 8,
+                      padding: "6px 7px",
+                      background: "rgba(6, 16, 30, 0.68)",
+                      fontSize: "var(--dv-fs-xs)",
+                      display: "grid",
+                      gap: 2,
+                    }}
+                  >
+                    <div style={{ color: "#cfeef8" }}>{item.event_type}</div>
+                    <div style={{ opacity: 0.76 }}>{formatDateTime(item.happened_at)}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {dashboardError ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{dashboardError}</div> : null}
+          </div>
+        ) : null}
 
         {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{error}</div> : null}
       </aside>
