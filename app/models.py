@@ -427,6 +427,16 @@ class TableContract(Base):
         nullable=False,
         server_default=text("'[]'::jsonb"),
     )
+    formula_registry: Mapped[list[Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'[]'::jsonb"),
+    )
+    physics_rulebook: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id"),

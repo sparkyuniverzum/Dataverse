@@ -173,25 +173,34 @@ const LINK_COLORS = {
 const LINK_SEMANTICS = {
   RELATION: {
     directional: false,
-    description: "Vzájemná vazba mezi entitami (obousměrný kontext).",
+    description: "Obecny vztah mezi dvema mesici (obousmerne).",
   },
   TYPE: {
     directional: true,
-    description: "Tok typování: instance -> typ.",
+    description: "Mesic A patri pod typ/tridu B.",
   },
   FORMULA: {
     directional: true,
-    description: "Datový tok do výpočtu: zdroj -> cíl.",
+    description: "Data pro vypocet jdou ze zdroje do cile.",
   },
   FLOW: {
     directional: true,
-    description: "Datový tok: zdroj -> cíl.",
+    description: "Data tecou ze zdroje do cile.",
   },
   GUARDIAN: {
     directional: true,
-    description: "Tok hlídacího pravidla: pozorovaný zdroj -> kontrolní cíl.",
+    description: "Mesic A hlida nebo spousti kontrolu nad B.",
   },
 };
+
+function resolveBondTypeLabel(type) {
+  const key = String(type || "RELATION").toUpperCase();
+  if (key === "RELATION") return "Vztah";
+  if (key === "TYPE") return "Typ";
+  if (key === "FLOW" || key === "FORMULA") return "Tok dat";
+  if (key === "GUARDIAN") return "Kontrola";
+  return key;
+}
 
 function resolveLinkColor(type) {
   const key = String(type || "RELATION").toUpperCase();
@@ -339,25 +348,25 @@ function MouseGuideOverlay({ level, hoveredNode }) {
   const title = isTablesLevel ? "L2 objekty: Souhvezdi / Planety" : "L3 objekty: Mesice";
   const lines = isTablesLevel
     ? [
-        "LMB klik na Souhvezdi: vstup do Planety.",
-        "RMB klik na Souhvezdi: menu (Vstoupit / Zpet).",
-        "Male body kolem planety jsou mesice (nahled). Pro detail klikni planetu.",
-        "Drag pozadi: orbit kamery, kolecko: zoom.",
+        "Levy klik na planetu: otevres tabulku a jeji mesice.",
+        "Pravy klik na planetu: akce (vstoupit/zpet).",
+        "Male body kolem planety jsou mesice (nahled).",
+        "Tazenim pozadi otacis kamerou, koleckem zoomujes.",
       ]
     : [
-        "LMB klik na Mesic: fokus.",
-        "RMB klik na Mesic: menu (Upravit / Zhasnout).",
-        "RMB drag Mesic -> Mesic: nova vazba (alternativa Shift + LMB drag).",
-        "Vazba: klik na svetelnou krivku nebo jeji popisek (RELATION/FLOW/...).",
+        "Levy klik na mesic: otevres detail radku tabulky.",
+        "Pravy klik na mesic: akce (upravit/zhasnout).",
+        "Nova vazba: pretahni mesic na mesic (prave tlacitko).",
+        "Vazbu vyberes klikem na svetelnou krivku nebo jeji popisek.",
       ];
 
   const hoverTip = hoveredNode
     ? hoveredNode.kind === "table"
-      ? `Objekt ${hoveredNode.label}: LMB vstup, RMB menu.`
-      : `Objekt ${hoveredNode.label}: LMB fokus, RMB menu, RMB drag pro vazbu.`
+      ? `Objekt ${hoveredNode.label}: levy klik otevre detail, pravy klik otevre akce.`
+      : `Objekt ${hoveredNode.label}: levy klik detail, pravy klik akce, pretazenim vytvoris vazbu.`
     : isTablesLevel
-      ? "Najed mysi na Souhvezdi a hned vidis jeho primarni akce."
-      : "Propojeni vytvoris pretazenim mezi dvema Mesici.";
+      ? "Najed mysi na planetu a hned uvidis, co muzes udelat."
+      : "Propojeni mezi mesici vytvoris pretazenim.";
 
   return (
     <div
@@ -377,13 +386,13 @@ function MouseGuideOverlay({ level, hoveredNode }) {
         backdropFilter: "blur(7px)",
       }}
     >
-      <div style={{ fontSize: 11, letterSpacing: 0.6, opacity: 0.86 }}>{title}</div>
+      <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.86 }}>{title}</div>
       {lines.map((item) => (
-        <div key={item} style={{ fontSize: 12, marginTop: 3, opacity: 0.92, lineHeight: 1.35 }}>
+        <div key={item} style={{ fontSize: "var(--dv-fs-sm)", marginTop: 3, opacity: 0.92, lineHeight: "var(--dv-lh-base)" }}>
           {item}
         </div>
       ))}
-      <div style={{ fontSize: 12, marginTop: 6, color: "#9fe6ff", lineHeight: 1.35 }}>{hoverTip}</div>
+      <div style={{ fontSize: "var(--dv-fs-sm)", marginTop: 6, color: "#9fe6ff", lineHeight: "var(--dv-lh-base)" }}>{hoverTip}</div>
     </div>
   );
 }
@@ -391,6 +400,7 @@ function MouseGuideOverlay({ level, hoveredNode }) {
 function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHoverLink, onLeaveLink, onSelectLink }) {
   const pulseRef = useRef(null);
   const pulse2Ref = useRef(null);
+  const trailRefs = useRef([]);
   const linkPhysics = link?.physics || FALLBACK_LINK_PHYSICS;
   const stress = clamp(Number(linkPhysics?.stress) || 0, 0, 1);
   const flow = clamp(Number(linkPhysics?.flow) || 0, 0, 1);
@@ -425,13 +435,15 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
   const targetConstellation = String(link.target_constellation_name || targetNode.entityName || "Unknown");
   const targetPlanet = String(link.target_planet_name || targetNode.planetName || targetNode.label || "Unknown");
   const labelPoint = samplePath(points, 0.5);
-  const typeLabel = String(link.type || "RELATION").toUpperCase();
+  const typeLabel = resolveBondTypeLabel(link.type);
   const directionLabel = semantics.directional ? "->" : "<->";
   const interactionRadius = clamp((emphasized ? 2.8 : 2.4) + (stress + flow) * 0.45, 2.2, 4.2);
+  const activeFlow = flow > 0.2 || stress > 0.24 || emphasized;
+  const trailCount = semantics.directional ? 6 : 4;
 
   const buildHoverPayload = (event) => ({
     id: link.id,
-    type: String(link.type || "RELATION"),
+    type: resolveBondTypeLabel(link.type),
     weight: weight,
     sourceLabel: sourceNode.label,
     targetLabel: targetNode.label,
@@ -462,6 +474,15 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
         : 1 - ((elapsed * speed + (weight % 7) * 0.07) % 1);
       const p = samplePath(points, secondT);
       pulse2Ref.current.position.set(p[0], p[1], p[2]);
+    }
+    for (let idx = 0; idx < trailCount; idx += 1) {
+      const node = trailRefs.current[idx];
+      if (!node) continue;
+      const offset = (idx + 1) / (trailCount + 1);
+      const travel = (elapsed * speed + (weight % 11) * 0.03 + offset) % 1;
+      const t = semantics.directional ? travel : idx % 2 === 0 ? travel : 1 - travel;
+      const p = samplePath(points, t);
+      node.position.set(p[0], p[1], p[2]);
     }
   });
 
@@ -518,7 +539,7 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
           {`${typeLabel} ${directionLabel}`}
         </Text>
       </Billboard>
-      {!dimmed ? (
+      {!dimmed && activeFlow ? (
         <>
           <mesh ref={pulseRef}>
             <sphereGeometry args={[(emphasized ? 1.2 : 0.86) * pulseSizeFactor, 12, 12]} />
@@ -528,6 +549,17 @@ function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHover
             <sphereGeometry args={[0.56 * pulseSizeFactor, 10, 10]} />
             <meshBasicMaterial color={pulseColor} transparent opacity={0.72} />
           </mesh>
+          {Array.from({ length: trailCount }).map((_, idx) => (
+            <mesh
+              key={`trail-${idx}`}
+              ref={(node) => {
+                trailRefs.current[idx] = node;
+              }}
+            >
+              <sphereGeometry args={[(0.2 + (idx % 3) * 0.07) * pulseSizeFactor, 8, 8]} />
+              <meshBasicMaterial color={pulseColor} transparent opacity={semantics.directional ? 0.56 : 0.42} />
+            </mesh>
+          ))}
         </>
       ) : null}
     </group>

@@ -1782,6 +1782,19 @@ def test_table_contract_versioning_returns_latest(auth_client: tuple[httpx.Clien
             "required_fields": ["cena", "mena"],
             "field_types": {"cena": "number", "mena": "string"},
             "unique_rules": [{"fields": ["value"]}],
+            "formula_registry": [
+                {
+                    "id": "planet.cashflow",
+                    "target": "zustatek",
+                    "expression": "SUM(prijem)-SUM(vydaj)",
+                    "depends_on": ["prijem", "vydaj"],
+                    "trigger": "on_commit",
+                }
+            ],
+            "physics_rulebook": {
+                "rules": [{"id": "risk-red", "when": [{"field": "cena", "op": ">", "value": 1000}], "effects": {"color": "#ff6b8a"}}],
+                "defaults": {"color": "#92ffd8", "radius": 1.2},
+            },
         },
     )
     assert v2.status_code == 201, v2.text
@@ -1796,6 +1809,9 @@ def test_table_contract_versioning_returns_latest(auth_client: tuple[httpx.Clien
     assert body["version"] == 2
     assert body["field_types"]["mena"] == "string"
     assert "mena" in body["required_fields"]
+    assert body["schema_registry"]["field_types"]["mena"] == "string"
+    assert body["formula_registry"][0]["id"] == "planet.cashflow"
+    assert body["physics_rulebook"]["defaults"]["color"] == "#92ffd8"
 
 
 def test_table_contract_is_enforced_for_ingest_and_mutate(auth_client: tuple[httpx.Client, str]) -> None:
@@ -1854,6 +1870,58 @@ def test_table_contract_is_enforced_for_ingest_and_mutate(auth_client: tuple[htt
     )
     assert invalid_mutate.status_code == 422, invalid_mutate.text
     assert "validator failed" in invalid_mutate.text
+
+
+def test_table_contract_semantic_validator_is_non_blocking(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    table_name = f"ContractSemantic-{uuid.uuid4()}"
+    seed_label = f"SemanticSeed-{uuid.uuid4()}"
+
+    seeded = client.post(
+        "/asteroids/ingest",
+        json={"value": seed_label, "metadata": {"table": table_name, "cena": 42, "owner": "init"}, "galaxy_id": galaxy_id},
+    )
+    assert seeded.status_code == 200, seeded.text
+    seeded_id = seeded.json()["id"]
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    seeded_atom = next((item for item in snapshot.json()["asteroids"] if item["id"] == seeded_id), None)
+    assert seeded_atom is not None
+    table_id = seeded_atom["table_id"]
+
+    contract = client.post(
+        f"/contracts/{table_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "required_fields": ["cena"],
+            "field_types": {"cena": "number"},
+            "validators": [
+                {"field": "owner", "operator": "semantic", "value": {"mode": "relation"}},
+                {"field": "cena", "operator": ">", "value": 0},
+            ],
+        },
+    )
+    assert contract.status_code == 201, contract.text
+
+    ingested = client.post(
+        "/asteroids/ingest",
+        json={"value": f"SemanticOk-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": 77, "owner": "Team-A"}, "galaxy_id": galaxy_id},
+    )
+    assert ingested.status_code == 200, ingested.text
+
+    mutate_ok = client.patch(
+        f"/asteroids/{seeded_id}/mutate",
+        json={"metadata": {"owner": "Team-B", "cena": 55}, "galaxy_id": galaxy_id},
+    )
+    assert mutate_ok.status_code == 200, mutate_ok.text
+
+    mutate_bad = client.patch(
+        f"/asteroids/{seeded_id}/mutate",
+        json={"metadata": {"cena": -1}, "galaxy_id": galaxy_id},
+    )
+    assert mutate_bad.status_code == 422, mutate_bad.text
+    assert "validator failed" in mutate_bad.text
 
 
 def test_csv_import_contract_violation_is_reported_per_row(auth_client: tuple[httpx.Client, str]) -> None:
@@ -2113,3 +2181,86 @@ def test_bond_extinguish_soft_deletes_link(auth_client: tuple[httpx.Client, str]
     assert snapshot.status_code == 200, snapshot.text
     bond_ids = {bond["id"] for bond in snapshot.json()["bonds"]}
     assert body["id"] not in bond_ids
+
+
+def test_task_batch_preview_does_not_persist_changes(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"BatchPreview-{uuid.uuid4()}"
+
+    created = client.post("/asteroids/ingest", json={"value": label, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+    asteroid = created.json()
+    asteroid_id = asteroid["id"]
+    base_seq = int(asteroid["current_event_seq"])
+
+    preview = client.post(
+        "/tasks/execute-batch",
+        json={
+            "mode": "preview",
+            "galaxy_id": galaxy_id,
+            "tasks": [
+                {
+                    "action": "UPDATE_ASTEROID",
+                    "params": {
+                        "asteroid_id": asteroid_id,
+                        "metadata": {"preview_field": "yes"},
+                        "expected_event_seq": base_seq,
+                    },
+                }
+            ],
+        },
+    )
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body["mode"] == "preview"
+    assert body["task_count"] == 1
+    assert len(body["result"]["tasks"]) == 1
+
+    after = _snapshot_asteroid(client, galaxy_id=galaxy_id, asteroid_id=asteroid_id)
+    assert "preview_field" not in after.get("metadata", {})
+    assert int(after["current_event_seq"]) == base_seq
+
+
+def test_task_batch_commit_persists_changes_atomically(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"BatchCommit-{uuid.uuid4()}"
+
+    created = client.post("/asteroids/ingest", json={"value": label, "galaxy_id": galaxy_id})
+    assert created.status_code == 200, created.text
+    asteroid = created.json()
+    asteroid_id = asteroid["id"]
+    base_seq = int(asteroid["current_event_seq"])
+
+    commit = client.post(
+        "/tasks/execute-batch",
+        json={
+            "mode": "commit",
+            "galaxy_id": galaxy_id,
+            "tasks": [
+                {
+                    "action": "UPDATE_ASTEROID",
+                    "params": {
+                        "asteroid_id": asteroid_id,
+                        "metadata": {"batch_field": "committed"},
+                        "expected_event_seq": base_seq,
+                    },
+                },
+                {
+                    "action": "INGEST",
+                    "params": {
+                        "value": f"BatchCommit-New-{uuid.uuid4()}",
+                        "metadata": {"table": "Batch > Commit"},
+                    },
+                },
+            ],
+        },
+    )
+    assert commit.status_code == 200, commit.text
+    body = commit.json()
+    assert body["mode"] == "commit"
+    assert body["task_count"] == 2
+    assert len(body["result"]["tasks"]) == 2
+
+    after = _snapshot_asteroid(client, galaxy_id=galaxy_id, asteroid_id=asteroid_id)
+    assert after.get("metadata", {}).get("batch_field") == "committed"
+    assert int(after["current_event_seq"]) > base_seq

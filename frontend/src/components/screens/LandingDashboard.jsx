@@ -5,6 +5,13 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [activeTags, setActiveTags] = useState(["Event-Sourcing"]);
+
+  const toggleTag = (tag) => {
+    setActiveTags((prev) => (
+      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]
+    ));
+  };
 
   return (
     <main
@@ -54,7 +61,7 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
           />
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-            <div style={{ fontSize: 11, letterSpacing: 0.9, opacity: 0.74 }}>PLAVIDLO / COMMAND BRIDGE</div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.74 }}>PLAVIDLO / COMMAND BRIDGE</div>
             <div style={{ display: "flex", gap: 6 }}>
               <SignalLight color="#50ffc4" />
               <SignalLight color="#ffd76f" />
@@ -62,10 +69,10 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
             </div>
           </div>
 
-          <h1 style={{ margin: "8px 0 0", fontSize: 34, lineHeight: 1.1 }}>DataVerse Navigator</h1>
-          <div style={{ marginTop: 5, fontSize: 13, opacity: 0.76 }}>Kokpit průzkumníka AURORA-01</div>
+          <h1 style={{ margin: "8px 0 0", fontSize: "var(--dv-fs-display-md)", lineHeight: "var(--dv-lh-display)" }}>DataVerse Navigator</h1>
+          <div style={{ marginTop: 5, fontSize: "var(--dv-fs-md)", opacity: 0.76 }}>Kokpit průzkumníka AURORA-01</div>
 
-          <p style={{ marginTop: 12, maxWidth: 620, fontSize: 15, opacity: 0.86 }}>
+          <p style={{ marginTop: 12, maxWidth: 620, fontSize: "var(--dv-fs-xl)", opacity: 0.86 }}>
             Priprav se na vstup do datoveho vesmiru. Po odemceni kokpitu jedes podle jednotne mapy:
             {" "}
             {MODEL_PATH_LABEL}.
@@ -82,16 +89,16 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
               gap: 9,
             }}
           >
-            <div style={{ fontSize: 12, letterSpacing: 0.7, opacity: 0.72 }}>PŘEDLETOVÝ CHECKLIST</div>
+            <div style={{ fontSize: "var(--dv-fs-sm)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.72 }}>PŘEDLETOVÝ CHECKLIST</div>
             {LANDING_GUIDE.map((item) => (
               <ChecklistItem key={item} text={item} />
             ))}
           </div>
 
           <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Tag text="Event-Sourcing" />
-            <Tag text="Soft Delete Only" />
-            <Tag text="3D Workspace First" />
+            <Tag text="Event-Sourcing" active={activeTags.includes("Event-Sourcing")} onToggle={toggleTag} />
+            <Tag text="Soft Delete Only" active={activeTags.includes("Soft Delete Only")} onToggle={toggleTag} />
+            <Tag text="3D Workspace First" active={activeTags.includes("3D Workspace First")} onToggle={toggleTag} />
           </div>
         </article>
 
@@ -112,8 +119,10 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
             boxShadow: "inset 0 0 0 1px rgba(115, 209, 242, 0.15), 0 20px 46px rgba(0, 0, 0, 0.4)",
           }}
         >
-          <div style={{ fontSize: 11, letterSpacing: 0.9, opacity: 0.72 }}>AIRLOCK AUTH MODULE</div>
-          <div style={{ fontSize: 15, fontWeight: 700, marginTop: -2 }}>Ověření posádky</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", opacity: 0.74, fontFamily: "var(--dv-font-mono)" }}>
+            AIRLOCK AUTH MODULE
+          </div>
+          <div style={{ fontSize: "var(--dv-fs-xl)", fontWeight: 700, marginTop: -2 }}>Ověření posádky</div>
 
           <div style={{ display: "flex", gap: 8 }}>
             <button
@@ -165,7 +174,7 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
             style={inputStyle}
           />
 
-          {error ? <div style={{ fontSize: 12, color: "#ffadc3" }}>{error}</div> : null}
+          {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffadc3" }}>{error}</div> : null}
 
           <button
             type="submit"
@@ -204,28 +213,65 @@ function SignalLight({ color }) {
 }
 
 function ChecklistItem({ text }) {
+  const [active, setActive] = useState(false);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}>
-      <span style={{ width: 7, height: 7, borderRadius: 999, background: "#69d8ff", boxShadow: "0 0 8px #69d8ff" }} />
-      <span style={{ opacity: 0.9 }}>{text}</span>
+    <div
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "auto 1fr auto",
+        alignItems: "center",
+        gap: 8,
+        fontSize: "var(--dv-fs-md)",
+        padding: "4px 2px",
+        borderRadius: 8,
+      }}
+    >
+      <span
+        style={{
+          width: 12,
+          height: 12,
+          borderRadius: 4,
+          border: `1px solid ${active ? "rgba(130, 232, 255, 0.86)" : "rgba(92, 178, 207, 0.4)"}`,
+          background: active ? "rgba(74, 203, 241, 0.28)" : "rgba(11, 28, 43, 0.9)",
+          boxShadow: active ? "0 0 16px rgba(114, 225, 255, 0.52)" : "none",
+          display: "inline-block",
+        }}
+      />
+      <span style={{ opacity: active ? 1 : 0.9 }}>{text}</span>
+      <span
+        style={{
+          fontSize: "var(--dv-fs-2xs)",
+          letterSpacing: "var(--dv-tr-xwide)",
+          color: active ? "#a8eeff" : "rgba(178, 225, 242, 0.6)",
+          fontFamily: "var(--dv-font-mono)",
+        }}
+      >
+        {active ? "SCAN ON" : "READY"}
+      </span>
     </div>
   );
 }
 
-function Tag({ text }) {
+function Tag({ text, active, onToggle }) {
   return (
-    <span
+    <button
+      type="button"
+      onClick={() => onToggle?.(text)}
       style={{
+        cursor: "pointer",
         border: "1px solid rgba(112, 206, 236, 0.32)",
-        background: "rgba(5, 16, 29, 0.84)",
+        background: active ? "rgba(12, 40, 66, 0.9)" : "rgba(5, 16, 29, 0.84)",
         color: "#d6f7ff",
         borderRadius: 999,
         padding: "5px 10px",
-        fontSize: 11,
+        fontSize: "var(--dv-fs-xs)",
+        boxShadow: active ? "0 0 20px rgba(69, 191, 231, 0.42), inset 0 0 0 1px rgba(132, 226, 255, 0.28)" : "none",
       }}
     >
       {text}
-    </span>
+    </button>
   );
 }
 
@@ -236,7 +282,7 @@ const inputStyle = {
   background: "rgba(4, 9, 17, 0.92)",
   color: "#dff9ff",
   padding: "9px 10px",
-  fontSize: 14,
+  fontSize: "var(--dv-fs-lg)",
   outline: "none",
   boxSizing: "border-box",
 };

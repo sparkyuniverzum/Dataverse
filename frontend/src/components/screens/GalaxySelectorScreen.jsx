@@ -29,10 +29,10 @@ export default function GalaxySelectorScreen({
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: 12, opacity: 0.72 }}>LEVEL 1 / GALAXY WORKSPACES</div>
-            <h2 style={{ margin: "4px 0 0", fontSize: 30 }}>Vyber galaxii</h2>
-            <div style={{ marginTop: 4, fontSize: 14, opacity: 0.82 }}>Uživatel: {user?.email || "n/a"}</div>
-            <div style={{ marginTop: 4, fontSize: 12, opacity: 0.74 }}>Hierarchie: {MODEL_PATH_LABEL}</div>
+            <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.72 }}>LEVEL 1 / GALAXY WORKSPACES</div>
+            <h2 style={{ margin: "4px 0 0", fontSize: "var(--dv-fs-display-sm)" }}>Vyber galaxii</h2>
+            <div style={{ marginTop: 4, fontSize: "var(--dv-fs-lg)", opacity: 0.82 }}>Uživatel: {user?.email || "n/a"}</div>
+            <div style={{ marginTop: 4, fontSize: "var(--dv-fs-sm)", opacity: 0.74 }}>Hierarchie: {MODEL_PATH_LABEL}</div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
@@ -65,7 +65,7 @@ export default function GalaxySelectorScreen({
                 background: "rgba(3, 9, 18, 0.9)",
                 color: "#dff9ff",
                 padding: "9px 10px",
-                fontSize: 14,
+                fontSize: "var(--dv-fs-lg)",
                 outline: "none",
               }}
             />
@@ -73,7 +73,7 @@ export default function GalaxySelectorScreen({
               Vytvorit galaxii
             </button>
           </div>
-          {error ? <div style={{ marginTop: 8, color: "#ffb4c7", fontSize: 12 }}>{error}</div> : null}
+          {error ? <div style={{ marginTop: 8, color: "#ffb4c7", fontSize: "var(--dv-fs-sm)" }}>{error}</div> : null}
         </section>
 
         <section
@@ -87,9 +87,9 @@ export default function GalaxySelectorScreen({
             gap: 5,
           }}
         >
-          <div style={{ fontSize: 11, letterSpacing: 0.6, opacity: 0.74 }}>JAK POKRACOVAT BEZ VAHANI</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.74 }}>JAK POKRACOVAT BEZ VAHANI</div>
           {GALAXY_GUIDE.map((item) => (
-            <div key={item} style={{ fontSize: 12, opacity: 0.87 }}>
+            <div key={item} style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.87 }}>
               - {item}
             </div>
           ))}
@@ -108,8 +108,8 @@ export default function GalaxySelectorScreen({
                   padding: 12,
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: 16 }}>{galaxy.name}</div>
-                <div style={{ marginTop: 4, fontSize: 12, opacity: 0.76 }}>ID: {galaxy.id}</div>
+                <div style={{ fontWeight: 700, fontSize: "var(--dv-fs-2xl)" }}>{galaxy.name}</div>
+                <div style={{ marginTop: 4, fontSize: "var(--dv-fs-sm)", opacity: 0.76 }}>ID: {galaxy.id}</div>
                 <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
                   <button type="button" onClick={() => onSelect(galaxy.id)} style={actionButtonStyle}>
                     {selected ? "Aktivni" : "Vstoupit"}
@@ -134,7 +134,7 @@ const actionButtonStyle = {
   borderRadius: 9,
   fontWeight: 700,
   padding: "7px 10px",
-  fontSize: 12,
+  fontSize: "var(--dv-fs-sm)",
   cursor: "pointer",
 };
 
@@ -144,7 +144,7 @@ const dangerButtonStyle = {
   color: "#ffc7d8",
   borderRadius: 9,
   padding: "7px 10px",
-  fontSize: 12,
+  fontSize: "var(--dv-fs-sm)",
   cursor: "pointer",
 };
 
@@ -154,6 +154,6 @@ const ghostButtonStyle = {
   color: "#d7f6ff",
   borderRadius: 9,
   padding: "7px 10px",
-  fontSize: 12,
+  fontSize: "var(--dv-fs-sm)",
   cursor: "pointer",
 };

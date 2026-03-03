@@ -446,6 +446,7 @@ export default function GalaxySelector3D({
   const [summary, setSummary] = useState(null);
   const [health, setHealth] = useState(null);
   const [activity, setActivity] = useState([]);
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     if (!candidateGalaxyId && galaxies.length === 1) {
@@ -567,8 +568,8 @@ export default function GalaxySelector3D({
             backdropFilter: "blur(10px)",
           }}
         >
-          <div style={{ fontSize: 18, fontWeight: 800 }}>Start: nejdriv zaloz prvni galaxii</div>
-          <div style={{ fontSize: 13, opacity: 0.9 }}>
+          <div style={{ fontSize: "var(--dv-fs-4xl)", fontWeight: 800 }}>Start: nejdriv zaloz prvni galaxii</div>
+          <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.9 }}>
             Nemáš zatim zadny workspace. Udelej 5 kroku: 1) pojmenuj galaxii, 2) vyber ucel, 3) nastav owner/team a lokaci, 4) vyber predvyplneni, 5) klikni Vytvorit prvni galaxii.
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr minmax(190px, 250px)", gap: 8 }}>
@@ -658,13 +659,13 @@ export default function GalaxySelector3D({
               Vytvorit prvni galaxii
             </button>
           </div>
-          <div style={{ fontSize: 12, opacity: 0.88 }}>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
             Krok 2 detail: <strong>{selectedPurposeOption.label}</strong> - {selectedPurposeOption.description}
           </div>
-          <div style={{ fontSize: 12, opacity: 0.88 }}>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
             Krok 3 detail: <strong>{selectedCreationPreset.label}</strong> - {selectedCreationPreset.description}
           </div>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.8 }}>
             Owner/team/region/timezone se ulozi do metadata predvyplnenych zaznamu.
           </div>
         </section>
@@ -682,7 +683,7 @@ export default function GalaxySelector3D({
           background: "rgba(5, 13, 23, 0.86)",
           color: "#d9f8ff",
           padding: "8px 14px",
-          fontSize: 12,
+          fontSize: "var(--dv-fs-sm)",
           display: "flex",
           alignItems: "center",
           gap: 10,
@@ -704,19 +705,19 @@ export default function GalaxySelector3D({
           width: "min(360px, 92vw)",
           borderRadius: 14,
           border: "1px solid rgba(100, 196, 226, 0.36)",
-          background: "rgba(4, 12, 24, 0.84)",
+          background: "rgba(4, 12, 24, 0.8)",
           color: "#d7f6ff",
           padding: 12,
-          backdropFilter: "blur(8px)",
+          backdropFilter: "blur(12px)",
           boxShadow: "0 0 26px rgba(33, 122, 170, 0.24)",
           display: "grid",
           gap: 10,
         }}
       >
-        <div style={{ fontSize: 11, letterSpacing: 0.8, opacity: 0.74 }}>FLEET CONTROL</div>
-        <div style={{ fontSize: 12, opacity: 0.78 }}>Hierarchie: {MODEL_PATH_LABEL}</div>
+        <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.74 }}>FLEET CONTROL</div>
+        <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Hierarchie: {MODEL_PATH_LABEL}</div>
 
-        <div style={{ fontSize: 13 }}>
+        <div style={{ fontSize: "var(--dv-fs-md)" }}>
           {selectedGalaxy ? (
             <>
               Vybraná galaxie: <strong>{selectedGalaxy.name}</strong>
@@ -727,7 +728,7 @@ export default function GalaxySelector3D({
         </div>
 
         {hoveredGalaxy ? (
-          <div style={{ fontSize: 12, opacity: 0.78 }}>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>
             Hover: {hoveredGalaxy.name}
           </div>
         ) : null}
@@ -754,11 +755,11 @@ export default function GalaxySelector3D({
             disabled={busy || !newGalaxyName.trim()}
             style={actionButtonStyle}
           >
-            Vytvořit
+            ↗ Launch
           </button>
         </div>
         <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: 11, letterSpacing: 0.5, opacity: 0.76 }}>Ucel workspace</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.76 }}>Ucel workspace</div>
           <select
             value={workspacePurpose}
             onChange={(event) => setWorkspacePurpose(event.target.value)}
@@ -770,10 +771,10 @@ export default function GalaxySelector3D({
               </option>
             ))}
           </select>
-          <div style={{ fontSize: 12, opacity: 0.84 }}>{selectedPurposeOption.description}</div>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.84 }}>{selectedPurposeOption.description}</div>
         </div>
         <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: 11, letterSpacing: 0.5, opacity: 0.76 }}>Owner, Team a Lokace</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.76 }}>Owner, Team a Lokace</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <input
               value={workspaceOwner}
@@ -812,12 +813,12 @@ export default function GalaxySelector3D({
               ))}
             </select>
           </div>
-          <div style={{ fontSize: 12, opacity: 0.84 }}>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.84 }}>
             Tyto hodnoty se pouziji jako default metadata pro seed data.
           </div>
         </div>
         <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: 11, letterSpacing: 0.5, opacity: 0.76 }}>Preddefinovani pri vytvoreni</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.76 }}>Preddefinovani pri vytvoreni</div>
           <select
             value={creationPreset}
             onChange={(event) => setCreationPreset(event.target.value)}
@@ -829,7 +830,7 @@ export default function GalaxySelector3D({
               </option>
             ))}
           </select>
-          <div style={{ fontSize: 12, opacity: 0.84 }}>{selectedCreationPreset.description}</div>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.84 }}>{selectedCreationPreset.description}</div>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -857,26 +858,47 @@ export default function GalaxySelector3D({
           </button>
         </div>
 
-        <div style={{ fontSize: 12, opacity: 0.8 }}>
+        <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.8 }}>
           {noGalaxiesYet ? "Nejdriv vytvor galaxii. Potom funguje klik=vyber, dvojklik=vstup." : "Tip: dvojklik na galaxii = okamzity vstup."}
         </div>
 
-        <div
-          style={{
-            border: "1px solid rgba(98, 190, 222, 0.28)",
-            borderRadius: 10,
-            background: "rgba(4, 11, 20, 0.76)",
-            padding: 10,
-            display: "grid",
-            gap: 6,
-          }}
-        >
-          <div style={{ fontSize: 11, letterSpacing: 0.7, opacity: 0.78 }}>JAK POKRACOVAT BEZ VAHANI</div>
-          {GALAXY_GUIDE.map((item) => (
-            <div key={item} style={{ fontSize: 12, opacity: 0.88 }}>
-              - {item}
+        <div style={{ display: "grid", gap: 6 }}>
+          <button
+            type="button"
+            onClick={() => setShowGuide((prev) => !prev)}
+            style={{
+              ...ghostButtonStyle,
+              justifySelf: "start",
+              borderRadius: 999,
+              width: 30,
+              height: 30,
+              padding: 0,
+              fontSize: "var(--dv-fs-lg)",
+              fontWeight: 700,
+            }}
+            title="Napoveda"
+          >
+            ?
+          </button>
+          {showGuide ? (
+            <div
+              style={{
+                border: "1px solid rgba(98, 190, 222, 0.28)",
+                borderRadius: 10,
+                background: "rgba(4, 11, 20, 0.76)",
+                padding: 10,
+                display: "grid",
+                gap: 6,
+              }}
+            >
+              <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.78 }}>JAK POKRACOVAT BEZ VAHANI</div>
+              {GALAXY_GUIDE.map((item) => (
+                <div key={item} style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
+                  - {item}
+                </div>
+              ))}
             </div>
-          ))}
+          ) : null}
         </div>
 
         <div
@@ -889,10 +911,10 @@ export default function GalaxySelector3D({
             gap: 8,
           }}
         >
-          <div style={{ fontSize: 11, letterSpacing: 0.7, opacity: 0.78 }}>GALAXY DASHBOARD V1</div>
-          {dashboardLoading ? <div style={{ fontSize: 12, color: "#9adfff" }}>Nacitam summary/health/activity...</div> : null}
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.78 }}>GALAXY DASHBOARD V1</div>
+          {dashboardLoading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9adfff" }}>Nacitam summary/health/activity...</div> : null}
           {!dashboardLoading && summary ? (
-            <div style={{ display: "grid", gap: 5, fontSize: 12 }}>
+            <div style={{ display: "grid", gap: 5, fontSize: "var(--dv-fs-sm)" }}>
               <div>Souhvezdi: <strong>{summary.constellations_count}</strong></div>
               <div>Planety: <strong>{summary.planets_count}</strong></div>
               <div>Mesice: <strong>{summary.moons_count}</strong></div>
@@ -901,7 +923,7 @@ export default function GalaxySelector3D({
             </div>
           ) : null}
           {!dashboardLoading && health ? (
-            <div style={{ display: "grid", gap: 5, fontSize: 12 }}>
+            <div style={{ display: "grid", gap: 5, fontSize: "var(--dv-fs-sm)" }}>
               <div>
                 Stav:
                 <strong style={{ marginLeft: 6, color: healthColor }}>{health.status}</strong>
@@ -914,7 +936,7 @@ export default function GalaxySelector3D({
           ) : null}
           {!dashboardLoading && activity.length ? (
             <div style={{ display: "grid", gap: 5 }}>
-              <div style={{ fontSize: 11, opacity: 0.76 }}>Posledni aktivita</div>
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>Posledni aktivita</div>
               {activity.slice(0, 6).map((item) => (
                 <div
                   key={item.id}
@@ -923,7 +945,7 @@ export default function GalaxySelector3D({
                     borderRadius: 8,
                     padding: "6px 7px",
                     background: "rgba(6, 16, 30, 0.68)",
-                    fontSize: 11,
+                    fontSize: "var(--dv-fs-xs)",
                     display: "grid",
                     gap: 2,
                   }}
@@ -934,10 +956,10 @@ export default function GalaxySelector3D({
               ))}
             </div>
           ) : null}
-          {dashboardError ? <div style={{ fontSize: 12, color: "#ffb3c7" }}>{dashboardError}</div> : null}
+          {dashboardError ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{dashboardError}</div> : null}
         </div>
 
-        {error ? <div style={{ fontSize: 12, color: "#ffb3c7" }}>{error}</div> : null}
+        {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{error}</div> : null}
       </aside>
     </main>
   );
@@ -945,12 +967,13 @@ export default function GalaxySelector3D({
 
 const inputStyle = {
   width: "100%",
-  borderRadius: 8,
-  border: "1px solid rgba(114, 202, 234, 0.28)",
-  background: "rgba(4, 10, 18, 0.92)",
+  borderRadius: 12,
+  border: "1px solid rgba(114, 202, 234, 0.34)",
+  background: "linear-gradient(140deg, rgba(10, 26, 44, 0.82), rgba(5, 16, 28, 0.72))",
   color: "#ddf7ff",
-  padding: "8px 9px",
-  fontSize: 13,
+  padding: "8px 10px",
+  fontSize: "var(--dv-fs-sm)",
+  letterSpacing: "var(--dv-tr-normal)",
   outline: "none",
   boxSizing: "border-box",
 };
@@ -962,12 +985,13 @@ const selectStyle = {
 
 const actionButtonStyle = {
   border: "1px solid rgba(113, 222, 255, 0.5)",
-  background: "linear-gradient(120deg, #23b9e8, #44d8ff)",
+  background: "linear-gradient(120deg, #22b5e2, #53dbff)",
   color: "#052133",
-  borderRadius: 8,
-  padding: "7px 10px",
+  borderRadius: 12,
+  padding: "7px 11px",
   fontWeight: 700,
-  fontSize: 12,
+  fontSize: "var(--dv-fs-xs)",
+  letterSpacing: "var(--dv-tr-medium)",
   cursor: "pointer",
 };
 
@@ -977,16 +1001,17 @@ const dangerButtonStyle = {
   color: "#ffc7d7",
   borderRadius: 8,
   padding: "7px 10px",
-  fontSize: 12,
+  fontSize: "var(--dv-fs-sm)",
   cursor: "pointer",
 };
 
 const ghostButtonStyle = {
   border: "1px solid rgba(112, 200, 232, 0.3)",
-  background: "rgba(7, 18, 32, 0.86)",
+  background: "rgba(7, 18, 32, 0.78)",
   color: "#d5f5ff",
-  borderRadius: 8,
+  borderRadius: 10,
   padding: "7px 10px",
-  fontSize: 12,
+  fontSize: "var(--dv-fs-xs)",
+  letterSpacing: "var(--dv-tr-normal)",
   cursor: "pointer",
 };

@@ -1,3 +1,32 @@
+:root {
+  --dv-font-sans: "Sora", "Manrope", "IBM Plex Sans", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --dv-font-mono: "IBM Plex Mono", "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Menlo, monospace;
+
+  --dv-fs-2xs: 10px;
+  --dv-fs-xs: 11px;
+  --dv-fs-sm: 12px;
+  --dv-fs-md: 13px;
+  --dv-fs-lg: 14px;
+  --dv-fs-xl: 15px;
+  --dv-fs-2xl: 16px;
+  --dv-fs-3xl: 17px;
+  --dv-fs-4xl: 18px;
+  --dv-fs-display-sm: 30px;
+  --dv-fs-display-md: 34px;
+
+  --dv-tr-tight: 0.2px;
+  --dv-tr-normal: 0.28px;
+  --dv-tr-medium: 0.36px;
+  --dv-tr-wide: 0.58px;
+  --dv-tr-xwide: 0.78px;
+  --dv-tr-code: 1.1px;
+
+  --dv-lh-display: 1.1;
+  --dv-lh-compact: 1.2;
+  --dv-lh-base: 1.35;
+  --dv-lh-relaxed: 1.4;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -14,7 +43,13 @@ body,
 body {
   background: #020205;
   color: #d9f8ff;
-  font-family: "Segoe UI", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--dv-font-sans);
+  font-size: var(--dv-fs-sm);
+  line-height: var(--dv-lh-base);
+  letter-spacing: var(--dv-tr-normal);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 input,
@@ -22,6 +57,8 @@ textarea,
 select,
 button {
   font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
 }
 
 input::placeholder,

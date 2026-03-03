@@ -9,6 +9,8 @@ import {
   buildImportJobUrl,
   buildImportRunUrl,
   buildParserPayload,
+  buildTableContractUrl,
+  buildTaskBatchPayload,
   buildSnapshotExportUrl,
   buildSnapshotUrl,
   buildTablesExportUrl,
@@ -33,6 +35,24 @@ describe("buildParserPayload", () => {
       query: "A + B",
       text: "A + B",
       parser_version: "v2",
+      galaxy_id: "g-1",
+      branch_id: "br-1",
+    });
+  });
+});
+
+describe("buildTaskBatchPayload", () => {
+  it("builds payload with mode, tasks and scope", () => {
+    expect(
+      buildTaskBatchPayload({
+        mode: "preview",
+        tasks: [{ action: "UPDATE_ASTEROID", params: { asteroid_id: "a-1", metadata: { cena: "100" } } }],
+        galaxyId: "g-1",
+        branchId: "br-1",
+      })
+    ).toEqual({
+      mode: "preview",
+      tasks: [{ action: "UPDATE_ASTEROID", params: { asteroid_id: "a-1", metadata: { cena: "100" } } }],
       galaxy_id: "g-1",
       branch_id: "br-1",
     });
@@ -109,6 +129,14 @@ describe("io urls", () => {
     expect(tablesUrl).toContain("format=csv");
     expect(tablesUrl).toContain("galaxy_id=g-2");
     expect(tablesUrl).toContain("branch_id=br-2");
+  });
+
+  it("builds table contract URL with optional galaxy scope", () => {
+    const scoped = buildTableContractUrl("http://127.0.0.1:8000", "table-1", "g-5");
+    expect(scoped).toBe("http://127.0.0.1:8000/contracts/table-1?galaxy_id=g-5");
+
+    const plain = buildTableContractUrl("http://127.0.0.1:8000", "table-2");
+    expect(plain).toBe("http://127.0.0.1:8000/contracts/table-2");
   });
 });
 

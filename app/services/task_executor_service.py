@@ -365,6 +365,10 @@ class TaskExecutorService:
             return TaskExecutorService._normalize_unique_value(field_value) == TaskExecutorService._normalize_unique_value(expected_value)
         if op == "!=":
             return TaskExecutorService._normalize_unique_value(field_value) != TaskExecutorService._normalize_unique_value(expected_value)
+        # Reserved for UI semantic contracts stored in table validators.
+        # This rule annotates field behavior in Grid and is intentionally non-blocking for domain writes.
+        if op in {"semantic", "ui_semantic"}:
+            return True
 
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

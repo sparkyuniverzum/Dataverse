@@ -38,7 +38,7 @@ export default function ContextMenu({ menu, onClose, onAction }) {
           boxShadow: "0 0 24px rgba(52, 159, 212, 0.2)",
         }}
       >
-        <div style={{ padding: "8px 10px", fontSize: 11, color: "#a7dced", opacity: 0.84 }}>
+        <div style={{ padding: "8px 10px", fontSize: "var(--dv-fs-xs)", color: "#a7dced", opacity: 0.84 }}>
           {menu.kind === "asteroid" ? "Mesic" : "Souhvezdi / Entita"}: {menu.label}
         </div>
         {actions.map((item) => (

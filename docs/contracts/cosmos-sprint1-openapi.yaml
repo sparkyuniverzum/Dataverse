@@ -248,6 +248,9 @@ components:
         galaxy_id:
           type: string
           format: uuid
+        schema_registry:
+          type: object
+          additionalProperties: true
         required_fields:
           type: array
           items:
@@ -266,10 +269,18 @@ components:
           items:
             type: object
             additionalProperties: true
+        formula_registry:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        physics_rulebook:
+          type: object
+          additionalProperties: true
 
     TableContractPublic:
       type: object
-      required: [id, galaxy_id, table_id, version, required_fields, field_types, unique_rules, validators, created_by, created_at, updated_at]
+      required: [id, galaxy_id, table_id, version, required_fields, field_types, unique_rules, validators, schema_registry, formula_registry, physics_rulebook, created_by, created_at, updated_at]
       properties:
         id:
           type: string
@@ -301,6 +312,17 @@ components:
           items:
             type: object
             additionalProperties: true
+        schema_registry:
+          type: object
+          additionalProperties: true
+        formula_registry:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        physics_rulebook:
+          type: object
+          additionalProperties: true
         created_by:
           type: string
           format: uuid

@@ -220,3 +220,7 @@ Date: 2026-02-28
 - `GET/POST /contracts/{table_id}`
 - Branch-aware snapshot:
 - `GET /universe/snapshot?...&branch_id=<uuid>`
+- Table contract registry pack:
+- `schema_registry` (contract envelope for required/type/unique/validators)
+- `formula_registry` (catalog of formula definitions per table/planet)
+- `physics_rulebook` (UI/physics mapping rules and defaults per table/planet)

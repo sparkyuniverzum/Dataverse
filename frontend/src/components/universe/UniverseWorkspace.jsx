@@ -14,6 +14,8 @@ import {
   buildImportJobUrl,
   buildImportRunUrl,
   buildParserPayload,
+  buildTableContractUrl,
+  buildTaskBatchPayload,
   buildSnapshotUrl,
   buildTablesUrl,
   isOccConflictError,
@@ -159,29 +161,167 @@ const RESERVED_METADATA_KEYS = new Set(["table", "table_id", "table_name"]);
 const QUICK_LINK_TYPE_OPTIONS = [
   {
     value: "RELATION",
-    label: "RELATION",
+    label: "Vztah",
     direction: "A ↔ B",
-    description: "Vzájemná vazba bez směru. A+B je stejná vazba jako B+A.",
+    description: "Obecne propojeni bez smeru. A+B je stejne jako B+A.",
   },
   {
     value: "TYPE",
-    label: "TYPE",
+    label: "Typ",
     direction: "A → B",
-    description: "Typová vazba. A je instance/součást typu B.",
+    description: "A patri pod typ B (zarazeni nebo klasifikace).",
   },
   {
     value: "FLOW",
-    label: "FLOW",
+    label: "Tok dat",
     direction: "A → B",
-    description: "Datový tok ze zdroje A do cíle B.",
+    description: "Data tecou ze zdroje A do cile B.",
   },
   {
     value: "GUARDIAN",
-    label: "GUARDIAN",
+    label: "Kontrola",
     direction: "A → B",
-    description: "Kontrolní/hlídací tok ze zdroje A na cíl B.",
+    description: "A hlida nebo spousti kontrolu nad B.",
   },
 ];
+
+const PARSER_OPERATOR_GUIDE = [
+  {
+    key: "relation",
+    syntax: "A + B",
+    meaning: "RELATION: obecna vazba mezi uzly (obousmerna canonical).",
+    example: "Pavel + Audi",
+  },
+  {
+    key: "type",
+    syntax: "A : B",
+    meaning: "TYPE: zarazeni A pod typ/tridu B.",
+    example: "Sroub : SpotrebniMaterial",
+  },
+  {
+    key: "assign",
+    syntax: "Entity.field := hodnota",
+    meaning: "ASSIGN: zapis bunky/metadat do cile.",
+    example: "Projekt.cena := 12500",
+  },
+  {
+    key: "flow",
+    syntax: "A -> B",
+    meaning: "FLOW: datovy/signalovy tok source -> target.",
+    example: "Objednavka -> Faktura",
+  },
+  {
+    key: "extinguish",
+    syntax: "- A",
+    meaning: "EXTINGUISH: soft delete zamer (zadny hard delete).",
+    example: "- StarySroub",
+  },
+  {
+    key: "group",
+    syntax: "(A, B) : Typ",
+    meaning: "GROUP: bulk operand (aplikace vazby na vice uzlu).",
+    example: "(Pavel, Jana) : Zamestnanec",
+  },
+];
+
+const PARSER_LEGACY_GUIDE = [
+  {
+    key: "show",
+    syntax: "Ukaz : Target @ podminka",
+    meaning: "SELECT pres resolver (ukaz/najdi/show/find).",
+    example: "Ukaz : Zakaznici @ Praha",
+  },
+  {
+    key: "spoj",
+    syntax: "Spoj : A, B, C",
+    meaning: "Rychly relation chain (A-B, B-C).",
+    example: "Spoj : Sklad, Dodavatel, Fakturace",
+  },
+  {
+    key: "formula",
+    syntax: "Spocitej : T.field = SUM(src)",
+    meaning: "SET_FORMULA nad cilem.",
+    example: "Spocitej : Projekt.celkem = SUM(cena)",
+  },
+  {
+    key: "guardian",
+    syntax: "Hlidej : T.field > X -> action",
+    meaning: "ADD_GUARDIAN pravidlo.",
+    example: "Hlidej : Projekt.celkem > 1000 -> pulse",
+  },
+  {
+    key: "delete",
+    syntax: "Zhasni : Target",
+    meaning: "Legacy EXTINGUISH alias.",
+    example: "Zhasni : StaryProjekt",
+  },
+  {
+    key: "metadata",
+    syntax: "Firma (obor: IT, mesto=Praha)",
+    meaning: "Legacy metadata syntax (upsert + metadata).",
+    example: "Firma (obor: IT) + Produkt (cena: 500)",
+  },
+];
+
+const PARSER_RUNTIME_RULES = [
+  "UI posila parser_version=v2 u kazdeho prikazu (strict v2 pipeline).",
+  "Legacy verby (ukaz/najdi/spocitej/hlidej/zhasni/spoj) jsou podporene i ve v2.",
+  "Resolver nejdriv hleda existujici uzly v aktivnim snapshotu (branch-aware), az pak tvori nove.",
+  "Delete je vzdy soft delete (EXTINGUISH), hard delete neni povolen.",
+  "Historicky mod (as_of) je read-only: mutace, parser write a batch commit jsou blokovane.",
+];
+
+const CONTROL_PLAYBOOK = [
+  {
+    key: "start",
+    title: "Start od nuly",
+    steps: [
+      "Cmd: +NovaGalaxie -> Enter (zalozi nove workspace).",
+      "V panelu Rychle zalozeni vypln Souhvezdi, Planeta, Mesic a klikni Zalozit.",
+      "Klikni na planetu (LMB), potom klikni na mesic (LMB) pro otevreni detailu.",
+    ],
+    commands: ["+NovaGalaxie"],
+  },
+  {
+    key: "focus",
+    title: "Rychly fokus",
+    steps: [
+      "Cmd: Ukaz : cil -> Enter (cil muze byt UUID nebo nazev mesice).",
+      "Alternativa: v panelu Akce nad existujicim mesicem vyber Mesic a klikni Fokus.",
+      "Klavesy: Ctrl+K fokus command line, Tab doplni navrzeny prikaz.",
+    ],
+    commands: ["Ukaz : ", ":help"],
+  },
+  {
+    key: "grid",
+    title: "Tabulka Planety",
+    steps: [
+      "Nejdriv vyber planetu klikem v prostoru.",
+      "Cmd: /grid -> otevre tabulkovy pohled + inspector.",
+      "Cmd: /3d -> zavre grid a vrati cisty 3D pohled.",
+    ],
+    commands: ["/grid", "/3d"],
+  },
+  {
+    key: "safe-delete",
+    title: "Bezpecne mazani",
+    steps: [
+      "Cmd: zhasni : Mesic -> soft delete mesice.",
+      "V gridu jde radek oznacit Zhasnout/Obnovit pred batch commit.",
+      "Vazby i mesice lze obnovit z timeline/branch workflow (zadny hard delete).",
+    ],
+    commands: ["zhasni : "],
+  },
+];
+
+function formatBondTypeLabel(rawType) {
+  const normalized = normalizeBondType(rawType);
+  if (normalized === "RELATION") return "Vztah";
+  if (normalized === "TYPE") return "Typ";
+  if (normalized === "FLOW") return "Tok dat";
+  if (normalized === "GUARDIAN") return "Kontrola";
+  return normalized;
+}
 
 function buildBondMeaningSentence(bond, sourceLabel, targetLabel) {
   const source = sourceLabel || "zdroj";
@@ -200,6 +340,139 @@ function buildBondMeaningSentence(bond, sourceLabel, targetLabel) {
     return `${source} hlida nebo spousti kontrolu nad ${target}.`;
   }
   return `Vazba vede ze ${source} do ${target}.`;
+}
+
+function inferMineralGlyph(key, value) {
+  const keyText = normalizeText(key);
+  const valueText = normalizeText(valueToLabel(value));
+  const numericValue = Number(value);
+  if (keyText.includes("date") || keyText.includes("datum") || keyText.includes("cas") || keyText.includes("time")) return "CAL";
+  if (
+    keyText.includes("price") ||
+    keyText.includes("cena") ||
+    keyText.includes("cost") ||
+    keyText.includes("amount") ||
+    keyText.includes("mena") ||
+    keyText.includes("money")
+  ) {
+    return "CUR";
+  }
+  if (Number.isFinite(numericValue) || /^[+-]?\d+([.,]\d+)?$/.test(valueText)) return "NUM";
+  if (valueText.includes("true") || valueText.includes("false")) return "BIN";
+  return "TXT";
+}
+
+const GRID_SEMANTIC_MODE_OPTIONS = [
+  { value: "assign", label: "Metadata := hodnota", description: "Bezpecna editace hodnoty nebo bunky." },
+  { value: "relation", label: "Vazba +", description: "Text v bunce vytvori vztah mezi mesici (RELATION)." },
+  { value: "type", label: "Typ :", description: "Text v bunce vytvori typovou vazbu (TYPE)." },
+];
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function normalizeGridSemanticMode(rawMode) {
+  const normalized = String(rawMode || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "relation" || normalized === "rel" || normalized === "+") return "relation";
+  if (normalized === "type" || normalized === ":" || normalized === "classification") return "type";
+  return "assign";
+}
+
+function splitSemanticTargets(rawValue) {
+  return String(rawValue || "")
+    .split(/[,\n;|]/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseGridSemanticModes(validators) {
+  const modeByField = {};
+  const source = Array.isArray(validators) ? validators : [];
+  source.forEach((rule) => {
+    if (!rule || typeof rule !== "object") return;
+    const operator = String(rule.operator || "")
+      .trim()
+      .toLowerCase();
+    if (operator !== "semantic" && operator !== "ui_semantic") return;
+    const field = String(rule.field || "").trim();
+    if (!field || field === "value" || RESERVED_METADATA_KEYS.has(field)) return;
+
+    const value = rule.value;
+    let mode = "assign";
+    if (typeof value === "string") {
+      mode = normalizeGridSemanticMode(value);
+    } else if (value && typeof value === "object") {
+      mode = normalizeGridSemanticMode(value.mode || value.kind || value.type);
+    } else if (typeof rule.mode === "string") {
+      mode = normalizeGridSemanticMode(rule.mode);
+    }
+    modeByField[field] = mode;
+  });
+  return modeByField;
+}
+
+function stripGridSemanticValidators(validators) {
+  const source = Array.isArray(validators) ? validators : [];
+  return source.filter((rule) => {
+    if (!rule || typeof rule !== "object") return false;
+    const operator = String(rule.operator || "")
+      .trim()
+      .toLowerCase();
+    return operator !== "semantic" && operator !== "ui_semantic";
+  });
+}
+
+function buildGridSemanticValidators(modeByField) {
+  return Object.entries(modeByField || {})
+    .filter(([field, mode]) => {
+      if (!field || field === "value" || RESERVED_METADATA_KEYS.has(field)) return false;
+      return normalizeGridSemanticMode(mode) !== "assign";
+    })
+    .map(([field, mode]) => ({
+      field,
+      operator: "semantic",
+      value: { mode: normalizeGridSemanticMode(mode) },
+    }));
+}
+
+function coerceGridNumber(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const normalized = value.trim().replace(",", ".");
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function matchesGridExpectedType(expectedRaw, valueRaw) {
+  const expected = String(expectedRaw || "")
+    .trim()
+    .toLowerCase();
+  const value = valueRaw ?? "";
+  const asText = String(value).trim();
+  if (!expected || expected === "any" || expected === "json") return true;
+  if (!asText) return true;
+  if (expected === "string" || expected === "str" || expected === "text") return true;
+  if (expected === "number" || expected === "float" || expected === "double" || expected === "decimal") {
+    return coerceGridNumber(value) !== null;
+  }
+  if (expected === "int" || expected === "integer") {
+    const number = coerceGridNumber(value);
+    return number !== null && Number.isInteger(number);
+  }
+  if (expected === "bool" || expected === "boolean") {
+    return ["true", "false", "1", "0", "yes", "no"].includes(asText.toLowerCase());
+  }
+  if (expected === "array" || expected === "list") {
+    return asText.startsWith("[") && asText.endsWith("]");
+  }
+  if (expected === "object" || expected === "dict" || expected === "map") {
+    return asText.startsWith("{") && asText.endsWith("}");
+  }
+  return true;
 }
 
 export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGalaxies, onLogout }) {
@@ -225,6 +498,10 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
   const [asOfInput, setAsOfInput] = useState("");
   const [query, setQuery] = useState("");
+  const [commandHistory, setCommandHistory] = useState([]);
+  const [commandHistoryCursor, setCommandHistoryCursor] = useState(-1);
+  const [commandHistoryDraft, setCommandHistoryDraft] = useState("");
+  const [commandSuggestionCursor, setCommandSuggestionCursor] = useState(0);
   const [snapshot, setSnapshot] = useState({ asteroids: [], bonds: [] });
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -234,6 +511,22 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const [createFieldKey, setCreateFieldKey] = useState("");
   const [createFieldValue, setCreateFieldValue] = useState("");
   const [gridDraft, setGridDraft] = useState({});
+  const [gridEditingCell, setGridEditingCell] = useState("");
+  const [gridChangeSet, setGridChangeSet] = useState({});
+  const [gridPendingExtinguishIds, setGridPendingExtinguishIds] = useState({});
+  const [gridSelectedRowId, setGridSelectedRowId] = useState("");
+  const [gridNewRows, setGridNewRows] = useState([]);
+  const [gridNewRowLabel, setGridNewRowLabel] = useState("");
+  const [gridNewRowMetaKey, setGridNewRowMetaKey] = useState("");
+  const [gridNewRowMetaValue, setGridNewRowMetaValue] = useState("");
+  const [gridBatchBusy, setGridBatchBusy] = useState(false);
+  const [gridBatchInfo, setGridBatchInfo] = useState("");
+  const [gridBatchPreview, setGridBatchPreview] = useState(null);
+  const [gridColumnModes, setGridColumnModes] = useState({});
+  const [gridContractBase, setGridContractBase] = useState(null);
+  const [gridContractBusy, setGridContractBusy] = useState(false);
+  const [gridContractInfo, setGridContractInfo] = useState("");
+  const [gridUndoCount, setGridUndoCount] = useState(0);
   const [constellations, setConstellations] = useState([]);
   const [constellationsLoading, setConstellationsLoading] = useState(false);
   const [constellationsError, setConstellationsError] = useState("");
@@ -281,11 +574,14 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const [lastImportJob, setLastImportJob] = useState(null);
   const [importErrors, setImportErrors] = useState([]);
   const [streamState, setStreamState] = useState("OFF");
+  const [moonDeleteHover, setMoonDeleteHover] = useState(false);
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const streamCursorRef = useRef(null);
   const streamRefreshTimeoutRef = useRef(null);
   const tablesRef = useRef(tables);
+  const commandInputRef = useRef(null);
+  const gridUndoStackRef = useRef([]);
 
   const asOfIso = useMemo(() => toAsOfIso(asOfInput), [asOfInput]);
   const historicalMode = Boolean(asOfIso);
@@ -295,10 +591,78 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [branches, selectedBranchId]
   );
   const activeWorkspaceLabel = selectedBranch ? `branch:${selectedBranch.name}` : "main";
+  const commandSuggestions = useMemo(() => {
+    const staticSuggestions = [
+      { key: "refresh", label: ":refresh", insert: ":refresh", hint: "Obnovi snapshot a tabulky" },
+      { key: "galaxie", label: ":galaxie", insert: ":galaxie", hint: "Navrat do vyberu workspace" },
+      { key: "souhvezdi", label: ":souhvezdi", insert: ":souhvezdi", hint: "Navrat na uroven skupin" },
+      { key: "help", label: ":help", insert: ":help", hint: "Otevre panel rozsirenych akci" },
+      { key: "grid", label: "/grid", insert: "/grid", hint: "Otevre tabulkovy pohled planety" },
+      { key: "space", label: "/3d", insert: "/3d", hint: "Vrati cisty 3D pohled" },
+      { key: "new-galaxy", label: "+NovaGalaxie", insert: "+NovaGalaxie", hint: "Zalozeni nove galaxie" },
+      { key: "focus", label: "Ukaz :", insert: "Ukaz : ", hint: "Fokus na objekt" },
+      { key: "formula", label: "spocitej :", insert: "spocitej : ", hint: "Definice vypoctu" },
+      { key: "guardian", label: "hlidej :", insert: "hlidej : ", hint: "Guardian pravidlo" },
+      { key: "delete", label: "zhasni :", insert: "zhasni : ", hint: "Soft delete mesice" },
+    ];
+    const moonSuggestions = [];
+    const seen = new Set();
+    snapshot.asteroids.forEach((asteroid) => {
+      const label = valueToLabel(asteroid?.value).trim();
+      const normalized = normalizeText(label);
+      if (!label || !normalized || seen.has(normalized)) return;
+      seen.add(normalized);
+      moonSuggestions.push({
+        key: `moon:${normalized}`,
+        label: `Ukaz : ${label}`,
+        insert: `Ukaz : ${label}`,
+        hint: "Fokus na existujici mesic",
+      });
+    });
+    moonSuggestions.sort((a, b) => a.label.localeCompare(b.label));
+
+    const source = [...staticSuggestions, ...moonSuggestions.slice(0, 10)];
+    const needle = normalizeText(query).replace(/\s+/g, "");
+    if (!needle) {
+      return source.slice(0, 7);
+    }
+    return source
+      .filter((item) => normalizeText(`${item.label} ${item.insert} ${item.hint}`).replace(/\s+/g, "").includes(needle))
+      .slice(0, 9);
+  }, [query, snapshot.asteroids]);
 
   useEffect(() => {
     tablesRef.current = tables;
   }, [tables]);
+
+  useEffect(() => {
+    setCommandSuggestionCursor(0);
+  }, [query, commandSuggestions.length]);
+
+  useEffect(() => {
+    const handleGlobalCommandHotkeys = (event) => {
+      const key = String(event.key || "").toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && key === "k") {
+        event.preventDefault();
+        commandInputRef.current?.focus();
+        commandInputRef.current?.select();
+        return;
+      }
+      if (key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      const tag = String(target?.tagName || "").toUpperCase();
+      const editable = Boolean(target?.isContentEditable) || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (editable) return;
+      event.preventDefault();
+      commandInputRef.current?.focus();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("keydown", handleGlobalCommandHotkeys);
+      return () => window.removeEventListener("keydown", handleGlobalCommandHotkeys);
+    }
+    return undefined;
+  }, []);
 
   useEffect(() => {
     streamCursorRef.current = null;
@@ -341,6 +705,26 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     setBranches([]);
     setBranchesError("");
     setDraftBranchName("staging");
+    setGridDraft({});
+    setGridChangeSet({});
+    setGridPendingExtinguishIds({});
+    setGridSelectedRowId("");
+    setGridNewRows([]);
+    setGridNewRowLabel("");
+    setGridNewRowMetaKey("");
+    setGridNewRowMetaValue("");
+    setGridBatchInfo("");
+    setGridBatchPreview(null);
+    setGridColumnModes({});
+    setGridContractBase(null);
+    setGridContractBusy(false);
+    setGridContractInfo("");
+    gridUndoStackRef.current = [];
+    setGridUndoCount(0);
+    setCommandHistory([]);
+    setCommandHistoryCursor(-1);
+    setCommandHistoryDraft("");
+    setCommandSuggestionCursor(0);
   }, [galaxy?.id]);
 
   const loadUniverse = useCallback(async () => {
@@ -362,7 +746,6 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
       setSnapshot(normalized);
       setTables(Array.isArray(tableBody?.tables) ? tableBody.tables : []);
-      setGridDraft({});
     } catch (loadError) {
       setError(loadError.message || "Load failed");
     } finally {
@@ -1103,6 +1486,32 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       .sort((a, b) => valueToLabel(a.value).localeCompare(valueToLabel(b.value)));
   }, [selectedTable, asteroidById]);
 
+  const focusFirstMoonInSelectedTable = useCallback(() => {
+    if (!tableRows.length) return false;
+    const firstMoon = tableRows[0];
+    const moonNode = asteroidNodes.find((item) => String(item.id) === String(firstMoon.id));
+    if (!moonNode) return false;
+    setSelectedBondId("");
+    focusAsteroid({ asteroidId: moonNode.id, cameraTarget: moonNode.position, cameraDistance: 54 });
+    patchPanel("inspector", { collapsed: false });
+    patchPanel("moons", { collapsed: false });
+    return true;
+  }, [asteroidNodes, focusAsteroid, patchPanel, tableRows]);
+
+  const autoFocusedTableRef = useRef("");
+  useEffect(() => {
+    if (!selectedTableId) {
+      autoFocusedTableRef.current = "";
+      return;
+    }
+    if (selectedAsteroidId) return;
+    if (autoFocusedTableRef.current === String(selectedTableId)) return;
+    const focused = focusFirstMoonInSelectedTable();
+    if (focused) {
+      autoFocusedTableRef.current = String(selectedTableId);
+    }
+  }, [focusFirstMoonInSelectedTable, selectedAsteroidId, selectedTableId]);
+
   const gridColumns = useMemo(() => {
     const set = new Set(["value"]);
     if (selectedTable?.schema_fields) {
@@ -1122,6 +1531,142 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     return [...set];
   }, [selectedTable, tableRows]);
 
+  const getGridColumnMode = useCallback(
+    (column) => {
+      if (column === "value") return "assign";
+      return normalizeGridSemanticMode(gridColumnModes[column]);
+    },
+    [gridColumnModes]
+  );
+
+  const savedGridColumnModes = useMemo(
+    () => parseGridSemanticModes(gridContractBase?.validators),
+    [gridContractBase]
+  );
+
+  const gridSemanticDirty = useMemo(() => {
+    const keys = new Set(
+      gridColumns
+        .filter((column) => column !== "value")
+        .map((column) => String(column))
+    );
+    for (const key of Object.keys(savedGridColumnModes)) keys.add(key);
+    for (const key of Object.keys(gridColumnModes)) keys.add(key);
+    for (const key of keys) {
+      const current = normalizeGridSemanticMode(gridColumnModes[key]);
+      const saved = normalizeGridSemanticMode(savedGridColumnModes[key]);
+      if (current !== saved) return true;
+    }
+    return false;
+  }, [gridColumns, gridColumnModes, savedGridColumnModes]);
+
+  const handleGridColumnModeChange = useCallback((column, nextMode) => {
+    const key = String(column || "").trim();
+    if (!key || key === "value" || RESERVED_METADATA_KEYS.has(key)) return;
+    const mode = normalizeGridSemanticMode(nextMode);
+    setGridColumnModes((previous) => ({ ...previous, [key]: mode }));
+    setGridContractInfo("");
+  }, []);
+
+  const loadGridContract = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!selectedTableId || !galaxy?.id) return;
+      setGridContractBusy(true);
+      if (!silent) {
+        setGridContractInfo("");
+      }
+      try {
+        const response = await apiFetch(buildTableContractUrl(API_BASE, selectedTableId, galaxy.id));
+        if (response.status === 404) {
+          setGridContractBase({
+            required_fields: [],
+            field_types: {},
+            unique_rules: [],
+            validators: [],
+          });
+          setGridColumnModes({});
+          if (!silent) {
+            setGridContractInfo("Kontrakt pro planetu jeste neexistuje. Rezim je default :=.");
+          }
+          return;
+        }
+        if (!response.ok) {
+          const apiError = await apiErrorFromResponse(response, "Table contract load failed");
+          throw apiError;
+        }
+        const body = await response.json();
+        setGridContractBase(body);
+        setGridColumnModes(parseGridSemanticModes(body?.validators));
+        if (!silent) {
+          setGridContractInfo("Kontrakt nacten.");
+        }
+      } catch (loadError) {
+        if (!silent) {
+          setError(loadError.message || "Table contract load failed");
+        }
+      } finally {
+        setGridContractBusy(false);
+      }
+    },
+    [galaxy?.id, selectedTableId]
+  );
+
+  const saveGridContract = useCallback(async () => {
+    if (historicalMode) {
+      setError("Historicky mod je pouze pro cteni.");
+      return;
+    }
+    if (!selectedTableId) {
+      setError("Nejdriv vyber planetu/tabulku.");
+      return;
+    }
+    if (!galaxy?.id) {
+      setError("Chybi aktivni galaxie.");
+      return;
+    }
+
+    const base = gridContractBase && typeof gridContractBase === "object" ? gridContractBase : {};
+    const requiredFields = Array.isArray(base.required_fields) ? base.required_fields : [];
+    const fieldTypes =
+      base.field_types && typeof base.field_types === "object" && !Array.isArray(base.field_types) ? base.field_types : {};
+    const uniqueRules = Array.isArray(base.unique_rules) ? base.unique_rules.filter((item) => item && typeof item === "object") : [];
+    const baseValidators = Array.isArray(base.validators) ? base.validators : [];
+
+    const validators = [
+      ...stripGridSemanticValidators(baseValidators),
+      ...buildGridSemanticValidators(gridColumnModes),
+    ];
+
+    setGridContractBusy(true);
+    setGridContractInfo("");
+    setError("");
+    try {
+      const response = await apiFetch(buildTableContractUrl(API_BASE, selectedTableId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          galaxy_id: galaxy.id,
+          required_fields: requiredFields,
+          field_types: fieldTypes,
+          unique_rules: uniqueRules,
+          validators,
+        }),
+      });
+      if (!response.ok) {
+        const apiError = await apiErrorFromResponse(response, "Table contract save failed");
+        throw apiError;
+      }
+      const body = await response.json();
+      setGridContractBase(body);
+      setGridColumnModes(parseGridSemanticModes(body?.validators));
+      setGridContractInfo("Semantika sloupcu ulozena.");
+    } catch (saveError) {
+      setError(saveError.message || "Table contract save failed");
+    } finally {
+      setGridContractBusy(false);
+    }
+  }, [galaxy?.id, gridColumnModes, gridContractBase, historicalMode, selectedTableId]);
+
   const getCellDraft = useCallback(
     (rowId, field, baseline) => {
       const key = `${rowId}::${field}`;
@@ -1130,6 +1675,583 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     },
     [gridDraft]
   );
+
+  const focusGridRow = useCallback(
+    (rowId) => {
+      setGridSelectedRowId(String(rowId));
+      setSelectedBondId("");
+      const table = resolveTableForAsteroid(tables, rowId);
+      if (table) {
+        const tableNode = tableNodes.find((item) => item.id === String(table.table_id));
+        if (tableNode) {
+          focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 186 });
+        }
+      }
+      const asteroid = asteroidNodes.find((item) => item.id === String(rowId));
+      if (asteroid) {
+        focusAsteroid({ asteroidId: asteroid.id, cameraTarget: asteroid.position, cameraDistance: 52 });
+      }
+    },
+    [asteroidNodes, focusAsteroid, focusTable, tableNodes, tables]
+  );
+
+  const captureGridStageSnapshot = useCallback(
+    () => ({
+      gridDraft: { ...gridDraft },
+      gridChangeSet: Object.fromEntries(
+        Object.entries(gridChangeSet).map(([key, value]) => [key, value && typeof value === "object" ? { ...value } : value])
+      ),
+      gridPendingExtinguishIds: { ...gridPendingExtinguishIds },
+      gridSelectedRowId: String(gridSelectedRowId || ""),
+      gridNewRows: gridNewRows.map((item) => ({
+        ...item,
+        metadata: { ...(item?.metadata || {}) },
+      })),
+      gridNewRowLabel,
+      gridNewRowMetaKey,
+      gridNewRowMetaValue,
+      gridBatchInfo,
+      gridBatchPreview,
+    }),
+    [
+      gridBatchInfo,
+      gridBatchPreview,
+      gridChangeSet,
+      gridDraft,
+      gridNewRowLabel,
+      gridNewRowMetaKey,
+      gridNewRowMetaValue,
+      gridNewRows,
+      gridPendingExtinguishIds,
+      gridSelectedRowId,
+    ]
+  );
+
+  const restoreGridStageSnapshot = useCallback((snapshotState) => {
+    const snap = snapshotState && typeof snapshotState === "object" ? snapshotState : {};
+    setGridDraft(snap.gridDraft && typeof snap.gridDraft === "object" ? snap.gridDraft : {});
+    setGridChangeSet(snap.gridChangeSet && typeof snap.gridChangeSet === "object" ? snap.gridChangeSet : {});
+    setGridPendingExtinguishIds(
+      snap.gridPendingExtinguishIds && typeof snap.gridPendingExtinguishIds === "object" ? snap.gridPendingExtinguishIds : {}
+    );
+    setGridSelectedRowId(String(snap.gridSelectedRowId || ""));
+    setGridNewRows(Array.isArray(snap.gridNewRows) ? snap.gridNewRows : []);
+    setGridNewRowLabel(String(snap.gridNewRowLabel || ""));
+    setGridNewRowMetaKey(String(snap.gridNewRowMetaKey || ""));
+    setGridNewRowMetaValue(String(snap.gridNewRowMetaValue || ""));
+    setGridBatchInfo(String(snap.gridBatchInfo || ""));
+    setGridBatchPreview(snap.gridBatchPreview ?? null);
+  }, []);
+
+  const pushGridUndoSnapshot = useCallback(() => {
+    gridUndoStackRef.current.push(captureGridStageSnapshot());
+    setGridUndoCount(gridUndoStackRef.current.length);
+  }, [captureGridStageSnapshot]);
+
+  const handleUndoGridStage = useCallback(() => {
+    const stack = gridUndoStackRef.current;
+    if (!stack.length) return;
+    const snapshotState = stack.pop();
+    restoreGridStageSnapshot(snapshotState);
+    setGridUndoCount(stack.length);
+    setError("");
+  }, [restoreGridStageSnapshot]);
+
+  const stageGridCellChange = useCallback((rowId, column, baseline, nextValueRaw) => {
+    const cellId = `${rowId}::${column}`;
+    const nextValue = String(nextValueRaw ?? "");
+    const baselineValue = String(baseline ?? "");
+    const hadDraft = Object.prototype.hasOwnProperty.call(gridDraft, cellId);
+    const hadChange = Object.prototype.hasOwnProperty.call(gridChangeSet, cellId);
+    if (nextValue === baselineValue && !hadDraft && !hadChange) return;
+    pushGridUndoSnapshot();
+    setGridDraft((prev) => {
+      if (nextValue === baselineValue) {
+        if (!Object.prototype.hasOwnProperty.call(prev, cellId)) return prev;
+        const copy = { ...prev };
+        delete copy[cellId];
+        return copy;
+      }
+      return { ...prev, [cellId]: nextValue };
+    });
+    setGridChangeSet((prev) => {
+      if (nextValue === baselineValue) {
+        if (!Object.prototype.hasOwnProperty.call(prev, cellId)) return prev;
+        const copy = { ...prev };
+        delete copy[cellId];
+        return copy;
+      }
+      return {
+        ...prev,
+        [cellId]: {
+          rowId: String(rowId),
+          column: String(column),
+          baseline: baselineValue,
+          nextValue,
+        },
+      };
+    });
+    setGridBatchPreview(null);
+    setGridBatchInfo("");
+  }, [gridChangeSet, gridDraft, pushGridUndoSnapshot]);
+
+  const clearGridUndoHistory = useCallback(() => {
+    gridUndoStackRef.current = [];
+    setGridUndoCount(0);
+  }, []);
+
+  const clearGridChangeSet = useCallback(({ resetUndo = false, pushUndo = true } = {}) => {
+    const hasStagedWork = Boolean(
+      Object.keys(gridChangeSet).length || gridNewRows.length || Object.keys(gridPendingExtinguishIds).length
+    );
+    if (hasStagedWork && pushUndo && !resetUndo) {
+      pushGridUndoSnapshot();
+    }
+    setGridDraft({});
+    setGridChangeSet({});
+    setGridPendingExtinguishIds({});
+    setGridSelectedRowId("");
+    setGridNewRows([]);
+    setGridNewRowLabel("");
+    setGridNewRowMetaKey("");
+    setGridNewRowMetaValue("");
+    setGridBatchPreview(null);
+    setGridBatchInfo("");
+    if (resetUndo) {
+      clearGridUndoHistory();
+    }
+  }, [clearGridUndoHistory, gridChangeSet, gridNewRows, gridPendingExtinguishIds, pushGridUndoSnapshot]);
+
+  const handleAddGridNewRow = useCallback(() => {
+    const label = gridNewRowLabel.trim();
+    if (!label) {
+      setError("Zadej nazev mesice pro novy radek.");
+      return;
+    }
+    if (!selectedTable) {
+      setError("Nejdriv vyber planetu/tabulku.");
+      return;
+    }
+    const metadata = {};
+    const field = gridNewRowMetaKey.trim();
+    if (field) {
+      metadata[field] = gridNewRowMetaValue.trim() || "1";
+    }
+    pushGridUndoSnapshot();
+    setGridNewRows((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        label,
+        metadata,
+      },
+    ]);
+    setGridNewRowLabel("");
+    setGridNewRowMetaKey("");
+    setGridNewRowMetaValue("");
+    setGridBatchPreview(null);
+    setGridBatchInfo("");
+    setError("");
+  }, [gridNewRowLabel, gridNewRowMetaKey, gridNewRowMetaValue, pushGridUndoSnapshot, selectedTable]);
+
+  const handleRemoveGridNewRow = useCallback((rowId) => {
+    pushGridUndoSnapshot();
+    setGridNewRows((prev) => prev.filter((item) => String(item.id) !== String(rowId)));
+    setGridBatchPreview(null);
+    setGridBatchInfo("");
+  }, [pushGridUndoSnapshot]);
+
+  const toggleGridPendingExtinguish = useCallback(
+    (rowId) => {
+      const normalizedRowId = String(rowId || "");
+      if (!normalizedRowId || historicalMode) return;
+      pushGridUndoSnapshot();
+      setGridSelectedRowId(normalizedRowId);
+      setGridPendingExtinguishIds((previous) => {
+        const next = { ...previous };
+        if (next[normalizedRowId]) {
+          delete next[normalizedRowId];
+        } else {
+          next[normalizedRowId] = true;
+        }
+        return next;
+      });
+      setGridDraft((previous) =>
+        Object.fromEntries(
+          Object.entries(previous).filter(([key]) => !key.startsWith(`${normalizedRowId}::`))
+        )
+      );
+      setGridChangeSet((previous) =>
+        Object.fromEntries(
+          Object.entries(previous).filter(([, change]) => String(change?.rowId || "") !== normalizedRowId)
+        )
+      );
+      setGridBatchPreview(null);
+      setGridBatchInfo("");
+    },
+    [historicalMode, pushGridUndoSnapshot]
+  );
+
+  const tableRowById = useMemo(
+    () => new Map(tableRows.map((row) => [String(row.id), row])),
+    [tableRows]
+  );
+  const asteroidRowById = useMemo(
+    () => new Map(snapshot.asteroids.map((row) => [String(row.id), row])),
+    [snapshot.asteroids]
+  );
+  const asteroidIdsByNormalizedLabel = useMemo(() => {
+    const map = new Map();
+    snapshot.asteroids.forEach((asteroid) => {
+      const key = normalizeText(valueToLabel(asteroid.value));
+      if (!key) return;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(String(asteroid.id));
+    });
+    return map;
+  }, [snapshot.asteroids]);
+  const gridChangeCount = useMemo(() => Object.keys(gridChangeSet).length, [gridChangeSet]);
+  const gridExtinguishCount = useMemo(
+    () => Object.keys(gridPendingExtinguishIds).length,
+    [gridPendingExtinguishIds]
+  );
+  const gridHasStagedWork = gridChangeCount > 0 || gridNewRows.length > 0 || gridExtinguishCount > 0;
+  const gridFieldTypes = useMemo(() => {
+    const raw = gridContractBase?.field_types;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    return Object.fromEntries(
+      Object.entries(raw).map(([field, expected]) => [
+        String(field),
+        String(expected || "")
+          .trim()
+          .toLowerCase(),
+      ])
+    );
+  }, [gridContractBase]);
+  const gridValidation = useMemo(() => {
+    const errorsByCell = {};
+    const messages = [];
+
+    Object.values(gridChangeSet).forEach((change) => {
+      const rowId = String(change?.rowId || "");
+      const column = String(change?.column || "");
+      if (!rowId || !column || column === "value") return;
+      if (gridPendingExtinguishIds[rowId]) return;
+      if (getGridColumnMode(column) !== "assign") return;
+      const expected = gridFieldTypes[column];
+      if (!expected) return;
+      if (matchesGridExpectedType(expected, change.nextValue)) return;
+      const cellId = `${rowId}::${column}`;
+      const row = tableRowById.get(rowId);
+      const rowLabel = valueToLabel(row?.value) || rowId;
+      const message = `Hologram: '${column}' u '${rowLabel}' ceká ${expected}, ale je '${String(change.nextValue || "").trim() || "∅"}'.`;
+      errorsByCell[cellId] = message;
+      messages.push(message);
+    });
+
+    gridNewRows.forEach((row) => {
+      const metadata = row?.metadata && typeof row.metadata === "object" ? row.metadata : {};
+      Object.entries(metadata).forEach(([field, nextValue]) => {
+        const expected = gridFieldTypes[String(field)];
+        if (!expected) return;
+        if (matchesGridExpectedType(expected, nextValue)) return;
+        messages.push(
+          `Hologram: novy radek '${row.label}' ma pole '${field}' v neplatnem typu (ceká ${expected}).`
+        );
+      });
+    });
+
+    return {
+      errorsByCell,
+      messages,
+      count: messages.length,
+    };
+  }, [getGridColumnMode, gridChangeSet, gridFieldTypes, gridNewRows, gridPendingExtinguishIds, tableRowById]);
+
+  useEffect(() => {
+    const handleGridHotkeys = (event) => {
+      if (historicalMode) return;
+      const key = String(event.key || "");
+      const tag = String(event.target?.tagName || "").toUpperCase();
+      const editable =
+        Boolean(event.target?.isContentEditable) || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (!editable && (key === "Delete" || key === "Backspace") && gridSelectedRowId) {
+        event.preventDefault();
+        toggleGridPendingExtinguish(gridSelectedRowId);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && key.toLowerCase() === "z" && !editable) {
+        event.preventDefault();
+        handleUndoGridStage();
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("keydown", handleGridHotkeys);
+      return () => window.removeEventListener("keydown", handleGridHotkeys);
+    }
+    return undefined;
+  }, [gridSelectedRowId, handleUndoGridStage, historicalMode, toggleGridPendingExtinguish]);
+
+  useEffect(() => {
+    if (!gridSelectedRowId) return;
+    if (!tableRowById.has(String(gridSelectedRowId))) {
+      setGridSelectedRowId("");
+    }
+  }, [gridSelectedRowId, tableRowById]);
+
+  const resolveGridSemanticTarget = useCallback(
+    (rawTarget) => {
+      const candidate = String(rawTarget || "").trim();
+      if (!candidate) return { id: null, error: "cil je prazdny" };
+
+      if (UUID_RE.test(candidate)) {
+        const byId = asteroidRowById.get(candidate);
+        if (!byId) {
+          return { id: null, error: `cil '${candidate}' neexistuje` };
+        }
+        return { id: String(byId.id), asteroid: byId };
+      }
+
+      const key = normalizeText(candidate);
+      if (!key) return { id: null, error: "cil je prazdny" };
+      const ids = asteroidIdsByNormalizedLabel.get(key) || [];
+      if (!ids.length) {
+        return { id: null, error: `cil '${candidate}' nebyl nalezen` };
+      }
+      if (ids.length > 1) {
+        return {
+          id: null,
+          error: `cil '${candidate}' je nejednoznacny (${ids.length}x). Pouzij UUID.`,
+        };
+      }
+      const asteroid = asteroidRowById.get(ids[0]) || null;
+      return { id: ids[0], asteroid };
+    },
+    [asteroidIdsByNormalizedLabel, asteroidRowById]
+  );
+
+  const buildGridBatchTasks = useCallback(() => {
+    const updatesByRow = new Map();
+    const linkTasks = [];
+    const linkKeys = new Set();
+    const errors = [];
+    const pendingExtinguishSet = new Set(Object.keys(gridPendingExtinguishIds));
+
+    Object.values(gridChangeSet).forEach((change) => {
+      const rowId = String(change?.rowId || "");
+      const column = String(change?.column || "");
+      if (!rowId || !column) return;
+      if (pendingExtinguishSet.has(rowId)) return;
+      const row = tableRowById.get(rowId);
+      const semanticMode = column === "value" ? "assign" : getGridColumnMode(column);
+
+      if (semanticMode !== "assign") {
+        const bondType = semanticMode === "type" ? "TYPE" : "RELATION";
+        const targets = splitSemanticTargets(change.nextValue);
+        if (!targets.length) {
+          errors.push(`Radek '${valueToLabel(row?.value) || rowId}', sloupec '${column}': chybi cil vazby.`);
+          return;
+        }
+        targets.forEach((targetToken) => {
+          const resolved = resolveGridSemanticTarget(targetToken);
+          if (!resolved.id) {
+            errors.push(`Radek '${valueToLabel(row?.value) || rowId}', sloupec '${column}': ${resolved.error}.`);
+            return;
+          }
+          const sourceId = rowId;
+          const targetId = String(resolved.id);
+          if (sourceId === targetId) {
+            errors.push(`Radek '${valueToLabel(row?.value) || rowId}', sloupec '${column}': nelze vazat mesic sam na sebe.`);
+            return;
+          }
+          const key =
+            bondType === "RELATION"
+              ? `${bondType}:${[sourceId, targetId].sort().join("::")}`
+              : `${bondType}:${sourceId}::${targetId}`;
+          if (linkKeys.has(key)) return;
+          linkKeys.add(key);
+          linkTasks.push({
+            action: "LINK",
+            params: {
+              source_id: sourceId,
+              target_id: targetId,
+              type: bondType,
+            },
+          });
+        });
+        return;
+      }
+
+      if (!updatesByRow.has(rowId)) {
+        updatesByRow.set(rowId, {
+          action: "UPDATE_ASTEROID",
+          params: {
+            asteroid_id: rowId,
+            metadata: {},
+            ...(Number.isInteger(row?.current_event_seq) ? { expected_event_seq: row.current_event_seq } : {}),
+          },
+        });
+      }
+      const item = updatesByRow.get(rowId);
+      if (!item) return;
+      if (column === "value") {
+        item.params.value = change.nextValue;
+        return;
+      }
+      item.params.metadata[column] = change.nextValue;
+    });
+
+    const updateTasks = [...updatesByRow.values()].map((task) => {
+      const metadata = task.params.metadata && Object.keys(task.params.metadata).length ? task.params.metadata : undefined;
+      const nextParams = { ...task.params };
+      if (!metadata) {
+        delete nextParams.metadata;
+      }
+      return { ...task, params: nextParams };
+    });
+
+    const entityName = selectedSemantic?.entityName || "Souhvezdi";
+    const planetName = selectedSemantic?.planetName || "Planeta";
+    const createTasks = gridNewRows.map((item) => ({
+      action: "INGEST",
+      params: {
+        value: item.label,
+        metadata: {
+          table: `${entityName} > ${planetName}`,
+          ...(item.metadata || {}),
+        },
+      },
+    }));
+
+    const extinguishTasks = [...pendingExtinguishSet]
+      .map((rowId) => {
+        const row = tableRowById.get(String(rowId)) || asteroidRowById.get(String(rowId));
+        if (!row) return null;
+        return {
+          action: "EXTINGUISH",
+          params: {
+            asteroid_id: String(rowId),
+            ...(Number.isInteger(row?.current_event_seq) ? { expected_event_seq: row.current_event_seq } : {}),
+          },
+        };
+      })
+      .filter(Boolean);
+
+    return {
+      tasks: [...updateTasks, ...createTasks, ...linkTasks, ...extinguishTasks],
+      errors,
+    };
+  }, [
+    asteroidRowById,
+    getGridColumnMode,
+    gridChangeSet,
+    gridNewRows,
+    gridPendingExtinguishIds,
+    resolveGridSemanticTarget,
+    selectedSemantic,
+    tableRowById,
+  ]);
+
+  const executeGridBatch = useCallback(async (mode) => {
+    const normalizedMode = String(mode || "preview").toLowerCase();
+    if (gridValidation.count) {
+      const head = gridValidation.messages.slice(0, 2).join(" | ");
+      const suffix = gridValidation.count > 2 ? ` (+${gridValidation.count - 2} dalsi)` : "";
+      setError(`Grid hologram blokuje commit: ${head}${suffix}`);
+      return;
+    }
+    const { tasks, errors } = buildGridBatchTasks();
+    if (errors.length) {
+      const detail = errors.slice(0, 2).join(" | ");
+      const suffix = errors.length > 2 ? ` (+${errors.length - 2} dalsi)` : "";
+      setError(`Grid semantic chyby: ${detail}${suffix}`);
+      return;
+    }
+    if (!tasks.length) {
+      setError("Changeset je prazdny. Uprav bunky, pridej radek nebo oznac radek ke zhasnuti.");
+      return;
+    }
+    if (!galaxy?.id) {
+      setError("Chybi aktivni galaxie.");
+      return;
+    }
+
+    setGridBatchBusy(true);
+    setError("");
+    setGridBatchInfo("");
+    try {
+      const response = await apiFetch(`${API_BASE}/tasks/execute-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          buildTaskBatchPayload({
+            tasks,
+            mode: normalizedMode,
+            galaxyId: galaxy.id,
+            branchId: activeBranchId,
+          })
+        ),
+      });
+      if (!response.ok) {
+        const apiError = await apiErrorFromResponse(response, "Batch execute failed");
+        throw apiError;
+      }
+      const body = await response.json();
+      const result = body?.result || {};
+      setGridBatchPreview({
+        mode: normalizedMode,
+        tasks: Array.isArray(result.tasks) ? result.tasks.length : tasks.length,
+        asteroids: Array.isArray(result.asteroids) ? result.asteroids.length : 0,
+        bonds: Array.isArray(result.bonds) ? result.bonds.length : 0,
+      });
+      if (normalizedMode === "commit") {
+        clearGridChangeSet({ resetUndo: true, pushUndo: false });
+        await loadUniverse();
+        setGridBatchInfo(`Commit OK: ${tasks.length} tasku zapsano atomicky.`);
+      } else {
+        setGridBatchInfo(`Preview OK: ${tasks.length} tasku je validnich pro commit.`);
+      }
+    } catch (batchError) {
+      setError(batchError.message || "Batch execute failed");
+    } finally {
+      setGridBatchBusy(false);
+    }
+  }, [activeBranchId, buildGridBatchTasks, clearGridChangeSet, galaxy?.id, gridValidation, loadUniverse]);
+
+  useEffect(() => {
+    setGridBatchPreview(null);
+  }, [gridChangeSet, gridNewRows, gridPendingExtinguishIds, selectedTableId]);
+
+  useEffect(() => {
+    if (!selectedTableId || !galaxy?.id) {
+      setGridContractBase(null);
+      setGridColumnModes({});
+      setGridContractBusy(false);
+      setGridContractInfo("");
+      return;
+    }
+    loadGridContract({ silent: true });
+  }, [galaxy?.id, loadGridContract, selectedTableId]);
+
+  useEffect(() => {
+    setGridDraft({});
+    setGridChangeSet({});
+    setGridPendingExtinguishIds({});
+    setGridSelectedRowId("");
+    setGridNewRows([]);
+    setGridNewRowLabel("");
+    setGridNewRowMetaKey("");
+    setGridNewRowMetaValue("");
+    setGridBatchInfo("");
+    setGridBatchPreview(null);
+    setGridColumnModes({});
+    setGridContractBase(null);
+    setGridContractBusy(false);
+    setGridContractInfo("");
+    gridUndoStackRef.current = [];
+    setGridUndoCount(0);
+  }, [selectedTableId]);
 
   const focusByTarget = useCallback(
     (targetRaw) => {
@@ -1496,19 +2618,94 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [activeBranchId, galaxy.id, loadUniverse, snapshot.bonds]
   );
 
+  const pushCommandHistory = useCallback((rawCommand) => {
+    const normalized = String(rawCommand || "").trim();
+    if (!normalized) return;
+    setCommandHistory((previous) => {
+      if (previous.length && previous[previous.length - 1] === normalized) return previous;
+      return [...previous, normalized].slice(-40);
+    });
+    setCommandHistoryCursor(-1);
+    setCommandHistoryDraft("");
+  }, []);
+
+  const handleCommandInputChange = useCallback((event) => {
+    setQuery(event.target.value);
+    setCommandHistoryCursor(-1);
+  }, []);
+
+  const insertCommandExample = useCallback(
+    (nextCommand) => {
+      const normalized = String(nextCommand || "").trim();
+      if (!normalized) return;
+      setQuery(normalized);
+      setError("");
+      patchPanel("command", { collapsed: false });
+      commandInputRef.current?.focus();
+    },
+    [patchPanel]
+  );
+
+  const handleCommandInputKeyDown = useCallback(
+    (event) => {
+      if (event.key === "ArrowUp") {
+        if (!commandHistory.length) return;
+        event.preventDefault();
+        if (commandHistoryCursor === -1) {
+          setCommandHistoryDraft(query);
+          const nextIndex = commandHistory.length - 1;
+          setCommandHistoryCursor(nextIndex);
+          setQuery(commandHistory[nextIndex]);
+          return;
+        }
+        const nextIndex = Math.max(0, commandHistoryCursor - 1);
+        setCommandHistoryCursor(nextIndex);
+        setQuery(commandHistory[nextIndex]);
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        if (!commandHistory.length || commandHistoryCursor === -1) return;
+        event.preventDefault();
+        if (commandHistoryCursor >= commandHistory.length - 1) {
+          setCommandHistoryCursor(-1);
+          setQuery(commandHistoryDraft);
+          return;
+        }
+        const nextIndex = commandHistoryCursor + 1;
+        setCommandHistoryCursor(nextIndex);
+        setQuery(commandHistory[nextIndex]);
+        return;
+      }
+      if (event.key === "Tab") {
+        if (!commandSuggestions.length) return;
+        event.preventDefault();
+        const safeIndex = Math.min(commandSuggestionCursor, commandSuggestions.length - 1);
+        const suggestion = commandSuggestions[safeIndex];
+        if (!suggestion) return;
+        setQuery(suggestion.insert);
+        return;
+      }
+      if (event.key === "Escape") {
+        if (!query) return;
+        event.preventDefault();
+        setQuery("");
+        setCommandHistoryCursor(-1);
+        setCommandHistoryDraft("");
+      }
+    },
+    [commandHistory, commandHistoryCursor, commandHistoryDraft, commandSuggestionCursor, commandSuggestions, query]
+  );
+
   const handleCommand = useCallback(
     async (event) => {
       event.preventDefault();
       const raw = query.trim();
       if (!raw || busy) return;
-      if (historicalMode) {
-        setError("Historicky mod je jen pro cteni.");
-        return;
-      }
 
       const focusMatch = raw.match(/^(ukaz|ukaž|najdi)\s*:\s*(.+)$/i);
       if (focusMatch) {
         if (focusByTarget(focusMatch[2])) {
+          pushCommandHistory(raw);
           setQuery("");
           return;
         }
@@ -1516,12 +2713,102 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         return;
       }
 
+      const quickToken = normalizeText(raw).replace(/\s+/g, "");
+      if (quickToken === ":refresh") {
+        await loadUniverse();
+        pushCommandHistory(raw);
+        setQuery("");
+        return;
+      }
+      if (quickToken === ":galaxie" || quickToken === ":workspaces") {
+        pushCommandHistory(raw);
+        onBackToGalaxies?.();
+        setQuery("");
+        return;
+      }
+      if (quickToken === ":souhvezdi" || quickToken === ":back") {
+        pushCommandHistory(raw);
+        backToTables();
+        setQuery("");
+        return;
+      }
+      if (quickToken === ":help" || quickToken === "/help") {
+        pushCommandHistory(raw);
+        patchPanel("command", { collapsed: false });
+        setQuery("");
+        return;
+      }
+      if (quickToken === "/grid") {
+        if (!selectedTableId) {
+          setError("Nejdriv vyber planetu/tabulku, pak otevri /grid.");
+          return;
+        }
+        patchPanel("grid", { collapsed: false });
+        patchPanel("inspector", { collapsed: false });
+        if (level >= 3 && !selectedAsteroidId) {
+          focusFirstMoonInSelectedTable();
+        }
+        pushCommandHistory(raw);
+        setQuery("");
+        return;
+      }
+      if (quickToken === "/3d") {
+        patchPanel("grid", { collapsed: true });
+        pushCommandHistory(raw);
+        setQuery("");
+        return;
+      }
+
+      if (historicalMode) {
+        setError("Historicky mod je jen pro cteni.");
+        return;
+      }
+
+      if (quickToken === "+novagalaxie" || quickToken === "+newgalaxy") {
+        const suggestedName = `Nova galaxie ${new Date().toLocaleTimeString()}`;
+        const enteredName =
+          typeof window !== "undefined"
+            ? window.prompt("Nazev nove galaxie:", suggestedName)
+            : suggestedName;
+        const name = String(enteredName || "").trim();
+        if (!name) return;
+        try {
+          if (typeof onCreateGalaxy !== "function") {
+            throw new Error("Vytvareni galaxie neni dostupne.");
+          }
+          await onCreateGalaxy(name);
+          pushCommandHistory(raw);
+          onBackToGalaxies?.();
+          setQuery("");
+        } catch (createError) {
+          setError(createError.message || "Create galaxy failed");
+        }
+        return;
+      }
+
       const success = await executeParserCommand(raw);
       if (success) {
+        pushCommandHistory(raw);
         setQuery("");
       }
     },
-    [busy, executeParserCommand, focusByTarget, historicalMode, query]
+    [
+      backToTables,
+      busy,
+      executeParserCommand,
+      focusByTarget,
+      focusFirstMoonInSelectedTable,
+      historicalMode,
+      level,
+      loadUniverse,
+      onBackToGalaxies,
+      onCreateGalaxy,
+      patchPanel,
+      pushCommandHistory,
+      query,
+      selectedAsteroidId,
+      selectedTableId,
+    ]
   );
 
   const handleLinkComplete = useCallback(
@@ -1670,28 +2957,6 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     }
   }, [executeParserCommand, quickDeleteTargetId]);
 
-  const handleQuickCreateGalaxy = useCallback(async () => {
-    const suggestedName = `Nova galaxie ${new Date().toLocaleTimeString()}`;
-    const enteredName =
-      typeof window !== "undefined"
-        ? window.prompt("Nazev nove galaxie:", suggestedName)
-        : suggestedName;
-    const name = String(enteredName || "").trim();
-    if (!name) return;
-
-    setError("");
-    try {
-      if (typeof onCreateGalaxy !== "function") {
-        throw new Error("Vytvareni galaxie neni dostupne.");
-      }
-      const created = await onCreateGalaxy(name);
-      setImportInfo(`Galaxie vytvorena: ${created?.name || name}`);
-      onBackToGalaxies?.();
-    } catch (createError) {
-      setError(createError.message || "Create galaxy failed");
-    }
-  }, [onBackToGalaxies, onCreateGalaxy]);
-
   const handleContextAction = useCallback(
     async (action, menu) => {
       closeContextMenu();
@@ -1743,7 +3008,24 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
   const levelLabel = level >= 3 ? "L3: Planeta a Mesice" : "L2: Souhvezdi a Planety";
   const selectedMoonLabel = selectedAsteroid ? valueToLabel(selectedAsteroid.value) : "";
-  const selectedBondLabel = selectedBond ? `${selectedBond.type} ${selectedBond.directional ? "->" : "<->"}` : "";
+  const selectedBondLabel = selectedBond ? `${formatBondTypeLabel(selectedBond.type)} ${selectedBond.directional ? "->" : "<->"}` : "";
+  const hasMoonsInSelectedPlanet = tableRows.length > 0;
+  const nextStepHint = level < 3
+    ? "Klikni na planetu. Otevre se detail planety a prvni mesic."
+    : !hasMoonsInSelectedPlanet
+      ? "Tahle planeta je prazdna. V panelu Mesic a Tezba Bunek zaloz prvni mesic."
+      : selectedAsteroid
+        ? "Mas otevreny mesic. Uprav nerosty v panelu Detail Mesice nebo v Tabulce Planety."
+        : "Vyber mesic kliknutim v prostoru nebo tlacitkem Vybrat prvni mesic.";
+  const breadcrumbTrail = [
+    galaxy?.name || "Galaxie",
+    selectedSemantic?.entityName || "Skupiny",
+    selectedSemantic?.planetName || "Tabulky",
+    selectedMoonLabel || null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const commandExamplesLabel = ":refresh · :galaxie · +NovaGalaxie · /grid · /3d · Ukaz : cil";
 
   const minimizedPanels = Object.entries(panels)
     .filter(([, cfg]) => cfg.collapsed)
@@ -1801,104 +3083,175 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         style={{
           position: "fixed",
           top: 12,
-          left: "50%",
-          transform: "translateX(-50%)",
+          left: 12,
           zIndex: 39,
-          borderRadius: 16,
-          border: "1px solid rgba(96, 189, 223, 0.42)",
-          background: "rgba(5, 13, 24, 0.84)",
+          borderRadius: 12,
+          border: "1px solid rgba(96, 189, 223, 0.34)",
+          background: "rgba(5, 13, 24, 0.78)",
           color: "#d9f8ff",
-          padding: "8px 10px",
-          fontSize: 12,
+          padding: "7px 9px",
           display: "grid",
-          gap: 7,
-          backdropFilter: "blur(7px)",
-          width: "min(1180px, calc(100vw - 26px))",
+          gap: 5,
+          backdropFilter: "blur(8px)",
+          width: "min(620px, calc(100vw - 130px))",
         }}
       >
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center" }}>
-          <span style={{ ...hudBadgeStyle, fontWeight: 800 }}>{galaxy?.name || "Galaxie"}</span>
+        <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.74 }}>NAVIGACE</div>
+        <div style={{ fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-base)", color: "#dff8ff" }}>{breadcrumbTrail}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
           <span style={hudBadgeStyle}>{levelLabel}</span>
-          <span style={hudBadgeStyle}>
-            Rezim: <strong style={{ color: activeBranchId ? "#8affde" : "#d9f8ff" }}>{activeWorkspaceLabel}</strong>
-          </span>
-          {!historicalMode ? (
-            <span
-              style={{
-                ...hudBadgeStyle,
-                color: streamState === "LIVE" ? "#9affd7" : streamState === "RETRY" ? "#ffd58f" : "#9ec9ff",
-              }}
-            >
-              Stream: {streamState}
-            </span>
-          ) : (
-            <span style={{ ...hudBadgeStyle, color: "#ffd9a4" }}>Historicky rezim (jen cteni)</span>
-          )}
-          {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam data...</span> : null}
-          {selectedTable ? (
-            <span style={hudBadgeStyle}>
-              Souhvezdi: <strong>{selectedSemantic.entityName}</strong>
-            </span>
-          ) : null}
-          {selectedTable ? (
-            <span style={hudBadgeStyle}>
-              Planeta: <strong>{selectedSemantic.planetName}</strong>
-            </span>
-          ) : null}
-          {selectedMoonLabel ? (
-            <span style={hudBadgeStyle}>
-              Mesic: <strong>{selectedMoonLabel}</strong>
-            </span>
-          ) : null}
+          <span style={{ ...hudBadgeStyle, opacity: 0.88 }}>Model: {MODEL_PATH_LABEL}</span>
           {selectedBondLabel ? (
-            <span style={hudBadgeStyle}>
+            <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>
               Vazba: <strong>{selectedBondLabel}</strong>
             </span>
           ) : null}
+          {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam data...</span> : null}
         </div>
+      </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>Hierarchie: {MODEL_PATH_LABEL}</span>
-          <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>Vazby: RELATION, TYPE, FLOW, GUARDIAN</span>
-          <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>Kvalita: GREEN / YELLOW / RED</span>
-          <select
-            value={selectedBranchId}
-            onChange={(event) => setSelectedBranchId(event.target.value)}
-            disabled={branchBusy || branchesLoading}
+      <div
+        style={{
+          position: "fixed",
+          top: 12,
+          right: 12,
+          zIndex: 39,
+          borderRadius: 12,
+          border: "1px solid rgba(94, 182, 212, 0.3)",
+          background: "rgba(6, 15, 27, 0.78)",
+          padding: "6px 8px",
+          display: "flex",
+          gap: 6,
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          backdropFilter: "blur(8px)",
+          maxWidth: "min(520px, calc(100vw - 30px))",
+        }}
+      >
+        <span style={hudBadgeStyle}>
+          Workspace: <strong style={{ color: activeBranchId ? "#8affde" : "#d9f8ff" }}>{activeWorkspaceLabel}</strong>
+        </span>
+        {!historicalMode ? (
+          <span
             style={{
-              ...selectStyle,
-              width: 170,
-              fontSize: 11,
-              padding: "4px 7px",
-              borderRadius: 999,
+              ...hudBadgeStyle,
+              color: streamState === "LIVE" ? "#9affd7" : streamState === "RETRY" ? "#ffd58f" : "#9ec9ff",
             }}
           >
-            <option value="">Main</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-          <button type="button" onClick={backToTables} style={hudButtonStyle}>Souhvezdi</button>
-          <button type="button" onClick={loadUniverse} style={hudButtonStyle}>Refresh</button>
-          <button
-            type="button"
-            onClick={onBackToGalaxies}
-            style={{ ...hudButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
-          >
-            Galaxie
+            Stream: {streamState}
+          </span>
+        ) : (
+          <span style={{ ...hudBadgeStyle, color: "#ffd9a4" }}>Historicky rezim</span>
+        )}
+        <button type="button" onClick={() => patchPanel("command", { collapsed: false })} style={hudButtonStyle}>
+          Akce
+        </button>
+        <button
+          type="button"
+          onClick={onLogout}
+          style={{ ...hudButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
+        >
+          Logout
+        </button>
+      </div>
+
+      <div
+        style={{
+          position: "fixed",
+          left: "50%",
+          bottom: 92,
+          transform: "translateX(-50%)",
+          zIndex: 41,
+          borderRadius: 12,
+          border: "1px solid rgba(102, 194, 227, 0.3)",
+          background: "rgba(6, 16, 28, 0.72)",
+          color: "#ddf8ff",
+          padding: "6px 10px",
+          fontSize: "var(--dv-fs-sm)",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+          width: "min(980px, calc(100vw - 26px))",
+          backdropFilter: "blur(6px)",
+        }}
+      >
+        <strong style={{ color: "#9fe8ff" }}>Dalsi krok:</strong>
+        <span style={{ opacity: 0.92 }}>{nextStepHint}</span>
+        {level >= 3 && !selectedAsteroid && hasMoonsInSelectedPlanet ? (
+          <button type="button" onClick={focusFirstMoonInSelectedTable} style={hudButtonStyle}>
+            Vybrat prvni mesic
           </button>
-          <button type="button" onClick={handleQuickCreateGalaxy} style={hudButtonStyle}>
-            Nova galaxie
+        ) : null}
+      </div>
+
+      <div
+        style={{
+          position: "fixed",
+          left: "50%",
+          bottom: 16,
+          transform: "translateX(-50%)",
+          zIndex: 42,
+          width: "min(980px, calc(100vw - 26px))",
+          borderRadius: 14,
+          border: "1px solid rgba(95, 193, 228, 0.34)",
+          background: "rgba(4, 12, 24, 0.8)",
+          backdropFilter: "blur(12px)",
+          boxShadow: "0 0 28px rgba(32, 128, 176, 0.22)",
+          padding: "8px 10px",
+          display: "grid",
+          gap: 6,
+        }}
+      >
+        <form onSubmit={handleCommand} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 8, alignItems: "center" }}>
+          <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)", padding: "5px 8px" }}>&gt; cmd</span>
+          <input
+            ref={commandInputRef}
+            value={query}
+            onChange={handleCommandInputChange}
+            onKeyDown={handleCommandInputKeyDown}
+            disabled={busy}
+            placeholder='Zadej prikaz: :refresh | :galaxie | +NovaGalaxie | /grid | /3d | Ukaz : "Srouby"'
+            style={{ ...inputStyle, fontSize: "var(--dv-fs-md)", padding: "8px 10px" }}
+          />
+          <button type="submit" disabled={busy} style={actionButtonStyle}>
+            {busy ? "..." : "Run"}
           </button>
-          <button
-            type="button"
-            onClick={onLogout}
-            style={{ ...hudButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
-          >
-            Logout
+          <button type="button" onClick={() => patchPanel("command", { collapsed: false })} style={ghostButtonStyle}>
+            Panel
           </button>
+        </form>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {commandSuggestions.map((item, index) => {
+            const active = index === Math.min(commandSuggestionCursor, Math.max(0, commandSuggestions.length - 1));
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setCommandSuggestionCursor(index)}
+                onClick={() => {
+                  setQuery(item.insert);
+                  commandInputRef.current?.focus();
+                }}
+                style={{
+                  ...hudButtonStyle,
+                  borderRadius: 9,
+                  borderColor: active ? "rgba(112, 214, 246, 0.62)" : "rgba(109, 198, 228, 0.3)",
+                  background: active ? "rgba(11, 36, 56, 0.92)" : "rgba(7, 16, 29, 0.85)",
+                  color: active ? "#ebfbff" : "#d7f7ff",
+                }}
+                title={item.hint}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78, letterSpacing: "var(--dv-tr-normal)", display: "grid", gap: 2 }}>
+          <span>Prikazy: {commandExamplesLabel}</span>
+          <span style={{ opacity: 0.7 }}>Mikro: `Ctrl+K` fokus · `/` fokus z plochy · `↑/↓` historie · `Tab` doplneni · `Esc` cisti</span>
         </div>
       </div>
 
@@ -1910,23 +3263,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         hideCollapsedHandle
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
-        <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 7 }}>
-          Akcni centrum: vsechno zakladni udelas pres tlacitka bez znalosti syntaxe.
-          Hierarchie: Galaxie (workspace), Souhvezdi (oblast), Planeta (tabulka), Mesic (radek), Nerosty (bunky).
+        <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.8, marginBottom: 7 }}>
+          Rozsirene akce. Hlavni prikazy zadavej do plovouci command line dole uprostred.
+          Aliasy: <strong>:refresh</strong>, <strong>:galaxie</strong>, <strong>+NovaGalaxie</strong>, <strong>/grid</strong>, <strong>/3d</strong>.
         </div>
-        <form onSubmit={handleCommand} style={{ display: "flex", gap: 8 }}>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            disabled={busy || historicalMode}
-            placeholder='Napr. "Kancelar : Praha", "Ukaz : Praha", "Spocitej : Sklad.zasoba = SUM(mnozstvi)"'
-            style={inputStyle}
-          />
-          <button type="submit" disabled={busy || historicalMode} style={actionButtonStyle}>
-            {busy ? "..." : "RUN"}
-          </button>
-        </form>
-        <div style={{ marginTop: 8, display: "flex", gap: 7, flexWrap: "wrap" }}>
+        <div style={{ marginTop: 6, display: "flex", gap: 7, flexWrap: "wrap" }}>
           <input
             type="datetime-local"
             value={asOfInput}
@@ -1939,8 +3280,111 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           </button>
         </div>
         <div style={guideSectionStyle}>
+          <div style={guideTitleStyle}>PARSER + SEMANTIKA (V2)</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84, lineHeight: "var(--dv-lh-base)" }}>
+            Prakticka pravidla parseru a resolveru, ktera plati pro tento UI.
+          </div>
+          <div style={{ display: "grid", gap: 3 }}>
+            {PARSER_RUNTIME_RULES.map((item) => (
+              <div key={item} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86, lineHeight: "var(--dv-lh-base)" }}>
+                - {item}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 4, display: "grid", gap: 6 }}>
+            <div style={miniTitleStyle}>Operator syntax (native v2)</div>
+            {PARSER_OPERATOR_GUIDE.map((item) => (
+              <div
+                key={item.key}
+                style={{
+                  border: "1px solid rgba(101, 193, 224, 0.22)",
+                  borderRadius: 8,
+                  background: "rgba(6, 17, 30, 0.58)",
+                  padding: "6px 7px",
+                  display: "grid",
+                  gap: 4,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <code style={{ fontSize: "var(--dv-fs-sm)", color: "#9fe8ff" }}>{item.syntax}</code>
+                  <button type="button" onClick={() => insertCommandExample(item.example)} style={ghostButtonStyle}>
+                    Vlozit priklad
+                  </button>
+                </div>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item.meaning}</div>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>
+                  Priklad: <code style={{ color: "#dff9ff" }}>{item.example}</code>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 4, display: "grid", gap: 6 }}>
+            <div style={miniTitleStyle}>Legacy verby (kompatibilni ve v2)</div>
+            {PARSER_LEGACY_GUIDE.map((item) => (
+              <div
+                key={item.key}
+                style={{
+                  border: "1px solid rgba(101, 193, 224, 0.2)",
+                  borderRadius: 8,
+                  background: "rgba(5, 15, 26, 0.54)",
+                  padding: "6px 7px",
+                  display: "grid",
+                  gap: 4,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <code style={{ fontSize: "var(--dv-fs-sm)", color: "#9fe8ff" }}>{item.syntax}</code>
+                  <button type="button" onClick={() => insertCommandExample(item.example)} style={ghostButtonStyle}>
+                    Vlozit priklad
+                  </button>
+                </div>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item.meaning}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={guideSectionStyle}>
+          <div style={guideTitleStyle}>PRESNE OVLADANI (klik + cmd)</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84, lineHeight: "var(--dv-lh-base)" }}>
+            Jednoduche playbooky pro bezchybne ovladani od prvniho kroku.
+          </div>
+          <div style={{ display: "grid", gap: 6 }}>
+            {CONTROL_PLAYBOOK.map((item) => (
+              <div
+                key={item.key}
+                style={{
+                  border: "1px solid rgba(99, 189, 220, 0.23)",
+                  borderRadius: 8,
+                  background: "rgba(5, 15, 27, 0.58)",
+                  padding: "6px 7px",
+                  display: "grid",
+                  gap: 4,
+                }}
+              >
+                <div style={{ fontSize: "var(--dv-fs-xs)", fontWeight: 700, letterSpacing: "var(--dv-tr-medium)", color: "#bdefff" }}>
+                  {item.title}
+                </div>
+                {item.steps.map((step) => (
+                  <div key={`${item.key}:${step}`} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86, lineHeight: "var(--dv-lh-base)" }}>
+                    - {step}
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+                  {item.commands.map((command) => (
+                    <button key={`${item.key}:${command}`} type="button" onClick={() => insertCommandExample(command)} style={ghostButtonStyle}>
+                      {command}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={guideSectionStyle}>
           <div style={guideTitleStyle}>BRANCH / STAGING WORKFLOW</div>
-          <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, lineHeight: "var(--dv-lh-base)" }}>
             Aktivni workspace: <strong>{activeWorkspaceLabel}</strong>. Main = produkcni timeline, branch = izolovana sandbox vrstva.
           </div>
           <select
@@ -1980,14 +3424,14 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             >
               Promote do main
             </button>
-            {historicalMode ? <div style={{ fontSize: 11, opacity: 0.75 }}>Promote je v historical modu uzamcen.</div> : null}
+            {historicalMode ? <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.75 }}>Promote je v historical modu uzamcen.</div> : null}
           </div>
-          {branchesLoading ? <div style={{ fontSize: 11, color: "#9de7ff" }}>Nacitam branche...</div> : null}
-          {branchesError ? <div style={{ fontSize: 11, color: "#ffb7c9" }}>{branchesError}</div> : null}
+          {branchesLoading ? <div style={{ fontSize: "var(--dv-fs-xs)", color: "#9de7ff" }}>Nacitam branche...</div> : null}
+          {branchesError ? <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffb7c9" }}>{branchesError}</div> : null}
         </div>
         <div style={guideSectionStyle}>
           <div style={guideTitleStyle}>CSV IMPORT (PREVIEW / COMMIT)</div>
-          <div style={{ fontSize: 11, opacity: 0.8, lineHeight: 1.35 }}>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, lineHeight: "var(--dv-lh-base)" }}>
             1) Vyber CSV soubor. 2) Zvol preview (bez zapisu) nebo commit (zapis). 3) Strict urcuje stop na prvni chybe.
           </div>
           <input
@@ -1995,7 +3439,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             accept=".csv,text/csv"
             onChange={(event) => setImportFile(event.target.files?.[0] || null)}
             disabled={importDisabled}
-            style={{ ...inputStyle, padding: "6px 8px", fontSize: 12 }}
+            style={{ ...inputStyle, padding: "6px 8px", fontSize: "var(--dv-fs-sm)" }}
           />
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6, alignItems: "center" }}>
             <select
@@ -2007,7 +3451,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
               <option value="preview">Preview (bez zapisu)</option>
               <option value="commit">Commit (zapsat data)</option>
             </select>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.88 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
               <input
                 type="checkbox"
                 checked={importStrict}
@@ -2039,15 +3483,15 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             </button>
           </div>
           {importFile ? (
-            <div style={{ fontSize: 11, opacity: 0.82 }}>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
               Soubor: <strong>{importFile.name}</strong>
             </div>
           ) : (
-            <div style={{ fontSize: 11, opacity: 0.72 }}>Soubor zatim neni vybran.</div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>Soubor zatim neni vybran.</div>
           )}
-          {importInfo ? <div style={{ fontSize: 12, color: "#9de7ff" }}>{importInfo}</div> : null}
+          {importInfo ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de7ff" }}>{importInfo}</div> : null}
           {lastImportJob ? (
-            <div style={{ fontSize: 11, opacity: 0.84 }}>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
               Job {lastImportJob.id} · mode {lastImportJob.mode} · status {lastImportJob.status}
             </div>
           ) : null}
@@ -2057,20 +3501,20 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 <div
                   key={item.id}
                   style={{
-                    fontSize: 11,
+                    fontSize: "var(--dv-fs-xs)",
                     border: "1px solid rgba(255, 148, 176, 0.28)",
                     borderRadius: 8,
                     background: "rgba(42, 9, 19, 0.45)",
                     color: "#ffd4e0",
                     padding: "5px 7px",
-                    lineHeight: 1.35,
+                    lineHeight: "var(--dv-lh-base)",
                   }}
                 >
                   Radek {item.row_number}: {item.message}
                 </div>
               ))}
               {importErrors.length > 6 ? (
-                <div style={{ fontSize: 11, opacity: 0.74 }}>Zobrazeno 6/{importErrors.length} chyb.</div>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.74 }}>Zobrazeno 6/{importErrors.length} chyb.</div>
               ) : null}
             </div>
           ) : null}
@@ -2078,7 +3522,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         <div style={guideSectionStyle}>
           <div style={guideTitleStyle}>KDE CO UDELAS (bez vahani)</div>
           {WORKSPACE_GUIDE.map((item, index) => (
-            <div key={item} style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.4 }}>
+            <div key={item} style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.9, lineHeight: "var(--dv-lh-relaxed)" }}>
               {index + 1}) {item}
             </div>
           ))}
@@ -2147,7 +3591,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         </div>
         <div style={guideSectionStyle}>
           <div style={guideTitleStyle}>AKCE NAD EXISTUJICIM MESICEM</div>
-          <div style={{ fontSize: 11, opacity: 0.78, marginBottom: 6 }}>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78, marginBottom: 6 }}>
             Vyberas z aktivnich Mesicu; system vytvori presny prikaz sam.
           </div>
 
@@ -2167,7 +3611,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           </div>
 
           <div style={{ display: "grid", gap: 5, marginBottom: 8 }}>
-            <div style={miniTitleStyle}>Rychla vazba (RELATION / TYPE / FLOW / GUARDIAN)</div>
+            <div style={miniTitleStyle}>Rychla vazba (Vztah / Typ / Tok dat / Kontrola)</div>
             <select value={quickLinkType} onChange={(event) => setQuickLinkType(event.target.value)} style={selectStyle}>
               {QUICK_LINK_TYPE_OPTIONS.map((item) => (
                 <option key={item.value} value={item.value}>
@@ -2175,7 +3619,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 </option>
               ))}
             </select>
-            <div style={{ fontSize: 11, opacity: 0.78 }}>{selectedQuickLinkTypeOption.description}</div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>{selectedQuickLinkTypeOption.description}</div>
             <select value={quickLinkSourceId} onChange={(event) => setQuickLinkSourceId(event.target.value)} style={selectStyle}>
               <option value="">Zdrojovy Mesic</option>
               {moonQuickOptions.map((item) => (
@@ -2308,7 +3752,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             </button>
           </div>
         </div>
-        {error ? <div style={{ marginTop: 8, fontSize: 12, color: "#ffb7c9" }}>{error}</div> : null}
+        {error ? <div style={{ marginTop: 8, fontSize: "var(--dv-fs-sm)", color: "#ffb7c9" }}>{error}</div> : null}
       </FloatingPanel>
 
       <FloatingPanel
@@ -2319,12 +3763,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         hideCollapsedHandle
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
-        <div style={{ fontSize: 12, opacity: 0.82, marginBottom: 8 }}>
+        <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
           L2 vrstva: Souhvezdi (logicke oblasti) s agregovanou kvalitou dat.
         </div>
-        {constellationsLoading ? <div style={{ fontSize: 12, color: "#9de6ff" }}>Nacitam souhvezdi...</div> : null}
+        {constellationsLoading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam souhvezdi...</div> : null}
         {!constellationsLoading && !constellations.length ? (
-          <div style={{ fontSize: 12, opacity: 0.78 }}>Zatim nejsou dostupna data souhvezdi.</div>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Zatim nejsou dostupna data souhvezdi.</div>
         ) : null}
         {!constellationsLoading && constellations.length ? (
           <div style={{ display: "grid", gap: 7 }}>
@@ -2357,11 +3801,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                     cursor: "pointer",
                   }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{item.name}</div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>{item.name}</div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     Planety {item.planets_count} · Mesice {item.moons_count} · Vazby {item.internal_bonds_count + item.external_bonds_count}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     Kvalita <strong style={{ color: statusColor }}>{item.status}</strong> ({item.quality_score}/100)
                   </div>
                 </button>
@@ -2369,7 +3813,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             })}
           </div>
         ) : null}
-        {constellationsError ? <div style={{ marginTop: 8, fontSize: 12, color: "#ffb3c7" }}>{constellationsError}</div> : null}
+        {constellationsError ? <div style={{ marginTop: 8, fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{constellationsError}</div> : null}
       </FloatingPanel>
 
       <FloatingPanel
@@ -2380,12 +3824,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         hideCollapsedHandle
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
-        <div style={{ fontSize: 12, opacity: 0.82, marginBottom: 8 }}>
+        <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
           L3 vrstva: Planety = tabulky s V1 metrikami a kvalitou.
         </div>
-        {planetsLoading ? <div style={{ fontSize: 12, color: "#9de6ff" }}>Nacitam planety...</div> : null}
+        {planetsLoading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam planety...</div> : null}
         {!planetsLoading && !planets.length ? (
-          <div style={{ fontSize: 12, opacity: 0.78 }}>Zatim nejsou dostupna data planet.</div>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Zatim nejsou dostupna data planet.</div>
         ) : null}
         {!planetsLoading && planets.length ? (
           <div style={{ display: "grid", gap: 7, maxHeight: 290, overflowY: "auto", paddingRight: 2 }}>
@@ -2414,14 +3858,14 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                     opacity: tableNode ? 1 : 0.7,
                   }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{item.name}</div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>{item.name}</div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     {item.constellation_name} · Mesice {item.moons_count} · Schema {item.schema_fields_count}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     Formula {item.formula_fields_count} · Vazby {item.internal_bonds_count + item.external_bonds_count} · Rezim {item.sector_mode}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     Kvalita <strong style={{ color: statusColor }}>{item.status}</strong> ({item.quality_score}/100)
                   </div>
                 </button>
@@ -2429,7 +3873,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             })}
           </div>
         ) : null}
-        {planetsError ? <div style={{ marginTop: 8, fontSize: 12, color: "#ffb3c7" }}>{planetsError}</div> : null}
+        {planetsError ? <div style={{ marginTop: 8, fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{planetsError}</div> : null}
       </FloatingPanel>
 
       <FloatingPanel
@@ -2440,12 +3884,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         hideCollapsedHandle
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
-        <div style={{ fontSize: 12, opacity: 0.82, marginBottom: 8 }}>
+        <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
           L4 vrstva: Mesice = radky tabulek s V1 kvalitou dat.
         </div>
-        {moonsLoading ? <div style={{ fontSize: 12, color: "#9de6ff" }}>Nacitam mesice...</div> : null}
+        {moonsLoading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam mesice...</div> : null}
         {!moonsLoading && !moons.length ? (
-          <div style={{ fontSize: 12, opacity: 0.78 }}>Zatim nejsou dostupna data mesicu.</div>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Zatim nejsou dostupna data mesicu.</div>
         ) : null}
         {!moonsLoading && moons.length ? (
           <div style={{ display: "grid", gap: 7, maxHeight: 290, overflowY: "auto", paddingRight: 2 }}>
@@ -2479,14 +3923,14 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                     opacity: moonNode ? 1 : 0.7,
                   }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{item.label || "Mesic"}</div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>{item.label || "Mesic"}</div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     {item.constellation_name} / {item.planet_name}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     Metadata {item.metadata_fields_count} · Formula {item.calculated_fields_count} · Alerty {item.active_alerts_count}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     Kvalita <strong style={{ color: statusColor }}>{item.status}</strong> ({item.quality_score}/100)
                   </div>
                 </button>
@@ -2494,7 +3938,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             })}
           </div>
         ) : null}
-        {moonsError ? <div style={{ marginTop: 8, fontSize: 12, color: "#ffb3c7" }}>{moonsError}</div> : null}
+        {moonsError ? <div style={{ marginTop: 8, fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{moonsError}</div> : null}
       </FloatingPanel>
 
       <FloatingPanel
@@ -2505,12 +3949,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         hideCollapsedHandle
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
-        <div style={{ fontSize: 12, opacity: 0.82, marginBottom: 8 }}>
+        <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
           Datovy tok mezi uzly. V1 kvalita je pocitana z alertu/cyklickych poli na koncovych mesicich.
         </div>
-        {bondsV1Loading ? <div style={{ fontSize: 12, color: "#9de6ff" }}>Nacitam vazby...</div> : null}
+        {bondsV1Loading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9de6ff" }}>Nacitam vazby...</div> : null}
         {!bondsV1Loading && !bondsV1.length ? (
-          <div style={{ fontSize: 12, opacity: 0.78 }}>Zatim nejsou dostupne vazby.</div>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Zatim nejsou dostupne vazby.</div>
         ) : null}
         {!bondsV1Loading && bondsV1.length ? (
           <div style={{ display: "grid", gap: 7, maxHeight: 290, overflowY: "auto", paddingRight: 2 }}>
@@ -2543,16 +3987,16 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                     opacity: sourceNode || targetNode ? 1 : 0.7,
                   }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>
-                    {item.type} · {item.directional ? "A→B" : "A↔B"}
+                  <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>
+                    {formatBondTypeLabel(item.type)} · {item.directional ? "A→B" : "A↔B"}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     {item.source_label} → {item.target_label}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     Alerty {item.active_alerts_count} · Cykly {item.circular_fields_count}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.84 }}>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                     Kvalita <strong style={{ color: statusColor }}>{item.status}</strong> ({item.quality_score}/100)
                   </div>
                 </button>
@@ -2560,7 +4004,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             })}
           </div>
         ) : null}
-        {bondsV1Error ? <div style={{ marginTop: 8, fontSize: 12, color: "#ffb3c7" }}>{bondsV1Error}</div> : null}
+        {bondsV1Error ? <div style={{ marginTop: 8, fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{bondsV1Error}</div> : null}
       </FloatingPanel>
 
       <FloatingPanel
@@ -2574,11 +4018,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         {selectedAsteroid ? (
           <div style={{ display: "grid", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 11, opacity: 0.74 }}>MESIC / ZAZNAM</div>
-              <div style={{ marginTop: 3, fontSize: 17, fontWeight: 700 }}>{valueToLabel(selectedAsteroid.value)}</div>
-              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.72 }}>{String(selectedAsteroid.id)}</div>
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.74 }}>MESIC / ZAZNAM</div>
+              <div style={{ marginTop: 3, fontSize: "var(--dv-fs-3xl)", fontWeight: 700 }}>{valueToLabel(selectedAsteroid.value)}</div>
+              <div style={{ marginTop: 4, fontSize: "var(--dv-fs-sm)", opacity: 0.72 }}>{String(selectedAsteroid.id)}</div>
               {selectedMoonV1 ? (
-                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
+                <div style={{ marginTop: 6, fontSize: "var(--dv-fs-sm)", opacity: 0.9 }}>
                   V1:{" "}
                   <strong style={{ color: resolveStatusColor(selectedMoonV1.status) }}>
                     {selectedMoonV1.status}
@@ -2589,12 +4033,22 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             </div>
 
             <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontSize: 11, opacity: 0.68 }}>Bunky tezby (nerosty / suroviny)</div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.62, letterSpacing: "var(--dv-tr-wide)" }}>BUNKY TEZBY (NEROSTY / SUROVINY)</div>
               {Object.entries(safeMetadata(selectedAsteroid.metadata))
                 .filter(([key]) => !RESERVED_METADATA_KEYS.has(String(key)))
                 .map(([key, value]) => (
-                <label key={key} style={{ display: "grid", gap: 4 }}>
-                  <span style={{ fontSize: 11, opacity: 0.7 }}>{key}</span>
+                <label
+                  key={key}
+                  style={{
+                    display: "grid",
+                    gap: 4,
+                    borderBottom: "1px solid rgba(100, 184, 214, 0.24)",
+                    paddingBottom: 6,
+                  }}
+                >
+                  <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.62, letterSpacing: "var(--dv-tr-wide)" }}>
+                    {inferMineralGlyph(key, value)} · {key}
+                  </span>
                   <input
                     defaultValue={valueToLabel(value)}
                     onBlur={(event) => {
@@ -2605,7 +4059,16 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                       );
                     }}
                     disabled={historicalMode}
-                    style={inputStyle}
+                    style={{
+                      border: "none",
+                      borderBottom: "1px solid rgba(98, 177, 204, 0.32)",
+                      borderRadius: 0,
+                      background: "rgba(0, 0, 0, 0)",
+                      color: "#ddf7ff",
+                      padding: "5px 2px",
+                      fontSize: "var(--dv-fs-md)",
+                      outline: "none",
+                    }}
                   />
                 </label>
               ))}
@@ -2645,8 +4108,16 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             <button
               type="button"
               disabled={historicalMode}
+              onMouseEnter={() => setMoonDeleteHover(true)}
+              onMouseLeave={() => setMoonDeleteHover(false)}
               onClick={() => extinguishAsteroid(selectedAsteroid.id).catch((extError) => setError(extError.message || "Soft delete failed"))}
-              style={{ ...ghostButtonStyle, borderColor: "rgba(255, 136, 166, 0.4)", color: "#ffc6d8" }}
+              style={{
+                ...ghostButtonStyle,
+                borderColor: moonDeleteHover ? "rgba(255, 116, 148, 0.58)" : "rgba(111, 192, 220, 0.28)",
+                color: moonDeleteHover ? "#ffd3df" : "#d7f6ff",
+                background: moonDeleteHover ? "rgba(68, 16, 28, 0.82)" : "rgba(7, 18, 32, 0.78)",
+                boxShadow: moonDeleteHover ? "0 0 16px rgba(240, 91, 131, 0.3)" : "none",
+              }}
             >
               Zhasnout mesic (Soft Delete)
             </button>
@@ -2654,19 +4125,19 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         ) : selectedBond ? (
           <div style={{ display: "grid", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 11, opacity: 0.74 }}>VAZBA / TOK</div>
-              <div style={{ marginTop: 3, fontSize: 16, fontWeight: 700 }}>
-                {selectedBond.type} · {selectedBond.directional ? "A→B" : "A↔B"}
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.74 }}>VAZBA / TOK</div>
+              <div style={{ marginTop: 3, fontSize: "var(--dv-fs-2xl)", fontWeight: 700 }}>
+                {formatBondTypeLabel(selectedBond.type)} · {selectedBond.directional ? "A→B" : "A↔B"}
               </div>
-              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.72 }}>{String(selectedBond.id)}</div>
-              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.84 }}>
+              <div style={{ marginTop: 4, fontSize: "var(--dv-fs-sm)", opacity: 0.72 }}>{String(selectedBond.id)}</div>
+              <div style={{ marginTop: 4, fontSize: "var(--dv-fs-sm)", opacity: 0.84 }}>
                 {selectedBondSourceLabel} → {selectedBondTargetLabel}
               </div>
-              <div style={{ marginTop: 5, fontSize: 12, opacity: 0.92, color: "#9fe8ff", lineHeight: 1.35 }}>
+              <div style={{ marginTop: 5, fontSize: "var(--dv-fs-sm)", opacity: 0.92, color: "#9fe8ff", lineHeight: "var(--dv-lh-base)" }}>
                 Vyklad: {selectedBondMeaning}
               </div>
               {selectedBondV1 ? (
-                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
+                <div style={{ marginTop: 6, fontSize: "var(--dv-fs-sm)", opacity: 0.9 }}>
                   V1:{" "}
                   <strong style={{ color: resolveStatusColor(selectedBondV1.status) }}>
                     {selectedBondV1.status}
@@ -2677,7 +4148,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             </div>
 
             <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontSize: 11, opacity: 0.68 }}>Typ vazby</div>
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.68 }}>Typ vazby</div>
               <select
                 value={bondEditorType}
                 onChange={(event) => setBondEditorType(event.target.value)}
@@ -2690,7 +4161,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                   </option>
                 ))}
               </select>
-              <div style={{ fontSize: 11, opacity: 0.78 }}>
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>
                 {(QUICK_LINK_TYPE_OPTIONS.find((item) => item.value === bondEditorType) || QUICK_LINK_TYPE_OPTIONS[0]).description}
               </div>
             </div>
@@ -2722,7 +4193,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             </button>
           </div>
         ) : (
-          <div style={{ fontSize: 13, opacity: 0.78 }}>
+          <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.78 }}>
             Klikni na mesic nebo vazbu. Inspector zobrazi editor detailu objektu.
           </div>
         )}
@@ -2736,25 +4207,236 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         hideCollapsedHandle
         onPatch={(panelId, patch) => patchPanel(panelId, patch)}
       >
-        <div style={{ fontSize: 12, opacity: 0.78, marginBottom: 8 }}>
-          TABULKA PLANETY: sloupce = nerosty (bunky), radky = mesice.
+        <div style={{ fontSize: "var(--dv-fs-lg)", fontWeight: 700, letterSpacing: "var(--dv-tr-medium)", marginBottom: 8 }}>
+          {selectedSemantic?.planetName || "Planeta"}
         </div>
-        <div style={{ overflow: "auto", border: "1px solid rgba(96, 186, 220, 0.18)", borderRadius: 8 }}>
+        <div
+          style={{
+            display: "grid",
+            gap: 7,
+            marginBottom: 8,
+            border: "1px solid rgba(94, 178, 208, 0.24)",
+            borderRadius: 8,
+            background: "rgba(6, 17, 28, 0.52)",
+            padding: 8,
+          }}
+        >
+          <div
+            style={{
+              border: "1px solid rgba(98, 182, 214, 0.26)",
+              borderRadius: 8,
+              background: "rgba(7, 18, 32, 0.5)",
+              padding: 7,
+              display: "grid",
+              gap: 7,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.85, letterSpacing: "var(--dv-tr-medium)" }}>
+                Semantika sloupcu: vyber, zda bunka upravuje hodnotu nebo vytvari vazbu.
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={saveGridContract}
+                  disabled={historicalMode || gridContractBusy || !selectedTableId || !gridSemanticDirty}
+                  style={ghostButtonStyle}
+                >
+                  {gridContractBusy ? "..." : "Ulozit semantiku"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => loadGridContract({ silent: false })}
+                  disabled={gridContractBusy || !selectedTableId}
+                  style={hudButtonStyle}
+                >
+                  {gridContractBusy ? "..." : "Nacist kontrakt"}
+                </button>
+              </div>
+            </div>
+
+            {gridColumns.filter((column) => column !== "value").length ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 6 }}>
+                {gridColumns
+                  .filter((column) => column !== "value")
+                  .map((column) => {
+                    const mode = getGridColumnMode(column);
+                    const modeMeta =
+                      GRID_SEMANTIC_MODE_OPTIONS.find((item) => item.value === mode) || GRID_SEMANTIC_MODE_OPTIONS[0];
+                    return (
+                      <label key={`semantic:${column}`} style={{ display: "grid", gap: 4 }}>
+                        <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.84 }}>{column}</span>
+                        <select
+                          value={mode}
+                          onChange={(event) => handleGridColumnModeChange(column, event.target.value)}
+                          disabled={historicalMode || gridContractBusy}
+                          style={selectStyle}
+                        >
+                          {GRID_SEMANTIC_MODE_OPTIONS.map((item) => (
+                            <option key={item.value} value={item.value}>
+                              {item.label}
+                            </option>
+                          ))}
+                        </select>
+                        <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.64 }}>{modeMeta.description}</span>
+                      </label>
+                    );
+                  })}
+              </div>
+            ) : (
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.66 }}>Planeta zatim nema metadata sloupce.</div>
+            )}
+            {gridContractInfo ? <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86, color: "#9ee8ff" }}>{gridContractInfo}</div> : null}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 6 }}>
+            <input
+              value={gridNewRowLabel}
+              onChange={(event) => setGridNewRowLabel(event.target.value)}
+              placeholder="Novy mesic (radek)"
+              disabled={historicalMode || gridBatchBusy}
+              style={inputStyle}
+            />
+            <input
+              value={gridNewRowMetaKey}
+              onChange={(event) => setGridNewRowMetaKey(event.target.value)}
+              placeholder="Pole (volitelne)"
+              disabled={historicalMode || gridBatchBusy}
+              style={inputStyle}
+            />
+            <input
+              value={gridNewRowMetaValue}
+              onChange={(event) => setGridNewRowMetaValue(event.target.value)}
+              placeholder="Hodnota"
+              disabled={historicalMode || gridBatchBusy}
+              style={inputStyle}
+            />
+            <button
+              type="button"
+              onClick={handleAddGridNewRow}
+              disabled={historicalMode || gridBatchBusy}
+              style={ghostButtonStyle}
+            >
+              + Radek
+            </button>
+          </div>
+          {gridNewRows.length ? (
+            <div style={{ display: "grid", gap: 4 }}>
+              {gridNewRows.map((item) => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: 6,
+                    alignItems: "center",
+                    border: "1px solid rgba(100, 182, 212, 0.2)",
+                    borderRadius: 7,
+                    background: "rgba(8, 20, 33, 0.62)",
+                    padding: "4px 6px",
+                  }}
+                >
+                  <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.92 }}>
+                    {item.label}
+                    {Object.keys(item.metadata || {}).length ? ` (${Object.entries(item.metadata).map(([k, v]) => `${k}: ${v}`).join(", ")})` : ""}
+                  </div>
+                  <button type="button" onClick={() => handleRemoveGridNewRow(item.id)} style={ghostButtonStyle}>
+                    Odebrat
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
+              Change Set: upravy bunek <strong>{gridChangeCount}</strong> · nove radky <strong>{gridNewRows.length}</strong> · staged zhasnuti <strong>{gridExtinguishCount}</strong> · undo <strong>{gridUndoCount}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => executeGridBatch("preview")}
+              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork || gridValidation.count > 0}
+              style={hudButtonStyle}
+            >
+              {gridBatchBusy ? "..." : "Preview batch"}
+            </button>
+            <button
+              type="button"
+              onClick={() => executeGridBatch("commit")}
+              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork || gridValidation.count > 0}
+              style={actionButtonStyle}
+            >
+              {gridBatchBusy ? "..." : "Commit batch"}
+            </button>
+            <button
+              type="button"
+              onClick={handleUndoGridStage}
+              disabled={gridBatchBusy || !gridUndoCount}
+              style={ghostButtonStyle}
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              onClick={() => clearGridChangeSet()}
+              disabled={gridBatchBusy || !gridHasStagedWork}
+              style={ghostButtonStyle}
+            >
+              Zrusit lokalni zmeny
+            </button>
+          </div>
+          {gridBatchInfo ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9ee8ff" }}>{gridBatchInfo}</div> : null}
+          {gridValidation.count ? (
+            <div style={{ fontSize: "var(--dv-fs-xs)", color: "#86d9ff", opacity: 0.94 }}>
+              Hologramy: {gridValidation.count} · {gridValidation.messages[0]}
+            </div>
+          ) : null}
+          {gridBatchPreview ? (
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
+              Preview: tasks {gridBatchPreview.tasks} · asteroidy {gridBatchPreview.asteroids} · vazby {gridBatchPreview.bonds}
+            </div>
+          ) : null}
+        </div>
+        <div
+          style={{
+            overflow: "auto",
+            border: "1px solid rgba(96, 186, 220, 0.2)",
+            borderRadius: 8,
+            background: "rgba(6, 18, 30, 0.42)",
+          }}
+        >
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
             <thead>
               <tr>
+                <th
+                  key="grid-status"
+                  style={{
+                    position: "sticky",
+                    top: 0,
+                    background: "rgba(8, 18, 32, 0.58)",
+                    color: "#cbeef8",
+                    borderBottom: "1px solid rgba(95, 177, 207, 0.28)",
+                    padding: "6px 8px",
+                    textAlign: "left",
+                    fontSize: "var(--dv-fs-2xs)",
+                    letterSpacing: "var(--dv-tr-medium)",
+                    width: 116,
+                  }}
+                >
+                  stav
+                </th>
                 {gridColumns.map((column) => (
                   <th
                     key={column}
                     style={{
                       position: "sticky",
                       top: 0,
-                      background: "rgba(8, 16, 28, 0.95)",
+                      background: "rgba(8, 18, 32, 0.58)",
                       color: "#cbeef8",
-                      borderBottom: "1px solid rgba(95, 177, 207, 0.2)",
+                      borderBottom: "1px solid rgba(95, 177, 207, 0.28)",
                       padding: "6px 8px",
                       textAlign: "left",
-                      fontSize: 11,
+                      fontSize: "var(--dv-fs-2xs)",
+                      letterSpacing: "var(--dv-tr-medium)",
                     }}
                   >
                     {column === "value" ? "mesic" : column}
@@ -2763,56 +4445,144 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
               </tr>
             </thead>
             <tbody>
-              {tableRows.map((row) => (
-                <tr key={row.id}>
+              {tableRows.map((row) => {
+                const rowId = String(row.id);
+                const rowPendingExtinguish = Boolean(gridPendingExtinguishIds[rowId]);
+                const rowSelected = String(gridSelectedRowId || "") === rowId;
+                return (
+                <tr
+                  key={row.id}
+                  style={{
+                    outline: rowSelected ? "1px solid rgba(114, 214, 245, 0.55)" : "none",
+                    background: rowPendingExtinguish ? "rgba(46, 15, 27, 0.28)" : "transparent",
+                  }}
+                >
+                  <td
+                    style={{
+                      borderBottom: "1px solid rgba(95, 177, 207, 0.14)",
+                      padding: "4px 7px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        focusGridRow(row.id);
+                        toggleGridPendingExtinguish(row.id);
+                      }}
+                      disabled={historicalMode || gridBatchBusy}
+                      style={{
+                        ...ghostButtonStyle,
+                        padding: "4px 8px",
+                        fontSize: "var(--dv-fs-2xs)",
+                        borderColor: rowPendingExtinguish ? "rgba(255, 132, 162, 0.56)" : "rgba(108, 203, 236, 0.28)",
+                        color: rowPendingExtinguish ? "#ffd3df" : "#cdefff",
+                        background: rowPendingExtinguish ? "rgba(56, 17, 30, 0.82)" : "rgba(7, 18, 32, 0.86)",
+                      }}
+                    >
+                      {rowPendingExtinguish ? "Obnovit" : "Zhasnout"}
+                    </button>
+                  </td>
                   {gridColumns.map((column) => {
+                    const cellId = `${row.id}::${column}`;
+                    const isEditing = gridEditingCell === cellId;
+                    const isStaged = Boolean(gridChangeSet[cellId]);
+                    const isInvalid = Boolean(gridValidation.errorsByCell[cellId]);
                     const baseline = column === "value" ? valueToLabel(row.value) : valueToLabel(safeMetadata(row.metadata)[column] ?? "");
                     const currentValue = getCellDraft(row.id, column, baseline);
                     return (
-                      <td key={`${row.id}:${column}`} style={{ borderBottom: "1px solid rgba(95, 177, 207, 0.12)", padding: "5px 7px" }}>
-                        <input
-                          value={currentValue}
-                          onFocus={() => {
-                            setSelectedBondId("");
-                            const table = resolveTableForAsteroid(tables, row.id);
-                            if (table) {
-                              const tableNode = tableNodes.find((item) => item.id === String(table.table_id));
-                              if (tableNode) {
-                                focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 186 });
+                      <td
+                        key={`${row.id}:${column}`}
+                        title={gridValidation.errorsByCell[cellId] || ""}
+                        style={{
+                          borderBottom: "1px solid rgba(95, 177, 207, 0.14)",
+                          padding: "4px 7px",
+                          background: rowPendingExtinguish
+                            ? "rgba(55, 18, 30, 0.35)"
+                            : isInvalid
+                              ? "rgba(54, 131, 176, 0.26)"
+                              : isStaged
+                                ? "rgba(64, 161, 198, 0.16)"
+                                : "transparent",
+                        }}
+                      >
+                        {isEditing && !rowPendingExtinguish ? (
+                          <input
+                            autoFocus
+                            value={currentValue}
+                            onFocus={() => focusGridRow(row.id)}
+                            onChange={(event) => {
+                              setGridDraft((prev) => ({ ...prev, [cellId]: event.target.value }));
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") {
+                                setGridEditingCell("");
+                                setGridDraft((prev) => {
+                                  const copy = { ...prev };
+                                  delete copy[cellId];
+                                  return copy;
+                                });
+                                setGridChangeSet((prev) => {
+                                  if (!Object.prototype.hasOwnProperty.call(prev, cellId)) return prev;
+                                  const copy = { ...prev };
+                                  delete copy[cellId];
+                                  return copy;
+                                });
                               }
-                            }
-                            const asteroid = asteroidNodes.find((item) => item.id === String(row.id));
-                            if (asteroid) {
-                              focusAsteroid({ asteroidId: asteroid.id, cameraTarget: asteroid.position, cameraDistance: 52 });
-                            }
-                          }}
-                          onChange={(event) => {
-                            const key = `${row.id}::${column}`;
-                            setGridDraft((prev) => ({ ...prev, [key]: event.target.value }));
-                          }}
-                          onBlur={(event) => {
-                            if (historicalMode) return;
-                            const nextValue = event.target.value;
-                            if (nextValue === baseline) {
-                              const key = `${row.id}::${column}`;
-                              setGridDraft((prev) => {
-                                const copy = { ...prev };
-                                delete copy[key];
-                                return copy;
-                              });
-                              return;
-                            }
-                            const payload = column === "value" ? { value: nextValue } : { metadata: { [column]: nextValue } };
-                            mutateAsteroid(row.id, payload).catch((mutError) => setError(mutError.message || "Mutate failed"));
-                          }}
-                          disabled={historicalMode}
-                          style={inputStyle}
-                        />
+                              if (event.key === "Enter") {
+                                event.currentTarget.blur();
+                              }
+                            }}
+                            onBlur={(event) => {
+                              const nextValue = event.target.value;
+                              setGridEditingCell("");
+                              if (historicalMode) return;
+                              stageGridCellChange(row.id, column, baseline, nextValue);
+                            }}
+                            disabled={historicalMode || rowPendingExtinguish}
+                            style={{
+                              width: "100%",
+                              border: isInvalid ? "1px solid rgba(120, 206, 247, 0.7)" : "1px solid rgba(106, 192, 223, 0.35)",
+                              background: isInvalid ? "rgba(12, 44, 66, 0.92)" : "rgba(7, 18, 32, 0.88)",
+                              color: "#e0f8ff",
+                              borderRadius: 6,
+                              padding: "4px 6px",
+                              fontSize: "var(--dv-fs-sm)",
+                              boxShadow: isStaged ? "0 0 0 1px rgba(107, 210, 241, 0.35)" : "none",
+                              outline: "none",
+                              boxSizing: "border-box",
+                            }}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (historicalMode || rowPendingExtinguish) return;
+                              focusGridRow(row.id);
+                              setGridEditingCell(cellId);
+                            }}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              color: rowPendingExtinguish ? "rgba(223, 248, 255, 0.58)" : "#dff8ff",
+                              width: "100%",
+                              textAlign: "left",
+                              fontSize: "var(--dv-fs-sm)",
+                              padding: "3px 2px",
+                              cursor: historicalMode || rowPendingExtinguish ? "default" : "text",
+                              textDecoration: rowPendingExtinguish ? "line-through" : "none",
+                              opacity: rowPendingExtinguish ? 0.72 : 1,
+                            }}
+                          >
+                            {currentValue || "—"}
+                          </button>
+                        )}
                       </td>
                     );
                   })}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -2837,7 +4607,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             maxWidth: 220,
           }}
         >
-          <div style={{ fontSize: 11, letterSpacing: 0.6, opacity: 0.84, color: "#d8f6ff" }}>PANELOVY DOCK</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.84, color: "#d8f6ff" }}>PANELOVY DOCK</div>
           {minimizedPanelItems.map((item) => (
             <button
               key={item.id}
@@ -2850,7 +4620,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 background: "rgba(8, 19, 33, 0.92)",
                 color: "#e2f9ff",
                 padding: "7px 10px",
-                fontSize: 12,
+                fontSize: "var(--dv-fs-sm)",
                 fontWeight: 700,
                 textAlign: "left",
                 cursor: "pointer",
@@ -2876,8 +4646,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             border: "1px solid rgba(112, 214, 246, 0.42)",
             background: "rgba(6, 14, 26, 0.92)",
             color: "#dcf8ff",
-            fontSize: 12,
-            lineHeight: 1.35,
+            fontSize: "var(--dv-fs-sm)",
+            lineHeight: "var(--dv-lh-base)",
             padding: "7px 9px",
             maxWidth: 320,
             boxShadow: "0 0 18px rgba(72, 198, 255, 0.18)",
@@ -2923,7 +4693,8 @@ const inputStyle = {
   background: "rgba(4, 10, 18, 0.92)",
   color: "#ddf7ff",
   padding: "7px 9px",
-  fontSize: 13,
+  fontSize: "var(--dv-fs-sm)",
+  letterSpacing: "var(--dv-tr-tight)",
   outline: "none",
   boxSizing: "border-box",
 };
@@ -2944,7 +4715,7 @@ const ghostButtonStyle = {
   color: "#d5f5ff",
   borderRadius: 8,
   padding: "7px 10px",
-  fontSize: 12,
+  fontSize: "var(--dv-fs-sm)",
   cursor: "pointer",
 };
 
@@ -2959,15 +4730,15 @@ const guideSectionStyle = {
 };
 
 const guideTitleStyle = {
-  fontSize: 11,
-  letterSpacing: 0.65,
+  fontSize: "var(--dv-fs-xs)",
+  letterSpacing: "var(--dv-tr-wide)",
   fontWeight: 700,
   color: "#bdefff",
 };
 
 const miniTitleStyle = {
-  fontSize: 11,
-  letterSpacing: 0.35,
+  fontSize: "var(--dv-fs-xs)",
+  letterSpacing: "var(--dv-tr-medium)",
   opacity: 0.82,
   fontWeight: 700,
 };
@@ -2984,8 +4755,9 @@ const hudBadgeStyle = {
   color: "#d8f6ff",
   borderRadius: 999,
   padding: "4px 8px",
-  fontSize: 11,
-  lineHeight: 1.2,
+  fontSize: "var(--dv-fs-2xs)",
+  letterSpacing: "var(--dv-tr-normal)",
+  lineHeight: "var(--dv-lh-compact)",
 };
 
 const hudButtonStyle = {
@@ -2993,7 +4765,8 @@ const hudButtonStyle = {
   background: "rgba(7, 16, 29, 0.85)",
   color: "#d7f7ff",
   borderRadius: 999,
-  fontSize: 11,
+  fontSize: "var(--dv-fs-2xs)",
+  letterSpacing: "var(--dv-tr-normal)",
   padding: "5px 9px",
   cursor: "pointer",
 };

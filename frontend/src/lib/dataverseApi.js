@@ -142,6 +142,23 @@ export function buildParserPayload(command, galaxyId = null, branchId = null) {
   return payload;
 }
 
+export function buildTaskBatchPayload({ tasks, mode = "commit", galaxyId = null, branchId = null, idempotencyKey = null } = {}) {
+  const payload = {
+    mode: String(mode || "commit").toLowerCase(),
+    tasks: Array.isArray(tasks) ? tasks : [],
+  };
+  if (galaxyId) {
+    payload.galaxy_id = galaxyId;
+  }
+  if (branchId) {
+    payload.branch_id = branchId;
+  }
+  if (idempotencyKey) {
+    payload.idempotency_key = idempotencyKey;
+  }
+  return payload;
+}
+
 export function toAsOfIso(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -173,6 +190,14 @@ export function buildTablesUrl(apiBase, asOfIso = null, galaxyId = null, branchI
   }
   if (branchId) {
     url.searchParams.set("branch_id", branchId);
+  }
+  return url.toString();
+}
+
+export function buildTableContractUrl(apiBase, tableId, galaxyId = null) {
+  const url = new URL(`${apiBase}/contracts/${tableId}`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
   }
   return url.toString();
 }

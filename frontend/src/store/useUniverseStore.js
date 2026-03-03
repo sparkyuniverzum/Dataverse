@@ -10,9 +10,9 @@ const DEFAULT_CAMERA = {
 
 const DEFAULT_PANELS = {
   command: {
-    title: "Navigace a Akce",
-    rect: { x: 28, y: 28, width: 460, height: 460 },
-    collapsed: false,
+    title: "Rozsirene Akce",
+    rect: { x: 24, y: 140, width: 460, height: 460 },
+    collapsed: true,
   },
   inspector: {
     title: "Detail Mesice a Nerosty",

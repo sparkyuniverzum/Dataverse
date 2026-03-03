@@ -13,6 +13,8 @@ export default function FloatingPanel({
 }) {
   const rect = useMemo(() => normalizePanelRect(config?.rect), [config?.rect]);
   const collapsed = Boolean(config?.collapsed);
+  const isGridPanel = id === "grid";
+  const isInspectorPanel = id === "inspector";
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 });
 
@@ -64,7 +66,7 @@ export default function FloatingPanel({
           color: "#d8f7ff",
           borderRadius: 999,
           padding: "8px 14px",
-          fontSize: 13,
+          fontSize: "var(--dv-fs-md)",
           fontWeight: 700,
           cursor: "pointer",
           boxShadow: "0 0 16px rgba(44, 169, 219, 0.26)",
@@ -85,10 +87,18 @@ export default function FloatingPanel({
         height: rect.height,
         zIndex: 40,
         borderRadius: 12,
-        border: "1px solid rgba(99, 194, 228, 0.35)",
-        background: "rgba(4, 11, 21, 0.84)",
+        border: isGridPanel
+          ? "1px solid rgba(99, 194, 228, 0.28)"
+          : isInspectorPanel
+            ? "1px solid rgba(99, 194, 228, 0.3)"
+            : "1px solid rgba(99, 194, 228, 0.35)",
+        background: isGridPanel
+          ? "rgba(4, 11, 21, 0.56)"
+          : isInspectorPanel
+            ? "rgba(4, 11, 21, 0.72)"
+            : "rgba(4, 11, 21, 0.84)",
         color: "#d9f8ff",
-        backdropFilter: "blur(8px)",
+        backdropFilter: isGridPanel ? "blur(10px)" : "blur(8px)",
         display: "grid",
         gridTemplateRows: "34px minmax(0, 1fr)",
         resize: "both",
@@ -116,12 +126,14 @@ export default function FloatingPanel({
           alignItems: "center",
           justifyContent: "space-between",
           padding: "0 10px",
-          borderBottom: "1px solid rgba(90, 170, 205, 0.28)",
+          borderBottom: isGridPanel
+            ? "1px solid rgba(90, 170, 205, 0.22)"
+            : "1px solid rgba(90, 170, 205, 0.28)",
           cursor: dragging ? "grabbing" : "grab",
           userSelect: "none",
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.3, color: "#d7f7ff" }}>{title}</span>
+        <span style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700, letterSpacing: "var(--dv-tr-normal)", color: "#d7f7ff" }}>{title}</span>
         <button
           type="button"
           onMouseDown={(event) => event.stopPropagation()}
@@ -132,7 +144,7 @@ export default function FloatingPanel({
             background: "rgba(8, 18, 30, 0.84)",
             color: "#ceeffa",
             padding: "2px 8px",
-            fontSize: 11,
+            fontSize: "var(--dv-fs-xs)",
             cursor: "pointer",
           }}
         >
