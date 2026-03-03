@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Deprecated legacy service.
+
+Not used by the active write path (`TaskExecutorService` + event store).
+Kept only for backwards compatibility until hard removal.
+"""
+
 from datetime import datetime, timezone
 from uuid import UUID
 

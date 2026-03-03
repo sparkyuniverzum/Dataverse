@@ -189,6 +189,9 @@ Date: 2026-02-28
 ### `GET /io/imports/{job_id}/errors`
 - Auth required.
 - Response `200`: `{ errors: ImportErrorPublic[] }`.
+- `ImportErrorPublic.code` is typed by failure class (`ROW_INPUT_INVALID`, `ROW_DOMAIN_VALIDATION`, `ROW_CONTRACT_VIOLATION`, `ROW_TARGET_NOT_FOUND`, `ROW_CONFLICT`/domain conflict code, `ROW_INTERNAL_ERROR`, `ROW_UNEXPECTED_ERROR`).
+- `ImportErrorPublic.raw_value` stores structured JSON string with source row + normalized error envelope:
+  - `{ "row": {...}, "error": { "code": string, "message": string, "details": object } }`
 - Errors: `404` if job is missing or belongs to another user.
 
 ### `GET /io/exports/snapshot`

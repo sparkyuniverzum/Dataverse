@@ -133,6 +133,18 @@ Definition of done:
 - legacy service path either removed or explicitly marked internal-deprecated and unreferenced.
 - docs and contracts reflect only active command path.
 
+Status (2026-03-03):
+- implemented
+- import path hardening:
+  - `app/services/io_service.py` now maps row failures to typed codes (`ROW_INPUT_INVALID`, `ROW_CONTRACT_VIOLATION`, conflict/target/internal variants).
+  - import error `raw_value` now stores structured JSON payload with `{ row, error { code, message, details } }`.
+- projection hardening:
+  - `app/services/universe_service.py` no longer silently drops malformed `BOND_FORMED` payloads.
+  - malformed projection event now raises traceable `HTTP 500` with `code=UNIVERSE_EVENT_PAYLOAD_INVALID` + event metadata.
+- legacy cleanup:
+  - `app/services/atom_service.py` and `app/services/bond_service.py` explicitly marked deprecated.
+  - active architecture docs updated to `TaskExecutorService` write path.
+
 ## Test strategy upgrade
 
 Add/expand tests for parity with parser rigor:

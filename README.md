@@ -55,7 +55,7 @@ Parser kontrakt:
 - pokud pošleš obě hodnoty, musí být shodné
 - jinak endpoint vrátí `422`
 
-Parser vrací seznam `tasks` (`INGEST`, `LINK`, `SELECT`, `EXTINGUISH`) a ty jsou provedeny přes `AtomService` + `BondService` v jedné DB transakci.
+Parser vrací seznam `tasks` (`INGEST`, `LINK`, `SELECT`, `EXTINGUISH`) a ty jsou provedeny přes `TaskExecutorService` (event-store write path) v jedné DB transakci.
 
 Při chybě se transakce rollbackne (nic se trvale nezapíše).
 

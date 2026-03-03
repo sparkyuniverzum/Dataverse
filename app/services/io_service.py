@@ -40,6 +40,13 @@ class ImportExecutionResult:
     summary: dict[str, Any]
 
 
+@dataclass
+class ImportRowFailure:
+    code: str
+    message: str
+    details: dict[str, Any]
+
+
 class ImportErrorRow(BaseModel):
     row_number: int
     column_name: str | None = None
@@ -156,6 +163,64 @@ class ImportExportService:
                 },
             )
         ]
+
+    @staticmethod
+    def _classify_row_failure(exc: Exception) -> ImportRowFailure:
+        if isinstance(exc, ValueError):
+            return ImportRowFailure(
+                code="ROW_INPUT_INVALID",
+                message=str(exc),
+                details={"kind": "value_error"},
+            )
+
+        if isinstance(exc, HTTPException):
+            detail = exc.detail
+            http_status = int(exc.status_code)
+            detail_dict = detail if isinstance(detail, dict) else {}
+            detail_message = (
+                str(detail_dict.get("message")).strip()
+                if isinstance(detail_dict.get("message"), str)
+                else str(detail).strip()
+            )
+            normalized = detail_message.lower()
+
+            if http_status == status.HTTP_404_NOT_FOUND:
+                code = "ROW_TARGET_NOT_FOUND"
+            elif http_status == status.HTTP_409_CONFLICT:
+                code = str(detail_dict.get("code") or "ROW_CONFLICT").strip() or "ROW_CONFLICT"
+            elif http_status == status.HTTP_422_UNPROCESSABLE_ENTITY:
+                code = "ROW_CONTRACT_VIOLATION" if "table contract violation" in normalized else "ROW_DOMAIN_VALIDATION"
+            elif http_status >= 500:
+                code = "ROW_INTERNAL_ERROR"
+            else:
+                code = f"ROW_HTTP_{http_status}"
+
+            return ImportRowFailure(
+                code=code,
+                message=detail_message or "Row execution failed",
+                details={"kind": "http_error", "http_status": http_status, "detail": detail},
+            )
+
+        return ImportRowFailure(
+            code="ROW_UNEXPECTED_ERROR",
+            message=str(exc) or exc.__class__.__name__,
+            details={"kind": "unexpected_error", "error_type": exc.__class__.__name__},
+        )
+
+    @staticmethod
+    def _serialize_row_error_payload(*, row: dict[str, str], failure: ImportRowFailure) -> str:
+        return json.dumps(
+            {
+                "row": row,
+                "error": {
+                    "code": failure.code,
+                    "message": failure.message,
+                    "details": failure.details,
+                },
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
 
     async def _create_import_job(
         self,
@@ -288,16 +353,48 @@ class ImportExportService:
                             manage_transaction=False,
                         )
                 processed_rows += 1
-            except Exception as exc:
+            except (ValueError, HTTPException) as exc:
+                failure = self._classify_row_failure(exc)
                 errors_count += 1
                 async with in_tx():
                     session.add(
                         ImportError(
                             job_id=job.id,
                             row_number=row_number,
-                            code="ROW_EXECUTION_ERROR",
-                            message=str(exc),
-                            raw_value=json.dumps(row, ensure_ascii=False),
+                            code=failure.code,
+                            message=failure.message,
+                            raw_value=self._serialize_row_error_payload(row=row, failure=failure),
+                        )
+                    )
+                if strict:
+                    async with in_tx():
+                        job.status = ImportStatus.FAILED.value
+                        job.total_rows = total_rows
+                        job.processed_rows = processed_rows
+                        job.errors_count = errors_count
+                        job.finished_at = datetime.now(timezone.utc)
+                        job.summary = {
+                            "strict": strict,
+                            "planned_tasks": planned_tasks,
+                            "mode": mode.value,
+                            "failure_row": row_number,
+                            "branch_id": str(branch_id) if branch_id is not None else None,
+                        }
+                    await session.refresh(job)
+                    return ImportExecutionResult(job=job, summary=job.summary)
+            except RuntimeError:
+                raise
+            except Exception as exc:
+                failure = self._classify_row_failure(exc)
+                errors_count += 1
+                async with in_tx():
+                    session.add(
+                        ImportError(
+                            job_id=job.id,
+                            row_number=row_number,
+                            code=failure.code,
+                            message=failure.message,
+                            raw_value=self._serialize_row_error_payload(row=row, failure=failure),
                         )
                     )
                 if strict:

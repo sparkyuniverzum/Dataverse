@@ -1340,7 +1340,7 @@ def test_csv_import_lenient_mode_persists_valid_rows_and_exposes_errors(auth_cli
     error_items = errors.json()["errors"]
     assert len(error_items) == 1
     assert error_items[0]["row_number"] == 3
-    assert error_items[0]["code"] == "ROW_EXECUTION_ERROR"
+    assert error_items[0]["code"] == "ROW_INPUT_INVALID"
     assert "partial bond columns" in error_items[0]["message"]
     assert "ONLY_SOURCE" in (error_items[0]["raw_value"] or "")
 
@@ -1737,6 +1737,7 @@ def test_csv_import_contract_violation_strict_mode_stops_processing(auth_client:
     error_items = errors.json()["errors"]
     assert len(error_items) == 1
     assert error_items[0]["row_number"] == 2
+    assert error_items[0]["code"] == "ROW_CONTRACT_VIOLATION"
     assert "Table contract violation" in error_items[0]["message"]
 
     snapshot_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
@@ -1975,6 +1976,7 @@ def test_csv_import_contract_violation_is_reported_per_row(auth_client: tuple[ht
     items = errors.json()["errors"]
     assert len(items) == 1
     assert items[0]["row_number"] == 2
+    assert items[0]["code"] == "ROW_CONTRACT_VIOLATION"
     assert "Table contract violation" in items[0]["message"]
 
     snapshot_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})

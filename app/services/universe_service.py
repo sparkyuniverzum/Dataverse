@@ -86,6 +86,13 @@ class ProjectedBond:
     current_event_seq: int = 0
 
 
+class ProjectionPayloadError(ValueError):
+    def __init__(self, *, event: Event, reason: str) -> None:
+        self.event = event
+        self.reason = reason
+        super().__init__(reason)
+
+
 class UniverseService:
     def __init__(self, event_store: EventStoreService | None = None) -> None:
         self.event_store = event_store or EventStoreService()
@@ -149,8 +156,11 @@ class UniverseService:
             try:
                 source_id = UUID(str(payload["source_id"]))
                 target_id = UUID(str(payload["target_id"]))
-            except Exception:
-                return
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ProjectionPayloadError(
+                    event=event,
+                    reason="BOND_FORMED payload must include valid source_id and target_id UUIDs",
+                ) from exc
             bonds_by_id[event.entity_id] = ProjectedBond(
                 id=event.entity_id,
                 source_id=source_id,
@@ -317,7 +327,19 @@ class UniverseService:
         asteroids_by_id: dict[UUID, ProjectedAsteroid] = {}
         bonds_by_id: dict[UUID, ProjectedBond] = {}
         for event in events:
-            self._apply_event(event, asteroids_by_id, bonds_by_id)
+            try:
+                self._apply_event(event, asteroids_by_id, bonds_by_id)
+            except ProjectionPayloadError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={
+                        "code": "UNIVERSE_EVENT_PAYLOAD_INVALID",
+                        "message": "Failed to project universe state due to malformed event payload",
+                        "event_id": str(exc.event.id),
+                        "event_type": exc.event.event_type,
+                        "reason": exc.reason,
+                    },
+                ) from exc
 
         active_asteroids = [a for a in asteroids_by_id.values() if not a.is_deleted]
         active_asteroids.sort(key=lambda item: (item.created_at, str(item.id)))
@@ -382,7 +404,19 @@ class UniverseService:
         asteroids_by_id: dict[UUID, ProjectedAsteroid] = {}
         bonds_by_id: dict[UUID, ProjectedBond] = {}
         for event in [*main_events, *branch_events]:
-            self._apply_event(event, asteroids_by_id, bonds_by_id)
+            try:
+                self._apply_event(event, asteroids_by_id, bonds_by_id)
+            except ProjectionPayloadError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={
+                        "code": "UNIVERSE_EVENT_PAYLOAD_INVALID",
+                        "message": "Failed to project universe state due to malformed event payload",
+                        "event_id": str(exc.event.id),
+                        "event_type": exc.event.event_type,
+                        "reason": exc.reason,
+                    },
+                ) from exc
 
         active_asteroids = [a for a in asteroids_by_id.values() if not a.is_deleted]
         active_asteroids.sort(key=lambda item: (item.created_at, str(item.id)))
