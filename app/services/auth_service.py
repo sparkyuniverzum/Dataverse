@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models import Galaxy, User
+from app.services.galaxy_scope_service import resolve_user_galaxy_for_user
 
 
 JWT_SECRET_KEY = os.getenv("DATAVERSE_JWT_SECRET", "dataverse-dev-insecure-change-me")
