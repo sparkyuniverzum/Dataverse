@@ -209,7 +209,7 @@ class CosmosService:
         galaxy = await self._resolve_user_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)
         branch_name = str(name).strip()
         if not branch_name:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Branch name cannot be empty")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Branch name cannot be empty")
         normalized_name = self._normalize_branch_name(branch_name)
 
         lock_key = self._branch_name_lock_key(galaxy_id=galaxy.id, normalized_name=normalized_name)

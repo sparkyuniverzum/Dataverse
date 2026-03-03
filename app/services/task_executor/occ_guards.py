@@ -48,12 +48,12 @@ class OccGuards:
             parsed = int(str(value).strip())
         except (TypeError, ValueError):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"{field_name} must be a non-negative integer",
             ) from None
         if parsed < 0:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"{field_name} must be a non-negative integer",
             )
         return parsed

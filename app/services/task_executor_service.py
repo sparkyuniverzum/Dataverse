@@ -261,7 +261,7 @@ class TaskExecutorService:
         if action == "INGEST":
             if "value" not in task.params:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="INGEST task requires value",
                 )
             value = task.params["value"]
@@ -333,7 +333,7 @@ class TaskExecutorService:
             asteroid_uuid = self._parse_uuid(task.params.get("asteroid_id"))
             if asteroid_uuid is None:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="UPDATE_ASTEROID requires valid asteroid_id",
                 )
 
@@ -371,7 +371,7 @@ class TaskExecutorService:
 
             if not has_change:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="No effective update for asteroid",
                 )
 
@@ -422,7 +422,7 @@ class TaskExecutorService:
             if source_id is None or target_id is None:
                 if len(ctx.context_asteroid_ids) < 2:
                     raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail="LINK task requires source_id/target_id or two previous INGEST tasks",
                     )
                 source_id = ctx.context_asteroid_ids[-2]
@@ -432,7 +432,7 @@ class TaskExecutorService:
             target_uuid = UUID(str(target_id))
             if source_uuid == target_uuid:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="source_id and target_id must be different",
                 )
             if source_uuid not in ctx.asteroids_by_id:
@@ -574,7 +574,7 @@ class TaskExecutorService:
             bond_uuid = self._parse_uuid(task.params.get("bond_id"))
             if bond_uuid is None:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="UPDATE_BOND requires valid bond_id",
                 )
             bond = ctx.bonds_by_id.get(bond_uuid)
@@ -584,7 +584,7 @@ class TaskExecutorService:
             raw_type = str(task.params.get("type", "")).strip()
             if not raw_type:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="UPDATE_BOND requires non-empty type",
                 )
             next_type = normalize_bond_type(raw_type)
@@ -684,7 +684,7 @@ class TaskExecutorService:
             bond_uuid = self._parse_uuid(task.params.get("bond_id"))
             if bond_uuid is None:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="EXTINGUISH_BOND requires valid bond_id",
                 )
             bond = ctx.bonds_by_id.get(bond_uuid)
@@ -729,7 +729,7 @@ class TaskExecutorService:
                 asteroid_uuid = self._parse_uuid(asteroid_id)
                 if asteroid_uuid is None:
                     raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail="Invalid asteroid_id format",
                     )
                 asteroid = ctx.asteroids_by_id.get(asteroid_uuid)
@@ -747,7 +747,7 @@ class TaskExecutorService:
                     targets = [asteroid]
             else:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="DELETE/EXTINGUISH task requires asteroid_id, target_asteroid, or target",
                 )
 
@@ -762,7 +762,7 @@ class TaskExecutorService:
             )
             if expected_event_seq is not None and len(targets) != 1:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="expected_event_seq can be used only with a single delete target",
                 )
 
@@ -835,7 +835,7 @@ class TaskExecutorService:
             )
             if not target:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="SELECT task requires target_asteroid",
                 )
             selected = self._find_asteroids_by_target(
@@ -852,7 +852,7 @@ class TaskExecutorService:
             formula = task.params.get("formula")
             if not target or not field or not formula:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="SET_FORMULA task requires target, field, and formula",
                 )
 
@@ -907,14 +907,14 @@ class TaskExecutorService:
             action_name = task.params.get("action")
             if not target or not field or not operator or action_name is None:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="ADD_GUARDIAN task requires target, field, operator, threshold, and action",
                 )
 
             operator_value = str(operator).strip()
             if operator_value not in {">", "<", "==", ">=", "<="}:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="ADD_GUARDIAN uses unsupported operator",
                 )
 
@@ -1080,7 +1080,7 @@ class TaskExecutorService:
             for task in tasks:
                 if not await self._dispatch_task_family(task=task, ctx=context):
                     raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail=f"Unsupported task action: {task.action}",
                     )
 

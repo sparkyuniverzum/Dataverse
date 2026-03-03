@@ -16,6 +16,7 @@ from app.schemas import (
     AsteroidIngestRequest,
     AsteroidMutateRequest,
     AsteroidResponse,
+    build_moon_facts,
     AuthResponse,
     BranchCreateRequest,
     BranchPromoteResponse,
@@ -559,6 +560,7 @@ def universe_asteroid_to_snapshot(
             metadata=metadata,
             calculated_values=calculated_values,
             active_alerts=[str(alert) for alert in active_alerts],
+            facts=build_moon_facts(value=asteroid.get("value"), metadata=metadata, calculated_values=calculated_values),
             created_at=asteroid["created_at"],
             current_event_seq=int(asteroid.get("current_event_seq", 0) or 0),
         )
@@ -575,6 +577,7 @@ def universe_asteroid_to_snapshot(
         metadata=asteroid.metadata,
         calculated_values={},
         active_alerts=[],
+        facts=build_moon_facts(value=asteroid.value, metadata=asteroid.metadata, calculated_values={}),
         created_at=asteroid.created_at,
         current_event_seq=int(getattr(asteroid, "current_event_seq", 0) or 0),
     )
@@ -1525,14 +1528,14 @@ async def parse_and_execute(
             # Fallback can be globally disabled via DATAVERSE_PARSER_V2_FALLBACK_TO_V1.
             if parser_version_explicit or not parser_v2_fallback_to_v1_enabled():
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Parse error: {v2_error_message}",
                 )
 
             parse_result = parser_service.parse_with_diagnostics(payload.command)
             if parse_result.errors:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Parse error: {v2_error_message}",
                 )
             tasks = parse_result.tasks
@@ -1540,7 +1543,7 @@ async def parse_and_execute(
         parse_result = parser_service.parse_with_diagnostics(payload.command)
         if parse_result.errors:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Parse error: {parse_result.errors[0]}",
             )
         tasks = parse_result.tasks
@@ -1746,16 +1749,16 @@ async def run_import_csv(
     current_user: User = Depends(get_current_user),
 ) -> ImportRunResponse:
     if not file.filename:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Missing filename")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Missing filename")
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Phase 1 import supports CSV only",
         )
 
     payload = await file.read()
     if not payload:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is empty")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Uploaded file is empty")
 
     async with transactional_context(session):
         target_galaxy_id = await resolve_galaxy_id_for_user(
@@ -1813,7 +1816,7 @@ async def export_snapshot_csv(
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     if format.lower() != "csv":
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Phase 1 export supports CSV only")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Phase 1 export supports CSV only")
     target_galaxy_id = await resolve_galaxy_id_for_user(
         session=session,
         user=current_user,
@@ -1848,7 +1851,7 @@ async def export_tables_csv(
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     if format.lower() != "csv":
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Phase 1 export supports CSV only")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Phase 1 export supports CSV only")
     target_galaxy_id = await resolve_galaxy_id_for_user(
         session=session,
         user=current_user,

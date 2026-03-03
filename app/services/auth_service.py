@@ -34,7 +34,7 @@ class AuthService:
         # bcrypt accepts at most 72 bytes; enforce this explicitly to avoid runtime ValueError.
         if len(password.encode("utf-8")) > MAX_BCRYPT_PASSWORD_BYTES:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Password is too long (max {MAX_BCRYPT_PASSWORD_BYTES} bytes for bcrypt).",
             )
 

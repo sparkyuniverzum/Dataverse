@@ -18,7 +18,7 @@ def test_classify_row_failure_value_error() -> None:
 def test_classify_row_failure_http_contract_violation() -> None:
     failure = ImportExportService._classify_row_failure(
         HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Table contract violation [Finance]: field 'cena' must be 'number'",
         )
     )

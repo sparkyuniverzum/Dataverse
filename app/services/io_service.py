@@ -82,7 +82,7 @@ class ImportExportService:
             return file_bytes.decode("utf-8-sig")
         except UnicodeDecodeError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="CSV must be UTF-8 encoded",
             ) from exc
 
@@ -188,7 +188,7 @@ class ImportExportService:
                 code = "ROW_TARGET_NOT_FOUND"
             elif http_status == status.HTTP_409_CONFLICT:
                 code = str(detail_dict.get("code") or "ROW_CONFLICT").strip() or "ROW_CONFLICT"
-            elif http_status == status.HTTP_422_UNPROCESSABLE_ENTITY:
+            elif http_status == status.HTTP_422_UNPROCESSABLE_CONTENT:
                 code = "ROW_CONTRACT_VIOLATION" if "table contract violation" in normalized else "ROW_DOMAIN_VALIDATION"
             elif http_status >= 500:
                 code = "ROW_INTERNAL_ERROR"
@@ -221,6 +221,77 @@ class ImportExportService:
             ensure_ascii=False,
             sort_keys=True,
         )
+
+    @staticmethod
+    def _build_job_summary(
+        *,
+        strict: bool,
+        planned_tasks: int,
+        mode: ImportMode,
+        branch_id: UUID | None,
+        failure_row: int | None = None,
+    ) -> dict[str, Any]:
+        summary: dict[str, Any] = {
+            "strict": strict,
+            "planned_tasks": planned_tasks,
+            "mode": mode.value,
+            "branch_id": str(branch_id) if branch_id is not None else None,
+        }
+        if failure_row is not None:
+            summary["failure_row"] = int(failure_row)
+        return summary
+
+    async def _record_import_row_failure(
+        self,
+        *,
+        session: AsyncSession,
+        in_tx: Any,
+        job_id: UUID,
+        row_number: int,
+        row: dict[str, str],
+        failure: ImportRowFailure,
+    ) -> None:
+        async with in_tx():
+            session.add(
+                ImportError(
+                    job_id=job_id,
+                    row_number=row_number,
+                    code=failure.code,
+                    message=failure.message,
+                    raw_value=self._serialize_row_error_payload(row=row, failure=failure),
+                )
+            )
+
+    async def _finalize_import_failed(
+        self,
+        *,
+        session: AsyncSession,
+        in_tx: Any,
+        job: ImportJob,
+        total_rows: int,
+        processed_rows: int,
+        errors_count: int,
+        strict: bool,
+        planned_tasks: int,
+        mode: ImportMode,
+        branch_id: UUID | None,
+        failure_row: int,
+    ) -> ImportExecutionResult:
+        async with in_tx():
+            job.status = ImportStatus.FAILED.value
+            job.total_rows = total_rows
+            job.processed_rows = processed_rows
+            job.errors_count = errors_count
+            job.finished_at = datetime.now(timezone.utc)
+            job.summary = self._build_job_summary(
+                strict=strict,
+                planned_tasks=planned_tasks,
+                mode=mode,
+                branch_id=branch_id,
+                failure_row=failure_row,
+            )
+        await session.refresh(job)
+        return ImportExecutionResult(job=job, summary=job.summary)
 
     async def _create_import_job(
         self,
@@ -325,7 +396,7 @@ class ImportExportService:
         stream = io.StringIO(decoded)
         reader = csv.DictReader(stream)
         if not reader.fieldnames:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="CSV must include a header row")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="CSV must include a header row")
 
         total_rows = 0
         processed_rows = 0
@@ -353,66 +424,33 @@ class ImportExportService:
                             manage_transaction=False,
                         )
                 processed_rows += 1
-            except (ValueError, HTTPException) as exc:
-                failure = self._classify_row_failure(exc)
-                errors_count += 1
-                async with in_tx():
-                    session.add(
-                        ImportError(
-                            job_id=job.id,
-                            row_number=row_number,
-                            code=failure.code,
-                            message=failure.message,
-                            raw_value=self._serialize_row_error_payload(row=row, failure=failure),
-                        )
-                    )
-                if strict:
-                    async with in_tx():
-                        job.status = ImportStatus.FAILED.value
-                        job.total_rows = total_rows
-                        job.processed_rows = processed_rows
-                        job.errors_count = errors_count
-                        job.finished_at = datetime.now(timezone.utc)
-                        job.summary = {
-                            "strict": strict,
-                            "planned_tasks": planned_tasks,
-                            "mode": mode.value,
-                            "failure_row": row_number,
-                            "branch_id": str(branch_id) if branch_id is not None else None,
-                        }
-                    await session.refresh(job)
-                    return ImportExecutionResult(job=job, summary=job.summary)
             except RuntimeError:
                 raise
             except Exception as exc:
                 failure = self._classify_row_failure(exc)
                 errors_count += 1
-                async with in_tx():
-                    session.add(
-                        ImportError(
-                            job_id=job.id,
-                            row_number=row_number,
-                            code=failure.code,
-                            message=failure.message,
-                            raw_value=self._serialize_row_error_payload(row=row, failure=failure),
-                        )
-                    )
+                await self._record_import_row_failure(
+                    session=session,
+                    in_tx=in_tx,
+                    job_id=job.id,
+                    row_number=row_number,
+                    row=row,
+                    failure=failure,
+                )
                 if strict:
-                    async with in_tx():
-                        job.status = ImportStatus.FAILED.value
-                        job.total_rows = total_rows
-                        job.processed_rows = processed_rows
-                        job.errors_count = errors_count
-                        job.finished_at = datetime.now(timezone.utc)
-                        job.summary = {
-                            "strict": strict,
-                            "planned_tasks": planned_tasks,
-                            "mode": mode.value,
-                            "failure_row": row_number,
-                            "branch_id": str(branch_id) if branch_id is not None else None,
-                        }
-                    await session.refresh(job)
-                    return ImportExecutionResult(job=job, summary=job.summary)
+                    return await self._finalize_import_failed(
+                        session=session,
+                        in_tx=in_tx,
+                        job=job,
+                        total_rows=total_rows,
+                        processed_rows=processed_rows,
+                        errors_count=errors_count,
+                        strict=strict,
+                        planned_tasks=planned_tasks,
+                        mode=mode,
+                        branch_id=branch_id,
+                        failure_row=row_number,
+                    )
 
         final_status = ImportStatus.COMPLETED.value
         if errors_count > 0:
@@ -424,12 +462,12 @@ class ImportExportService:
             job.processed_rows = processed_rows
             job.errors_count = errors_count
             job.finished_at = datetime.now(timezone.utc)
-            job.summary = {
-                "strict": strict,
-                "planned_tasks": planned_tasks,
-                "mode": mode.value,
-                "branch_id": str(branch_id) if branch_id is not None else None,
-            }
+            job.summary = self._build_job_summary(
+                strict=strict,
+                planned_tasks=planned_tasks,
+                mode=mode,
+                branch_id=branch_id,
+            )
         await session.refresh(job)
 
         return ImportExecutionResult(job=job, summary=job.summary)

@@ -79,7 +79,7 @@ class TargetResolver:
             return exact_matches[0]
         if len(exact_matches) > 1:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Ambiguous target '{target}' (multiple exact matches)",
             )
 
@@ -92,7 +92,7 @@ class TargetResolver:
             return contains_matches[0]
         if len(contains_matches) > 1:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Ambiguous target '{target}' (multiple partial matches)",
             )
         return None

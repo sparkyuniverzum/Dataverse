@@ -60,7 +60,7 @@ class TableContractValidator:
         if expected_type in {"json", "any"}:
             return True
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Table contract uses unsupported field type '{expected_type}'",
         )
 
@@ -83,7 +83,7 @@ class TableContractValidator:
         if op in {">", ">=", "<", "<="}:
             if left_number is None or right_number is None:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Table contract validator '{op}' requires numeric values",
                 )
             if op == ">":
@@ -102,7 +102,7 @@ class TableContractValidator:
             return True
 
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Table contract uses unsupported validator operator '{op}'",
         )
 
@@ -165,12 +165,12 @@ class TableContractValidator:
             field_value = self._extract_contract_field(value=value, metadata=metadata_dict, field=field_name)
             if field_value is None:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Table contract violation [{table_name}]: required field '{field_name}' is missing",
                 )
             if isinstance(field_value, str) and not field_value.strip():
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Table contract violation [{table_name}]: required field '{field_name}' is empty",
                 )
 
@@ -184,7 +184,7 @@ class TableContractValidator:
                 continue
             if not self._matches_expected_type(str(raw_type), field_value):
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Table contract violation [{table_name}]: field '{field_name}' must be '{str(raw_type).strip().lower()}'",
                 )
 
@@ -202,7 +202,7 @@ class TableContractValidator:
                 continue
             if not self._passes_validator(operator=operator, field_value=field_value, expected_value=expected_value):
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Table contract violation [{table_name}]: validator failed for field '{field_name}'",
                 )
 
@@ -244,6 +244,6 @@ class TableContractValidator:
                 )
                 if other_signature == candidate_signature:
                     raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail=f"Table contract violation [{table_name}]: unique rule {fields} already exists",
                     )

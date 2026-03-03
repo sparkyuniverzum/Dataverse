@@ -26,6 +26,7 @@ import {
 import { MODEL_PATH_LABEL, WORKSPACE_GUIDE } from "../../lib/onboarding";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import { buildHierarchyTree, normalizeEdgeSemanticType } from "../../lib/universe_viewmodel";
+import { toMoonRowContract } from "../../lib/universe_contract";
 import {
   DEFAULT_NODE_PHYSICS,
   deriveAsteroidBondDensityMap,
@@ -602,6 +603,54 @@ function matchesGridExpectedType(expectedRaw, valueRaw) {
     return asText.startsWith("{") && asText.endsWith("}");
   }
   return true;
+}
+
+function normalizeFactValueType(rawType) {
+  const normalized = String(rawType || "")
+    .trim()
+    .toLowerCase();
+  if (
+    normalized === "string" ||
+    normalized === "number" ||
+    normalized === "boolean" ||
+    normalized === "datetime" ||
+    normalized === "json" ||
+    normalized === "null"
+  ) {
+    return normalized;
+  }
+  return "string";
+}
+
+function coerceGridFactInputValue(rawValue, factValueTypeRaw) {
+  const rawText = String(rawValue ?? "");
+  const valueType = normalizeFactValueType(factValueTypeRaw);
+  if (valueType === "number") {
+    const number = coerceGridNumber(rawText);
+    return number === null ? rawText : number;
+  }
+  if (valueType === "boolean") {
+    const normalized = rawText.trim().toLowerCase();
+    if (["true", "1", "yes"].includes(normalized)) return true;
+    if (["false", "0", "no"].includes(normalized)) return false;
+    return rawText;
+  }
+  if (valueType === "json") {
+    const text = rawText.trim();
+    if (!text) return rawText;
+    if ((text.startsWith("{") && text.endsWith("}")) || (text.startsWith("[") && text.endsWith("]"))) {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return rawText;
+      }
+    }
+    return rawText;
+  }
+  if (valueType === "null") {
+    return rawText.trim() ? rawText : null;
+  }
+  return rawText;
 }
 
 export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGalaxies, onLogout }) {
@@ -1516,6 +1565,40 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     () => asteroidById.get(String(selectedAsteroidId || "")) || null,
     [asteroidById, selectedAsteroidId]
   );
+  const moonRowContractById = useMemo(() => {
+    const map = new Map();
+    const source = Array.isArray(snapshot?.asteroids) ? snapshot.asteroids : [];
+    source.forEach((asteroid) => {
+      const id = String(asteroid?.id || "");
+      if (!id) return;
+      map.set(id, toMoonRowContract(asteroid));
+    });
+    return map;
+  }, [snapshot?.asteroids]);
+  const selectedMoonContract = useMemo(
+    () => moonRowContractById.get(String(selectedAsteroidId || "")) || null,
+    [moonRowContractById, selectedAsteroidId]
+  );
+  const selectedAsteroidFacts = useMemo(() => {
+    if (!selectedAsteroid) return [];
+    if (Array.isArray(selectedMoonContract?.facts) && selectedMoonContract.facts.length) {
+      return selectedMoonContract.facts;
+    }
+    return toMoonRowContract(selectedAsteroid).facts;
+  }, [selectedAsteroid, selectedMoonContract]);
+  const selectedEditableFacts = useMemo(
+    () =>
+      selectedAsteroidFacts.filter((fact) => {
+        const key = String(fact?.key || "");
+        if (!key || key === "value" || RESERVED_METADATA_KEYS.has(key)) return false;
+        return String(fact?.source || "metadata") !== "calculated";
+      }),
+    [selectedAsteroidFacts]
+  );
+  const selectedCalculatedFacts = useMemo(
+    () => selectedAsteroidFacts.filter((fact) => String(fact?.source || "") === "calculated"),
+    [selectedAsteroidFacts]
+  );
   const selectedBond = useMemo(
     () => snapshot.bonds.find((bond) => String(bond.id) === String(selectedBondId || "")) || null,
     [selectedBondId, snapshot.bonds]
@@ -1664,11 +1747,19 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             ? splitEntityAndPlanetName(planet.originalNode)
             : { entityName: "Sirotci", planetName: "Bez planety" };
           const metric = moonMetricsByAsteroidId.get(moonId) || null;
-          const metadataCount = Object.keys(safeMetadata(asteroid?.metadata)).filter(
-            (field) => !RESERVED_METADATA_KEYS.has(String(field))
-          ).length;
-          const calculated = asteroid?.calculated_values && typeof asteroid.calculated_values === "object" ? asteroid.calculated_values : {};
-          const calculatedCount = Object.keys(calculated).length;
+          const contractFacts = moonRowContractById.get(moonId)?.facts || [];
+          const metadataCount =
+            contractFacts.filter((fact) => {
+              const key = String(fact?.key || "");
+              if (!key || key === "value" || RESERVED_METADATA_KEYS.has(key)) return false;
+              return String(fact?.source || "metadata") !== "calculated";
+            }).length ||
+            Object.keys(safeMetadata(asteroid?.metadata)).filter((field) => !RESERVED_METADATA_KEYS.has(String(field))).length;
+          const calculatedCount =
+            contractFacts.filter((fact) => String(fact?.source || "") === "calculated").length ||
+            Object.keys(
+              asteroid?.calculated_values && typeof asteroid.calculated_values === "object" ? asteroid.calculated_values : {}
+            ).length;
           const alertsCount = Array.isArray(asteroid?.active_alerts)
             ? asteroid.active_alerts.length
             : Number(metric?.active_alerts_count ?? 0);
@@ -1694,7 +1785,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             `${b.constellationName}/${b.planetName}/${b.label}`
           );
         }),
-    [asteroidNodeById, hierarchyView, moonMetricsByAsteroidId, tableNodeById]
+    [asteroidNodeById, hierarchyView, moonMetricsByAsteroidId, moonRowContractById, tableNodeById]
   );
   const selectedQuickLinkTypeOption = useMemo(
     () => QUICK_LINK_TYPE_OPTIONS.find((item) => item.value === quickLinkType) || QUICK_LINK_TYPE_OPTIONS[0],
@@ -1829,12 +1920,20 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     if (!planet) return [];
     return [...(Array.isArray(planet.moons) ? planet.moons : [])]
       .map((moon) => {
+        const moonId = String(moon?.id || "");
         const asteroid = moon?.originalNode;
-        if (asteroid && typeof asteroid === "object") return asteroid;
-        return { id: moon.id, value: moon.label || moon.id, metadata: {} };
+        const base =
+          asteroid && typeof asteroid === "object" ? asteroid : { id: moonId, value: moon.label || moonId, metadata: {} };
+        const contract = moonRowContractById.get(moonId) || toMoonRowContract(base);
+        return {
+          ...base,
+          id: base.id || moonId,
+          facts: Array.isArray(contract?.facts) ? contract.facts : [],
+          current_event_seq: Number.isInteger(base?.current_event_seq) ? base.current_event_seq : Number(contract?.current_event_seq || 0),
+        };
       })
       .sort((a, b) => valueToLabel(a.value).localeCompare(valueToLabel(b.value)));
-  }, [hierarchyView, selectedTableId]);
+  }, [hierarchyView, moonRowContractById, selectedTableId]);
 
   const focusFirstMoonInSelectedTable = useCallback(() => {
     if (!tableRows.length) return false;
@@ -1872,14 +1971,39 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       });
     }
     tableRows.forEach((row) => {
-      Object.keys(safeMetadata(row.metadata)).forEach((field) => {
-        if (!RESERVED_METADATA_KEYS.has(String(field))) {
-          set.add(field);
-        }
+      const facts = Array.isArray(row?.facts) ? row.facts : [];
+      facts.forEach((fact) => {
+        const field = String(fact?.key || "");
+        if (!field || field === "value") return;
+        if (String(fact?.source || "metadata") === "calculated") return;
+        if (RESERVED_METADATA_KEYS.has(field)) return;
+        set.add(field);
       });
+      if (!facts.length) {
+        Object.keys(safeMetadata(row.metadata)).forEach((field) => {
+          if (!RESERVED_METADATA_KEYS.has(String(field))) {
+            set.add(field);
+          }
+        });
+      }
     });
     return [...set];
   }, [selectedTable, tableRows]);
+  const getRowBaselineValue = useCallback((row, column) => {
+    const normalizedColumn = String(column || "");
+    const facts = Array.isArray(row?.facts) ? row.facts : [];
+    if (normalizedColumn === "value") {
+      const fact = facts.find((item) => String(item?.key || "") === "value");
+      if (fact) return valueToLabel(fact.typed_value);
+      return valueToLabel(row?.value);
+    }
+    const fact = facts.find((item) => {
+      if (String(item?.key || "") !== normalizedColumn) return false;
+      return String(item?.source || "metadata") !== "calculated";
+    });
+    if (fact) return valueToLabel(fact.typed_value);
+    return valueToLabel(safeMetadata(row?.metadata)[normalizedColumn] ?? "");
+  }, []);
 
   const getGridColumnMode = useCallback(
     (column) => {
@@ -2240,6 +2364,22 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     () => new Map(tableRows.map((row) => [String(row.id), row])),
     [tableRows]
   );
+  const rowFactIndexByRowId = useMemo(() => {
+    const map = new Map();
+    tableRows.forEach((row) => {
+      const rowId = String(row?.id || "");
+      if (!rowId) return;
+      const facts = Array.isArray(row?.facts) ? row.facts : [];
+      const factMap = new Map();
+      facts.forEach((fact) => {
+        const key = String(fact?.key || "").trim();
+        if (!key) return;
+        factMap.set(key, fact);
+      });
+      map.set(rowId, factMap);
+    });
+    return map;
+  }, [tableRows]);
   const asteroidRowById = useMemo(
     () => new Map([...asteroidById.entries()]),
     [asteroidById]
@@ -2439,11 +2579,21 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       }
       const item = updatesByRow.get(rowId);
       if (!item) return;
-      if (column === "value") {
-        item.params.value = change.nextValue;
+      const factIndex = rowFactIndexByRowId.get(rowId) || null;
+      const fact = factIndex ? factIndex.get(column) || null : null;
+      const factSource = String(fact?.source || (column === "value" ? "value" : "metadata"))
+        .trim()
+        .toLowerCase();
+      if (factSource === "calculated") {
+        errors.push(`Radek '${valueToLabel(row?.value) || rowId}', sloupec '${column}': vypocitane pole je jen pro cteni.`);
         return;
       }
-      item.params.metadata[column] = change.nextValue;
+      const coercedValue = coerceGridFactInputValue(change.nextValue, fact?.value_type);
+      if (factSource === "value") {
+        item.params.value = coercedValue;
+        return;
+      }
+      item.params.metadata[column] = coercedValue;
     });
 
     const updateTasks = [...updatesByRow.values()].map((task) => {
@@ -2492,6 +2642,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     gridChangeSet,
     gridNewRows,
     gridPendingExtinguishIds,
+    rowFactIndexByRowId,
     resolveGridSemanticTarget,
     selectedSemantic,
     tableRowById,
@@ -4503,45 +4654,74 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
             <div style={{ display: "grid", gap: 6 }}>
               <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.62, letterSpacing: "var(--dv-tr-wide)" }}>BUNKY TEZBY (NEROSTY / SUROVINY)</div>
-              {Object.entries(safeMetadata(selectedAsteroid.metadata))
-                .filter(([key]) => !RESERVED_METADATA_KEYS.has(String(key)))
-                .map(([key, value]) => (
-                <label
-                  key={key}
-                  style={{
-                    display: "grid",
-                    gap: 4,
-                    borderBottom: "1px solid rgba(100, 184, 214, 0.24)",
-                    paddingBottom: 6,
-                  }}
-                >
-                  <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.62, letterSpacing: "var(--dv-tr-wide)" }}>
-                    {inferMineralGlyph(key, value)} · {key}
-                  </span>
-                  <input
-                    defaultValue={valueToLabel(value)}
-                    onBlur={(event) => {
-                      if (historicalMode) return;
-                      const nextValue = event.target.value;
-                      mutateAsteroid(selectedAsteroid.id, { metadata: { [key]: nextValue } }).catch((mutError) =>
-                        setError(mutError.message || "Mutate failed")
-                      );
-                    }}
-                    disabled={historicalMode}
+              {selectedEditableFacts.map((fact) => {
+                const key = String(fact?.key || "");
+                const value = fact?.typed_value;
+                return (
+                  <label
+                    key={key}
                     style={{
-                      border: "none",
-                      borderBottom: "1px solid rgba(98, 177, 204, 0.32)",
-                      borderRadius: 0,
-                      background: "rgba(0, 0, 0, 0)",
-                      color: "#ddf7ff",
-                      padding: "5px 2px",
-                      fontSize: "var(--dv-fs-md)",
-                      outline: "none",
+                      display: "grid",
+                      gap: 4,
+                      borderBottom: "1px solid rgba(100, 184, 214, 0.24)",
+                      paddingBottom: 6,
                     }}
-                  />
-                </label>
-              ))}
+                  >
+                    <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.62, letterSpacing: "var(--dv-tr-wide)" }}>
+                      {inferMineralGlyph(key, value)} · {key}
+                    </span>
+                    <input
+                      defaultValue={valueToLabel(value)}
+                      onBlur={(event) => {
+                        if (historicalMode) return;
+                        const nextValue = event.target.value;
+                        mutateAsteroid(selectedAsteroid.id, { metadata: { [key]: nextValue } }).catch((mutError) =>
+                          setError(mutError.message || "Mutate failed")
+                        );
+                      }}
+                      disabled={historicalMode}
+                      style={{
+                        border: "none",
+                        borderBottom: "1px solid rgba(98, 177, 204, 0.32)",
+                        borderRadius: 0,
+                        background: "rgba(0, 0, 0, 0)",
+                        color: "#ddf7ff",
+                        padding: "5px 2px",
+                        fontSize: "var(--dv-fs-md)",
+                        outline: "none",
+                      }}
+                    />
+                  </label>
+                );
+              })}
+              {!selectedEditableFacts.length ? (
+                <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.74 }}>Mesic zatim nema editovatelne fakty.</div>
+              ) : null}
             </div>
+
+            {selectedCalculatedFacts.length ? (
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.62, letterSpacing: "var(--dv-tr-wide)" }}>
+                  VYPOCTENE FAKTY (READ-ONLY)
+                </div>
+                {selectedCalculatedFacts.map((fact) => (
+                  <div
+                    key={`calc:${fact.key}`}
+                    style={{
+                      display: "grid",
+                      gap: 2,
+                      borderBottom: "1px solid rgba(100, 184, 214, 0.2)",
+                      paddingBottom: 6,
+                    }}
+                  >
+                    <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.64, letterSpacing: "var(--dv-tr-wide)" }}>
+                      ∑ · {fact.key}
+                    </span>
+                    <div style={{ fontSize: "var(--dv-fs-sm)", color: "#cfefff" }}>{valueToLabel(fact.typed_value) || "—"}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6 }}>
               <input
@@ -4957,7 +5137,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                     const isEditing = gridEditingCell === cellId;
                     const isStaged = Boolean(gridChangeSet[cellId]);
                     const isInvalid = Boolean(gridValidation.errorsByCell[cellId]);
-                    const baseline = column === "value" ? valueToLabel(row.value) : valueToLabel(safeMetadata(row.metadata)[column] ?? "");
+                    const baseline = getRowBaselineValue(row, column);
                     const currentValue = getCellDraft(row.id, column, baseline);
                     return (
                       <td
