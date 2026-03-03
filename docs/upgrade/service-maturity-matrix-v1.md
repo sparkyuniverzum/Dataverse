@@ -106,6 +106,20 @@ Definition of done:
 - action handlers have dedicated unit tests.
 - no behavioral drift in parser integration tests.
 
+Status (2026-03-03):
+- implemented
+- internal helper modules added:
+  - `app/services/task_executor/target_resolution.py`
+  - `app/services/task_executor/contract_validation.py`
+  - `app/services/task_executor/occ_guards.py`
+- executor action loop split into family handlers:
+  - ingest/update
+  - link/bond mutation
+  - extinguish flows
+  - formula/guardian/select
+- dedicated unit tests added:
+  - `tests/test_task_executor_service_stage2.py`
+
 ### Stage 3: Error model hardening + legacy cleanup
 
 Deliverables:
