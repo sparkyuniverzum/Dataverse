@@ -6,12 +6,12 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, ValidationError
-from sqlalchemy import and_, select, update
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Atom, Bond, Event, GalaxyActivityRM, GalaxyHealthRM, GalaxySummaryRM
-from app.services.calc_service import evaluate_universe
+from app.services.calc_engine_service import CalcEngineService
 from app.services.guardian_service import evaluate_guardians
 
 
@@ -46,23 +46,43 @@ class ReadModelProjector:
     and avoid lost updates while still keeping one DB transaction boundary.
     """
 
+    def __init__(self, *, calc_engine: CalcEngineService | None = None) -> None:
+        self.calc_engine = calc_engine or CalcEngineService()
+
     async def apply_events(self, session: AsyncSession, events: list[Event]) -> None:
-        affected_pairs: set[tuple[UUID, UUID]] = set()
+        affected_pairs: dict[tuple[UUID, UUID], int] = {}
         for event in events:
             touched = await self._apply_event_without_rollups(session=session, event=event)
             if touched is not None:
-                affected_pairs.add(touched)
+                event_seq = int(getattr(event, "event_seq", 0) or 0)
+                previous = affected_pairs.get(touched, 0)
+                affected_pairs[touched] = max(previous, event_seq)
 
-        for user_id, galaxy_id in affected_pairs:
-            await self._refresh_galaxy_rollups(session=session, user_id=user_id, galaxy_id=galaxy_id)
+        for (user_id, galaxy_id), source_event_seq in affected_pairs.items():
+            await self._refresh_galaxy_rollups(
+                session=session,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+                source_event_seq=source_event_seq,
+            )
 
     async def apply_event(self, session: AsyncSession, event: Event) -> None:
         touched = await self._apply_event_without_rollups(session=session, event=event)
         if touched is not None:
-            await self._refresh_galaxy_rollups(session=session, user_id=touched[0], galaxy_id=touched[1])
+            await self._refresh_galaxy_rollups(
+                session=session,
+                user_id=touched[0],
+                galaxy_id=touched[1],
+                source_event_seq=int(getattr(event, "event_seq", 0) or 0),
+            )
 
     async def refresh_galaxy(self, session: AsyncSession, *, user_id: UUID, galaxy_id: UUID) -> None:
-        await self._refresh_galaxy_rollups(session=session, user_id=user_id, galaxy_id=galaxy_id)
+        await self._refresh_galaxy_rollups(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            source_event_seq=None,
+        )
 
     async def _apply_event_without_rollups(
         self,
@@ -226,6 +246,7 @@ class ReadModelProjector:
         session: AsyncSession,
         user_id: UUID,
         galaxy_id: UUID,
+        source_event_seq: int | None,
     ) -> None:
         atoms = list(
             (
@@ -273,33 +294,36 @@ class ReadModelProjector:
 
         formula_fields_count = 0
         guardian_rules_count = 0
-        atoms_payload: list[dict[str, Any]] = []
         for atom in atoms:
             metadata = atom.metadata_ if isinstance(atom.metadata_, dict) else {}
             formula_fields_count += sum(1 for value in metadata.values() if isinstance(value, str) and value.strip().startswith("="))
             guardians = metadata.get("_guardians")
             if isinstance(guardians, list):
                 guardian_rules_count += len([rule for rule in guardians if isinstance(rule, dict)])
-            atoms_payload.append(
-                {
-                    "id": atom.id,
-                    "value": atom.value,
-                    "metadata": dict(metadata),
-                    "created_at": atom.created_at,
-                }
+
+        if source_event_seq is None:
+            source_event_seq = int(
+                (
+                    await session.execute(
+                        select(func.max(Event.event_seq)).where(
+                            and_(
+                                Event.user_id == user_id,
+                                Event.galaxy_id == galaxy_id,
+                                Event.branch_id.is_(None),
+                            )
+                        )
+                    )
+                ).scalar_one_or_none()
+                or 0
             )
-
-        bonds_payload = [
-            {
-                "id": bond.id,
-                "source_id": bond.source_id,
-                "target_id": bond.target_id,
-                "type": bond.type,
-            }
-            for bond in active_bonds
-        ]
-
-        evaluated = evaluate_universe(atoms_payload, bonds_payload)
+        evaluated = await self.calc_engine.evaluate_and_project(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            source_event_seq=source_event_seq,
+            atoms=atoms,
+            bonds=active_bonds,
+        )
         guarded = evaluate_guardians(evaluated)
 
         circular_fields_count = 0

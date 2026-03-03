@@ -110,6 +110,47 @@ class GalaxyHealthRM(Base):
     )
 
 
+class CalcStateRM(Base):
+    __tablename__ = "calc_state_rm"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        primary_key=True,
+    )
+    galaxy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("galaxies.id"),
+        primary_key=True,
+    )
+    asteroid_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("atoms.id"),
+        primary_key=True,
+    )
+    source_event_seq: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"), index=True)
+    engine_version: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'calc-v1'"))
+    calculated_values: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
+    calc_errors: Mapped[list[Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'[]'::jsonb"),
+    )
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    circular_fields_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class GalaxyActivityRM(Base):
     __tablename__ = "galaxy_activity_rm"
 
