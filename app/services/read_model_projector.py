@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Atom, Bond, Event, GalaxyActivityRM, GalaxyHealthRM, GalaxySummaryRM
 from app.services.calc_engine_service import CalcEngineService
 from app.services.guardian_service import evaluate_guardians
+from app.services.physics_engine_service import PhysicsEngineService
 
 
 class AsteroidCreatedPayload(BaseModel):
@@ -46,8 +47,14 @@ class ReadModelProjector:
     and avoid lost updates while still keeping one DB transaction boundary.
     """
 
-    def __init__(self, *, calc_engine: CalcEngineService | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        calc_engine: CalcEngineService | None = None,
+        physics_engine: PhysicsEngineService | None = None,
+    ) -> None:
         self.calc_engine = calc_engine or CalcEngineService()
+        self.physics_engine = physics_engine or PhysicsEngineService()
 
     async def apply_events(self, session: AsyncSession, events: list[Event]) -> None:
         affected_pairs: dict[tuple[UUID, UUID], int] = {}
@@ -391,6 +398,13 @@ class ReadModelProjector:
             },
         )
         await session.execute(health_stmt)
+
+        await self.physics_engine.project_galaxy(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            source_event_seq=source_event_seq,
+        )
 
         # keep soft-delete behavior for bonds mirrored in read model
         # (already handled via BOND_SOFT_DELETED / ASTEROID_SOFT_DELETED projection paths)

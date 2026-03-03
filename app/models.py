@@ -151,6 +151,48 @@ class CalcStateRM(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class PhysicsStateRM(Base):
+    __tablename__ = "physics_state_rm"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        primary_key=True,
+    )
+    galaxy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("galaxies.id"),
+        primary_key=True,
+    )
+    entity_kind: Mapped[str] = mapped_column(Text, primary_key=True)
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+        primary_key=True,
+    )
+    source_event_seq: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"), index=True)
+    engine_version: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'physics-v1'"))
+    stress_score: Mapped[float] = mapped_column(nullable=False, server_default=text("0"))
+    mass_factor: Mapped[float] = mapped_column(nullable=False, server_default=text("1"))
+    radius_factor: Mapped[float] = mapped_column(nullable=False, server_default=text("1"))
+    emissive_boost: Mapped[float] = mapped_column(nullable=False, server_default=text("0"))
+    pulse_factor: Mapped[float] = mapped_column(nullable=False, server_default=text("1"))
+    opacity_factor: Mapped[float] = mapped_column(nullable=False, server_default=text("1"))
+    attraction_factor: Mapped[float] = mapped_column(nullable=False, server_default=text("1"))
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class GalaxyActivityRM(Base):
     __tablename__ = "galaxy_activity_rm"
 

@@ -43,7 +43,7 @@ Status (2026-03-03):
 - Decimal math is used internally for deterministic numeric aggregation
 - deterministic calc error codes are emitted and stored (`calc_errors`, `error_count`) in `calc_state_rm`
 
-## Stage 3 - Physics engine projection (next)
+## Stage 3 - Physics engine projection (implemented)
 Goal:
 - Move visual heuristics into a dedicated async projection.
 
@@ -55,6 +55,13 @@ Deliverables:
 Definition of done:
 - Physics does not mutate business values.
 - UI can render from `physics_state_rm` with graceful fallback.
+
+Status (2026-03-03):
+- implemented
+- added `physics_state_rm` read-model with versioning (`engine_version`) and source traceability (`source_event_seq`)
+- added `PhysicsEngineService` with deterministic/idempotent upsert projection for asteroid and bond visual factors
+- integrated physics projection into `ReadModelProjector` rollup flow (sync projector mode; async worker extraction can reuse same service)
+- stale physics records are soft-deleted (no hard-delete path)
 
 ## Stage 4 - UI runtime integration (next)
 Goal:
