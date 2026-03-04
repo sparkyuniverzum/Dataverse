@@ -282,6 +282,8 @@ def table_contract_to_public(contract: TableContract) -> TableContractPublic:
     normalized_physics_rules = [item for item in raw_physics_rules if isinstance(item, dict)] if isinstance(raw_physics_rules, list) else []
     raw_physics_defaults = physics_rulebook.get("defaults") if isinstance(physics_rulebook, dict) else {}
     normalized_physics_defaults = raw_physics_defaults if isinstance(raw_physics_defaults, dict) else {}
+    raw_auto_semantics = normalized_physics_defaults.get("auto_semantics") if isinstance(normalized_physics_defaults, dict) else []
+    normalized_auto_semantics = [item for item in raw_auto_semantics if isinstance(item, dict)] if isinstance(raw_auto_semantics, list) else []
     return TableContractPublic(
         id=contract.id,
         galaxy_id=contract.galaxy_id,
@@ -291,11 +293,13 @@ def table_contract_to_public(contract: TableContract) -> TableContractPublic:
         field_types=normalized_field_types,
         unique_rules=normalized_unique_rules,
         validators=normalized_validators,
+        auto_semantics=normalized_auto_semantics,
         schema_registry={
             "required_fields": normalized_required_fields,
             "field_types": normalized_field_types,
             "unique_rules": normalized_unique_rules,
             "validators": normalized_validators,
+            "auto_semantics": normalized_auto_semantics,
         },
         formula_registry=normalized_formula_registry,
         physics_rulebook={
@@ -517,6 +521,7 @@ def execution_to_response(tasks: list[AtomicTask], execution: TaskExecutionResul
         selected_asteroids=[asteroid_to_response(asteroid) for asteroid in execution.selected_asteroids],
         extinguished_asteroid_ids=execution.extinguished_asteroid_ids,
         extinguished_bond_ids=execution.extinguished_bond_ids,
+        semantic_effects=execution.semantic_effects,
     )
 
 
@@ -1166,6 +1171,7 @@ async def upsert_table_contract(
             field_types=payload.field_types,
             unique_rules=payload.unique_rules,
             validators=payload.validators,
+            auto_semantics=payload.auto_semantics,
             formula_registry=payload.formula_registry,
             physics_rulebook=payload.physics_rulebook,
         )

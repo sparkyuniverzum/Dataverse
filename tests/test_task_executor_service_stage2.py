@@ -87,6 +87,13 @@ def test_handle_ingest_update_family_ingest_does_not_reuse_existing_from_other_t
     assert created.id != existing.id
     assert created.metadata.get("table") == "Finance > Material"
     assert ctx.context_asteroid_ids == [created.id]
+    codes = [str(item.get("code")) for item in ctx.result.semantic_effects]
+    assert "MOON_UPSERTED" in codes
+    assert "PLANET_INFERRED" in codes
+    confidence_by_code = {str(item.get("code")): str(item.get("confidence")) for item in ctx.result.semantic_effects}
+    assert confidence_by_code.get("MOON_UPSERTED") == "certain"
+    assert confidence_by_code.get("PLANET_INFERRED") == "high"
+    assert all(str(item.get("because") or "").strip() for item in ctx.result.semantic_effects)
 
 
 def test_handle_link_and_bond_mutation_family_requires_context_for_link() -> None:
@@ -206,3 +213,120 @@ def test_handle_ingest_update_family_partial_scope_reuses_existing_from_db_looku
     assert ctx.result.asteroids[0].id == existing.id
     assert ctx.context_asteroid_ids == [existing.id]
     assert existing.id in ctx.asteroids_by_id
+
+
+def test_load_auto_semantic_rules_reads_from_physics_defaults_registry() -> None:
+    service = TaskExecutorService()
+    asteroid = _asteroid(value="Alice", metadata={"table": "General > People"})
+
+    fake_contract = type(
+        "Contract",
+        (),
+        {
+            "physics_rulebook": {
+                "defaults": {
+                    "auto_semantics": [
+                        {
+                            "id": "role-employee",
+                            "kind": "bucket_by_metadata_value",
+                            "field": "role",
+                            "in": ["employee", "zamestnanec"],
+                            "target_constellation": "HR",
+                            "target_planet": "Zamestnanci",
+                        }
+                    ]
+                }
+            },
+            "validators": [],
+        },
+    )()
+
+    async def _fake_load_latest(**kwargs):  # noqa: ANN003
+        return fake_contract
+
+    service._load_latest_table_contract = _fake_load_latest  # type: ignore[method-assign]
+    rules = asyncio.run(
+        service._load_auto_semantic_rules_for_asteroid(
+            session=object(),  # type: ignore[arg-type]
+            galaxy_id=uuid4(),
+            asteroid=asteroid,
+            contract_cache={},
+        )
+    )
+
+    assert len(rules) == 1
+    assert rules[0]["id"] == "role-employee"
+
+
+def test_handle_ingest_update_family_applies_auto_semantic_reclassification() -> None:
+    service = TaskExecutorService()
+    ctx = _context(asteroids=[])
+    task = AtomicTask(action="INGEST", params={"value": "Alice", "metadata": {"table": "General > People", "role": "employee"}})
+
+    async def _append_and_project_event(*, entity_id, event_type, payload):  # noqa: ANN001
+        if event_type not in {"ASTEROID_CREATED", "METADATA_UPDATED"}:
+            raise AssertionError(f"Unexpected event append: {event_type} {entity_id}")
+        event_seq = 2 if event_type == "ASTEROID_CREATED" else 3
+        return type("Evt", (), {"timestamp": datetime.now(timezone.utc), "event_seq": event_seq})
+
+    async def _noop_validate(**kwargs):  # noqa: ANN003
+        return None
+
+    async def _fake_rules(**kwargs):  # noqa: ANN003
+        return [
+            {
+                "id": "role-employee",
+                "kind": "bucket_by_metadata_value",
+                "field": "role",
+                "in": ["employee"],
+                "target_constellation": "HR",
+                "target_planet": "Zamestnanci",
+            }
+        ]
+
+    service._validate_table_contract_write = _noop_validate  # type: ignore[method-assign]
+    service._load_auto_semantic_rules_for_asteroid = _fake_rules  # type: ignore[method-assign]
+    ctx.append_and_project_event = _append_and_project_event  # type: ignore[assignment]
+
+    handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
+
+    assert handled is True
+    assert len(ctx.result.asteroids) == 1
+    created = ctx.result.asteroids[0]
+    assert created.metadata.get("table") == "HR > Zamestnanci"
+    assert created.metadata.get("table_name") == "HR > Zamestnanci"
+    confidence_by_code = {str(item.get("code")): str(item.get("confidence")) for item in ctx.result.semantic_effects}
+    assert "MOON_RECLASSIFIED" in confidence_by_code
+    assert confidence_by_code.get("MOON_RECLASSIFIED") == "certain"
+    if "PLANET_INFERRED" in confidence_by_code:
+        assert confidence_by_code.get("PLANET_INFERRED") == "high"
+    assert all(str(item.get("because") or "").strip() for item in ctx.result.semantic_effects)
+
+
+def test_record_semantic_effect_confidence_policy_sets_high_and_medium_defaults() -> None:
+    service = TaskExecutorService()
+    ctx = _context(asteroids=[])
+
+    service._record_semantic_effect(
+        ctx=ctx,
+        code="BOND_REUSED",
+        reason="reused",
+        task_action="LINK",
+    )
+    service._record_semantic_effect(
+        ctx=ctx,
+        code="ROW_CONFLICT",
+        reason="conflict",
+        task_action="INGEST",
+    )
+    service._record_semantic_effect(
+        ctx=ctx,
+        code="ANY_EFFECT",
+        reason="warning branch",
+        task_action="UPDATE_ASTEROID",
+        severity="warning",
+    )
+
+    assert str(ctx.result.semantic_effects[0].get("confidence")) == "high"
+    assert str(ctx.result.semantic_effects[1].get("confidence")) == "medium"
+    assert str(ctx.result.semantic_effects[2].get("confidence")) == "medium"

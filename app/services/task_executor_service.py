@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import json
 from typing import Any
 from uuid import UUID, uuid4
@@ -27,6 +28,7 @@ from app.services.universe_service import (
     UniverseService,
     derive_table_id,
     derive_table_name,
+    split_constellation_and_planet_name,
 )
 
 
@@ -38,6 +40,7 @@ class TaskExecutionResult:
     extinguished_asteroids: list[ProjectedAsteroid] = field(default_factory=list)
     extinguished_asteroid_ids: list[UUID] = field(default_factory=list)
     extinguished_bond_ids: list[UUID] = field(default_factory=list)
+    semantic_effects: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -78,6 +81,351 @@ class TaskExecutorService:
         self.target_resolver = TargetResolver()
         self.occ_guards = OccGuards()
         self.contract_validator = TableContractValidator()
+
+    @staticmethod
+    def _to_jsonable_dict(payload: dict[str, Any] | None) -> dict[str, Any]:
+        if not isinstance(payload, dict):
+            return {}
+        normalized: dict[str, Any] = {}
+        for key, value in payload.items():
+            if isinstance(value, UUID):
+                normalized[str(key)] = str(value)
+            elif isinstance(value, datetime):
+                normalized[str(key)] = value.astimezone(timezone.utc).isoformat()
+            elif isinstance(value, list):
+                normalized[str(key)] = [str(item) if isinstance(item, UUID) else item for item in value]
+            else:
+                normalized[str(key)] = value
+        return normalized
+
+    @staticmethod
+    def _default_semantic_because(
+        *,
+        code: str,
+        task_action: str,
+        rule_id: str | None,
+        inputs: dict[str, Any] | None,
+        outputs: dict[str, Any] | None,
+    ) -> str:
+        normalized_code = str(code or "").strip().upper()
+        normalized_action = str(task_action or "").strip().upper()
+        normalized_rule = str(rule_id or "").strip()
+        safe_inputs = inputs if isinstance(inputs, dict) else {}
+        safe_outputs = outputs if isinstance(outputs, dict) else {}
+
+        if normalized_code == "MOON_UPSERTED":
+            return "Zadany zaznam prosel pres idempotentni upsert (vytvoreni nebo synchronizace existujiciho mesice)."
+        if normalized_code == "MOON_UPDATED":
+            return "Executor zapsal zmenu hodnoty nebo metadata do existujiciho mesice."
+        if normalized_code == "MOON_RECLASSIFIED":
+            from_table = str(safe_inputs.get("from_table_name") or "").strip()
+            to_table = str(safe_inputs.get("to_table_name") or "").strip()
+            if from_table and to_table:
+                return f"Klasifikace se zmenila z '{from_table}' na '{to_table}'."
+            return "Klasifikace mesice se zmenila na jinou planetu/tabulku."
+        if normalized_code == "PLANET_INFERRED":
+            table_name = str(safe_inputs.get("table_name") or safe_outputs.get("planet_name") or "").strip()
+            if table_name:
+                return f"Po zpracovani vznikl novy aktivni planetarni bucket '{table_name}'."
+            return "Po zpracovani vznikl novy aktivni planetarni bucket, ktery drive neexistoval."
+        if normalized_code == "BOND_CREATED":
+            bond_type = str(safe_inputs.get("type") or "RELATION").strip().upper()
+            return f"Pro danou dvojici uzlu neexistovala aktivni vazba typu {bond_type}, proto byla vytvorena."
+        if normalized_code == "BOND_REUSED":
+            return "Aktivni vazba uz existovala, executor ji znovu pouzil bez vytvareni duplicity."
+        if normalized_code == "BOND_RETYPED":
+            return "Typ vazby se meni soft-replace postupem: stara vazba se zhasne a zalozi se nova kanonicka vazba."
+        if normalized_code == "BOND_EXTINGUISHED":
+            return "Vazba byla zhasnuta soft-delete pravidlem (bez hard delete)."
+        if normalized_code == "MOON_EXTINGUISHED":
+            return "Mesic byl zhasnut soft-delete pravidlem (bez hard delete)."
+        if normalized_code == "FORMULA_SET":
+            return "Vzorec byl ulozen jako metadata pravidlo ciloveho mesice."
+        if normalized_code == "GUARDIAN_ADDED":
+            return "Guardian pravidlo bylo pridano do metadata kontraktu ciloveho mesice."
+
+        if normalized_rule:
+            return f"Efekt vznikl podle pravidla '{normalized_rule}' pri akci {normalized_action or 'UNKNOWN'}."
+        if normalized_action:
+            return f"Efekt vznikl pri akci {normalized_action}."
+        return "Efekt vznikl pri zpracovani tasku executorem."
+
+    @staticmethod
+    def _default_semantic_confidence(
+        *,
+        code: str,
+        severity: str,
+    ) -> str:
+        normalized_code = str(code or "").strip().upper()
+        normalized_severity = str(severity or "info").strip().lower()
+
+        if "CONFLICT" in normalized_code:
+            return "medium"
+        if normalized_severity in {"warning", "error", "critical"}:
+            return "medium"
+        if normalized_code in {"PLANET_INFERRED", "BOND_REUSED"}:
+            return "high"
+        return "certain"
+
+    def _record_semantic_effect(
+        self,
+        *,
+        ctx: _TaskExecutionContext,
+        code: str,
+        reason: str,
+        task_action: str,
+        rule_id: str | None = None,
+        severity: str = "info",
+        confidence: str | None = None,
+        because: str | None = None,
+        inputs: dict[str, Any] | None = None,
+        outputs: dict[str, Any] | None = None,
+    ) -> None:
+        if confidence is None:
+            normalized_confidence = self._default_semantic_confidence(
+                code=code,
+                severity=severity,
+            )
+        else:
+            normalized_confidence = str(confidence or "").strip().lower()
+        if not normalized_confidence:
+            normalized_confidence = "certain"
+        if normalized_confidence not in {"certain", "high", "medium", "likely"}:
+            normalized_confidence = "likely"
+        normalized_because = str(because).strip() if isinstance(because, str) and str(because).strip() else None
+        if not normalized_because:
+            normalized_because = self._default_semantic_because(
+                code=code,
+                task_action=task_action,
+                rule_id=rule_id,
+                inputs=inputs,
+                outputs=outputs,
+            )
+        effect = {
+            "id": str(uuid4()),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "code": str(code).strip().upper(),
+            "severity": str(severity).strip().lower() or "info",
+            "confidence": normalized_confidence,
+            "because": normalized_because,
+            "rule_id": str(rule_id).strip() if isinstance(rule_id, str) and rule_id.strip() else None,
+            "reason": str(reason).strip(),
+            "task_action": str(task_action).strip().upper(),
+            "inputs": self._to_jsonable_dict(inputs),
+            "outputs": self._to_jsonable_dict(outputs),
+        }
+        ctx.result.semantic_effects.append(effect)
+
+    @staticmethod
+    def _normalize_semantic_token(value: Any) -> str:
+        return str(value or "").strip().casefold()
+
+    @classmethod
+    def _semantic_rule_matches_value(cls, *, rule: dict[str, Any], value: Any) -> bool:
+        normalized = cls._normalize_semantic_token(value)
+        if not normalized:
+            return False
+        raw_equals = rule.get("equals")
+        if raw_equals is not None:
+            return normalized == cls._normalize_semantic_token(raw_equals)
+        raw_values = rule.get("in") if isinstance(rule.get("in"), list) else rule.get("match_values")
+        if isinstance(raw_values, list):
+            candidates = {cls._normalize_semantic_token(item) for item in raw_values}
+            return normalized in candidates
+        return False
+
+    @staticmethod
+    def _semantic_rule_target_table_name(rule: dict[str, Any]) -> str:
+        direct = str(rule.get("target_table") or "").strip()
+        if direct:
+            return direct
+        constellation = str(rule.get("target_constellation") or "").strip()
+        planet = str(rule.get("target_planet") or "").strip()
+        if constellation and planet:
+            return f"{constellation} > {planet}"
+        if planet:
+            return planet
+        return ""
+
+    async def _load_auto_semantic_rules_for_asteroid(
+        self,
+        *,
+        session: AsyncSession,
+        galaxy_id: UUID,
+        asteroid: ProjectedAsteroid,
+        contract_cache: dict[UUID, TableContract | None],
+    ) -> list[dict[str, Any]]:
+        if session is None:
+            return []
+        table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+        table_id = derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
+        contract = await self._load_latest_table_contract(
+            session=session,
+            galaxy_id=galaxy_id,
+            table_id=table_id,
+            cache=contract_cache,
+        )
+        if contract is None:
+            return []
+        raw_rules: list[Any] = []
+        physics_rulebook = contract.physics_rulebook if isinstance(contract.physics_rulebook, dict) else {}
+        defaults = physics_rulebook.get("defaults") if isinstance(physics_rulebook, dict) else {}
+        if isinstance(defaults, dict):
+            candidate = defaults.get("auto_semantics")
+            if isinstance(candidate, list):
+                raw_rules = candidate
+        if raw_rules:
+            return [rule for rule in raw_rules if isinstance(rule, dict)]
+
+        # Backward-compatible fallback for pre-registry storage in validators.
+        validators = contract.validators if isinstance(contract.validators, list) else []
+        extracted: list[dict[str, Any]] = []
+        for item in validators:
+            if not isinstance(item, dict):
+                continue
+            embedded_rule = item.get("rule")
+            if isinstance(embedded_rule, dict) and str(item.get("kind") or "").strip().lower() in {"auto_semantic", "auto_semantics"}:
+                extracted.append(embedded_rule)
+                continue
+            kind = str(item.get("kind") or "").strip().lower()
+            if kind == "bucket_by_metadata_value":
+                extracted.append(item)
+        return extracted
+
+    async def _apply_auto_semantics_for_asteroid(
+        self,
+        *,
+        ctx: _TaskExecutionContext,
+        asteroid: ProjectedAsteroid,
+        trigger_action: str,
+    ) -> None:
+        # Stage 1 automation: contract-driven table bucketing.
+        # Rules are persisted in table_contract.physics_rulebook.defaults.auto_semantics
+        # and also exposed via API schema_registry.auto_semantics.
+        # Example rule:
+        # {
+        #   "id": "role-employee-bucket",
+        #   "kind": "bucket_by_metadata_value",
+        #   "field": "role",
+        #   "in": ["employee", "zamestnanec"],
+        #   "target_constellation": "HR",
+        #   "target_planet": "Zamestnanci"
+        # }
+        guard = 0
+        while guard < 4:
+            guard += 1
+            rules = await self._load_auto_semantic_rules_for_asteroid(
+                session=ctx.session,
+                galaxy_id=ctx.galaxy_id,
+                asteroid=asteroid,
+                contract_cache=ctx.contract_cache,
+            )
+            if not rules:
+                return
+
+            before_table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+            before_table_id = derive_table_id(galaxy_id=ctx.galaxy_id, table_name=before_table_name)
+            active_table_ids_before = {
+                self._projected_table_id_for_value(
+                    galaxy_id=ctx.galaxy_id,
+                    value=item.value,
+                    metadata=item.metadata,
+                )
+                for item in ctx.asteroids_by_id.values()
+                if not item.is_deleted
+            }
+
+            changed = False
+            for rule in rules:
+                if not bool(rule.get("enabled", True)):
+                    continue
+                if str(rule.get("kind") or "").strip().lower() != "bucket_by_metadata_value":
+                    continue
+                field = str(rule.get("field") or "").strip()
+                if not field:
+                    continue
+                if field == "value":
+                    field_value = asteroid.value
+                else:
+                    field_value = asteroid.metadata.get(field)
+                if not self._semantic_rule_matches_value(rule=rule, value=field_value):
+                    continue
+
+                target_table_name = self._semantic_rule_target_table_name(rule)
+                if not target_table_name:
+                    continue
+                if self._normalize_semantic_token(target_table_name) == self._normalize_semantic_token(before_table_name):
+                    continue
+
+                metadata_patch = {}
+                if asteroid.metadata.get("table") != target_table_name:
+                    metadata_patch["table"] = target_table_name
+                if asteroid.metadata.get("table_name") != target_table_name:
+                    metadata_patch["table_name"] = target_table_name
+                if not metadata_patch:
+                    continue
+
+                next_metadata = {**asteroid.metadata, **metadata_patch}
+                await self._validate_table_contract_write(
+                    session=ctx.session,
+                    galaxy_id=ctx.galaxy_id,
+                    asteroid_id=asteroid.id,
+                    value=asteroid.value,
+                    metadata=next_metadata,
+                    asteroids_by_id=ctx.asteroids_by_id,
+                    contract_cache=ctx.contract_cache,
+                    execution_context=ctx,
+                )
+                metadata_event = await ctx.append_and_project_event(
+                    entity_id=asteroid.id,
+                    event_type="METADATA_UPDATED",
+                    payload={"metadata": metadata_patch},
+                )
+                asteroid.current_event_seq = int(metadata_event.event_seq)
+                asteroid.metadata = next_metadata
+                after_table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+                after_table_id = derive_table_id(galaxy_id=ctx.galaxy_id, table_name=after_table_name)
+                after_constellation_name, after_planet_name = split_constellation_and_planet_name(after_table_name)
+                self._record_semantic_effect(
+                    ctx=ctx,
+                    code="MOON_RECLASSIFIED",
+                    reason="Auto semantic rule moved moon to another planet bucket.",
+                    task_action=trigger_action,
+                    rule_id=str(rule.get("id") or "sem.auto.bucket_by_metadata_value"),
+                    inputs={
+                        "asteroid_id": asteroid.id,
+                        "field": field,
+                        "value": field_value,
+                        "from_table_name": before_table_name,
+                        "to_table_name": after_table_name,
+                    },
+                    outputs={
+                        "asteroid_id": asteroid.id,
+                        "from_table_id": before_table_id,
+                        "to_table_id": after_table_id,
+                        "constellation_name": after_constellation_name,
+                        "planet_name": after_planet_name,
+                    },
+                )
+                if after_table_id not in active_table_ids_before:
+                    self._record_semantic_effect(
+                        ctx=ctx,
+                        code="PLANET_INFERRED",
+                        reason="Auto semantic bucketing inferred a new planet.",
+                        task_action=trigger_action,
+                        rule_id=str(rule.get("id") or "sem.auto.bucket_by_metadata_value"),
+                        inputs={"table_name": after_table_name},
+                        outputs={
+                            "table_id": after_table_id,
+                            "constellation_name": after_constellation_name,
+                            "planet_name": after_planet_name,
+                        },
+                    )
+                changed = True
+                break
+
+            if not changed:
+                return
 
     @staticmethod
     def _bond_lock_key(
@@ -668,11 +1016,22 @@ class TaskExecutorService:
             value = task.params["value"]
             raw_metadata = task.params.get("metadata")
             metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+            requested_table_name = derive_table_name(value=value, metadata=metadata)
+            requested_constellation_name, requested_planet_name = split_constellation_and_planet_name(requested_table_name)
             requested_table_id = self._projected_table_id_for_value(
                 galaxy_id=ctx.galaxy_id,
                 value=value,
                 metadata=metadata,
             )
+            active_table_ids_before = {
+                self._projected_table_id_for_value(
+                    galaxy_id=ctx.galaxy_id,
+                    value=asteroid.value,
+                    metadata=asteroid.metadata,
+                )
+                for asteroid in ctx.asteroids_by_id.values()
+                if not asteroid.is_deleted
+            }
 
             existing = next(
                 (
@@ -750,8 +1109,43 @@ class TaskExecutorService:
                     current_event_seq=int(created_event.event_seq),
                 )
                 ctx.asteroids_by_id[asteroid.id] = asteroid
+                self._record_semantic_effect(
+                    ctx=ctx,
+                    code="MOON_UPSERTED",
+                    reason="Moon row was created from INGEST command.",
+                    task_action=action,
+                    rule_id="sem.upsert.ingest",
+                    inputs={"value": value, "table_name": requested_table_name},
+                    outputs={
+                        "asteroid_id": asteroid.id,
+                        "table_id": requested_table_id,
+                        "constellation_name": requested_constellation_name,
+                        "planet_name": requested_planet_name,
+                        "created": True,
+                    },
+                )
+                if requested_table_id not in active_table_ids_before:
+                    self._record_semantic_effect(
+                        ctx=ctx,
+                        code="PLANET_INFERRED",
+                        reason="A new planet bucket was inferred from moon table classification.",
+                        task_action=action,
+                        rule_id="sem.table.inferred",
+                        inputs={"table_name": requested_table_name},
+                        outputs={
+                            "table_id": requested_table_id,
+                            "constellation_name": requested_constellation_name,
+                            "planet_name": requested_planet_name,
+                        },
+                    )
             else:
                 asteroid = existing
+                previous_table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+                previous_table_id = self._projected_table_id_for_value(
+                    galaxy_id=ctx.galaxy_id,
+                    value=asteroid.value,
+                    metadata=asteroid.metadata,
+                )
                 metadata_update = {k: v for k, v in metadata.items() if asteroid.metadata.get(k) != v}
                 if metadata_update:
                     next_metadata = {**asteroid.metadata, **metadata_update}
@@ -772,7 +1166,62 @@ class TaskExecutorService:
                     )
                     asteroid.current_event_seq = int(metadata_event.event_seq)
                     asteroid.metadata = next_metadata
+                    next_table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+                    next_table_id = self._projected_table_id_for_value(
+                        galaxy_id=ctx.galaxy_id,
+                        value=asteroid.value,
+                        metadata=asteroid.metadata,
+                    )
+                    self._record_semantic_effect(
+                        ctx=ctx,
+                        code="MOON_UPSERTED",
+                        reason="Existing moon metadata was synchronized from INGEST command.",
+                        task_action=action,
+                        rule_id="sem.upsert.ingest",
+                        inputs={"asteroid_id": asteroid.id, "metadata_patch_keys": sorted(list(metadata_update.keys()))},
+                        outputs={"asteroid_id": asteroid.id, "created": False, "table_id": next_table_id},
+                    )
+                    if previous_table_id != next_table_id:
+                        next_constellation_name, next_planet_name = split_constellation_and_planet_name(next_table_name)
+                        self._record_semantic_effect(
+                            ctx=ctx,
+                            code="MOON_RECLASSIFIED",
+                            reason="Moon changed table classification after metadata update.",
+                            task_action=action,
+                            rule_id="sem.table.reclassify",
+                            inputs={
+                                "asteroid_id": asteroid.id,
+                                "from_table_name": previous_table_name,
+                                "to_table_name": next_table_name,
+                            },
+                            outputs={
+                                "asteroid_id": asteroid.id,
+                                "from_table_id": previous_table_id,
+                                "to_table_id": next_table_id,
+                                "constellation_name": next_constellation_name,
+                                "planet_name": next_planet_name,
+                            },
+                        )
+                        if next_table_id not in active_table_ids_before:
+                            self._record_semantic_effect(
+                                ctx=ctx,
+                                code="PLANET_INFERRED",
+                                reason="Reclassification produced a new inferred planet bucket.",
+                                task_action=action,
+                                rule_id="sem.table.inferred",
+                                inputs={"table_name": next_table_name},
+                                outputs={
+                                    "table_id": next_table_id,
+                                    "constellation_name": next_constellation_name,
+                                    "planet_name": next_planet_name,
+                                },
+                            )
 
+            await self._apply_auto_semantics_for_asteroid(
+                ctx=ctx,
+                asteroid=asteroid,
+                trigger_action=action,
+            )
             ctx.context_asteroid_ids.append(asteroid.id)
             ctx.result.asteroids.append(asteroid)
             return True
@@ -805,6 +1254,21 @@ class TaskExecutorService:
             has_change = False
             next_value = asteroid.value
             next_metadata = dict(asteroid.metadata)
+            previous_table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+            previous_table_id = self._projected_table_id_for_value(
+                galaxy_id=ctx.galaxy_id,
+                value=asteroid.value,
+                metadata=asteroid.metadata,
+            )
+            active_table_ids_before = {
+                self._projected_table_id_for_value(
+                    galaxy_id=ctx.galaxy_id,
+                    value=item.value,
+                    metadata=item.metadata,
+                )
+                for item in ctx.asteroids_by_id.values()
+                if not item.is_deleted
+            }
             if "value" in task.params:
                 next_value = task.params.get("value")
                 if asteroid.value != next_value:
@@ -858,6 +1322,62 @@ class TaskExecutorService:
                     asteroid.current_event_seq = int(metadata_event.event_seq)
                     asteroid.metadata = next_metadata
 
+            next_table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+            next_table_id = self._projected_table_id_for_value(
+                galaxy_id=ctx.galaxy_id,
+                value=asteroid.value,
+                metadata=asteroid.metadata,
+            )
+            self._record_semantic_effect(
+                ctx=ctx,
+                code="MOON_UPDATED",
+                reason="Moon value or metadata was updated.",
+                task_action=action,
+                rule_id="sem.update.asteroid",
+                inputs={"asteroid_id": asteroid.id},
+                outputs={"asteroid_id": asteroid.id, "table_id": next_table_id},
+            )
+            if previous_table_id != next_table_id:
+                next_constellation_name, next_planet_name = split_constellation_and_planet_name(next_table_name)
+                self._record_semantic_effect(
+                    ctx=ctx,
+                    code="MOON_RECLASSIFIED",
+                    reason="Moon moved to another planet/table after update.",
+                    task_action=action,
+                    rule_id="sem.table.reclassify",
+                    inputs={
+                        "asteroid_id": asteroid.id,
+                        "from_table_name": previous_table_name,
+                        "to_table_name": next_table_name,
+                    },
+                    outputs={
+                        "asteroid_id": asteroid.id,
+                        "from_table_id": previous_table_id,
+                        "to_table_id": next_table_id,
+                        "constellation_name": next_constellation_name,
+                        "planet_name": next_planet_name,
+                    },
+                )
+                if next_table_id not in active_table_ids_before:
+                    self._record_semantic_effect(
+                        ctx=ctx,
+                        code="PLANET_INFERRED",
+                        reason="Update produced a new inferred planet bucket.",
+                        task_action=action,
+                        rule_id="sem.table.inferred",
+                        inputs={"table_name": next_table_name},
+                        outputs={
+                            "table_id": next_table_id,
+                            "constellation_name": next_constellation_name,
+                            "planet_name": next_planet_name,
+                        },
+                    )
+
+            await self._apply_auto_semantics_for_asteroid(
+                ctx=ctx,
+                asteroid=asteroid,
+                trigger_action=action,
+            )
             ctx.result.asteroids.append(asteroid)
             return True
 
@@ -938,6 +1458,15 @@ class TaskExecutorService:
             )
             if existing_bond is not None:
                 ctx.result.bonds.append(existing_bond)
+                self._record_semantic_effect(
+                    ctx=ctx,
+                    code="BOND_REUSED",
+                    reason="Existing bond already satisfies the semantic link request.",
+                    task_action=action,
+                    rule_id="sem.link.reuse",
+                    inputs={"source_id": source_uuid, "target_id": target_uuid, "type": bond_type},
+                    outputs={"bond_id": existing_bond.id, "created": False},
+                )
                 return True
 
             lock_key = self._bond_lock_key(
@@ -1017,6 +1546,15 @@ class TaskExecutorService:
             )
             ctx.bonds_by_id[bond.id] = bond
             ctx.result.bonds.append(bond)
+            self._record_semantic_effect(
+                ctx=ctx,
+                code="BOND_CREATED",
+                reason="New semantic bond was created.",
+                task_action=action,
+                rule_id="sem.link.create",
+                inputs={"source_id": source_uuid, "target_id": target_uuid, "type": bond_type},
+                outputs={"bond_id": bond.id, "created": True},
+            )
             return True
 
         if action == "UPDATE_BOND":
@@ -1054,6 +1592,15 @@ class TaskExecutorService:
             current_type = normalize_bond_type(bond.type)
             if next_type == current_type:
                 ctx.result.bonds.append(bond)
+                self._record_semantic_effect(
+                    ctx=ctx,
+                    code="BOND_REUSED",
+                    reason="Requested bond type is already active.",
+                    task_action=action,
+                    rule_id="sem.bond.noop",
+                    inputs={"bond_id": bond.id, "type": current_type},
+                    outputs={"bond_id": bond.id, "created": False},
+                )
                 return True
 
             source_uuid = bond.source_id
@@ -1123,6 +1670,15 @@ class TaskExecutorService:
             )
             ctx.bonds_by_id[new_bond.id] = new_bond
             ctx.result.bonds.append(new_bond)
+            self._record_semantic_effect(
+                ctx=ctx,
+                code="BOND_RETYPED",
+                reason="Bond type was changed by replacing old bond with a new canonical edge.",
+                task_action=action,
+                rule_id="sem.bond.retype",
+                inputs={"bond_id": bond.id, "from_type": current_type, "to_type": next_type},
+                outputs={"bond_id": new_bond.id, "source_id": source_uuid, "target_id": target_uuid},
+            )
             return True
 
         return False
@@ -1165,6 +1721,15 @@ class TaskExecutorService:
             ctx.result.bonds.append(bond)
             if bond.id not in ctx.result.extinguished_bond_ids:
                 ctx.result.extinguished_bond_ids.append(bond.id)
+            self._record_semantic_effect(
+                ctx=ctx,
+                code="BOND_EXTINGUISHED",
+                reason="Bond was soft-deleted.",
+                task_action=action,
+                rule_id="sem.bond.extinguish",
+                inputs={"bond_id": bond.id},
+                outputs={"bond_id": bond.id, "is_deleted": True},
+            )
             return True
 
         if action in {"DELETE", "EXTINGUISH"}:
@@ -1237,6 +1802,15 @@ class TaskExecutorService:
                 ctx.result.extinguished_asteroids.append(asteroid)
                 if asteroid.id not in ctx.result.extinguished_asteroid_ids:
                     ctx.result.extinguished_asteroid_ids.append(asteroid.id)
+                self._record_semantic_effect(
+                    ctx=ctx,
+                    code="MOON_EXTINGUISHED",
+                    reason="Moon was soft-deleted.",
+                    task_action=action,
+                    rule_id="sem.moon.extinguish",
+                    inputs={"asteroid_id": asteroid.id},
+                    outputs={"asteroid_id": asteroid.id, "is_deleted": True},
+                )
 
                 connected_bonds = [
                     bond
@@ -1257,6 +1831,15 @@ class TaskExecutorService:
                     if bond.id not in ctx.result.extinguished_bond_ids:
                         ctx.result.extinguished_bond_ids.append(bond.id)
                     ctx.bonds_by_id.pop(bond.id, None)
+                    self._record_semantic_effect(
+                        ctx=ctx,
+                        code="BOND_EXTINGUISHED",
+                        reason="Connected bond was soft-deleted because its moon endpoint was extinguished.",
+                        task_action=action,
+                        rule_id="sem.bond.cascade_extinguish",
+                        inputs={"bond_id": bond.id, "asteroid_id": asteroid.id},
+                        outputs={"bond_id": bond.id, "is_deleted": True},
+                    )
 
                 ctx.asteroids_by_id.pop(asteroid.id, None)
 
@@ -1346,6 +1929,15 @@ class TaskExecutorService:
                 )
                 target_asteroid.current_event_seq = int(formula_event.event_seq)
                 target_asteroid.metadata = next_metadata
+                self._record_semantic_effect(
+                    ctx=ctx,
+                    code="FORMULA_SET",
+                    reason="Formula metadata was assigned to moon field.",
+                    task_action=action,
+                    rule_id="sem.formula.assign",
+                    inputs={"asteroid_id": target_asteroid.id, "field": field_name, "formula": formula_value},
+                    outputs={"asteroid_id": target_asteroid.id, "field": field_name},
+                )
             ctx.result.asteroids.append(target_asteroid)
             return True
 
@@ -1439,6 +2031,21 @@ class TaskExecutorService:
                     **target_asteroid.metadata,
                     "_guardians": guardian_rules,
                 }
+                self._record_semantic_effect(
+                    ctx=ctx,
+                    code="GUARDIAN_ADDED",
+                    reason="Guardian rule was attached to moon metadata.",
+                    task_action=action,
+                    rule_id="sem.guardian.attach",
+                    inputs={
+                        "asteroid_id": target_asteroid.id,
+                        "field": new_rule["field"],
+                        "operator": new_rule["operator"],
+                        "threshold": new_rule["threshold"],
+                        "action": new_rule["action"],
+                    },
+                    outputs={"asteroid_id": target_asteroid.id, "guardians_count": len(guardian_rules)},
+                )
             ctx.result.asteroids.append(target_asteroid)
             return True
 

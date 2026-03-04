@@ -63,7 +63,8 @@ class CosmosService:
         field_types: dict[str, str],
         unique_rules: list[dict[str, Any]],
         validators: list[dict[str, Any]],
-    ) -> tuple[list[str], dict[str, str], list[dict[str, Any]], list[dict[str, Any]]]:
+        auto_semantics: list[dict[str, Any]],
+    ) -> tuple[list[str], dict[str, str], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         schema = schema_registry if isinstance(schema_registry, dict) else {}
 
         resolved_required = required_fields
@@ -81,6 +82,9 @@ class CosmosService:
         resolved_validators = validators
         if not resolved_validators and isinstance(schema.get("validators"), list):
             resolved_validators = self._normalize_dict_list(schema["validators"])
+        resolved_auto_semantics = auto_semantics
+        if not resolved_auto_semantics and isinstance(schema.get("auto_semantics"), list):
+            resolved_auto_semantics = self._normalize_dict_list(schema["auto_semantics"])
 
         normalized_required = self._normalize_string_list(resolved_required)
         normalized_field_types: dict[str, str] = {}
@@ -95,6 +99,7 @@ class CosmosService:
             normalized_field_types,
             self._normalize_dict_list(resolved_unique_rules),
             self._normalize_dict_list(resolved_validators),
+            self._normalize_dict_list(resolved_auto_semantics),
         )
 
     def _normalize_formula_registry(self, formula_registry: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -369,6 +374,7 @@ class CosmosService:
         field_types: dict[str, str],
         unique_rules: list[dict[str, Any]],
         validators: list[dict[str, Any]],
+        auto_semantics: list[dict[str, Any]],
         formula_registry: list[dict[str, Any]],
         physics_rulebook: dict[str, Any],
     ) -> TableContract:
@@ -389,15 +395,30 @@ class CosmosService:
         ).scalar_one_or_none()
         next_version = (latest.version + 1) if latest is not None else 1
 
-        normalized_required, normalized_field_types, normalized_unique_rules, normalized_validators = self._normalize_schema_registry(
+        (
+            normalized_required,
+            normalized_field_types,
+            normalized_unique_rules,
+            normalized_validators,
+            normalized_auto_semantics,
+        ) = self._normalize_schema_registry(
             schema_registry=schema_registry,
             required_fields=required_fields,
             field_types=field_types,
             unique_rules=unique_rules,
             validators=validators,
+            auto_semantics=auto_semantics,
         )
         normalized_formula_registry = self._normalize_formula_registry(formula_registry)
         normalized_physics_rulebook = self._normalize_physics_rulebook(physics_rulebook)
+        defaults = normalized_physics_rulebook.get("defaults")
+        defaults_dict = dict(defaults) if isinstance(defaults, dict) else {}
+        if not normalized_auto_semantics:
+            from_physics = defaults_dict.get("auto_semantics")
+            if isinstance(from_physics, list):
+                normalized_auto_semantics = self._normalize_dict_list(from_physics)
+        defaults_dict["auto_semantics"] = normalized_auto_semantics
+        normalized_physics_rulebook["defaults"] = defaults_dict
 
         contract = TableContract(
             galaxy_id=galaxy.id,

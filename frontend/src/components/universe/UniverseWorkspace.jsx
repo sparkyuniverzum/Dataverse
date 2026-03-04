@@ -549,6 +549,98 @@ function inferMineralGlyph(key, value) {
   return "TXT";
 }
 
+function semanticEffectTone(rawSeverity) {
+  const severity = String(rawSeverity || "info").trim().toLowerCase();
+  if (severity === "warning") return "#ffd39d";
+  if (severity === "error" || severity === "critical") return "#ffb3ca";
+  return "#9fe8ff";
+}
+
+function semanticEffectOutputSummary(effect) {
+  const outputs = effect && typeof effect === "object" && effect.outputs && typeof effect.outputs === "object" ? effect.outputs : {};
+  const subject =
+    outputs.planet_name ||
+    outputs.constellation_name ||
+    outputs.asteroid_id ||
+    outputs.bond_id ||
+    outputs.table_id ||
+    "";
+  if (!subject) return "";
+  const text = String(subject);
+  return text.length > 28 ? `${text.slice(0, 28)}…` : text;
+}
+
+function normalizeSemanticToken(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function semanticRuleMatchesValue(rule, value) {
+  const normalized = normalizeSemanticToken(value);
+  if (!normalized) return false;
+  if (!rule || typeof rule !== "object") return false;
+  if (Object.prototype.hasOwnProperty.call(rule, "equals")) {
+    return normalized === normalizeSemanticToken(rule.equals);
+  }
+  const list = Array.isArray(rule.in) ? rule.in : Array.isArray(rule.match_values) ? rule.match_values : [];
+  if (!list.length) return false;
+  const allowed = new Set(list.map((item) => normalizeSemanticToken(item)));
+  return allowed.has(normalized);
+}
+
+function semanticRuleTargetTable(rule) {
+  if (!rule || typeof rule !== "object") return "";
+  const direct = String(rule.target_table || "").trim();
+  if (direct) return direct;
+  const constellation = String(rule.target_constellation || "").trim();
+  const planet = String(rule.target_planet || "").trim();
+  if (constellation && planet) return `${constellation} > ${planet}`;
+  if (planet) return planet;
+  return "";
+}
+
+function readAutoSemanticRules(contract) {
+  const base = contract && typeof contract === "object" ? contract : {};
+  if (Array.isArray(base.auto_semantics)) {
+    return base.auto_semantics.filter((item) => item && typeof item === "object");
+  }
+  const schema = base.schema_registry && typeof base.schema_registry === "object" ? base.schema_registry : {};
+  if (Array.isArray(schema.auto_semantics)) {
+    return schema.auto_semantics.filter((item) => item && typeof item === "object");
+  }
+  const rulebook = base.physics_rulebook && typeof base.physics_rulebook === "object" ? base.physics_rulebook : {};
+  const defaults = rulebook.defaults && typeof rulebook.defaults === "object" ? rulebook.defaults : {};
+  if (Array.isArray(defaults.auto_semantics)) {
+    return defaults.auto_semantics.filter((item) => item && typeof item === "object");
+  }
+  return [];
+}
+
+function semanticConfidenceLabel(rawConfidence) {
+  const confidence = String(rawConfidence || "").trim().toLowerCase();
+  if (!confidence) return "neurceno";
+  if (confidence === "certain" || confidence === "high") return "jiste";
+  if (confidence === "medium") return "stredni";
+  return "pravdepodobne";
+}
+
+function semanticConfidenceRank(rawConfidence) {
+  const confidence = String(rawConfidence || "").trim().toLowerCase();
+  if (confidence === "certain" || confidence === "high") return 3;
+  if (confidence === "medium") return 2;
+  if (confidence === "likely") return 1;
+  return 0;
+}
+
+function semanticConfidenceTone(rawConfidence) {
+  const rank = semanticConfidenceRank(rawConfidence);
+  if (rank >= 3) return "#8fffd5";
+  if (rank === 2) return "#ffe3a6";
+  if (rank === 1) return "#a7dfff";
+  return "#d6eaf3";
+}
+
 const GRID_SEMANTIC_MODE_OPTIONS = [
   { value: "assign", label: "Metadata := hodnota", description: "Bezpecna editace hodnoty nebo bunky." },
   { value: "relation", label: "Vazba +", description: "Text v bunce vytvori vztah mezi mesici (RELATION)." },
@@ -822,6 +914,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const [gridRemovedRowIds, setGridRemovedRowIds] = useState({});
   const [gridGhostRows, setGridGhostRows] = useState({});
   const [gridViewport, setGridViewport] = useState({ scrollTop: 0, height: 420 });
+  const [inspectorShowAllFacts, setInspectorShowAllFacts] = useState(false);
+  const [shellTopOffset, setShellTopOffset] = useState(86);
+  const [semanticEffects, setSemanticEffects] = useState([]);
+  const [commandInputFocused, setCommandInputFocused] = useState(false);
+  const [commandDockExpanded, setCommandDockExpanded] = useState(false);
+  const [helpMode, setHelpMode] = useState("quick");
   const focusUiMode = true;
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
@@ -829,6 +927,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const streamRefreshTimeoutRef = useRef(null);
   const tablesRef = useRef(tables);
   const commandInputRef = useRef(null);
+  const navigatorShellRef = useRef(null);
+  const topHudRef = useRef(null);
   const quickGridScrollRef = useRef(null);
   const gridUndoStackRef = useRef([]);
   const pendingMoonFocusStartedAtRef = useRef(0);
@@ -918,6 +1018,35 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     }
     return undefined;
   }, []);
+
+  useEffect(() => {
+    const recalcShellTopOffset = () => {
+      const navHeight = navigatorShellRef.current?.getBoundingClientRect?.().height || 0;
+      const hudHeight = topHudRef.current?.getBoundingClientRect?.().height || 0;
+      const next = Math.max(86, Math.ceil(Math.max(navHeight, hudHeight) + 24));
+      setShellTopOffset((prev) => (prev === next ? prev : next));
+    };
+
+    recalcShellTopOffset();
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", recalcShellTopOffset);
+      const raf = window.requestAnimationFrame(recalcShellTopOffset);
+      return () => {
+        window.cancelAnimationFrame(raf);
+        window.removeEventListener("resize", recalcShellTopOffset);
+      };
+    }
+    return undefined;
+  }, [
+    activeWorkspaceLabel,
+    level,
+    loading,
+    selectedAsteroidId,
+    selectedBondId,
+    selectedTableId,
+    streamState,
+    historicalMode,
+  ]);
 
   useEffect(() => {
     streamCursorRef.current = null;
@@ -1630,6 +1759,10 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     () => tables.find((table) => String(table.table_id) === String(selectedTableId || "")) || null,
     [selectedTableId, tables]
   );
+  const selectedSemantic = useMemo(
+    () => splitEntityAndPlanetName(selectedTable),
+    [selectedTable]
+  );
 
   const selectedAsteroid = useMemo(
     () => asteroidById.get(String(selectedAsteroidId || "")) || null,
@@ -1669,6 +1802,22 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     () => selectedAsteroidFacts.filter((fact) => String(fact?.source || "") === "calculated"),
     [selectedAsteroidFacts]
   );
+  const selectedValueFact = useMemo(
+    () => selectedAsteroidFacts.find((fact) => String(fact?.key || "") === "value") || null,
+    [selectedAsteroidFacts]
+  );
+  const selectedMoonContextLabel = useMemo(() => {
+    const constellationName = String(selectedMoonContract?.constellation_name || selectedSemantic?.entityName || "").trim();
+    const planetName = String(selectedMoonContract?.planet_name || selectedSemantic?.planetName || "").trim();
+    if (constellationName && planetName) return `${constellationName} / ${planetName}`;
+    if (planetName) return planetName;
+    return "Mesic bez planety";
+  }, [selectedMoonContract, selectedSemantic?.entityName, selectedSemantic?.planetName]);
+  const inspectorVisibleFacts = useMemo(() => {
+    if (inspectorShowAllFacts) return selectedEditableFacts;
+    return selectedEditableFacts.slice(0, 6);
+  }, [inspectorShowAllFacts, selectedEditableFacts]);
+  const inspectorHiddenFactsCount = Math.max(selectedEditableFacts.length - inspectorVisibleFacts.length, 0);
   const selectedBond = useMemo(
     () => snapshot.bonds.find((bond) => String(bond.id) === String(selectedBondId || "")) || null,
     [selectedBondId, snapshot.bonds]
@@ -1701,10 +1850,21 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     () => bondsV1.find((item) => String(item.bond_id) === String(selectedBondId || "")) || null,
     [bondsV1, selectedBondId]
   );
-  const selectedSemantic = useMemo(
-    () => splitEntityAndPlanetName(selectedTable),
-    [selectedTable]
-  );
+
+  useEffect(() => {
+    setInspectorShowAllFacts(false);
+  }, [selectedAsteroidId]);
+
+  useEffect(() => {
+    if (quickGridOpen && showHelp) {
+      setShowHelp(false);
+    }
+  }, [quickGridOpen, showHelp]);
+
+  useEffect(() => {
+    setSemanticEffects([]);
+  }, [activeBranchId, galaxy?.id]);
+
   const moonQuickOptions = useMemo(
     () => {
       const options = [];
@@ -2274,6 +2434,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       base.field_types && typeof base.field_types === "object" && !Array.isArray(base.field_types) ? base.field_types : {};
     const uniqueRules = Array.isArray(base.unique_rules) ? base.unique_rules.filter((item) => item && typeof item === "object") : [];
     const baseValidators = Array.isArray(base.validators) ? base.validators : [];
+    const autoSemantics = readAutoSemanticRules(base);
+    const formulaRegistry = Array.isArray(base.formula_registry) ? base.formula_registry.filter((item) => item && typeof item === "object") : [];
+    const physicsRulebook =
+      base.physics_rulebook && typeof base.physics_rulebook === "object" && !Array.isArray(base.physics_rulebook)
+        ? base.physics_rulebook
+        : {};
 
     const validators = [
       ...stripGridSemanticValidators(baseValidators),
@@ -2293,6 +2459,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           field_types: fieldTypes,
           unique_rules: uniqueRules,
           validators,
+          auto_semantics: autoSemantics,
+          formula_registry: formulaRegistry,
+          physics_rulebook: physicsRulebook,
         }),
       });
       if (!response.ok) {
@@ -2583,7 +2752,24 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   }, [gridContractBase]);
   const gridValidation = useMemo(() => {
     const errorsByCell = {};
-    const messages = [];
+    const issues = [];
+
+    const pushIssue = ({ cellId = "", message = "", kind = "VALIDATION", blocking = false, confidence = "likely" }) => {
+      const text = String(message || "").trim();
+      if (!text) return;
+      const issue = {
+        id: `${String(kind)}:${cellId || issues.length}:${text}`,
+        cellId: String(cellId || ""),
+        kind: String(kind || "VALIDATION"),
+        message: text,
+        blocking: Boolean(blocking),
+        confidence: String(confidence || "likely"),
+      };
+      issues.push(issue);
+      if (issue.cellId) {
+        errorsByCell[issue.cellId] = issue.message;
+      }
+    };
 
     Object.values(gridChangeSet).forEach((change) => {
       const rowId = String(change?.rowId || "");
@@ -2598,8 +2784,13 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       const row = tableRowById.get(rowId);
       const rowLabel = valueToLabel(row?.value) || rowId;
       const message = `Hologram: '${column}' u '${rowLabel}' ceká ${expected}, ale je '${String(change.nextValue || "").trim() || "∅"}'.`;
-      errorsByCell[cellId] = message;
-      messages.push(message);
+      pushIssue({
+        cellId,
+        message,
+        kind: "CONTRACT_FIELD_TYPE",
+        blocking: true,
+        confidence: "certain",
+      });
     });
 
     gridNewRows.forEach((row) => {
@@ -2608,16 +2799,28 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         const expected = gridFieldTypes[String(field)];
         if (!expected) return;
         if (matchesGridExpectedType(expected, nextValue)) return;
-        messages.push(
-          `Hologram: novy radek '${row.label}' ma pole '${field}' v neplatnem typu (ceká ${expected}).`
-        );
+        pushIssue({
+          message: `Hologram: novy radek '${row.label}' ma pole '${field}' v neplatnem typu (ceká ${expected}).`,
+          kind: "CONTRACT_NEW_ROW_TYPE",
+          blocking: true,
+          confidence: "certain",
+        });
       });
     });
 
+    const blockingIssues = issues.filter(
+      (issue) => issue.blocking && String(issue.confidence || "").toLowerCase() === "certain"
+    );
+    const warningIssues = issues.filter((issue) => !blockingIssues.includes(issue));
+
     return {
       errorsByCell,
-      messages,
-      count: messages.length,
+      issues,
+      messages: issues.map((issue) => issue.message),
+      count: issues.length,
+      blockingIssues,
+      blockingCount: blockingIssues.length,
+      warningCount: warningIssues.length,
     };
   }, [getGridColumnMode, gridChangeSet, gridFieldTypes, gridNewRows, gridPendingExtinguishIds, tableRowById]);
 
@@ -2834,12 +3037,261 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     tableRowById,
   ]);
 
+  const gridSemanticLivePreview = useMemo(() => {
+    const draft = buildGridBatchTasks();
+    const tasks = Array.isArray(draft?.tasks) ? draft.tasks : [];
+    const errors = Array.isArray(draft?.errors) ? draft.errors : [];
+    const effects = [];
+    const effectKeys = new Set();
+    const knownTableNames = new Set(
+      (Array.isArray(tables) ? tables : [])
+        .map((table) => String(table?.name || "").trim())
+        .filter(Boolean)
+        .map((name) => normalizeSemanticToken(name))
+    );
+    const predictedTableNames = new Set();
+    const autoSemanticRules = readAutoSemanticRules(gridContractBase);
+
+    const pushEffect = (
+      code,
+      taskAction,
+      reason,
+      outputs = {},
+      {
+        severity = "info",
+        confidence = "likely",
+        because = "",
+      } = {}
+    ) => {
+      const stableOutputs = outputs && typeof outputs === "object" ? outputs : {};
+      const dedupeKey = `${String(code || "")}|${String(taskAction || "")}|${JSON.stringify(stableOutputs)}`;
+      if (effectKeys.has(dedupeKey)) return;
+      effectKeys.add(dedupeKey);
+      effects.push({
+        id: `local:${effects.length + 1}:${dedupeKey}`,
+        timestamp: new Date().toISOString(),
+        code: String(code || "").trim().toUpperCase(),
+        severity,
+        rule_id: "sem.preview.local",
+        reason: String(reason || "").trim(),
+        task_action: String(taskAction || "").trim().toUpperCase(),
+        confidence: String(confidence || "likely"),
+        because: String(because || "").trim(),
+        outputs: stableOutputs,
+      });
+    };
+
+    const markPotentialPlanet = (tableName, taskAction, reasonPrefix) => {
+      const normalizedTableName = String(tableName || "").trim();
+      if (!normalizedTableName) return;
+      const key = normalizeSemanticToken(normalizedTableName);
+      if (!key || knownTableNames.has(key) || predictedTableNames.has(key)) return;
+      predictedTableNames.add(key);
+      const semantic = splitEntityAndPlanetName({ name: normalizedTableName });
+      pushEffect(
+        "PLANET_INFERRED",
+        taskAction,
+        `${reasonPrefix} vznikne nova planeta '${semantic.planetName}'.`,
+        {
+          table_name: normalizedTableName,
+          constellation_name: semantic.entityName,
+          planet_name: semantic.planetName,
+        },
+        {
+          confidence: "likely",
+          because: "Tabulka zatim neni ve snapshotu nactena jako existujici planeta.",
+        }
+      );
+    };
+
+    const applyAutoSemantics = ({ value, metadata, asteroidId, taskAction }) => {
+      let nextMetadata = metadata && typeof metadata === "object" ? { ...metadata } : {};
+      let currentTableName = deriveTableNameFromEvent(value, nextMetadata);
+      let guard = 0;
+      while (guard < 4) {
+        guard += 1;
+        let changed = false;
+        for (const rule of autoSemanticRules) {
+          if (!rule || typeof rule !== "object") continue;
+          if (!Boolean(rule.enabled ?? true)) continue;
+          if (normalizeSemanticToken(rule.kind) !== "bucket_by_metadata_value") continue;
+          const field = String(rule.field || "").trim();
+          if (!field) continue;
+          const fieldValue = field === "value" ? value : nextMetadata[field];
+          if (!semanticRuleMatchesValue(rule, fieldValue)) continue;
+          const targetTableName = semanticRuleTargetTable(rule);
+          if (!targetTableName) continue;
+          if (normalizeSemanticToken(targetTableName) === normalizeSemanticToken(currentTableName)) continue;
+
+          const fromTableName = currentTableName;
+          nextMetadata = { ...nextMetadata, table: targetTableName, table_name: targetTableName };
+          currentTableName = targetTableName;
+          const semantic = splitEntityAndPlanetName({ name: targetTableName });
+          pushEffect(
+            "MOON_RECLASSIFIED",
+            taskAction,
+            `Predikce: pravidlo '${String(rule.id || field)}' presune radek do planety '${semantic.planetName}'.`,
+            {
+              asteroid_id: String(asteroidId || ""),
+              from_table_name: fromTableName,
+              to_table_name: targetTableName,
+              constellation_name: semantic.entityName,
+              planet_name: semantic.planetName,
+            },
+            {
+              confidence: "likely",
+              because: `Auto-semantika: pole '${field}' odpovida pravidlu bucket_by_metadata_value.`,
+            }
+          );
+          markPotentialPlanet(
+            targetTableName,
+            taskAction,
+            "Predikce auto-semantiky:"
+          );
+          changed = true;
+          break;
+        }
+        if (!changed) break;
+      }
+      return { metadata: nextMetadata, tableName: currentTableName };
+    };
+
+    tasks.forEach((task) => {
+      const action = String(task?.action || "").trim().toUpperCase();
+      const params = task?.params && typeof task.params === "object" ? task.params : {};
+
+      if (action === "INGEST") {
+        const value = params.value;
+        const metadata = params.metadata && typeof params.metadata === "object" ? params.metadata : {};
+        const baseTableName = deriveTableNameFromEvent(value, metadata);
+        pushEffect(
+          "MOON_UPSERTED",
+          action,
+          `Predikce: vznikne nebo se synchronizuje radek '${valueToLabel(value)}'.`,
+          { table_name: baseTableName },
+          {
+            confidence: "likely",
+            because: "INGEST dela upsert; bez DB lock checku nelze lokalne odlisit create/reuse.",
+          }
+        );
+        markPotentialPlanet(baseTableName, action, "Predikce:");
+        applyAutoSemantics({ value, metadata, asteroidId: "", taskAction: action });
+        return;
+      }
+
+      if (action === "UPDATE_ASTEROID") {
+        const asteroidId = String(params.asteroid_id || "").trim();
+        if (!asteroidId) return;
+        const currentRow = tableRowById.get(asteroidId) || asteroidRowById.get(asteroidId) || null;
+        const currentValue = Object.prototype.hasOwnProperty.call(params, "value")
+          ? params.value
+          : currentRow?.value;
+        const currentMetadata = {
+          ...safeMetadata(currentRow?.metadata),
+          ...(params.metadata && typeof params.metadata === "object" ? params.metadata : {}),
+        };
+        const beforeTableName = deriveTableNameFromEvent(currentRow?.value, safeMetadata(currentRow?.metadata));
+        const directNextTableName = deriveTableNameFromEvent(currentValue, currentMetadata);
+
+        pushEffect("MOON_UPDATED", action, "Predikce: zmeni se data radku.", { asteroid_id: asteroidId }, {
+          confidence: "certain",
+          because: "Batch obsahuje explicitni UPDATE_ASTEROID task.",
+        });
+        if (normalizeSemanticToken(beforeTableName) !== normalizeSemanticToken(directNextTableName)) {
+          const semantic = splitEntityAndPlanetName({ name: directNextTableName });
+          pushEffect(
+            "MOON_RECLASSIFIED",
+            action,
+            `Predikce: radek se presune do planety '${semantic.planetName}'.`,
+            {
+              asteroid_id: asteroidId,
+              from_table_name: beforeTableName,
+              to_table_name: directNextTableName,
+              constellation_name: semantic.entityName,
+              planet_name: semantic.planetName,
+            },
+            {
+              confidence: "certain",
+              because: "Zmena table/table_name je primo ve staged datech.",
+            }
+          );
+          markPotentialPlanet(directNextTableName, action, "Predikce:");
+        }
+        applyAutoSemantics({
+          value: currentValue,
+          metadata: currentMetadata,
+          asteroidId,
+          taskAction: action,
+        });
+        return;
+      }
+
+      if (action === "LINK") {
+        pushEffect(
+          "BOND_CREATED",
+          action,
+          "Predikce: vznikne nova vazba nebo se pouzije existujici.",
+          {
+            source_id: String(params.source_id || ""),
+            target_id: String(params.target_id || ""),
+            type: String(params.type || "RELATION").toUpperCase(),
+          },
+          {
+            confidence: "likely",
+            because: "Executor muze nalezt uz existujici vazbu a jen ji reuse.",
+          }
+        );
+        return;
+      }
+
+      if (action === "EXTINGUISH") {
+        pushEffect(
+          "MOON_EXTINGUISHED",
+          action,
+          "Predikce: radek bude zhasnut (soft delete).",
+          { asteroid_id: String(params.asteroid_id || "") },
+          {
+            confidence: "certain",
+            because: "Batch obsahuje explicitni EXTINGUISH task.",
+          }
+        );
+      }
+    });
+
+    const summaryByCode = {};
+    effects.forEach((effect) => {
+      const code = String(effect?.code || "SEMANTIC_EFFECT");
+      const current = summaryByCode[code] || { count: 0, confidence: "", topRank: -1 };
+      const rank = semanticConfidenceRank(effect?.confidence);
+      summaryByCode[code] = {
+        count: Number(current.count || 0) + 1,
+        confidence: rank > Number(current.topRank || -1) ? String(effect?.confidence || "") : String(current.confidence || ""),
+        topRank: Math.max(Number(current.topRank || -1), rank),
+      };
+    });
+    const summaryEntries = Object.entries(summaryByCode).map(([code, data]) => ({
+      code,
+      count: Number(data?.count || 0),
+      confidence: String(data?.confidence || ""),
+    }));
+
+    return {
+      tasksCount: tasks.length,
+      errors,
+      effects,
+      summaryByCode,
+      summaryEntries,
+    };
+  }, [asteroidRowById, buildGridBatchTasks, gridContractBase, tableRowById, tables]);
+
   const executeGridBatch = useCallback(async (mode) => {
     const normalizedMode = String(mode || "preview").toLowerCase();
-    if (gridValidation.count) {
-      const head = gridValidation.messages.slice(0, 2).join(" | ");
-      const suffix = gridValidation.count > 2 ? ` (+${gridValidation.count - 2} dalsi)` : "";
-      setError(`Grid hologram blokuje commit: ${head}${suffix}`);
+    const isCommit = normalizedMode === "commit";
+    if (isCommit && gridValidation.blockingCount) {
+      const head = gridValidation.blockingIssues.slice(0, 2).map((item) => item.message).join(" | ");
+      const suffix =
+        gridValidation.blockingCount > 2 ? ` (+${gridValidation.blockingCount - 2} dalsi)` : "";
+      setError(`Commit blokovan jistou kontraktovou chybou: ${head}${suffix}`);
       return;
     }
     const { tasks, errors } = buildGridBatchTasks();
@@ -2880,11 +3332,23 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       }
       const body = await response.json();
       const result = body?.result || {};
+      const effects = Array.isArray(result?.semantic_effects) ? result.semantic_effects : [];
+      setSemanticEffects(effects);
       setGridBatchPreview({
         mode: normalizedMode,
         tasks: Array.isArray(result.tasks) ? result.tasks.length : tasks.length,
         asteroids: Array.isArray(result.asteroids) ? result.asteroids.length : 0,
         bonds: Array.isArray(result.bonds) ? result.bonds.length : 0,
+        semanticEffects: effects.length,
+        semanticCodes: Object.entries(
+          effects.reduce((acc, effect) => {
+            const code = String(effect?.code || "SEMANTIC_EFFECT");
+            acc[code] = Number(acc[code] || 0) + 1;
+            return acc;
+          }, {})
+        )
+          .map(([code, count]) => `${code} ${count}`)
+          .slice(0, 4),
       });
       if (normalizedMode === "commit") {
         clearGridChangeSet({ resetUndo: true, pushUndo: false });
@@ -3024,6 +3488,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           }
           throw apiError;
         }
+        const body = await response.json();
+        const effects = Array.isArray(body?.semantic_effects) ? body.semantic_effects : [];
+        setSemanticEffects(effects);
         if (clearInput) {
           setQuery("");
         }
@@ -3340,6 +3807,27 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [getRowBaselineValue, gridCalculatedColumnSet, historicalMode, mutateAsteroid, rowFactIndexByRowId]
   );
 
+  const commitInspectorFact = useCallback(
+    async ({ factKey, nextValueRaw, valueType }) => {
+      if (historicalMode) return;
+      const asteroidId = String(selectedAsteroid?.id || "").trim();
+      const key = String(factKey || "").trim();
+      if (!asteroidId || !key || RESERVED_METADATA_KEYS.has(key)) return;
+      const coercedValue = coerceGridFactInputValue(nextValueRaw, valueType);
+      setError("");
+      try {
+        if (key === "value") {
+          await mutateAsteroid(asteroidId, { value: coercedValue });
+        } else {
+          await mutateAsteroid(asteroidId, { metadata: { [key]: coercedValue } });
+        }
+      } catch (inspectorError) {
+        setError(inspectorError.message || "Ulozeni hodnoty selhalo.");
+      }
+    },
+    [historicalMode, mutateAsteroid, selectedAsteroid]
+  );
+
   const extinguishGridRowLive = useCallback(
     async (rowIdRaw) => {
       if (historicalMode) return;
@@ -3484,6 +3972,20 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
   const handleCommandInputKeyDown = useCallback(
     (event) => {
+      if (event.altKey && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+        if (!commandSuggestions.length) return;
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        setCommandSuggestionCursor((prev) => {
+          const max = commandSuggestions.length - 1;
+          if (max < 0) return 0;
+          const next = prev + direction;
+          if (next < 0) return max;
+          if (next > max) return 0;
+          return next;
+        });
+        return;
+      }
       if (event.key === "ArrowUp") {
         if (!commandHistory.length) return;
         event.preventDefault();
@@ -3522,14 +4024,22 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         return;
       }
       if (event.key === "Escape") {
-        if (!query) return;
         event.preventDefault();
-        setQuery("");
-        setCommandHistoryCursor(-1);
-        setCommandHistoryDraft("");
+        if (query) {
+          setQuery("");
+          setCommandHistoryCursor(-1);
+          setCommandHistoryDraft("");
+          setCommandSuggestionCursor(0);
+          return;
+        }
+        if (showHelp) {
+          setShowHelp(false);
+          return;
+        }
+        commandInputRef.current?.blur();
       }
     },
-    [commandHistory, commandHistoryCursor, commandHistoryDraft, commandSuggestionCursor, commandSuggestions, query]
+    [commandHistory, commandHistoryCursor, commandHistoryDraft, commandSuggestionCursor, commandSuggestions, query, showHelp]
   );
 
   const handleCommand = useCallback(
@@ -3570,6 +4080,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       }
       if (quickToken === ":help" || quickToken === "/help") {
         pushCommandHistory(raw);
+        setHelpMode("quick");
         setShowHelp((prev) => !prev);
         setQuery("");
         return;
@@ -3873,13 +4384,24 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           : !selectedAsteroid
             ? { key: "pick-moon", label: "2) Vybrat prvni mesic", helper: "Autofokus v planete" }
             : { key: "open-grid", label: "3) Otevrit tabulku", helper: "Editace bunek in-place" };
+  const focusCommandInput = useCallback(
+    ({ selectAll = false } = {}) => {
+      const input = commandInputRef.current;
+      if (!input) return;
+      input.focus();
+      if (selectAll && typeof input.select === "function") {
+        input.select();
+      }
+    },
+    []
+  );
   const handlePrimaryGuideAction = useCallback(() => {
     if (primaryGuideAction.key === "fix-orphans") {
       focusFirstOrphanMoon();
       return;
     }
     if (primaryGuideAction.key === "open-setup") {
-      commandInputRef.current?.focus();
+      focusCommandInput();
       return;
     }
     if (primaryGuideAction.key === "pick-planet") {
@@ -3898,9 +4420,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     }
     if (primaryGuideAction.key === "open-grid") {
       setQuery("/grid");
-      commandInputRef.current?.focus();
+      focusCommandInput();
     }
-  }, [focusFirstMoonInSelectedTable, focusFirstOrphanMoon, focusTable, patchPanel, primaryGuideAction.key, tableNodes]);
+  }, [focusCommandInput, focusFirstMoonInSelectedTable, focusFirstOrphanMoon, focusTable, patchPanel, primaryGuideAction.key, tableNodes]);
   const smartActions = useMemo(() => {
     return [
       { id: "next", label: primaryGuideAction.label, hint: primaryGuideAction.helper },
@@ -3915,7 +4437,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         return;
       }
       if (actionId === "command") {
-        commandInputRef.current?.focus();
+        focusCommandInput();
         return;
       }
       if (actionId === "refresh") {
@@ -3927,7 +4449,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         return;
       }
     },
-    [handlePrimaryGuideAction, loadUniverse]
+    [focusCommandInput, handlePrimaryGuideAction, loadUniverse]
   );
   useEffect(() => {
     const handleSmartActionHotkeys = (event) => {
@@ -3962,6 +4484,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     ? `${hierarchyDiagnosticsSummary.orphans} sirotku · ${hierarchyDiagnosticsSummary.warnings} varovani`
     : "Hierarchie OK";
   const hierarchyStatusColor = hasHierarchyIssues ? "#ffd2a1" : "#9ef5d7";
+  const showGuidePanel = !quickGridOpen && (!selectedAsteroid && !selectedBond || hasHierarchyIssues || onboardingProgress < 3);
+  const showDetailPanel = !quickGridOpen && (Boolean(selectedAsteroid) || Boolean(selectedBond) || onboardingProgress < 2 || hasHierarchyIssues);
   const minimizedPanels = Object.entries(panels)
     .filter(([, cfg]) => cfg.collapsed)
     .map(([id]) => id);
@@ -3972,6 +4496,41 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     }))
     .filter((item) => Boolean(item.id));
   const importDisabled = importBusy || busy || branchBusy || historicalMode;
+  const semanticEffectsPreview = semanticEffects.slice(-6).reverse();
+  const shellSurfaceStyle = {
+    border: "1px solid rgba(96, 189, 223, 0.32)",
+    background: "rgba(5, 13, 24, 0.82)",
+    color: "#d9f8ff",
+    backdropFilter: "blur(12px)",
+    boxShadow: "0 0 24px rgba(34, 132, 182, 0.2)",
+  };
+  const shellHeaderPanelStyle = {
+    ...shellSurfaceStyle,
+    borderRadius: 14,
+    padding: "10px 12px",
+    display: "grid",
+    gap: 8,
+  };
+  const shellSidePanelStyle = {
+    ...shellSurfaceStyle,
+    borderRadius: 12,
+    padding: "10px 10px",
+    display: "grid",
+    gap: 10,
+  };
+  const quickActionCardStyle = {
+    width: "100%",
+    border: "1px solid rgba(111, 211, 243, 0.34)",
+    borderRadius: 10,
+    background: "rgba(8, 20, 34, 0.88)",
+    color: "#e1f9ff",
+    padding: "7px 9px",
+    display: "grid",
+    gap: 3,
+    textAlign: "left",
+    cursor: "pointer",
+    transition: "border-color 160ms ease, background-color 160ms ease",
+  };
 
   return (
     <main style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#020205" }}>
@@ -4016,19 +4575,13 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       />
 
       <section
+        ref={navigatorShellRef}
         style={{
           position: "fixed",
           top: 12,
           left: 12,
           zIndex: 39,
-          borderRadius: 14,
-          border: "1px solid rgba(96, 189, 223, 0.32)",
-          background: "rgba(5, 13, 24, 0.78)",
-          color: "#d9f8ff",
-          padding: "8px 10px",
-          display: "grid",
-          gap: 7,
-          backdropFilter: "blur(10px)",
+          ...shellHeaderPanelStyle,
           width: "clamp(320px, calc(100vw - 560px), 820px)",
         }}
       >
@@ -4068,21 +4621,20 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       </section>
 
       <div
+        ref={topHudRef}
         style={{
           position: "fixed",
           top: 12,
           right: 12,
           zIndex: 39,
+          ...shellHeaderPanelStyle,
           borderRadius: 12,
-          border: "1px solid rgba(94, 182, 212, 0.3)",
-          background: "rgba(6, 15, 27, 0.78)",
-          padding: "6px 8px",
+          padding: "7px 9px",
           display: "flex",
           gap: 6,
           flexWrap: "wrap",
           alignItems: "center",
           justifyContent: "flex-end",
-          backdropFilter: "blur(8px)",
           maxWidth: "min(520px, calc(100vw - 30px))",
         }}
       >
@@ -4101,14 +4653,24 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         ) : (
           <span style={{ ...hudBadgeStyle, color: "#ffd9a4" }}>Historicky rezim</span>
         )}
-        <button type="button" onClick={() => commandInputRef.current?.focus()} style={hudButtonStyle}>
+        <button type="button" onClick={() => focusCommandInput({ selectAll: true })} style={hudButtonStyle}>
           Prikaz
         </button>
         <button type="button" onClick={onBackToGalaxies} style={hudButtonStyle}>
           Galaxie
         </button>
-        <button type="button" onClick={() => setShowHelp((prev) => !prev)} style={hudButtonStyle}>
-          Help
+        <button
+          type="button"
+          onClick={() =>
+            setShowHelp((prev) => {
+              const next = !prev;
+              if (next) setHelpMode("quick");
+              return next;
+            })
+          }
+          style={hudButtonStyle}
+        >
+          Navod
         </button>
         <button
           type="button"
@@ -4119,23 +4681,17 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         </button>
       </div>
 
-      {!quickGridOpen ? (
+      {showGuidePanel ? (
         <aside
           style={{
             position: "fixed",
             right: 14,
-            top: 74,
+            top: shellTopOffset,
             zIndex: 43,
             width: "min(290px, calc(100vw - 26px))",
-            borderRadius: 12,
-            border: "1px solid rgba(100, 196, 226, 0.34)",
-            background: "rgba(5, 14, 26, 0.82)",
-            color: "#d8f7ff",
-            backdropFilter: "blur(8px)",
-            boxShadow: "0 0 22px rgba(36, 132, 184, 0.2)",
-            padding: "8px 9px",
-            display: "grid",
-            gap: 8,
+            maxHeight: `calc(100vh - ${shellTopOffset + 94}px)`,
+            overflow: "auto",
+            ...shellSidePanelStyle,
           }}
         >
           <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.84, color: "#bdefff" }}>
@@ -4162,18 +4718,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             <button
               type="button"
               onClick={() => void runSmartAction("command")}
-              style={{
-                width: "100%",
-                border: "1px solid rgba(111, 211, 243, 0.34)",
-                borderRadius: 9,
-                background: "rgba(8, 20, 34, 0.88)",
-                color: "#e1f9ff",
-                padding: "6px 8px",
-                display: "grid",
-                gap: 2,
-                textAlign: "left",
-                cursor: "pointer",
-              }}
+              style={quickActionCardStyle}
             >
               <span style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>2. Prikaz</span>
               <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>Otevri command line</span>
@@ -4181,23 +4726,222 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             <button
               type="button"
               onClick={() => void runSmartAction("refresh")}
-              style={{
-                width: "100%",
-                border: "1px solid rgba(111, 211, 243, 0.34)",
-                borderRadius: 9,
-                background: "rgba(8, 20, 34, 0.88)",
-                color: "#e1f9ff",
-                padding: "6px 8px",
-                display: "grid",
-                gap: 2,
-                textAlign: "left",
-                cursor: "pointer",
-              }}
+              style={quickActionCardStyle}
             >
               <span style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>3. Obnovit</span>
               <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>Nacti data znovu</span>
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setHelpMode("quick");
+              setShowHelp(true);
+            }}
+            style={{ ...ghostButtonStyle, width: "100%" }}
+          >
+            Otevrit navod
+          </button>
+        </aside>
+      ) : null}
+
+      {showDetailPanel ? (
+        <aside
+          style={{
+            position: "fixed",
+            left: 14,
+            top: shellTopOffset,
+            zIndex: 43,
+            width: "min(430px, calc(100vw - 26px))",
+            maxHeight: `calc(100vh - ${shellTopOffset + 94}px)`,
+            ...shellSidePanelStyle,
+            overflow: "hidden",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.84, color: "#bdefff" }}>
+              DETAIL
+            </div>
+            {selectedAsteroid ? (
+              <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>
+                Nerosty {selectedEditableFacts.length}
+              </span>
+            ) : null}
+          </div>
+
+          {selectedAsteroid ? (
+            <div style={{ display: "grid", gap: 8, minHeight: 0, overflow: "auto", paddingRight: 2 }}>
+              <div style={{ display: "grid", gap: 2 }}>
+                <div style={{ fontSize: "var(--dv-fs-md)", fontWeight: 700 }}>{valueToLabel(selectedAsteroid.value) || "Mesic"}</div>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>{selectedMoonContextLabel}</div>
+                {selectedMoonV1 ? (
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                    Stav:{" "}
+                    <strong style={{ color: resolveStatusColor(selectedMoonV1.status) }}>{selectedMoonV1.status}</strong>{" "}
+                    ({selectedMoonV1.quality_score}/100)
+                  </div>
+                ) : null}
+              </div>
+
+              <label style={{ display: "grid", gap: 4 }}>
+                <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.66, letterSpacing: "var(--dv-tr-wide)" }}>MESIC (NAZEV RADKU)</span>
+                <input
+                  key={`inspector:value:${selectedAsteroid.id}:${valueToLabel(selectedValueFact?.typed_value)}`}
+                  defaultValue={valueToLabel(selectedValueFact?.typed_value ?? selectedAsteroid.value)}
+                  onBlur={(event) =>
+                    void commitInspectorFact({
+                      factKey: "value",
+                      nextValueRaw: event.target.value,
+                      valueType: selectedValueFact?.value_type,
+                    })
+                  }
+                  disabled={historicalMode}
+                  style={inputStyle}
+                />
+              </label>
+
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.66, letterSpacing: "var(--dv-tr-wide)" }}>NEROSTY (BUNKY)</div>
+                {inspectorVisibleFacts.map((fact) => {
+                  const key = String(fact?.key || "");
+                  const typedValue = fact?.typed_value;
+                  return (
+                    <label key={`inspector:${selectedAsteroid.id}:${key}`} style={{ display: "grid", gap: 4 }}>
+                      <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>
+                        {inferMineralGlyph(key, typedValue)} · {key}
+                      </span>
+                      <input
+                        key={`inspector:value:${selectedAsteroid.id}:${key}:${valueToLabel(typedValue)}`}
+                        defaultValue={valueToLabel(typedValue)}
+                        onBlur={(event) =>
+                          void commitInspectorFact({
+                            factKey: key,
+                            nextValueRaw: event.target.value,
+                            valueType: fact?.value_type,
+                          })
+                        }
+                        disabled={historicalMode}
+                        style={inputStyle}
+                      />
+                    </label>
+                  );
+                })}
+                {!selectedEditableFacts.length ? (
+                  <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Mesic zatim nema editovatelne nerosty.</div>
+                ) : null}
+                {inspectorHiddenFactsCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setInspectorShowAllFacts((prev) => !prev)}
+                    style={ghostButtonStyle}
+                  >
+                    {inspectorShowAllFacts ? "Zobrazit mene" : `Zobrazit dalsi (${inspectorHiddenFactsCount})`}
+                  </button>
+                ) : null}
+              </div>
+
+              {selectedCalculatedFacts.length ? (
+                <div
+                  style={{
+                    border: "1px solid rgba(97, 185, 218, 0.22)",
+                    borderRadius: 8,
+                    background: "rgba(8, 19, 34, 0.62)",
+                    padding: "6px 7px",
+                    display: "grid",
+                    gap: 4,
+                  }}
+                >
+                  <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>ƒ VYPOCET (READ-ONLY)</div>
+                  {selectedCalculatedFacts.slice(0, 3).map((fact) => (
+                    <div key={`inspector:calc:${fact.key}`} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                      {fact.key}: {valueToLabel(fact.typed_value) || "—"}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button type="button" onClick={() => setQuickGridOpen(true)} style={ghostButtonStyle}>
+                  Otevrit tabulku (/grid)
+                </button>
+                <button
+                  type="button"
+                  disabled={historicalMode}
+                  onMouseEnter={() => setMoonDeleteHover(true)}
+                  onMouseLeave={() => setMoonDeleteHover(false)}
+                  onClick={() => extinguishAsteroid(selectedAsteroid.id).catch((extError) => setError(extError.message || "Soft delete failed"))}
+                  style={{
+                    ...ghostButtonStyle,
+                    borderColor: moonDeleteHover ? "rgba(255, 116, 148, 0.58)" : "rgba(111, 192, 220, 0.28)",
+                    color: moonDeleteHover ? "#ffd3df" : "#d7f6ff",
+                    background: moonDeleteHover ? "rgba(68, 16, 28, 0.82)" : "rgba(7, 18, 32, 0.78)",
+                  }}
+                >
+                  Zhasnout mesic
+                </button>
+              </div>
+            </div>
+          ) : selectedBond ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "grid", gap: 2 }}>
+                <div style={{ fontSize: "var(--dv-fs-md)", fontWeight: 700 }}>
+                  Vazba {formatBondTypeLabel(selectedBond.type)} {selectedBond.directional ? "A→B" : "A↔B"}
+                </div>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
+                  {selectedBondSourceLabel} → {selectedBondTargetLabel}
+                </div>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84, color: "#9fe8ff" }}>{selectedBondMeaning}</div>
+                {selectedBondV1 ? (
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                    Stav:{" "}
+                    <strong style={{ color: resolveStatusColor(selectedBondV1.status) }}>{selectedBondV1.status}</strong>{" "}
+                    ({selectedBondV1.quality_score}/100)
+                  </div>
+                ) : null}
+              </div>
+
+              <label style={{ display: "grid", gap: 4 }}>
+                <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.66, letterSpacing: "var(--dv-tr-wide)" }}>TYP VAZBY</span>
+                <select
+                  value={bondEditorType}
+                  onChange={(event) => setBondEditorType(event.target.value)}
+                  disabled={historicalMode}
+                  style={selectStyle}
+                >
+                  {QUICK_LINK_TYPE_OPTIONS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  disabled={historicalMode}
+                  onClick={() => mutateBondType(selectedBond.id, bondEditorType).catch((mutError) => setError(mutError.message || "Bond mutate failed"))}
+                  style={ghostButtonStyle}
+                >
+                  Ulozit typ
+                </button>
+                <button
+                  type="button"
+                  disabled={historicalMode}
+                  onClick={() => extinguishBond(selectedBond.id).catch((extError) => setError(extError.message || "Bond soft delete failed"))}
+                  style={{ ...ghostButtonStyle, borderColor: "rgba(255, 136, 166, 0.4)", color: "#ffc6d8" }}
+                >
+                  Zhasnout vazbu
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 6, fontSize: "var(--dv-fs-sm)", opacity: 0.84 }}>
+              <div>Klikni na Mesic nebo Vazbu.</div>
+              <div>Mesic = radek tabulky, Nerost = bunka.</div>
+              <div>Podrobnosti a editace se zobrazi tady.</div>
+            </div>
+          )}
         </aside>
       ) : null}
 
@@ -4209,45 +4953,83 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           transform: "translateX(-50%)",
           zIndex: 42,
           width: "min(980px, calc(100vw - 26px))",
+          ...shellHeaderPanelStyle,
           borderRadius: 14,
-          border: "1px solid rgba(95, 193, 228, 0.34)",
-          background: "rgba(4, 12, 24, 0.8)",
-          backdropFilter: "blur(12px)",
-          boxShadow: "0 0 28px rgba(32, 128, 176, 0.22)",
-          padding: "8px 10px",
+          padding: "10px 12px",
           display: "grid",
-          gap: 6,
+          gap: 8,
         }}
       >
-        <form onSubmit={handleCommand} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 8, alignItems: "center" }}>
+        <form onSubmit={handleCommand} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto auto auto", gap: 8, alignItems: "center" }}>
           <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)", padding: "5px 8px" }}>&gt; cmd</span>
           <input
             ref={commandInputRef}
             value={query}
             onChange={handleCommandInputChange}
             onKeyDown={handleCommandInputKeyDown}
+            onFocus={() => setCommandInputFocused(true)}
+            onBlur={() => setCommandInputFocused(false)}
             disabled={busy}
-            placeholder='Zadej prikaz: :refresh | :galaxie | +NovaGalaxie | /grid | /3d | Ukaz : "Srouby"'
+            placeholder='Prikaz: /grid | /3d | :refresh | Ukaz : "Srouby"'
             style={{ ...inputStyle, fontSize: "var(--dv-fs-md)", padding: "8px 10px" }}
           />
           <button type="submit" disabled={busy} style={actionButtonStyle}>
             {busy ? "..." : "Run"}
           </button>
-          <button type="button" onClick={() => setQuery("")} style={ghostButtonStyle}>Cistit</button>
+          <button type="button" onClick={() => setQuery("")} style={ghostButtonStyle}>X</button>
+          <button type="button" onClick={() => setCommandDockExpanded((prev) => !prev)} style={ghostButtonStyle}>
+            {commandDockExpanded ? "Mene" : "Vice"}
+          </button>
         </form>
-        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
-          Mikro: `Ctrl+K` · `/` · `Esc` · `1/2/3`
-        </div>
-        <div
-          style={{
-            fontSize: "var(--dv-fs-xs)",
-            opacity: 0.84,
-            borderTop: "1px solid rgba(96, 181, 211, 0.2)",
-            paddingTop: 6,
-          }}
-        >
-          Semantika: <strong>A + B</strong> vztah · <strong>A : Typ</strong> klasifikace · <strong>A.pole := hodnota</strong> zapis · <strong>A -&gt; B</strong> tok · <strong>- A</strong> soft delete
-        </div>
+        {(commandInputFocused || Boolean(query.trim())) && commandSuggestions.length ? (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            {commandSuggestions.slice(0, 6).map((item, index) => {
+              const active = index === commandSuggestionCursor;
+              return (
+                <button
+                  key={`cmd-suggestion:${item.key}`}
+                  type="button"
+                  onClick={() => {
+                    setCommandSuggestionCursor(index);
+                    insertCommandExample(item.insert);
+                  }}
+                  style={{
+                    ...ghostButtonStyle,
+                    padding: "4px 8px",
+                    borderColor: active ? "rgba(120, 218, 251, 0.62)" : "rgba(107, 192, 223, 0.3)",
+                    background: active ? "rgba(14, 42, 64, 0.92)" : "rgba(7, 18, 32, 0.9)",
+                    color: active ? "#e4fbff" : "#cceef9",
+                  }}
+                  title={item.hint}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        {commandDockExpanded ? (
+          <div
+            style={{
+              fontSize: "var(--dv-fs-xs)",
+              opacity: 0.82,
+              borderTop: "1px solid rgba(96, 181, 211, 0.2)",
+              paddingTop: 6,
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <span>Mikro: Ctrl+K · / · Esc · Alt+↑/↓ · Tab</span>
+            <span>
+              Semantika: <strong>+</strong> vztah · <strong>:</strong> typ · <strong>:=</strong> hodnota · <strong>-&gt;</strong> tok · <strong>-</strong> soft delete
+            </span>
+          </div>
+        ) : (
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>
+            Enter = vykonat prikaz. Esc = vycistit / zavrit napovedu.
+          </div>
+        )}
         {error ? (
           <div
             style={{
@@ -4259,6 +5041,71 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             }}
           >
             {error}
+          </div>
+        ) : null}
+        {semanticEffectsPreview.length ? (
+          <div
+            style={{
+              borderTop: "1px solid rgba(96, 181, 211, 0.2)",
+              paddingTop: 7,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.86 }}>
+                PROC SE TO STALO
+              </div>
+              <button type="button" onClick={() => setSemanticEffects([])} style={{ ...ghostButtonStyle, padding: "4px 8px" }}>
+                Vycistit
+              </button>
+            </div>
+            <div style={{ display: "grid", gap: 5, maxHeight: 180, overflow: "auto", paddingRight: 2 }}>
+              {semanticEffectsPreview.map((effect) => {
+                const tone = semanticEffectTone(effect?.severity);
+                const confidenceTone = semanticConfidenceTone(effect?.confidence);
+                const confidenceLabel = semanticConfidenceLabel(effect?.confidence);
+                const outputSummary = semanticEffectOutputSummary(effect);
+                return (
+                  <div
+                    key={String(effect?.id || `${effect?.code}:${effect?.timestamp || ""}`)}
+                    style={{
+                      border: "1px solid rgba(108, 194, 225, 0.24)",
+                      borderRadius: 9,
+                      background: "rgba(7, 18, 32, 0.82)",
+                      padding: "6px 7px",
+                      display: "grid",
+                      gap: 3,
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      <span style={{ ...hudBadgeStyle, color: tone }}>{String(effect?.code || "SEMANTIC_EFFECT")}</span>
+                      <span
+                        style={{
+                          ...hudBadgeStyle,
+                          color: confidenceTone,
+                          borderColor: "rgba(118, 205, 234, 0.38)",
+                          background: "rgba(8, 22, 37, 0.92)",
+                        }}
+                      >
+                        {confidenceLabel}
+                      </span>
+                      <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>{String(effect?.task_action || "")}</span>
+                      {outputSummary ? (
+                        <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.74 }}>{"->"} {outputSummary}</span>
+                      ) : null}
+                    </div>
+                    <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>{String(effect?.reason || "")}</div>
+                    {effect?.because ? (
+                      <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>proc: {String(effect.because)}</div>
+                    ) : null}
+                    {effect?.rule_id ? (
+                      <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.66 }}>rule: {String(effect.rule_id)}</div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ) : null}
       </div>
@@ -4369,7 +5216,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             <button
               type="button"
               onClick={() => executeGridBatch("preview")}
-              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork || gridValidation.count > 0}
+              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork}
               style={hudButtonStyle}
             >
               Preview batch
@@ -4377,7 +5224,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             <button
               type="button"
               onClick={() => executeGridBatch("commit")}
-              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork || gridValidation.count > 0}
+              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork || gridValidation.blockingCount > 0}
               style={actionButtonStyle}
             >
               Commit batch
@@ -4391,6 +5238,80 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           </div>
 
           {gridBatchInfo ? <div style={{ fontSize: "var(--dv-fs-xs)", color: "#9ee8ff" }}>{gridBatchInfo}</div> : null}
+          {gridHasStagedWork ? (
+            <div
+              style={{
+                border: "1px solid rgba(104, 194, 226, 0.24)",
+                borderRadius: 9,
+                background: "rgba(8, 20, 34, 0.52)",
+                padding: "6px 8px",
+                display: "grid",
+                gap: 5,
+              }}
+            >
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88, letterSpacing: "var(--dv-tr-medium)" }}>
+                Semanticky plan (lokalni predikce)
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.84 }}>
+                Tasky: {gridSemanticLivePreview.tasksCount} · Efekty: {gridSemanticLivePreview.effects.length}
+              </div>
+              {gridValidation.count ? (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
+                  Validace: blokuje {gridValidation.blockingCount} · varovani {gridValidation.warningCount}
+                </div>
+              ) : null}
+              {gridSemanticLivePreview.errors.length ? (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", color: "#ffbfd2", opacity: 0.92 }}>
+                  Blokace: {gridSemanticLivePreview.errors.slice(0, 2).join(" | ")}
+                  {gridSemanticLivePreview.errors.length > 2 ? ` (+${gridSemanticLivePreview.errors.length - 2})` : ""}
+                </div>
+              ) : null}
+              {gridSemanticLivePreview.effects.length ? (
+                <div style={{ display: "grid", gap: 5 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {(Array.isArray(gridSemanticLivePreview.summaryEntries) ? gridSemanticLivePreview.summaryEntries : [])
+                    .slice(0, 6)
+                    .map((entry) => (
+                      <span
+                        key={`live-preview:${entry.code}`}
+                        style={{
+                          ...hudBadgeStyle,
+                          fontSize: "var(--dv-fs-2xs)",
+                          borderColor: "rgba(121, 204, 234, 0.42)",
+                          color: semanticConfidenceTone(entry.confidence),
+                          background: "rgba(8, 23, 38, 0.9)",
+                        }}
+                      >
+                        {entry.code} {entry.count} · {semanticConfidenceLabel(entry.confidence)}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ display: "grid", gap: 4, maxHeight: 72, overflow: "auto", paddingRight: 2 }}>
+                    {gridSemanticLivePreview.effects.slice(0, 2).map((effect) => (
+                      <div key={`quick-live:${effect.id}`} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>{effect.code}</span>
+                        <span
+                          style={{
+                            ...hudBadgeStyle,
+                            fontSize: "var(--dv-fs-2xs)",
+                            color: semanticConfidenceTone(effect.confidence),
+                            borderColor: "rgba(121, 204, 234, 0.42)",
+                            background: "rgba(8, 23, 38, 0.9)",
+                          }}
+                        >
+                          {semanticConfidenceLabel(effect.confidence)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>
+                  Zatim pouze technicke zmeny bez semantickeho dopadu.
+                </div>
+              )}
+            </div>
+          ) : null}
 
           <div
             ref={quickGridScrollRef}
@@ -4669,66 +5590,163 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           style={{
             position: "fixed",
             right: 14,
-            top: 72,
+            top: shellTopOffset,
             zIndex: 59,
             width: "min(520px, calc(100vw - 26px))",
-            maxHeight: "min(80vh, 860px)",
+            maxHeight: `calc(100vh - ${shellTopOffset + 34}px)`,
             overflow: "auto",
+            ...shellHeaderPanelStyle,
             borderRadius: 14,
-            border: "1px solid rgba(101, 194, 227, 0.36)",
-            background: "rgba(4, 12, 24, 0.92)",
-            color: "#dcf8ff",
-            backdropFilter: "blur(12px)",
-            boxShadow: "0 0 28px rgba(31, 126, 175, 0.24)",
-            padding: 10,
-            display: "grid",
-            gap: 8,
+            padding: 12,
+            gap: 10,
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <div style={{ fontSize: "var(--dv-fs-md)", fontWeight: 700 }}>Help: semanticke ovladani</div>
+            <div style={{ fontSize: "var(--dv-fs-md)", fontWeight: 700 }}>Navod k ovladani</div>
             <button type="button" onClick={() => setShowHelp(false)} style={ghostButtonStyle}>Zavrit</button>
           </div>
-          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.9 }}>
-            Rychly start: 1) vyber planetu, 2) `/grid`, 3) klik na bunku = editace, 4) `/3d` = zpet.
-          </div>
-          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.9 }}>
-            Zaklad semantiky: <strong>+</strong> vztah, <strong>:</strong> typ, <strong>:=</strong> zapis hodnoty, <strong>-&gt;</strong> tok, <strong>-</strong> zhasnout.
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => setHelpMode("quick")}
+              style={{
+                ...ghostButtonStyle,
+                borderColor: helpMode === "quick" ? "rgba(120, 218, 251, 0.62)" : ghostButtonStyle.borderColor,
+                background: helpMode === "quick" ? "rgba(14, 42, 64, 0.92)" : ghostButtonStyle.background,
+              }}
+            >
+              Rychly navod
+            </button>
+            <button
+              type="button"
+              onClick={() => setHelpMode("full")}
+              style={{
+                ...ghostButtonStyle,
+                borderColor: helpMode === "full" ? "rgba(120, 218, 251, 0.62)" : ghostButtonStyle.borderColor,
+                background: helpMode === "full" ? "rgba(14, 42, 64, 0.92)" : ghostButtonStyle.background,
+              }}
+            >
+              Kompletni navod
+            </button>
           </div>
 
-          <details open>
-            <summary style={{ cursor: "pointer", fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>Kompletni navod</summary>
-            <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
-              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Operator syntax (v2)</div>
-              {PARSER_OPERATOR_GUIDE.map((item) => (
-                <div key={item.key} style={{ border: "1px solid rgba(99, 189, 220, 0.23)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.58)" }}>
-                  <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9fe8ff" }}>{item.syntax}</div>
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item.meaning}</div>
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>Priklad: {item.example}</div>
-                </div>
-              ))}
-              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Legacy verby</div>
-              {PARSER_LEGACY_GUIDE.map((item) => (
-                <div key={item.key} style={{ border: "1px solid rgba(99, 189, 220, 0.2)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.52)" }}>
-                  <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9fe8ff" }}>{item.syntax}</div>
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item.meaning}</div>
-                </div>
-              ))}
-              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Ovladaci playbook</div>
-              {CONTROL_PLAYBOOK.map((item) => (
-                <div key={item.key} style={{ border: "1px solid rgba(99, 189, 220, 0.2)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.5)", display: "grid", gap: 3 }}>
-                  <div style={{ fontSize: "var(--dv-fs-xs)", fontWeight: 700 }}>{item.title}</div>
-                  {item.steps.map((step) => (
-                    <div key={`${item.key}:${step}`} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{step}</div>
+          {helpMode === "quick" ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div
+                style={{
+                  border: "1px solid rgba(99, 189, 220, 0.23)",
+                  borderRadius: 10,
+                  background: "rgba(5, 15, 27, 0.58)",
+                  padding: "8px 9px",
+                  display: "grid",
+                  gap: 6,
+                }}
+              >
+                <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>1) Dalsi krok</div>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>{primaryGuideAction.helper}</div>
+                <button type="button" onClick={handlePrimaryGuideAction} style={actionButtonStyle}>
+                  {primaryGuideAction.label}
+                </button>
+              </div>
+
+              <div
+                style={{
+                  border: "1px solid rgba(99, 189, 220, 0.23)",
+                  borderRadius: 10,
+                  background: "rgba(5, 15, 27, 0.56)",
+                  padding: "8px 9px",
+                  display: "grid",
+                  gap: 6,
+                }}
+              >
+                <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>2) Zakladni prikazy</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {[
+                    { label: ":refresh", insert: ":refresh" },
+                    { label: "/grid", insert: "/grid" },
+                    { label: "/3d", insert: "/3d" },
+                    { label: "Ukaz :", insert: "Ukaz : " },
+                    { label: "+NovaGalaxie", insert: "+NovaGalaxie" },
+                  ].map((item) => (
+                    <button key={`help:quick:${item.label}`} type="button" onClick={() => insertCommandExample(item.insert)} style={ghostButtonStyle}>
+                      {item.label}
+                    </button>
                   ))}
                 </div>
-              ))}
-              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Workspace guide</div>
-              {WORKSPACE_GUIDE.map((item) => (
-                <div key={item} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item}</div>
-              ))}
+              </div>
+
+              <div
+                style={{
+                  border: "1px solid rgba(99, 189, 220, 0.23)",
+                  borderRadius: 10,
+                  background: "rgba(5, 15, 27, 0.54)",
+                  padding: "8px 9px",
+                  display: "grid",
+                  gap: 5,
+                }}
+              >
+                <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>3) Semantika v kostce</div>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>
+                  <strong>A + B</strong> vztah · <strong>A : Typ</strong> klasifikace · <strong>A.pole := hodnota</strong> zapis
+                </div>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>
+                  <strong>A -&gt; B</strong> tok · <strong>- A</strong> soft delete
+                </div>
+              </div>
             </div>
-          </details>
+          ) : (
+            <div style={{ display: "grid", gap: 7 }}>
+              <details open>
+                <summary style={{ cursor: "pointer", fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>Operator syntax (v2)</summary>
+                <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
+                  {PARSER_OPERATOR_GUIDE.map((item) => (
+                    <div key={item.key} style={{ border: "1px solid rgba(99, 189, 220, 0.23)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.58)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                        <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9fe8ff" }}>{item.syntax}</div>
+                        <button type="button" onClick={() => insertCommandExample(item.example)} style={ghostButtonStyle}>Vlozit</button>
+                      </div>
+                      <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item.meaning}</div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+
+              <details>
+                <summary style={{ cursor: "pointer", fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>Legacy verby</summary>
+                <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
+                  {PARSER_LEGACY_GUIDE.map((item) => (
+                    <div key={item.key} style={{ border: "1px solid rgba(99, 189, 220, 0.2)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.52)" }}>
+                      <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9fe8ff" }}>{item.syntax}</div>
+                      <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item.meaning}</div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+
+              <details>
+                <summary style={{ cursor: "pointer", fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>Ovladaci playbook</summary>
+                <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
+                  {CONTROL_PLAYBOOK.map((item) => (
+                    <div key={item.key} style={{ border: "1px solid rgba(99, 189, 220, 0.2)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.5)", display: "grid", gap: 3 }}>
+                      <div style={{ fontSize: "var(--dv-fs-xs)", fontWeight: 700 }}>{item.title}</div>
+                      {item.steps.map((step) => (
+                        <div key={`${item.key}:${step}`} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{step}</div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </details>
+
+              <details>
+                <summary style={{ cursor: "pointer", fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>Workspace guide</summary>
+                <div style={{ marginTop: 6, display: "grid", gap: 4 }}>
+                  {WORKSPACE_GUIDE.map((item) => (
+                    <div key={item} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item}</div>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -5932,7 +6950,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             <button
               type="button"
               onClick={() => executeGridBatch("preview")}
-              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork || gridValidation.count > 0}
+              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork}
               style={hudButtonStyle}
             >
               {gridBatchBusy ? "..." : "Preview batch"}
@@ -5940,7 +6958,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             <button
               type="button"
               onClick={() => executeGridBatch("commit")}
-              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork || gridValidation.count > 0}
+              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork || gridValidation.blockingCount > 0}
               style={actionButtonStyle}
             >
               {gridBatchBusy ? "..." : "Commit batch"}
@@ -5965,12 +6983,74 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           {gridBatchInfo ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9ee8ff" }}>{gridBatchInfo}</div> : null}
           {gridValidation.count ? (
             <div style={{ fontSize: "var(--dv-fs-xs)", color: "#86d9ff", opacity: 0.94 }}>
-              Hologramy: {gridValidation.count} · {gridValidation.messages[0]}
+              Hologramy: {gridValidation.count} · blokuje {gridValidation.blockingCount} · varovani {gridValidation.warningCount}
+              {gridValidation.messages[0] ? ` · ${gridValidation.messages[0]}` : ""}
+            </div>
+          ) : null}
+          {gridHasStagedWork ? (
+            <div
+              style={{
+                border: "1px solid rgba(103, 195, 228, 0.24)",
+                borderRadius: 8,
+                background: "rgba(7, 19, 33, 0.52)",
+                padding: "6px 7px",
+                display: "grid",
+                gap: 5,
+              }}
+            >
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86, letterSpacing: "var(--dv-tr-medium)" }}>
+                Semanticky plan (lokalni predikce)
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
+                Tasky: {gridSemanticLivePreview.tasksCount} · Efekty: {gridSemanticLivePreview.effects.length}
+              </div>
+              {gridValidation.count ? (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
+                  Validace: blokuje {gridValidation.blockingCount} · varovani {gridValidation.warningCount}
+                </div>
+              ) : null}
+              {gridSemanticLivePreview.errors.length ? (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", color: "#ffbfd2" }}>
+                  Blokace: {gridSemanticLivePreview.errors[0]}
+                </div>
+              ) : null}
+              {gridSemanticLivePreview.effects.length ? (
+                <div style={{ display: "grid", gap: 4, maxHeight: 110, overflow: "auto", paddingRight: 2 }}>
+                  {gridSemanticLivePreview.effects.slice(0, 4).map((effect) => (
+                    <div key={effect.id} style={{ display: "grid", gap: 2 }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>{effect.code}</span>
+                        <span
+                          style={{
+                            ...hudBadgeStyle,
+                            fontSize: "var(--dv-fs-2xs)",
+                            color: semanticConfidenceTone(effect.confidence),
+                            borderColor: "rgba(121, 204, 234, 0.42)",
+                            background: "rgba(8, 23, 38, 0.9)",
+                          }}
+                        >
+                          {semanticConfidenceLabel(effect.confidence)}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.86 }}>
+                        {effect.reason}
+                        {effect.because ? ` (${effect.because})` : ""}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>Bez semantickeho dopadu.</div>
+              )}
             </div>
           ) : null}
           {gridBatchPreview ? (
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-              Preview: tasks {gridBatchPreview.tasks} · asteroidy {gridBatchPreview.asteroids} · vazby {gridBatchPreview.bonds}
+              Preview: tasks {gridBatchPreview.tasks} · asteroidy {gridBatchPreview.asteroids} · vazby {gridBatchPreview.bonds} · efekty{" "}
+              {Number(gridBatchPreview.semanticEffects || 0)}
+              {Array.isArray(gridBatchPreview.semanticCodes) && gridBatchPreview.semanticCodes.length
+                ? ` (${gridBatchPreview.semanticCodes.join(", ")})`
+                : ""}
             </div>
           ) : null}
         </div>
@@ -6268,35 +7348,43 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
 const inputStyle = {
   width: "100%",
-  borderRadius: 8,
+  borderRadius: 9,
   border: "1px solid rgba(112, 205, 238, 0.24)",
   background: "rgba(4, 10, 18, 0.92)",
   color: "#ddf7ff",
-  padding: "7px 9px",
+  padding: "8px 10px",
   fontSize: "var(--dv-fs-sm)",
   letterSpacing: "var(--dv-tr-tight)",
+  lineHeight: "var(--dv-lh-base)",
   outline: "none",
   boxSizing: "border-box",
+  transition: "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
 };
 
 const actionButtonStyle = {
   border: "1px solid rgba(114, 219, 252, 0.5)",
   background: "linear-gradient(120deg, #21bbea, #44d8ff)",
   color: "#072737",
-  borderRadius: 9,
-  padding: "8px 10px",
+  borderRadius: 10,
+  padding: "8px 11px",
   fontWeight: 700,
+  letterSpacing: "var(--dv-tr-tight)",
+  lineHeight: "var(--dv-lh-base)",
   cursor: "pointer",
+  boxShadow: "0 0 14px rgba(55, 178, 224, 0.2)",
+  transition: "transform 120ms ease, box-shadow 180ms ease, filter 180ms ease",
 };
 
 const ghostButtonStyle = {
   border: "1px solid rgba(113, 202, 234, 0.3)",
   background: "rgba(7, 18, 32, 0.86)",
   color: "#d5f5ff",
-  borderRadius: 8,
-  padding: "7px 10px",
+  borderRadius: 9,
+  padding: "8px 10px",
   fontSize: "var(--dv-fs-sm)",
+  lineHeight: "var(--dv-lh-base)",
   cursor: "pointer",
+  transition: "border-color 160ms ease, background-color 160ms ease, box-shadow 180ms ease",
 };
 
 const guideSectionStyle = {
@@ -6327,6 +7415,12 @@ const selectStyle = {
   ...inputStyle,
   padding: "6px 8px",
   appearance: "none",
+  backgroundImage:
+    "linear-gradient(45deg, transparent 50%, rgba(181, 236, 255, 0.78) 50%), linear-gradient(135deg, rgba(181, 236, 255, 0.78) 50%, transparent 50%)",
+  backgroundPosition: "calc(100% - 14px) calc(50% - 2px), calc(100% - 9px) calc(50% - 2px)",
+  backgroundSize: "5px 5px, 5px 5px",
+  backgroundRepeat: "no-repeat",
+  paddingRight: 24,
 };
 
 const hudBadgeStyle = {
@@ -6334,7 +7428,7 @@ const hudBadgeStyle = {
   background: "rgba(8, 18, 31, 0.85)",
   color: "#d8f6ff",
   borderRadius: 999,
-  padding: "4px 8px",
+  padding: "4px 9px",
   fontSize: "var(--dv-fs-2xs)",
   letterSpacing: "var(--dv-tr-normal)",
   lineHeight: "var(--dv-lh-compact)",
@@ -6347,6 +7441,7 @@ const hudButtonStyle = {
   borderRadius: 999,
   fontSize: "var(--dv-fs-2xs)",
   letterSpacing: "var(--dv-tr-normal)",
-  padding: "5px 9px",
+  padding: "5px 10px",
   cursor: "pointer",
+  transition: "border-color 160ms ease, background-color 160ms ease, box-shadow 180ms ease",
 };

@@ -28,6 +28,7 @@ def test_table_contract_request_uses_schema_registry_when_top_level_is_empty() -
             "field_types": {"owner": "string"},
             "unique_rules": [{"fields": ["owner"]}],
             "validators": [{"field": "owner", "operator": "semantic", "value": {"mode": "relation"}}],
+            "auto_semantics": [{"id": "role-employee", "kind": "bucket_by_metadata_value", "field": "role", "in": ["employee"]}],
         },
     )
 
@@ -35,6 +36,7 @@ def test_table_contract_request_uses_schema_registry_when_top_level_is_empty() -
     assert payload.field_types == {"owner": "string"}
     assert payload.unique_rules == [{"fields": ["owner"]}]
     assert payload.validators[0]["operator"] == "semantic"
+    assert payload.auto_semantics[0]["id"] == "role-employee"
 
 
 def test_table_contract_request_normalizes_formula_and_physics_registries() -> None:

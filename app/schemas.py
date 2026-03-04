@@ -127,6 +127,22 @@ class TaskSchema(BaseModel):
     params: dict[str, Any]
 
 
+class SemanticEffect(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    timestamp: datetime
+    code: str
+    severity: str = "info"
+    confidence: str = "certain"
+    because: str | None = None
+    rule_id: str | None = None
+    reason: str
+    task_action: str
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    outputs: dict[str, Any] = Field(default_factory=dict)
+
+
 class ParseCommandResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -136,6 +152,7 @@ class ParseCommandResponse(BaseModel):
     selected_asteroids: list[AsteroidResponse] = Field(default_factory=list)
     extinguished_asteroid_ids: list[uuid.UUID] = Field(default_factory=list)
     extinguished_bond_ids: list[uuid.UUID] = Field(default_factory=list)
+    semantic_effects: list[SemanticEffect] = Field(default_factory=list)
 
 
 class TaskBatchExecuteRequest(BaseModel):
@@ -601,6 +618,7 @@ class TableContractUpsertRequest(BaseModel):
     field_types: dict[str, str] = Field(default_factory=dict)
     unique_rules: list[dict[str, Any]] = Field(default_factory=list)
     validators: list[dict[str, Any]] = Field(default_factory=list)
+    auto_semantics: list[dict[str, Any]] = Field(default_factory=list)
     formula_registry: list[dict[str, Any]] = Field(default_factory=list)
     physics_rulebook: dict[str, Any] = Field(default_factory=dict)
 
@@ -628,6 +646,10 @@ class TableContractUpsertRequest(BaseModel):
             schema_validators = schema.get("validators")
             if isinstance(schema_validators, list):
                 self.validators = _normalize_contract_dict_list(schema_validators)
+        if not self.auto_semantics:
+            schema_auto_semantics = schema.get("auto_semantics")
+            if isinstance(schema_auto_semantics, list):
+                self.auto_semantics = _normalize_contract_dict_list(schema_auto_semantics)
 
         self.required_fields = _normalize_contract_string_list(self.required_fields)
         self.field_types = {
@@ -637,6 +659,7 @@ class TableContractUpsertRequest(BaseModel):
         }
         self.unique_rules = _normalize_contract_dict_list(self.unique_rules)
         self.validators = _normalize_contract_dict_list(self.validators)
+        self.auto_semantics = _normalize_contract_dict_list(self.auto_semantics)
         self.formula_registry = _normalize_contract_dict_list(self.formula_registry)
 
         if not isinstance(self.physics_rulebook, dict):
@@ -653,6 +676,7 @@ class TableContractUpsertRequest(BaseModel):
             "field_types": self.field_types,
             "unique_rules": self.unique_rules,
             "validators": self.validators,
+            "auto_semantics": self.auto_semantics,
         }
         return self
 
@@ -666,6 +690,7 @@ class TableContractPublic(BaseModel):
     field_types: dict[str, str] = Field(default_factory=dict)
     unique_rules: list[dict[str, Any]] = Field(default_factory=list)
     validators: list[dict[str, Any]] = Field(default_factory=list)
+    auto_semantics: list[dict[str, Any]] = Field(default_factory=list)
     schema_registry: dict[str, Any] = Field(default_factory=dict)
     formula_registry: list[dict[str, Any]] = Field(default_factory=list)
     physics_rulebook: dict[str, Any] = Field(default_factory=dict)
