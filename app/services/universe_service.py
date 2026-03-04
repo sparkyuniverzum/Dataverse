@@ -390,6 +390,87 @@ class UniverseService:
             if isinstance(row.entity_id, UUID)
         }
 
+    async def _load_physics_state_by_bond_id(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        bond_ids: set[UUID],
+    ) -> dict[UUID, dict[str, Any]]:
+        if not bond_ids:
+            return {}
+        rows = list(
+            (
+                await session.execute(
+                    select(PhysicsStateRM).where(
+                        and_(
+                            PhysicsStateRM.user_id == user_id,
+                            PhysicsStateRM.galaxy_id == galaxy_id,
+                            PhysicsStateRM.entity_kind == "bond",
+                            PhysicsStateRM.deleted_at.is_(None),
+                            PhysicsStateRM.entity_id.in_(bond_ids),
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return {
+            row.entity_id: {
+                "source_event_seq": int(row.source_event_seq or 0),
+                "engine_version": str(row.engine_version or ""),
+                "stress_score": float(row.stress_score),
+                "mass_factor": float(row.mass_factor),
+                "radius_factor": float(row.radius_factor),
+                "emissive_boost": float(row.emissive_boost),
+                "pulse_factor": float(row.pulse_factor),
+                "opacity_factor": float(row.opacity_factor),
+                "attraction_factor": float(row.attraction_factor),
+                "payload": row.payload if isinstance(row.payload, dict) else {},
+            }
+            for row in rows
+            if isinstance(row.entity_id, UUID)
+        }
+
+    async def _enrich_bonds_from_read_models(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        active_bonds: list[ProjectedBond],
+    ) -> list[ProjectedBond | dict[str, Any]]:
+        if not active_bonds:
+            return []
+        physics_by_id = await self._load_physics_state_by_bond_id(
+            session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            bond_ids={bond.id for bond in active_bonds},
+        )
+        enriched: list[ProjectedBond | dict[str, Any]] = []
+        for bond in active_bonds:
+            physics = physics_by_id.get(bond.id)
+            if not physics:
+                enriched.append(bond)
+                continue
+            enriched.append(
+                {
+                    "id": bond.id,
+                    "source_id": bond.source_id,
+                    "target_id": bond.target_id,
+                    "type": normalize_bond_type(bond.type),
+                    "is_deleted": bool(bond.is_deleted),
+                    "created_at": bond.created_at,
+                    "deleted_at": bond.deleted_at,
+                    "current_event_seq": int(getattr(bond, "current_event_seq", 0) or 0),
+                    "physics": physics,
+                }
+            )
+        return enriched
+
     async def _enrich_main_timeline_from_read_models(
         self,
         session: AsyncSession,
@@ -596,7 +677,7 @@ class UniverseService:
         branch_id: UUID | None = None,
         as_of: datetime | None = None,
         apply_calculations: bool = True,
-    ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond]]:
+    ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond | dict[str, Any]]]:
         await self._ensure_galaxy_access(session, user_id=user_id, galaxy_id=galaxy_id)
         projection_source = "events"
         if branch_id is not None:
@@ -647,7 +728,13 @@ class UniverseService:
                 active_bonds=active_bonds,
             )
             if main_enriched is not None:
-                return main_enriched, active_bonds
+                bond_enriched = await self._enrich_bonds_from_read_models(
+                    session,
+                    user_id=user_id,
+                    galaxy_id=galaxy_id,
+                    active_bonds=active_bonds,
+                )
+                return main_enriched, bond_enriched
 
         evaluated = evaluate_universe(
             [
@@ -690,7 +777,7 @@ class UniverseService:
         galaxy_id: UUID = DEFAULT_GALAXY_ID,
         branch_id: UUID | None = None,
         as_of: datetime | None = None,
-    ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond]]:
+    ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond | dict[str, Any]]]:
         return await self.project_state(
             session=session,
             user_id=user_id,

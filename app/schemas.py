@@ -188,6 +188,9 @@ class UniverseAsteroidSnapshot(BaseModel):
     planet_name: str
     metadata: dict[str, Any] = Field(default_factory=dict)
     calculated_values: dict[str, Any] = Field(default_factory=dict)
+    calc_errors: list[Any] = Field(default_factory=list)
+    error_count: int = 0
+    circular_fields_count: int = 0
     active_alerts: list[str] = Field(default_factory=list)
     physics: dict[str, Any] = Field(default_factory=dict)
     facts: list["MineralFact"] = Field(default_factory=list)
@@ -276,9 +279,24 @@ def build_moon_facts(
     value: Any,
     metadata: dict[str, Any] | None = None,
     calculated_values: dict[str, Any] | None = None,
+    calc_errors: list[Any] | None = None,
 ) -> list[MineralFact]:
     metadata_dict = metadata if isinstance(metadata, dict) else {}
     calculated_dict = calculated_values if isinstance(calculated_values, dict) else {}
+    calc_errors_list = calc_errors if isinstance(calc_errors, list) else []
+    errors_by_field: dict[str, list[str]] = {}
+    for item in calc_errors_list:
+        if not isinstance(item, dict):
+            continue
+        field = str(item.get("field") or "").strip()
+        code = str(item.get("code") or "").strip()
+        message = str(item.get("message") or "").strip()
+        if not field:
+            continue
+        line = message or code or "Calculation error"
+        errors_by_field.setdefault(field, [])
+        if line not in errors_by_field[field]:
+            errors_by_field[field].append(line)
     facts: list[MineralFact] = [
         MineralFact(
             key="value",
@@ -305,8 +323,12 @@ def build_moon_facts(
 
     for key in sorted(calculated_dict.keys()):
         typed_value = calculated_dict.get(key)
-        status = FactStatus.INVALID if typed_value == "#CIRC!" else FactStatus.VALID
-        errors = ["Circular formula dependency"] if typed_value == "#CIRC!" else []
+        field_errors = list(errors_by_field.get(str(key), []))
+        is_circular = typed_value == "#CIRC!"
+        status = FactStatus.INVALID if is_circular or bool(field_errors) else FactStatus.VALID
+        errors = field_errors
+        if is_circular and "Circular formula dependency" not in errors:
+            errors.append("Circular formula dependency")
         facts.append(
             MineralFact(
                 key=str(key),
@@ -316,6 +338,20 @@ def build_moon_facts(
                 status=status,
                 readonly=True,
                 errors=errors,
+            )
+        )
+    for key in sorted(errors_by_field.keys()):
+        if key in calculated_dict:
+            continue
+        facts.append(
+            MineralFact(
+                key=key,
+                typed_value=None,
+                value_type=FactValueType.NULL,
+                source=FactSource.CALCULATED,
+                status=FactStatus.INVALID,
+                readonly=True,
+                errors=list(errors_by_field.get(key, [])),
             )
         )
 
@@ -337,6 +373,7 @@ def asteroid_snapshot_to_moon_row(snapshot: UniverseAsteroidSnapshot) -> MoonRow
             value=snapshot.value,
             metadata=snapshot.metadata,
             calculated_values=snapshot.calculated_values,
+            calc_errors=snapshot.calc_errors,
         ),
     )
 
@@ -346,6 +383,7 @@ class UniverseBondSnapshot(BaseModel):
     source_id: uuid.UUID
     target_id: uuid.UUID
     type: str
+    physics: dict[str, Any] = Field(default_factory=dict)
     directional: bool = False
     flow_direction: str = "bidirectional"
     source_table_id: uuid.UUID

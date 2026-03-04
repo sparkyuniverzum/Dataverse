@@ -91,9 +91,21 @@ export function inferFactValueType(value) {
   return FACT_VALUE_TYPES.JSON;
 }
 
-export function buildMoonFacts({ value = null, metadata = {}, calculatedValues = {} } = {}) {
+export function buildMoonFacts({ value = null, metadata = {}, calculatedValues = {}, calcErrors = [] } = {}) {
   const safeMetadata = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
   const safeCalculated = calculatedValues && typeof calculatedValues === "object" && !Array.isArray(calculatedValues) ? calculatedValues : {};
+  const safeCalcErrors = Array.isArray(calcErrors) ? calcErrors : [];
+  const errorsByField = new Map();
+  safeCalcErrors.forEach((entry) => {
+    if (!entry || typeof entry !== "object") return;
+    const field = String(entry.field || "").trim();
+    if (!field) return;
+    const message = String(entry.message || entry.code || "Calc error").trim();
+    if (!message) return;
+    const existing = errorsByField.get(field) || [];
+    if (!existing.includes(message)) existing.push(message);
+    errorsByField.set(field, existing);
+  });
 
   /** @type {MineralFact[]} */
   const facts = [
@@ -130,7 +142,12 @@ export function buildMoonFacts({ value = null, metadata = {}, calculatedValues =
     .sort((a, b) => a.localeCompare(b))
     .forEach((key) => {
       const typedValue = safeCalculated[key];
-      const invalid = typedValue === "#CIRC!";
+      const fieldErrors = errorsByField.get(String(key)) || [];
+      const invalid = typedValue === "#CIRC!" || fieldErrors.length > 0;
+      const errors = [...fieldErrors];
+      if (typedValue === "#CIRC!" && !errors.includes("Circular formula dependency")) {
+        errors.push("Circular formula dependency");
+      }
       facts.push({
         key: String(key),
         typed_value: typedValue,
@@ -139,9 +156,23 @@ export function buildMoonFacts({ value = null, metadata = {}, calculatedValues =
         status: invalid ? FACT_STATUSES.INVALID : FACT_STATUSES.VALID,
         unit: null,
         readonly: true,
-        errors: invalid ? ["Circular formula dependency"] : [],
+        errors,
       });
     });
+
+  errorsByField.forEach((messages, key) => {
+    if (Object.prototype.hasOwnProperty.call(safeCalculated, key)) return;
+    facts.push({
+      key: String(key),
+      typed_value: null,
+      value_type: FACT_VALUE_TYPES.NULL,
+      source: FACT_SOURCES.CALCULATED,
+      status: FACT_STATUSES.INVALID,
+      unit: null,
+      readonly: true,
+      errors: [...messages],
+    });
+  });
 
   return facts;
 }
@@ -211,11 +242,12 @@ export function toMoonRowContract(asteroidSnapshot) {
     ? snapshot.facts.map(normalizeFact).filter(Boolean)
     : [];
   const facts = backendFacts.length
-    ? backendFacts
-    : buildMoonFacts({
+      ? backendFacts
+      : buildMoonFacts({
         value: snapshot.value ?? null,
         metadata: snapshot.metadata,
         calculatedValues: snapshot.calculated_values,
+        calcErrors: snapshot.calc_errors,
       });
   const activeAlerts = Array.isArray(snapshot.active_alerts) ? snapshot.active_alerts.map((item) => String(item)) : [];
   return {

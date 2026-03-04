@@ -537,12 +537,17 @@ def universe_asteroid_to_snapshot(
         calculated_values = asteroid.get("calculated_values", {})
         if not isinstance(calculated_values, dict):
             calculated_values = {}
+        calc_errors = asteroid.get("calc_errors", [])
+        if not isinstance(calc_errors, list):
+            calc_errors = []
         physics = asteroid.get("physics", {})
         if not isinstance(physics, dict):
             physics = {}
         active_alerts = asteroid.get("active_alerts", [])
         if not isinstance(active_alerts, list):
             active_alerts = []
+        error_count = int(asteroid.get("error_count", len([item for item in calc_errors if isinstance(item, dict)])) or 0)
+        circular_fields_count = int(asteroid.get("circular_fields_count", 0) or 0)
         table_name_raw = asteroid.get("table_name")
         table_name = (
             table_name_raw.strip()
@@ -567,9 +572,17 @@ def universe_asteroid_to_snapshot(
             planet_name=planet_name,
             metadata=metadata,
             calculated_values=calculated_values,
+            calc_errors=[item for item in calc_errors if isinstance(item, dict)],
+            error_count=error_count,
+            circular_fields_count=circular_fields_count,
             active_alerts=[str(alert) for alert in active_alerts],
             physics=physics,
-            facts=build_moon_facts(value=asteroid.get("value"), metadata=metadata, calculated_values=calculated_values),
+            facts=build_moon_facts(
+                value=asteroid.get("value"),
+                metadata=metadata,
+                calculated_values=calculated_values,
+                calc_errors=calc_errors,
+            ),
             created_at=asteroid["created_at"],
             current_event_seq=int(asteroid.get("current_event_seq", 0) or 0),
         )
@@ -585,9 +598,12 @@ def universe_asteroid_to_snapshot(
         planet_name=planet_name,
         metadata=asteroid.metadata,
         calculated_values={},
+        calc_errors=[],
+        error_count=0,
+        circular_fields_count=0,
         active_alerts=[],
         physics={},
-        facts=build_moon_facts(value=asteroid.value, metadata=asteroid.metadata, calculated_values={}),
+        facts=build_moon_facts(value=asteroid.value, metadata=asteroid.metadata, calculated_values={}, calc_errors=[]),
         created_at=asteroid.created_at,
         current_event_seq=int(getattr(asteroid, "current_event_seq", 0) or 0),
     )
@@ -603,6 +619,9 @@ def universe_bond_to_snapshot(
         semantics = bond_semantics(bond.get("type", "RELATION"))
         source_id = bond["source_id"]
         target_id = bond["target_id"]
+        physics = bond.get("physics", {})
+        if not isinstance(physics, dict):
+            physics = {}
         source_table_id, source_table_name, source_constellation_name, source_planet_name = table_index.get(
             source_id,
             (DEFAULT_GALAXY_ID, "Unknown", "Unknown", "Unknown"),
@@ -616,6 +635,7 @@ def universe_bond_to_snapshot(
             source_id=source_id,
             target_id=target_id,
             type=semantics.bond_type,
+            physics=physics,
             directional=semantics.directional,
             flow_direction=semantics.flow_direction,
             source_table_id=source_table_id,
@@ -642,6 +662,7 @@ def universe_bond_to_snapshot(
         source_id=bond.source_id,
         target_id=bond.target_id,
         type=semantics.bond_type,
+        physics={},
         directional=semantics.directional,
         flow_direction=semantics.flow_direction,
         source_table_id=source_table_id,

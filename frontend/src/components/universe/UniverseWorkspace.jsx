@@ -42,6 +42,8 @@ import {
   deriveMoonPhysics,
   derivePlanetPhysics,
   deriveTableBondDensity,
+  normalizeLinkPhysicsFromBackend,
+  normalizeNodePhysicsFromBackend,
   normalizePhysicsKey,
 } from "../../lib/physics_laws";
 import { useUniverseStore } from "../../store/useUniverseStore";
@@ -128,6 +130,50 @@ function buildParserErrorMessage(error, originalCommand, executedCommand) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function computeOverviewCamera(tableNodes) {
+  const safeNodes = Array.isArray(tableNodes) ? tableNodes : [];
+  if (!safeNodes.length) {
+    return {
+      target: [0, 0, 0],
+      position: [0, 120, 420],
+      minDistance: 20,
+      maxDistance: 3000,
+    };
+  }
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let minZ = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let maxZ = Number.NEGATIVE_INFINITY;
+
+  safeNodes.forEach((node) => {
+    const position = Array.isArray(node?.position) ? node.position : [0, 0, 0];
+    const radius = Math.max(0, Number(node?.radius || 0));
+    minX = Math.min(minX, Number(position[0] || 0) - radius);
+    minY = Math.min(minY, Number(position[1] || 0) - radius);
+    minZ = Math.min(minZ, Number(position[2] || 0) - radius);
+    maxX = Math.max(maxX, Number(position[0] || 0) + radius);
+    maxY = Math.max(maxY, Number(position[1] || 0) + radius);
+    maxZ = Math.max(maxZ, Number(position[2] || 0) + radius);
+  });
+
+  const target = [(minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5];
+  const dx = maxX - minX;
+  const dy = maxY - minY;
+  const dz = maxZ - minZ;
+  const span = Math.max(120, Math.sqrt(dx * dx + dy * dy + dz * dz));
+  const distance = clamp(span * 1.35, 260, 1250);
+
+  return {
+    target,
+    position: [target[0] + distance * 0.24, target[1] + distance * 0.2, target[2] + distance],
+    minDistance: Math.max(24, distance * 0.2),
+    maxDistance: Math.max(1400, distance * 8),
+  };
 }
 
 function resolveTableForAsteroid(tables, asteroidId) {
@@ -958,6 +1004,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     panels,
     contextMenu,
     linkDraft,
+    setCamera,
     focusTable,
     focusAsteroid,
     clearSelectedAsteroid,
@@ -1087,6 +1134,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const pendingFocusStartedAtRef = useRef(0);
   const constellationDraftSyncRef = useRef("");
   const tableStructureSyncRef = useRef("");
+  const entryOverviewCameraRef = useRef("");
 
   const asOfIso = useMemo(() => toAsOfIso(asOfInput), [asOfInput]);
   const historicalMode = Boolean(asOfIso);
@@ -1395,7 +1443,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             planet_name: tableIdentity.planetName,
             metadata,
             calculated_values: {},
+            calc_errors: [],
+            error_count: 0,
+            circular_fields_count: 0,
             active_alerts: [],
+            physics: {},
             created_at: timestamp,
           });
           return;
@@ -1747,6 +1799,15 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     });
     return map;
   }, [hierarchyAsteroids]);
+  const snapshotAsteroidById = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(snapshot?.asteroids) ? snapshot.asteroids : []).forEach((asteroid) => {
+      const asteroidId = String(asteroid?.id || "");
+      if (!asteroidId) return;
+      map.set(asteroidId, asteroid);
+    });
+    return map;
+  }, [snapshot?.asteroids]);
   const snapshotBondById = useMemo(() => {
     const map = new Map();
     snapshot.bonds.forEach((bond) => {
@@ -1801,14 +1862,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       const planetMetric = planetMetricsByTableId.get(tableId) || null;
       const constellationMetric = constellationMetricsByName.get(constellationKey) || null;
       const bondDensity = deriveTableBondDensity(table);
-      map.set(
-        tableId,
-        derivePlanetPhysics({
+      const fallbackPhysics = derivePlanetPhysics({
           planetMetrics: planetMetric,
           constellationMetrics: constellationMetric,
           bondDensity,
-        })
-      );
+      });
+      map.set(tableId, normalizeNodePhysicsFromBackend(table?.physics, { fallback: fallbackPhysics }));
     });
     return map;
   }, [constellationMetricsByName, planetMetricsByTableId, tables]);
@@ -1817,18 +1876,17 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     hierarchyAsteroids.forEach((asteroid) => {
       const asteroidId = String(asteroid?.id || "");
       if (!asteroidId) return;
+      const snapshotAsteroid = snapshotAsteroidById.get(asteroidId) || asteroid;
       const moonMetric = moonMetricsByAsteroidId.get(asteroidId) || null;
       const bondDensity = asteroidBondDensityById.get(asteroidId) || 0;
-      map.set(
-        asteroidId,
-        deriveMoonPhysics({
-          moonMetrics: moonMetric,
-          bondDensity,
-        })
-      );
+      const fallbackPhysics = deriveMoonPhysics({
+        moonMetrics: moonMetric,
+        bondDensity,
+      });
+      map.set(asteroidId, normalizeNodePhysicsFromBackend(snapshotAsteroid?.physics, { fallback: fallbackPhysics }));
     });
     return map;
-  }, [asteroidBondDensityById, hierarchyAsteroids, moonMetricsByAsteroidId]);
+  }, [asteroidBondDensityById, hierarchyAsteroids, moonMetricsByAsteroidId, snapshotAsteroidById]);
 
   const layout = useMemo(() => {
     const next = calculateHierarchyLayout({
@@ -1856,6 +1914,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       })),
     [layout, planetMetricsByTableId, tablePhysicsById]
   );
+  const overviewCamera = useMemo(() => computeOverviewCamera(tableNodes), [tableNodes]);
 
   const asteroidNodes = useMemo(
     () =>
@@ -1868,6 +1927,40 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [layout, moonMetricsByAsteroidId, asteroidPhysicsById]
   );
   const tableNodeById = useMemo(() => new Map(tableNodes.map((node) => [node.id, node])), [tableNodes]);
+  useEffect(() => {
+    if (!galaxy?.id) return;
+    if (!tableNodes.length) {
+      entryOverviewCameraRef.current = "";
+      return;
+    }
+    if (level >= 3) return;
+    if (selectedAsteroidId) return;
+    if (String(selectedTableId || "").trim()) return;
+
+    const scopeKey = `${galaxy.id}:${activeBranchId || "main"}:${asOfIso || "live"}`;
+    const signature = `${scopeKey}:${tableNodes.length}:${overviewCamera.target
+      .map((value) => Math.round(Number(value || 0)))
+      .join(",")}`;
+    if (entryOverviewCameraRef.current === signature) return;
+    entryOverviewCameraRef.current = signature;
+
+    setCamera({
+      target: overviewCamera.target,
+      position: overviewCamera.position,
+      minDistance: overviewCamera.minDistance,
+      maxDistance: overviewCamera.maxDistance,
+    });
+  }, [
+    activeBranchId,
+    asOfIso,
+    galaxy?.id,
+    level,
+    overviewCamera,
+    selectedAsteroidId,
+    selectedTableId,
+    setCamera,
+    tableNodes.length,
+  ]);
   const enrichedTableLinks = useMemo(
     () =>
       layout.tableLinks.map((link) => {
@@ -1897,14 +1990,15 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         const sourcePhysics = asteroidPhysicsById.get(sourceId);
         const targetPhysics = asteroidPhysicsById.get(targetId);
         const linked = metric ? { ...merged, v1: metric } : merged;
+        const fallbackPhysics = deriveLinkPhysics({
+          link: linked,
+          bondMetrics: metric,
+          sourcePhysics,
+          targetPhysics,
+        });
         return {
           ...linked,
-          physics: deriveLinkPhysics({
-            link: linked,
-            bondMetrics: metric,
-            sourcePhysics,
-            targetPhysics,
-          }),
+          physics: normalizeLinkPhysicsFromBackend(linked?.physics, { fallback: fallbackPhysics, link: linked }),
         };
       }),
     [asteroidPhysicsById, bondMetricsById, layout.asteroidLinks, snapshotBondById]
@@ -1975,6 +2069,19 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     () => selectedAsteroidFacts.filter((fact) => String(fact?.source || "") === "calculated"),
     [selectedAsteroidFacts]
   );
+  const selectedCalcErrors = useMemo(() => {
+    const raw = Array.isArray(selectedAsteroid?.calc_errors) ? selectedAsteroid.calc_errors : [];
+    return raw
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const field = String(item.field || "").trim();
+        const code = String(item.code || "").trim();
+        const message = String(item.message || "").trim();
+        if (!field && !code && !message) return null;
+        return { field, code, message };
+      })
+      .filter(Boolean);
+  }, [selectedAsteroid]);
   const selectedValueFact = useMemo(
     () => selectedAsteroidFacts.find((fact) => String(fact?.key || "") === "value") || null,
     [selectedAsteroidFacts]
@@ -5591,6 +5698,26 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                   ))}
                 </div>
               ) : null}
+              {selectedCalcErrors.length ? (
+                <div
+                  style={{
+                    border: "1px solid rgba(255, 136, 162, 0.32)",
+                    borderRadius: 8,
+                    background: "rgba(39, 12, 22, 0.48)",
+                    padding: "6px 7px",
+                    display: "grid",
+                    gap: 4,
+                  }}
+                >
+                  <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.78, color: "#ffc8d8" }}>CALC CHYBY</div>
+                  {selectedCalcErrors.slice(0, 4).map((item, idx) => (
+                    <div key={`inspector:calc:error:${item.field}:${item.code}:${idx}`} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>
+                      {item.field ? `${item.field}: ` : ""}
+                      {item.message || item.code || "Calc error"}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
 
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 <button type="button" onClick={() => setQuickGridOpen(true)} style={ghostButtonStyle}>
@@ -7653,6 +7780,30 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                       ∑ · {fact.key}
                     </span>
                     <div style={{ fontSize: "var(--dv-fs-sm)", color: "#cfefff" }}>{valueToLabel(fact.typed_value) || "—"}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {selectedCalcErrors.length ? (
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72, color: "#ffc6d6", letterSpacing: "var(--dv-tr-wide)" }}>
+                  CALC CHYBY
+                </div>
+                {selectedCalcErrors.map((item, idx) => (
+                  <div
+                    key={`calc:error:${item.field}:${item.code}:${idx}`}
+                    style={{
+                      display: "grid",
+                      gap: 2,
+                      borderBottom: "1px solid rgba(255, 126, 156, 0.2)",
+                      paddingBottom: 6,
+                    }}
+                  >
+                    <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72, letterSpacing: "var(--dv-tr-wide)" }}>
+                      {item.field || "vypocet"}
+                      {item.code ? ` · ${item.code}` : ""}
+                    </span>
+                    <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffd7e3" }}>{item.message || "Calc error"}</div>
                   </div>
                 ))}
               </div>
