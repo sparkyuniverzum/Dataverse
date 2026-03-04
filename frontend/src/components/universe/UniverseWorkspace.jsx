@@ -61,6 +61,63 @@ function normalizeText(value) {
     .trim();
 }
 
+function normalizeParserCommandInput(rawCommand) {
+  const command = String(rawCommand || "").trim();
+  const assignMatch = command.match(/^(.+?)\s*(?::=|=)\s*(.+)$/);
+  if (!assignMatch) {
+    return { command, rewritten: false };
+  }
+
+  const left = String(assignMatch[1] || "").trim();
+  const right = String(assignMatch[2] || "").trim();
+  if (!left || !right) {
+    return { command, rewritten: false };
+  }
+
+  const hasField = left.includes(".");
+  if (hasField) {
+    return { command, rewritten: false };
+  }
+  if (left.includes("->") || left.includes("+") || left.includes(":") || left.startsWith("-")) {
+    return { command, rewritten: false };
+  }
+  const verbPrefix = normalizeText(left).split(/\s+/g)[0];
+  if (["ukaz", "najdi", "show", "find", "spocitej", "hlidej", "zhasni", "spoj"].includes(verbPrefix)) {
+    return { command, rewritten: false };
+  }
+
+  return {
+    command: `${left}.value := ${right}`,
+    rewritten: true,
+  };
+}
+
+function buildParserErrorMessage(error, originalCommand, executedCommand) {
+  const fallback = error?.message || "Parser failed";
+  const message = String(fallback || "").trim();
+  if (!message.toLowerCase().includes("parse error")) {
+    return message || "Parser failed";
+  }
+
+  const rawDetail = message.replace(/^parse error:\s*/i, "").trim();
+  if (/assignment target must be in entity\.field format/i.test(rawDetail)) {
+    const leftRaw = String(originalCommand || "").split(/:=|=/)[0]?.trim() || "Mesic";
+    const left = leftRaw.includes(".") ? leftRaw.split(".")[0] : leftRaw;
+    return `Neplatny zapis. Pouzij 'A.pole := hodnota' (napr. '${left}.role := oddeleni vyroba') nebo klasifikaci '${left} : oddeleni vyroba'.`;
+  }
+  if (/expected expression operand/i.test(rawDetail)) {
+    return "Nedokonceny prikaz. Zkus cely tvar, napr. 'A + B', 'A : Typ' nebo 'A.pole := hodnota'.";
+  }
+  if (/missing closing '\)'/i.test(rawDetail)) {
+    return "Chybi uzaviraci zavorka. Oprav prikaz a opakuj.";
+  }
+
+  if (executedCommand && executedCommand !== originalCommand) {
+    return `Parse error: ${rawDetail}. Pozn.: prikaz byl interpretovan jako '${executedCommand}'.`;
+  }
+  return `Parse error: ${rawDetail}`;
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -499,6 +556,8 @@ const GRID_SEMANTIC_MODE_OPTIONS = [
 ];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const QUICK_GRID_ROW_HEIGHT = 42;
+const QUICK_GRID_OVERSCAN = 8;
 
 function normalizeGridSemanticMode(rawMode) {
   const normalized = String(rawMode || "")
@@ -754,12 +813,22 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const [streamState, setStreamState] = useState("OFF");
   const [moonDeleteHover, setMoonDeleteHover] = useState(false);
   const [pendingMoonFocusId, setPendingMoonFocusId] = useState("");
+  const [showHelp, setShowHelp] = useState(false);
+  const [quickGridOpen, setQuickGridOpen] = useState(false);
+  const [gridSearchQuery, setGridSearchQuery] = useState("");
+  const [gridShowGhostRows, setGridShowGhostRows] = useState(false);
+  const [gridSavingCells, setGridSavingCells] = useState({});
+  const [gridDeletingRows, setGridDeletingRows] = useState({});
+  const [gridRemovedRowIds, setGridRemovedRowIds] = useState({});
+  const [gridViewport, setGridViewport] = useState({ scrollTop: 0, height: 420 });
+  const focusUiMode = true;
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const streamCursorRef = useRef(null);
   const streamRefreshTimeoutRef = useRef(null);
   const tablesRef = useRef(tables);
   const commandInputRef = useRef(null);
+  const quickGridScrollRef = useRef(null);
   const gridUndoStackRef = useRef([]);
   const pendingMoonFocusStartedAtRef = useRef(0);
 
@@ -827,6 +896,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   useEffect(() => {
     const handleGlobalCommandHotkeys = (event) => {
       const key = String(event.key || "").toLowerCase();
+      const target = event.target;
+      const tag = String(target?.tagName || "").toUpperCase();
+      const editable = Boolean(target?.isContentEditable) || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
       if ((event.ctrlKey || event.metaKey) && key === "k") {
         event.preventDefault();
         commandInputRef.current?.focus();
@@ -834,9 +906,6 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         return;
       }
       if (key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return;
-      const target = event.target;
-      const tag = String(target?.tagName || "").toUpperCase();
-      const editable = Boolean(target?.isContentEditable) || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
       if (editable) return;
       event.preventDefault();
       commandInputRef.current?.focus();
@@ -2004,6 +2073,91 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     if (fact) return valueToLabel(fact.typed_value);
     return valueToLabel(safeMetadata(row?.metadata)[normalizedColumn] ?? "");
   }, []);
+  const getCalculatedBaselineValue = useCallback((row, column) => {
+    const normalizedColumn = String(column || "");
+    if (!normalizedColumn) return "";
+    const facts = Array.isArray(row?.facts) ? row.facts : [];
+    const fact = facts.find((item) => {
+      if (String(item?.key || "") !== normalizedColumn) return false;
+      return String(item?.source || "").toLowerCase() === "calculated";
+    });
+    if (fact) return valueToLabel(fact.typed_value);
+    const calculated =
+      row?.calculated_values && typeof row.calculated_values === "object" && !Array.isArray(row.calculated_values)
+        ? row.calculated_values
+        : {};
+    return valueToLabel(calculated[normalizedColumn] ?? "");
+  }, []);
+  const gridCalculatedColumns = useMemo(() => {
+    const set = new Set();
+    tableRows.forEach((row) => {
+      const facts = Array.isArray(row?.facts) ? row.facts : [];
+      facts.forEach((fact) => {
+        const key = String(fact?.key || "").trim();
+        if (!key || key === "value" || RESERVED_METADATA_KEYS.has(key)) return;
+        if (String(fact?.source || "").toLowerCase() !== "calculated") return;
+        set.add(key);
+      });
+    });
+    return [...set];
+  }, [tableRows]);
+  const gridDisplayColumns = useMemo(() => {
+    const ordered = [...gridColumns];
+    gridCalculatedColumns.forEach((column) => {
+      if (!ordered.includes(column)) ordered.push(column);
+    });
+    return ordered;
+  }, [gridCalculatedColumns, gridColumns]);
+  const gridCalculatedColumnSet = useMemo(() => new Set(gridCalculatedColumns), [gridCalculatedColumns]);
+  const gridFilteredRows = useMemo(() => {
+    const needle = normalizeText(gridSearchQuery);
+    return tableRows.filter((row) => {
+      const rowId = String(row?.id || "");
+      if (!gridShowGhostRows && gridRemovedRowIds[rowId]) return false;
+      const rowLabel = valueToLabel(row?.value);
+      if (!needle) return true;
+      const parts = [rowLabel];
+      gridDisplayColumns.forEach((column) => {
+        const cellId = `${rowId}::${column}`;
+        const value = gridCalculatedColumnSet.has(column)
+          ? getCalculatedBaselineValue(row, column)
+          : Object.prototype.hasOwnProperty.call(gridDraft, cellId)
+            ? gridDraft[cellId]
+            : getRowBaselineValue(row, column);
+        parts.push(value);
+      });
+      return normalizeText(parts.join(" ")).includes(needle);
+    });
+  }, [
+    getCalculatedBaselineValue,
+    getRowBaselineValue,
+    gridDraft,
+    gridCalculatedColumnSet,
+    gridDisplayColumns,
+    gridRemovedRowIds,
+    gridSearchQuery,
+    gridShowGhostRows,
+    tableRows,
+  ]);
+  const gridVirtualWindow = useMemo(() => {
+    const total = gridFilteredRows.length;
+    const viewportHeight = Math.max(180, Number(gridViewport?.height || 0));
+    const scrollTop = Math.max(0, Number(gridViewport?.scrollTop || 0));
+    const start = Math.max(0, Math.floor(scrollTop / QUICK_GRID_ROW_HEIGHT) - QUICK_GRID_OVERSCAN);
+    const visibleCount = Math.ceil(viewportHeight / QUICK_GRID_ROW_HEIGHT) + QUICK_GRID_OVERSCAN * 2;
+    const end = Math.min(total, start + visibleCount);
+    return {
+      start,
+      end,
+      topPad: start * QUICK_GRID_ROW_HEIGHT,
+      bottomPad: Math.max(0, (total - end) * QUICK_GRID_ROW_HEIGHT),
+      total,
+    };
+  }, [gridFilteredRows.length, gridViewport?.height, gridViewport?.scrollTop]);
+  const gridVirtualRows = useMemo(
+    () => gridFilteredRows.slice(gridVirtualWindow.start, gridVirtualWindow.end),
+    [gridFilteredRows, gridVirtualWindow.end, gridVirtualWindow.start]
+  );
 
   const getGridColumnMode = useCallback(
     (column) => {
@@ -2484,6 +2638,22 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     }
   }, [gridSelectedRowId, tableRowById]);
 
+  useEffect(() => {
+    const rowIds = new Set(tableRows.map((row) => String(row.id)));
+    setGridPendingExtinguishIds((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([rowId]) => rowIds.has(String(rowId))));
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+    setGridRemovedRowIds((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([rowId]) => rowIds.has(String(rowId))));
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+    setGridDeletingRows((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([rowId]) => rowIds.has(String(rowId))));
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [tableRows]);
+
   const resolveGridSemanticTarget = useCallback(
     (rawTarget) => {
       const candidate = String(rawTarget || "").trim();
@@ -2733,6 +2903,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     setGridDraft({});
     setGridChangeSet({});
     setGridPendingExtinguishIds({});
+    setGridRemovedRowIds({});
+    setGridDeletingRows({});
+    setGridSavingCells({});
+    setGridSearchQuery("");
+    setGridShowGhostRows(false);
+    setGridViewport({ scrollTop: 0, height: 420 });
     setGridSelectedRowId("");
     setGridNewRows([]);
     setGridNewRowLabel("");
@@ -2747,6 +2923,30 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     gridUndoStackRef.current = [];
     setGridUndoCount(0);
   }, [selectedTableId]);
+
+  useEffect(() => {
+    if (!quickGridOpen) return undefined;
+    const node = quickGridScrollRef.current;
+    if (!node) return undefined;
+
+    const syncViewport = () => {
+      setGridViewport({
+        scrollTop: node.scrollTop,
+        height: node.clientHeight,
+      });
+    };
+    syncViewport();
+    node.addEventListener("scroll", syncViewport, { passive: true });
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", syncViewport);
+    }
+    return () => {
+      node.removeEventListener("scroll", syncViewport);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("resize", syncViewport);
+      }
+    };
+  }, [quickGridOpen, tableRows.length, gridDisplayColumns.length]);
 
   const focusByTarget = useCallback(
     (targetRaw) => {
@@ -2788,6 +2988,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         setError("Historicky mod je jen pro cteni.");
         return false;
       }
+      const prepared = normalizeParserCommandInput(normalized);
+      const command = prepared.command;
 
       setBusy(true);
       setError("");
@@ -2795,7 +2997,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         const response = await apiFetch(`${API_BASE}/parser/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildParserPayload(normalized, galaxy.id, activeBranchId)),
+          body: JSON.stringify(buildParserPayload(command, galaxy.id, activeBranchId)),
         });
         if (!response.ok) {
           const apiError = await apiErrorFromResponse(response, "Parser failed");
@@ -2811,7 +3013,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         await loadUniverse();
         return true;
       } catch (commandError) {
-        setError(commandError.message || "Command failed");
+        setError(buildParserErrorMessage(commandError, normalized, command));
         return false;
       } finally {
         setBusy(false);
@@ -3038,6 +3240,127 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [activeBranchId, galaxy.id, loadUniverse, snapshot.asteroids]
   );
 
+  const commitGridCellLive = useCallback(
+    async ({ row, column, nextValueRaw }) => {
+      if (historicalMode) return;
+      const rowId = String(row?.id || "").trim();
+      const field = String(column || "").trim();
+      if (!rowId || !field) return;
+      if (gridCalculatedColumnSet.has(field)) {
+        setError(`Pole '${field}' je vypoctene (ƒ) a je jen pro cteni.`);
+        return;
+      }
+
+      const baseline = getRowBaselineValue(row, field);
+      const nextValue = String(nextValueRaw ?? "");
+      const baselineValue = String(baseline ?? "");
+      const cellId = `${rowId}::${field}`;
+      if (nextValue === baselineValue) {
+        setGridDraft((prev) => {
+          if (!Object.prototype.hasOwnProperty.call(prev, cellId)) return prev;
+          const copy = { ...prev };
+          delete copy[cellId];
+          return copy;
+        });
+        setGridChangeSet((prev) => {
+          if (!Object.prototype.hasOwnProperty.call(prev, cellId)) return prev;
+          const copy = { ...prev };
+          delete copy[cellId];
+          return copy;
+        });
+        return;
+      }
+
+      const factIndex = rowFactIndexByRowId.get(rowId) || null;
+      const fact = factIndex ? factIndex.get(field) || null : null;
+      const factSource = String(fact?.source || (field === "value" ? "value" : "metadata"))
+        .trim()
+        .toLowerCase();
+      if (factSource === "calculated") {
+        setError(`Pole '${field}' je vypoctene (ƒ) a je jen pro cteni.`);
+        return;
+      }
+
+      const coercedValue = coerceGridFactInputValue(nextValue, fact?.value_type);
+      setGridDraft((prev) => ({ ...prev, [cellId]: nextValue }));
+      setGridSavingCells((prev) => ({ ...prev, [cellId]: true }));
+      setError("");
+      try {
+        if (factSource === "value" || field === "value") {
+          await mutateAsteroid(rowId, { value: coercedValue });
+        } else {
+          await mutateAsteroid(rowId, { metadata: { [field]: coercedValue } });
+        }
+        setGridDraft((prev) => {
+          if (!Object.prototype.hasOwnProperty.call(prev, cellId)) return prev;
+          const copy = { ...prev };
+          delete copy[cellId];
+          return copy;
+        });
+        setGridChangeSet((prev) => {
+          if (!Object.prototype.hasOwnProperty.call(prev, cellId)) return prev;
+          const copy = { ...prev };
+          delete copy[cellId];
+          return copy;
+        });
+      } catch (cellError) {
+        setGridDraft((prev) => {
+          if (!Object.prototype.hasOwnProperty.call(prev, cellId)) return prev;
+          const copy = { ...prev };
+          delete copy[cellId];
+          return copy;
+        });
+        setError(cellError.message || "Ulozeni bunky selhalo.");
+      } finally {
+        setGridSavingCells((prev) => {
+          if (!Object.prototype.hasOwnProperty.call(prev, cellId)) return prev;
+          const copy = { ...prev };
+          delete copy[cellId];
+          return copy;
+        });
+      }
+    },
+    [getRowBaselineValue, gridCalculatedColumnSet, historicalMode, mutateAsteroid, rowFactIndexByRowId]
+  );
+
+  const extinguishGridRowLive = useCallback(
+    async (rowIdRaw) => {
+      if (historicalMode) return;
+      const rowId = String(rowIdRaw || "").trim();
+      if (!rowId) return;
+      setGridPendingExtinguishIds((prev) => ({ ...prev, [rowId]: true }));
+      setGridDeletingRows((prev) => ({ ...prev, [rowId]: true }));
+      setTimeout(() => {
+        setGridRemovedRowIds((prev) => ({ ...prev, [rowId]: true }));
+      }, 520);
+      try {
+        await extinguishAsteroid(rowId);
+      } catch (rowError) {
+        setGridPendingExtinguishIds((prev) => {
+          if (!Object.prototype.hasOwnProperty.call(prev, rowId)) return prev;
+          const copy = { ...prev };
+          delete copy[rowId];
+          return copy;
+        });
+        setGridRemovedRowIds((prev) => {
+          if (!Object.prototype.hasOwnProperty.call(prev, rowId)) return prev;
+          const copy = { ...prev };
+          delete copy[rowId];
+          return copy;
+        });
+        setError(rowError.message || "Zhasnuti radku selhalo.");
+      } finally {
+        setGridDeletingRows((prev) => {
+          if (!Object.prototype.hasOwnProperty.call(prev, rowId)) return prev;
+          const copy = { ...prev };
+          delete copy[rowId];
+          return copy;
+        });
+      }
+    },
+    [extinguishAsteroid, historicalMode]
+  );
+
   const mutateBondType = useCallback(
     async (bondId, nextType) => {
       const bond = snapshot.bonds.find((item) => String(item?.id) === String(bondId));
@@ -3216,7 +3539,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       }
       if (quickToken === ":help" || quickToken === "/help") {
         pushCommandHistory(raw);
-        patchPanel("command", { collapsed: false });
+        setShowHelp((prev) => !prev);
         setQuery("");
         return;
       }
@@ -3225,8 +3548,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           setError("Nejdriv vyber planetu/tabulku, pak otevri /grid.");
           return;
         }
-        patchPanel("grid", { collapsed: false });
-        patchPanel("inspector", { collapsed: false });
+        setQuickGridOpen(true);
         if (level >= 3 && !selectedAsteroidId) {
           focusFirstMoonInSelectedTable();
         }
@@ -3235,7 +3557,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         return;
       }
       if (quickToken === "/3d") {
-        patchPanel("grid", { collapsed: true });
+        setQuickGridOpen(false);
         pushCommandHistory(raw);
         setQuery("");
         return;
@@ -3285,7 +3607,6 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       loadUniverse,
       onBackToGalaxies,
       onCreateGalaxy,
-      patchPanel,
       pushCommandHistory,
       query,
       selectedAsteroidId,
@@ -3527,8 +3848,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       return;
     }
     if (primaryGuideAction.key === "open-setup") {
-      patchPanel("command", { collapsed: false });
-      patchPanel("moons", { collapsed: false });
+      commandInputRef.current?.focus();
       return;
     }
     if (primaryGuideAction.key === "pick-planet") {
@@ -3546,9 +3866,60 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       return;
     }
     if (primaryGuideAction.key === "open-grid") {
-      patchPanel("grid", { collapsed: false });
+      setQuery("/grid");
+      commandInputRef.current?.focus();
     }
   }, [focusFirstMoonInSelectedTable, focusFirstOrphanMoon, focusTable, patchPanel, primaryGuideAction.key, tableNodes]);
+  const smartActions = useMemo(() => {
+    return [
+      { id: "next", label: primaryGuideAction.label, hint: primaryGuideAction.helper },
+      { id: "command", label: "Prikaz", hint: "Otevre command line" },
+      { id: "refresh", label: "Obnovit", hint: "Nacist data znovu" },
+    ];
+  }, [primaryGuideAction.helper, primaryGuideAction.label]);
+  const runSmartAction = useCallback(
+    async (actionId) => {
+      if (actionId === "next") {
+        handlePrimaryGuideAction();
+        return;
+      }
+      if (actionId === "command") {
+        commandInputRef.current?.focus();
+        return;
+      }
+      if (actionId === "refresh") {
+        try {
+          await loadUniverse();
+        } catch (loadError) {
+          setError(loadError.message || "Refresh failed");
+        }
+        return;
+      }
+    },
+    [handlePrimaryGuideAction, loadUniverse]
+  );
+  useEffect(() => {
+    const handleSmartActionHotkeys = (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const key = String(event.key || "").toLowerCase();
+      if (key !== "1" && key !== "2" && key !== "3") return;
+      const target = event.target;
+      const tag = String(target?.tagName || "").toUpperCase();
+      const editable = Boolean(target?.isContentEditable) || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (editable) return;
+      const index = Number(key) - 1;
+      const selectedAction = smartActions[index];
+      if (!selectedAction) return;
+      event.preventDefault();
+      void runSmartAction(selectedAction.id);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("keydown", handleSmartActionHotkeys);
+      return () => window.removeEventListener("keydown", handleSmartActionHotkeys);
+    }
+    return undefined;
+  }, [runSmartAction, smartActions]);
   const breadcrumbTrail = [
     galaxy?.name || "Galaxie",
     selectedSemantic?.entityName || "Skupiny",
@@ -3557,8 +3928,6 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   ]
     .filter(Boolean)
     .join(" / ");
-  const commandExamplesLabel = ":refresh · :galaxie · +NovaGalaxie · /grid · /3d · Ukaz : cil";
-
   const minimizedPanels = Object.entries(panels)
     .filter(([, cfg]) => cfg.collapsed)
     .map(([id]) => id);
@@ -3582,6 +3951,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         selectedTableId={selectedTableId}
         selectedAsteroidId={selectedAsteroidId}
         linkDraft={linkDraft}
+        hideMouseGuide={focusUiMode}
         onSelectTable={(tableId) => {
           const table = tableNodes.find((node) => node.id === tableId);
           if (table) {
@@ -3611,43 +3981,64 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         }}
       />
 
-      <div
-        style={{
-          position: "fixed",
-          top: 12,
-          left: 12,
-          zIndex: 39,
-          borderRadius: 12,
-          border: "1px solid rgba(96, 189, 223, 0.34)",
-          background: "rgba(5, 13, 24, 0.78)",
-          color: "#d9f8ff",
-          padding: "7px 9px",
-          display: "grid",
-          gap: 5,
-          backdropFilter: "blur(8px)",
-          width: "min(620px, calc(100vw - 130px))",
-        }}
-      >
-        <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.74 }}>NAVIGACE</div>
-        <div style={{ fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-base)", color: "#dff8ff" }}>{breadcrumbTrail}</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-          <span style={{ ...hudBadgeStyle, color: "#9fe8ff" }}>Postup {onboardingProgress}/3</span>
-          <span style={hudBadgeStyle}>{levelLabel}</span>
-          <span style={{ ...hudBadgeStyle, opacity: 0.88 }}>Model: {MODEL_PATH_LABEL}</span>
-          {selectedBondLabel ? (
-            <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>
-              Vazba: <strong>{selectedBondLabel}</strong>
-            </span>
-          ) : null}
-          {hasHierarchyIssues ? (
-            <span style={{ ...hudBadgeStyle, color: "#ffd2a1", borderColor: "rgba(255, 176, 115, 0.45)" }}>
-              Pozor: {hierarchyDiagnosticsSummary.orphans} sirotku · {hierarchyDiagnosticsSummary.warnings} varovani ·{" "}
-              {hierarchyDiagnosticsSummary.droppedEdges} ignorovanych vazeb
-            </span>
-          ) : null}
-          {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam data...</span> : null}
+      {!focusUiMode ? (
+        <div
+          style={{
+            position: "fixed",
+            top: 12,
+            left: 12,
+            zIndex: 39,
+            borderRadius: 12,
+            border: "1px solid rgba(96, 189, 223, 0.34)",
+            background: "rgba(5, 13, 24, 0.78)",
+            color: "#d9f8ff",
+            padding: "7px 9px",
+            display: "grid",
+            gap: 5,
+            backdropFilter: "blur(8px)",
+            width: "min(620px, calc(100vw - 130px))",
+          }}
+        >
+          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.74 }}>NAVIGACE</div>
+          <div style={{ fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-base)", color: "#dff8ff" }}>{breadcrumbTrail}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+            <span style={{ ...hudBadgeStyle, color: "#9fe8ff" }}>Postup {onboardingProgress}/3</span>
+            <span style={hudBadgeStyle}>{levelLabel}</span>
+            <span style={{ ...hudBadgeStyle, opacity: 0.88 }}>Model: {MODEL_PATH_LABEL}</span>
+            {selectedBondLabel ? (
+              <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>
+                Vazba: <strong>{selectedBondLabel}</strong>
+              </span>
+            ) : null}
+            {hasHierarchyIssues ? (
+              <span style={{ ...hudBadgeStyle, color: "#ffd2a1", borderColor: "rgba(255, 176, 115, 0.45)" }}>
+                Pozor: {hierarchyDiagnosticsSummary.orphans} sirotku · {hierarchyDiagnosticsSummary.warnings} varovani ·{" "}
+                {hierarchyDiagnosticsSummary.droppedEdges} ignorovanych vazeb
+              </span>
+            ) : null}
+            {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam data...</span> : null}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          style={{
+            position: "fixed",
+            top: 12,
+            left: 12,
+            zIndex: 39,
+            borderRadius: 999,
+            border: "1px solid rgba(96, 189, 223, 0.3)",
+            background: "rgba(5, 13, 24, 0.72)",
+            color: "#d9f8ff",
+            padding: "6px 10px",
+            fontSize: "var(--dv-fs-xs)",
+            maxWidth: "min(520px, calc(100vw - 28px))",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          {breadcrumbTrail}
+        </div>
+      )}
 
       <div
         style={{
@@ -3683,8 +4074,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         ) : (
           <span style={{ ...hudBadgeStyle, color: "#ffd9a4" }}>Historicky rezim</span>
         )}
-        <button type="button" onClick={() => patchPanel("command", { collapsed: false })} style={hudButtonStyle}>
-          Akce
+        <button type="button" onClick={() => commandInputRef.current?.focus()} style={hudButtonStyle}>
+          Prikaz
+        </button>
+        <button type="button" onClick={() => setShowHelp((prev) => !prev)} style={hudButtonStyle}>
+          Help
         </button>
         <button
           type="button"
@@ -3695,46 +4089,93 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         </button>
       </div>
 
-      <div
-        style={{
-          position: "fixed",
-          left: "50%",
-          bottom: 92,
-          transform: "translateX(-50%)",
-          zIndex: 41,
-          borderRadius: 12,
-          border: "1px solid rgba(102, 194, 227, 0.3)",
-          background: "rgba(6, 16, 28, 0.72)",
-          color: "#ddf8ff",
-          padding: "6px 10px",
-          fontSize: "var(--dv-fs-sm)",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexWrap: "wrap",
-          width: "min(980px, calc(100vw - 26px))",
-          backdropFilter: "blur(6px)",
-        }}
-      >
-        <strong style={{ color: "#9fe8ff" }}>Dalsi krok:</strong>
-        <span style={{ opacity: 0.92 }}>{nextStepHint}</span>
-        <button
-          type="button"
-          onClick={handlePrimaryGuideAction}
+      {!focusUiMode ? (
+        <div
           style={{
-            ...actionButtonStyle,
+            position: "fixed",
+            left: "50%",
+            bottom: 92,
+            transform: "translateX(-50%)",
+            zIndex: 41,
+            borderRadius: 12,
+            border: "1px solid rgba(102, 194, 227, 0.3)",
+            background: "rgba(6, 16, 28, 0.72)",
+            color: "#ddf8ff",
             padding: "6px 10px",
-            background:
-              primaryGuideAction.key === "fix-orphans"
-                ? "linear-gradient(120deg, #ffad67, #ffd7a8)"
-                : "linear-gradient(120deg, #53d6ff, #8be7ff)",
-            color: "#04111f",
+            fontSize: "var(--dv-fs-sm)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            width: "min(980px, calc(100vw - 26px))",
+            backdropFilter: "blur(6px)",
           }}
         >
-          {primaryGuideAction.label}
-        </button>
-        <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>{primaryGuideAction.helper}</span>
-      </div>
+          <strong style={{ color: "#9fe8ff" }}>Dalsi krok:</strong>
+          <span style={{ opacity: 0.92 }}>{nextStepHint}</span>
+          <button
+            type="button"
+            onClick={handlePrimaryGuideAction}
+            style={{
+              ...actionButtonStyle,
+              padding: "6px 10px",
+              background:
+                primaryGuideAction.key === "fix-orphans"
+                  ? "linear-gradient(120deg, #ffad67, #ffd7a8)"
+                  : "linear-gradient(120deg, #53d6ff, #8be7ff)",
+              color: "#04111f",
+            }}
+          >
+            {primaryGuideAction.label}
+          </button>
+          <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>{primaryGuideAction.helper}</span>
+        </div>
+      ) : null}
+
+      <aside
+        style={{
+          position: "fixed",
+          right: 14,
+          bottom: 98,
+          zIndex: 43,
+          width: "min(320px, calc(100vw - 26px))",
+          borderRadius: 12,
+          border: "1px solid rgba(100, 196, 226, 0.34)",
+          background: "rgba(5, 14, 26, 0.8)",
+          color: "#d8f7ff",
+          backdropFilter: "blur(8px)",
+          boxShadow: "0 0 22px rgba(36, 132, 184, 0.2)",
+          padding: "8px 9px",
+          display: "grid",
+          gap: 7,
+        }}
+      >
+        <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.84 }}>
+          SMART OVLADANI (1/2/3)
+        </div>
+        {smartActions.map((item, index) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => void runSmartAction(item.id)}
+            style={{
+              width: "100%",
+              border: "1px solid rgba(111, 211, 243, 0.34)",
+              borderRadius: 9,
+              background: "rgba(8, 20, 34, 0.88)",
+              color: "#e1f9ff",
+              padding: "7px 9px",
+              display: "grid",
+              gap: 2,
+              textAlign: "left",
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>{index + 1}. {item.label}</span>
+            <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>{item.hint}</span>
+          </button>
+        ))}
+      </aside>
 
       <div
         style={{
@@ -3768,43 +4209,507 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           <button type="submit" disabled={busy} style={actionButtonStyle}>
             {busy ? "..." : "Run"}
           </button>
-          <button type="button" onClick={() => patchPanel("command", { collapsed: false })} style={ghostButtonStyle}>
-            Panel
-          </button>
+          <button type="button" onClick={() => setQuery("")} style={ghostButtonStyle}>Cistit</button>
         </form>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {commandSuggestions.map((item, index) => {
-            const active = index === Math.min(commandSuggestionCursor, Math.max(0, commandSuggestions.length - 1));
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseEnter={() => setCommandSuggestionCursor(index)}
-                onClick={() => {
-                  setQuery(item.insert);
-                  commandInputRef.current?.focus();
-                }}
-                style={{
-                  ...hudButtonStyle,
-                  borderRadius: 9,
-                  borderColor: active ? "rgba(112, 214, 246, 0.62)" : "rgba(109, 198, 228, 0.3)",
-                  background: active ? "rgba(11, 36, 56, 0.92)" : "rgba(7, 16, 29, 0.85)",
-                  color: active ? "#ebfbff" : "#d7f7ff",
-                }}
-                title={item.hint}
-              >
-                {item.label}
-              </button>
-            );
-          })}
+        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
+          Mikro: `Ctrl+K` · `/` · `Esc` · `1/2/3`
         </div>
-        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78, letterSpacing: "var(--dv-tr-normal)", display: "grid", gap: 2 }}>
-          <span>Prikazy: {commandExamplesLabel}</span>
-          <span style={{ opacity: 0.7 }}>Mikro: `Ctrl+K` fokus · `/` fokus z plochy · `↑/↓` historie · `Tab` doplneni · `Esc` cisti</span>
+        <div
+          style={{
+            fontSize: "var(--dv-fs-xs)",
+            opacity: 0.84,
+            borderTop: "1px solid rgba(96, 181, 211, 0.2)",
+            paddingTop: 6,
+          }}
+        >
+          Semantika: <strong>A + B</strong> vztah · <strong>A : Typ</strong> klasifikace · <strong>A.pole := hodnota</strong> zapis · <strong>A -&gt; B</strong> tok · <strong>- A</strong> soft delete
         </div>
+        {error ? (
+          <div
+            style={{
+              fontSize: "var(--dv-fs-sm)",
+              color: "#ffb7c9",
+              borderTop: "1px solid rgba(255, 134, 170, 0.22)",
+              paddingTop: 6,
+              lineHeight: "var(--dv-lh-base)",
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
       </div>
 
+      {quickGridOpen ? (
+        <section
+          style={{
+            position: "fixed",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 58,
+            width: "min(1320px, calc(100vw - 20px))",
+            height: "min(84vh, 920px)",
+            borderRadius: 14,
+            border: "1px solid rgba(101, 194, 227, 0.38)",
+            background: "rgba(4, 12, 24, 0.92)",
+            backdropFilter: "blur(12px)",
+            boxShadow: "0 0 30px rgba(34, 136, 188, 0.24)",
+            padding: 12,
+            display: "grid",
+            gridTemplateRows: "auto auto auto 1fr",
+            gap: 10,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.7, letterSpacing: "var(--dv-tr-wide)" }}>
+                Planeta / Tabulka
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-xl)", fontWeight: 700 }}>{selectedSemantic?.planetName || "Tabulka"}</div>
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
+                Kontext: {selectedSemantic?.entityName || "Uncategorized"} · radky {gridFilteredRows.length}/{tableRows.length}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <button type="button" style={{ ...hudButtonStyle, background: "rgba(14, 40, 62, 0.92)" }}>
+                Grid
+              </button>
+              <button type="button" onClick={() => setQuickGridOpen(false)} style={ghostButtonStyle}>
+                3D Vesmír
+              </button>
+              <button type="button" disabled style={{ ...ghostButtonStyle, opacity: 0.52, cursor: "not-allowed" }}>
+                Kanban (soon)
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr auto auto auto",
+              gap: 8,
+              alignItems: "center",
+              border: "1px solid rgba(96, 186, 220, 0.22)",
+              borderRadius: 10,
+              background: "rgba(6, 18, 30, 0.52)",
+              padding: "7px 8px",
+            }}
+          >
+            <input
+              value={gridSearchQuery}
+              onChange={(event) => setGridSearchQuery(event.target.value)}
+              placeholder="Filtr radku a bunek..."
+              style={inputStyle}
+            />
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+              <input
+                type="checkbox"
+                checked={gridShowGhostRows}
+                onChange={(event) => setGridShowGhostRows(event.target.checked)}
+              />
+              Zobrazit duchy
+            </label>
+            <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
+              ƒ calc: {gridCalculatedColumns.length}
+            </span>
+            <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
+              live edit
+            </span>
+          </div>
+
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" }}>
+            <input
+              value={gridNewRowLabel}
+              onChange={(event) => setGridNewRowLabel(event.target.value)}
+              placeholder="Novy mesic (radek)"
+              disabled={historicalMode || gridBatchBusy}
+              style={{ ...inputStyle, maxWidth: 280 }}
+            />
+            <input
+              value={gridNewRowMetaKey}
+              onChange={(event) => setGridNewRowMetaKey(event.target.value)}
+              placeholder="Pole"
+              disabled={historicalMode || gridBatchBusy}
+              style={{ ...inputStyle, maxWidth: 180 }}
+            />
+            <input
+              value={gridNewRowMetaValue}
+              onChange={(event) => setGridNewRowMetaValue(event.target.value)}
+              placeholder="Hodnota"
+              disabled={historicalMode || gridBatchBusy}
+              style={{ ...inputStyle, maxWidth: 220 }}
+            />
+            <button type="button" onClick={handleAddGridNewRow} disabled={historicalMode || gridBatchBusy} style={ghostButtonStyle}>
+              + Radek
+            </button>
+            <button
+              type="button"
+              onClick={() => executeGridBatch("preview")}
+              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork || gridValidation.count > 0}
+              style={hudButtonStyle}
+            >
+              Preview batch
+            </button>
+            <button
+              type="button"
+              onClick={() => executeGridBatch("commit")}
+              disabled={historicalMode || gridBatchBusy || !gridHasStagedWork || gridValidation.count > 0}
+              style={actionButtonStyle}
+            >
+              Commit batch
+            </button>
+            <button type="button" onClick={handleUndoGridStage} disabled={gridBatchBusy || !gridUndoCount} style={ghostButtonStyle}>
+              Undo
+            </button>
+            <button type="button" onClick={() => setQuickGridOpen(false)} style={ghostButtonStyle}>
+              Zavrit (/3d)
+            </button>
+          </div>
+
+          {gridBatchInfo ? <div style={{ fontSize: "var(--dv-fs-xs)", color: "#9ee8ff" }}>{gridBatchInfo}</div> : null}
+
+          <div
+            ref={quickGridScrollRef}
+            style={{
+              overflow: "auto",
+              minHeight: 240,
+              border: "1px solid rgba(96, 186, 220, 0.26)",
+              borderRadius: 8,
+              background: "rgba(5, 15, 27, 0.58)",
+            }}
+          >
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 820 }}>
+              <thead>
+                <tr>
+                  <th
+                    style={{
+                      position: "sticky",
+                      left: 0,
+                      top: 0,
+                      zIndex: 6,
+                      width: 112,
+                      background: "rgba(8, 18, 32, 0.98)",
+                      color: "#cbeef8",
+                      borderBottom: "1px solid rgba(95, 177, 207, 0.32)",
+                      padding: "7px 8px",
+                      textAlign: "left",
+                      fontSize: "var(--dv-fs-2xs)",
+                      letterSpacing: "var(--dv-tr-medium)",
+                    }}
+                  >
+                    stav
+                  </th>
+                  {gridDisplayColumns.map((column) => (
+                    <th
+                      key={column}
+                      style={{
+                        position: "sticky",
+                        top: 0,
+                        left: column === "value" ? 112 : undefined,
+                        zIndex: column === "value" ? 5 : 4,
+                        background: "rgba(8, 18, 32, 0.98)",
+                        color: "#cbeef8",
+                        borderBottom: "1px solid rgba(95, 177, 207, 0.32)",
+                        padding: "7px 8px",
+                        textAlign: "left",
+                        fontSize: "var(--dv-fs-2xs)",
+                        letterSpacing: "var(--dv-tr-medium)",
+                        minWidth: column === "value" ? 220 : 160,
+                      }}
+                    >
+                      {column === "value" ? "mesic" : column}
+                      {gridCalculatedColumnSet.has(column) ? (
+                        <span style={{ marginLeft: 6, opacity: 0.76, color: "#9ccbe0" }}>ƒ</span>
+                      ) : null}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {gridVirtualWindow.topPad > 0 ? (
+                  <tr>
+                    <td colSpan={1 + gridDisplayColumns.length} style={{ height: gridVirtualWindow.topPad, border: "none", padding: 0 }} />
+                  </tr>
+                ) : null}
+                {gridVirtualRows.map((row) => {
+                  const rowId = String(row.id);
+                  const rowPendingExtinguish = Boolean(gridPendingExtinguishIds[rowId]);
+                  const rowDeleting = Boolean(gridDeletingRows[rowId]);
+                  const rowSelected = String(gridSelectedRowId || "") === rowId;
+                  return (
+                    <tr
+                      key={row.id}
+                      style={{
+                        height: QUICK_GRID_ROW_HEIGHT,
+                        outline: rowSelected ? "1px solid rgba(114, 214, 245, 0.45)" : "none",
+                        background: rowPendingExtinguish ? "rgba(53, 20, 34, 0.36)" : "transparent",
+                      }}
+                    >
+                      <td
+                        style={{
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 3,
+                          borderBottom: "1px solid rgba(95, 177, 207, 0.14)",
+                          background: rowPendingExtinguish ? "rgba(45, 18, 31, 0.95)" : "rgba(6, 18, 30, 0.95)",
+                          padding: "4px 7px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            focusGridRow(row.id);
+                            void extinguishGridRowLive(row.id);
+                          }}
+                          disabled={historicalMode || rowDeleting}
+                          style={{
+                            ...ghostButtonStyle,
+                            width: "100%",
+                            padding: "4px 7px",
+                            fontSize: "var(--dv-fs-2xs)",
+                            borderColor: rowPendingExtinguish ? "rgba(255, 143, 171, 0.6)" : "rgba(108, 203, 236, 0.3)",
+                            color: rowPendingExtinguish ? "#ffd2df" : "#cdefff",
+                            background: rowPendingExtinguish ? "rgba(56, 17, 30, 0.9)" : "rgba(7, 18, 32, 0.9)",
+                          }}
+                        >
+                          {rowPendingExtinguish ? (rowDeleting ? "Zhasina..." : "Duch") : "Zhasnout"}
+                        </button>
+                      </td>
+                      {gridDisplayColumns.map((column) => {
+                        const cellId = `${row.id}::${column}`;
+                        const isCalculated = gridCalculatedColumnSet.has(column);
+                        const baseline = isCalculated ? getCalculatedBaselineValue(row, column) : getRowBaselineValue(row, column);
+                        const cellValue = isCalculated ? baseline : getCellDraft(row.id, column, baseline);
+                        const isEditing = gridEditingCell === cellId && !isCalculated && !rowPendingExtinguish;
+                        const isSaving = Boolean(gridSavingCells[cellId]);
+                        const isStaged = Boolean(gridChangeSet[cellId]);
+                        const isInvalid = Boolean(gridValidation.errorsByCell[cellId]);
+                        return (
+                          <td
+                            key={`${row.id}:${column}`}
+                            title={gridValidation.errorsByCell[cellId] || ""}
+                            style={{
+                              position: column === "value" ? "sticky" : "relative",
+                              left: column === "value" ? 112 : undefined,
+                              zIndex: column === "value" ? 2 : 1,
+                              borderBottom: "1px solid rgba(95, 177, 207, 0.14)",
+                              padding: "4px 7px",
+                              background: rowPendingExtinguish
+                                ? column === "value"
+                                  ? "rgba(46, 18, 31, 0.95)"
+                                  : "rgba(55, 18, 30, 0.38)"
+                                : isCalculated
+                                  ? column === "value"
+                                    ? "rgba(8, 20, 34, 0.95)"
+                                    : "rgba(19, 30, 44, 0.5)"
+                                  : isInvalid
+                                    ? "rgba(54, 131, 176, 0.26)"
+                                    : isStaged
+                                      ? "rgba(64, 161, 198, 0.16)"
+                                      : column === "value"
+                                        ? "rgba(7, 18, 30, 0.95)"
+                                        : "transparent",
+                            }}
+                          >
+                            {isEditing ? (
+                              <input
+                                autoFocus
+                                value={cellValue}
+                                onFocus={() => focusGridRow(row.id)}
+                                onChange={(event) => {
+                                  const nextText = event.target.value;
+                                  setGridDraft((prev) => ({ ...prev, [cellId]: nextText }));
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Escape") {
+                                    setGridEditingCell("");
+                                    setGridDraft((prev) => {
+                                      const copy = { ...prev };
+                                      delete copy[cellId];
+                                      return copy;
+                                    });
+                                  }
+                                  if (event.key === "Enter") event.currentTarget.blur();
+                                }}
+                                onBlur={(event) => {
+                                  setGridEditingCell("");
+                                  void commitGridCellLive({ row, column, nextValueRaw: event.target.value });
+                                }}
+                                disabled={historicalMode || rowPendingExtinguish || isSaving}
+                                style={{
+                                  width: "100%",
+                                  border: isInvalid ? "1px solid rgba(120, 206, 247, 0.7)" : "1px solid rgba(106, 192, 223, 0.35)",
+                                  background: "rgba(7, 18, 32, 0.9)",
+                                  color: "#e0f8ff",
+                                  borderRadius: 6,
+                                  padding: "4px 6px",
+                                  fontSize: "var(--dv-fs-sm)",
+                                  boxSizing: "border-box",
+                                }}
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  focusGridRow(row.id);
+                                  if (historicalMode || rowPendingExtinguish || isCalculated) return;
+                                  setGridEditingCell(cellId);
+                                }}
+                                style={{
+                                  border: "none",
+                                  background: "transparent",
+                                  color: rowPendingExtinguish ? "rgba(223, 248, 255, 0.58)" : isCalculated ? "#b7c9d8" : "#dff8ff",
+                                  width: "100%",
+                                  textAlign: "left",
+                                  fontSize: "var(--dv-fs-sm)",
+                                  padding: "3px 2px",
+                                  cursor: historicalMode || rowPendingExtinguish || isCalculated ? "default" : "text",
+                                  textDecoration: rowPendingExtinguish ? "line-through" : "none",
+                                  opacity: rowPendingExtinguish ? 0.72 : 1,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                }}
+                              >
+                                {isCalculated ? <span style={{ opacity: 0.72 }}>ƒ</span> : null}
+                                <span>{cellValue || "—"}</span>
+                                {isSaving ? <span style={{ opacity: 0.7, fontSize: "var(--dv-fs-2xs)" }}>sync...</span> : null}
+                              </button>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+                {gridVirtualWindow.bottomPad > 0 ? (
+                  <tr>
+                    <td colSpan={1 + gridDisplayColumns.length} style={{ height: gridVirtualWindow.bottomPad, border: "none", padding: 0 }} />
+                  </tr>
+                ) : null}
+                {!gridFilteredRows.length ? (
+                  <tr>
+                    <td
+                      colSpan={1 + gridDisplayColumns.length}
+                      style={{
+                        padding: "14px 10px",
+                        color: "#b8d7e5",
+                        fontSize: "var(--dv-fs-sm)",
+                        opacity: 0.86,
+                      }}
+                    >
+                      Žádné řádky pro aktuální filtr.
+                    </td>
+                  </tr>
+                ) : null}
+                {gridNewRows.map((item) => (
+                  <tr key={item.id} style={{ background: "rgba(61, 151, 188, 0.14)" }}>
+                    <td
+                      style={{
+                        borderBottom: "1px dashed rgba(108, 196, 227, 0.32)",
+                        padding: "4px 7px",
+                        fontSize: "var(--dv-fs-2xs)",
+                        opacity: 0.88,
+                      }}
+                    >
+                      nový
+                    </td>
+                    {gridDisplayColumns.map((column) => {
+                      const value =
+                        column === "value" ? item.label : valueToLabel(item.metadata?.[column] ?? "");
+                      return (
+                        <td
+                          key={`${item.id}:${column}`}
+                          style={{
+                            borderBottom: "1px dashed rgba(108, 196, 227, 0.32)",
+                            padding: "4px 7px",
+                            color: "#cbecf8",
+                            fontSize: "var(--dv-fs-sm)",
+                            opacity: 0.9,
+                          }}
+                        >
+                          {value || "—"}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {showHelp ? (
+        <section
+          style={{
+            position: "fixed",
+            right: 14,
+            top: 72,
+            zIndex: 59,
+            width: "min(520px, calc(100vw - 26px))",
+            maxHeight: "min(80vh, 860px)",
+            overflow: "auto",
+            borderRadius: 14,
+            border: "1px solid rgba(101, 194, 227, 0.36)",
+            background: "rgba(4, 12, 24, 0.92)",
+            color: "#dcf8ff",
+            backdropFilter: "blur(12px)",
+            boxShadow: "0 0 28px rgba(31, 126, 175, 0.24)",
+            padding: 10,
+            display: "grid",
+            gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: "var(--dv-fs-md)", fontWeight: 700 }}>Help: semanticke ovladani</div>
+            <button type="button" onClick={() => setShowHelp(false)} style={ghostButtonStyle}>Zavrit</button>
+          </div>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.9 }}>
+            Rychly start: 1) vyber planetu, 2) `/grid`, 3) klik na bunku = editace, 4) `/3d` = zpet.
+          </div>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.9 }}>
+            Zaklad semantiky: <strong>+</strong> vztah, <strong>:</strong> typ, <strong>:=</strong> zapis hodnoty, <strong>-&gt;</strong> tok, <strong>-</strong> zhasnout.
+          </div>
+
+          <details open>
+            <summary style={{ cursor: "pointer", fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>Kompletni navod</summary>
+            <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Operator syntax (v2)</div>
+              {PARSER_OPERATOR_GUIDE.map((item) => (
+                <div key={item.key} style={{ border: "1px solid rgba(99, 189, 220, 0.23)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.58)" }}>
+                  <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9fe8ff" }}>{item.syntax}</div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item.meaning}</div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>Priklad: {item.example}</div>
+                </div>
+              ))}
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Legacy verby</div>
+              {PARSER_LEGACY_GUIDE.map((item) => (
+                <div key={item.key} style={{ border: "1px solid rgba(99, 189, 220, 0.2)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.52)" }}>
+                  <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9fe8ff" }}>{item.syntax}</div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item.meaning}</div>
+                </div>
+              ))}
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Ovladaci playbook</div>
+              {CONTROL_PLAYBOOK.map((item) => (
+                <div key={item.key} style={{ border: "1px solid rgba(99, 189, 220, 0.2)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.5)", display: "grid", gap: 3 }}>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", fontWeight: 700 }}>{item.title}</div>
+                  {item.steps.map((step) => (
+                    <div key={`${item.key}:${step}`} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{step}</div>
+                  ))}
+                </div>
+              ))}
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Workspace guide</div>
+              {WORKSPACE_GUIDE.map((item) => (
+                <div key={item} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item}</div>
+              ))}
+            </div>
+          </details>
+        </section>
+      ) : null}
+
+      {!focusUiMode ? (
+        <>
       <FloatingPanel
         id="command"
         title={panels.command.title}
@@ -5279,6 +6184,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             </button>
           ))}
         </aside>
+      ) : null}
+        </>
       ) : null}
 
       <ContextMenu menu={contextMenu} onClose={closeContextMenu} onAction={handleContextAction} />

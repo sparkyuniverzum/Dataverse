@@ -436,12 +436,14 @@ export default function GalaxySelector3D({
   const [workspacePurpose, setWorkspacePurpose] = useState("general");
   const [workspaceProfileNote, setWorkspaceProfileNote] = useState("");
   const [creationPreset, setCreationPreset] = useState("blank");
+  const [showFirstRunAdvanced, setShowFirstRunAdvanced] = useState(false);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
   const [summary, setSummary] = useState(null);
   const [health, setHealth] = useState(null);
   const [activity, setActivity] = useState([]);
   const [showGuide, setShowGuide] = useState(false);
+  const firstRunNameInputRef = useRef(null);
 
   useEffect(() => {
     if (!candidateGalaxyId && galaxies.length === 1) {
@@ -534,6 +536,11 @@ export default function GalaxySelector3D({
     onNameChange(suggestion);
   }, [newGalaxyName, noGalaxiesYet, onNameChange, user?.email]);
 
+  useEffect(() => {
+    if (!noGalaxiesYet || !firstRunNameInputRef.current) return;
+    firstRunNameInputRef.current.focus();
+  }, [noGalaxiesYet]);
+
   const createOptions = useMemo(
     () => ({
       preset: creationPreset,
@@ -542,6 +549,7 @@ export default function GalaxySelector3D({
     }),
     [creationPreset, workspaceProfileNote, workspacePurpose]
   );
+  const canCreate = !busy && Boolean(String(newGalaxyName || "").trim());
 
   return (
     <main style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#02050c" }}>
@@ -583,17 +591,34 @@ export default function GalaxySelector3D({
             backdropFilter: "blur(10px)",
           }}
         >
-          <div style={{ fontSize: "var(--dv-fs-4xl)", fontWeight: 800 }}>Start: nejdriv zaloz prvni galaxii</div>
+          <div style={{ fontSize: "var(--dv-fs-4xl)", fontWeight: 800 }}>Vytvor prvni workspace</div>
           <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.9 }}>
-            Nemáš zatim zadny workspace. Potrebujes jen 3 veci: 1) nazev, 2) ucel workspace, 3) volitelne predvyplneni.
+            Prazdny ucet potrebuje jediny krok: pojmenuj galaxii a klikni na vytvoreni. Ostatni je volitelne.
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr minmax(190px, 250px)", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
             <input
+              ref={firstRunNameInputRef}
               value={newGalaxyName}
               onChange={(event) => onNameChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && canCreate) {
+                  event.preventDefault();
+                  onCreate(createOptions);
+                }
+              }}
               placeholder="Nazev workspace (napr. Finance 2026)"
               style={inputStyle}
             />
+            <button
+              type="button"
+              onClick={() => onCreate(createOptions)}
+              disabled={!canCreate}
+              style={actionButtonStyle}
+            >
+              Vytvorit a vstoupit
+            </button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr minmax(200px, 260px)", gap: 8 }}>
             <select
               value={workspacePurpose}
               onChange={(event) => setWorkspacePurpose(event.target.value)}
@@ -605,39 +630,51 @@ export default function GalaxySelector3D({
                 </option>
               ))}
             </select>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(190px, 250px) auto", gap: 8, justifyContent: "space-between" }}>
-            <select
-              value={creationPreset}
-              onChange={(event) => setCreationPreset(event.target.value)}
-              style={selectStyle}
-            >
-              {GALAXY_CREATION_PRESETS.map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
             <button
               type="button"
-              onClick={() => onCreate(createOptions)}
-              disabled={busy || !newGalaxyName.trim()}
-              style={actionButtonStyle}
+              onClick={() => setShowFirstRunAdvanced((prev) => !prev)}
+              style={ghostButtonStyle}
             >
-              Vytvorit prvni galaxii
+              {showFirstRunAdvanced ? "Skryt pokrocile" : "Pokrocile volby"}
             </button>
           </div>
-          <input
-            value={workspaceProfileNote}
-            onChange={(event) => setWorkspaceProfileNote(event.target.value)}
-            placeholder="Volitelna charakteristika (napr. Interni finance + reporting)"
-            style={inputStyle}
-          />
+          {showFirstRunAdvanced ? (
+            <>
+              <select
+                value={creationPreset}
+                onChange={(event) => setCreationPreset(event.target.value)}
+                style={selectStyle}
+              >
+                {GALAXY_CREATION_PRESETS.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={workspaceProfileNote}
+                onChange={(event) => setWorkspaceProfileNote(event.target.value)}
+                placeholder="Volitelna charakteristika (napr. Interni finance + reporting)"
+                style={inputStyle}
+              />
+            </>
+          ) : null}
           <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
             Ucel: <strong>{selectedPurposeOption.label}</strong> - {selectedPurposeOption.description}
           </div>
-          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
-            Predvyplneni: <strong>{selectedCreationPreset.label}</strong> - {selectedCreationPreset.description}
+          {showFirstRunAdvanced ? (
+            <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
+              Predvyplneni: <strong>{selectedCreationPreset.label}</strong> - {selectedCreationPreset.description}
+            </div>
+          ) : null}
+          {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{error}</div> : null}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
+              Obnovit
+            </button>
+            <button type="button" onClick={onLogout} style={ghostButtonStyle}>
+              Logout
+            </button>
           </div>
         </section>
       ) : null}
@@ -667,24 +704,25 @@ export default function GalaxySelector3D({
         {loading ? <span style={{ color: "#9be8ff" }}>Loading...</span> : null}
       </div>
 
-      <aside
-        style={{
-          position: "fixed",
-          right: 14,
-          top: 72,
-          zIndex: 31,
-          width: "min(360px, 92vw)",
-          borderRadius: 14,
-          border: "1px solid rgba(100, 196, 226, 0.36)",
-          background: "rgba(4, 12, 24, 0.8)",
-          color: "#d7f6ff",
-          padding: 12,
-          backdropFilter: "blur(12px)",
-          boxShadow: "0 0 26px rgba(33, 122, 170, 0.24)",
-          display: "grid",
-          gap: 10,
-        }}
-      >
+      {!noGalaxiesYet ? (
+        <aside
+          style={{
+            position: "fixed",
+            right: 14,
+            top: 72,
+            zIndex: 31,
+            width: "min(360px, 92vw)",
+            borderRadius: 14,
+            border: "1px solid rgba(100, 196, 226, 0.36)",
+            background: "rgba(4, 12, 24, 0.8)",
+            color: "#d7f6ff",
+            padding: 12,
+            backdropFilter: "blur(12px)",
+            boxShadow: "0 0 26px rgba(33, 122, 170, 0.24)",
+            display: "grid",
+            gap: 10,
+          }}
+        >
         <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.74 }}>FLEET CONTROL</div>
         <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Hierarchie: {MODEL_PATH_LABEL}</div>
 
@@ -764,7 +802,7 @@ export default function GalaxySelector3D({
           <button
             type="button"
             onClick={() => candidateGalaxyId && onSelect(candidateGalaxyId)}
-            disabled={!candidateGalaxyId || noGalaxiesYet}
+            disabled={!candidateGalaxyId}
             style={actionButtonStyle}
           >
             Vstoupit
@@ -772,7 +810,7 @@ export default function GalaxySelector3D({
           <button
             type="button"
             onClick={() => candidateGalaxyId && onExtinguish(candidateGalaxyId)}
-            disabled={!candidateGalaxyId || busy || noGalaxiesYet}
+            disabled={!candidateGalaxyId || busy}
             style={dangerButtonStyle}
           >
             Zhasnout
@@ -891,7 +929,8 @@ export default function GalaxySelector3D({
         ) : null}
 
         {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{error}</div> : null}
-      </aside>
+        </aside>
+      ) : null}
     </main>
   );
 }

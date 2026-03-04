@@ -273,7 +273,7 @@ Evidence:
 
 ### 8.1 Worktree a commit pripravenost
 - [x] Refaktor zmen je zkontrolovany po souborech.
-- [ ] Nejsou nechtane side-effect zmeny mimo sprint scope.
+- [x] Nejsou nechtane side-effect zmeny mimo sprint scope.
 
 Overeni:
 - `git status --short`

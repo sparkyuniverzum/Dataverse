@@ -17,7 +17,7 @@ const DEFAULT_PANELS = {
   inspector: {
     title: "Detail Mesice a Nerosty",
     rect: { x: 28, y: 236, width: 420, height: 330 },
-    collapsed: false,
+    collapsed: true,
   },
   grid: {
     title: "Tabulka Planety",
