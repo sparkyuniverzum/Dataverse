@@ -1,0 +1,213 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import TYPE_CHECKING
+from uuid import UUID
+
+from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import Branch, Event
+from app.services.bond_semantics import normalize_bond_type
+from app.services.universe.types import ProjectedAsteroid, ProjectedBond, ProjectionPayloadError
+
+if TYPE_CHECKING:
+    from app.services.universe_service import UniverseService
+
+
+def apply_event(
+    event: Event,
+    asteroids_by_id: dict[UUID, ProjectedAsteroid],
+    bonds_by_id: dict[UUID, ProjectedBond],
+) -> None:
+    payload = event.payload if isinstance(event.payload, dict) else {}
+
+    if event.event_type == "ASTEROID_CREATED":
+        metadata = payload.get("metadata", {})
+        asteroids_by_id[event.entity_id] = ProjectedAsteroid(
+            id=event.entity_id,
+            value=payload.get("value"),
+            metadata=metadata if isinstance(metadata, dict) else {},
+            is_deleted=False,
+            created_at=event.timestamp,
+            deleted_at=None,
+            current_event_seq=int(event.event_seq),
+        )
+        return
+
+    if event.event_type == "METADATA_UPDATED":
+        asteroid = asteroids_by_id.get(event.entity_id)
+        if asteroid is None:
+            return
+        metadata_patch = payload.get("metadata", {})
+        if isinstance(metadata_patch, dict):
+            asteroid.metadata = {**asteroid.metadata, **metadata_patch}
+        asteroid.current_event_seq = int(event.event_seq)
+        return
+
+    if event.event_type == "ASTEROID_VALUE_UPDATED":
+        asteroid = asteroids_by_id.get(event.entity_id)
+        if asteroid is None:
+            return
+        asteroid.value = payload.get("value")
+        asteroid.current_event_seq = int(event.event_seq)
+        return
+
+    if event.event_type == "ASTEROID_SOFT_DELETED":
+        asteroid = asteroids_by_id.get(event.entity_id)
+        if asteroid is None:
+            return
+        asteroid.is_deleted = True
+        asteroid.deleted_at = event.timestamp
+        asteroid.current_event_seq = int(event.event_seq)
+        return
+
+    if event.event_type == "BOND_FORMED":
+        try:
+            source_id = UUID(str(payload["source_id"]))
+            target_id = UUID(str(payload["target_id"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProjectionPayloadError(
+                event=event,
+                reason="BOND_FORMED payload must include valid source_id and target_id UUIDs",
+            ) from exc
+        bonds_by_id[event.entity_id] = ProjectedBond(
+            id=event.entity_id,
+            source_id=source_id,
+            target_id=target_id,
+            type=normalize_bond_type(payload.get("type", "RELATION")),
+            is_deleted=False,
+            created_at=event.timestamp,
+            deleted_at=None,
+            current_event_seq=int(event.event_seq),
+        )
+        return
+
+    if event.event_type == "BOND_SOFT_DELETED":
+        bond = bonds_by_id.get(event.entity_id)
+        if bond is None:
+            return
+        bond.is_deleted = True
+        bond.deleted_at = event.timestamp
+        bond.current_event_seq = int(event.event_seq)
+
+
+def _map_projection_error(exc: ProjectionPayloadError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail={
+            "code": "UNIVERSE_EVENT_PAYLOAD_INVALID",
+            "message": "Failed to project universe state due to malformed event payload",
+            "event_id": str(exc.event.id),
+            "event_type": exc.event.event_type,
+            "reason": exc.reason,
+        },
+    )
+
+
+async def project_state_from_events(
+    service: UniverseService,
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    galaxy_id: UUID,
+    branch_id: UUID | None,
+    as_of: datetime | None,
+) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+    events = await service.event_store.list_events(
+        session=session,
+        user_id=user_id,
+        galaxy_id=galaxy_id,
+        branch_id=branch_id,
+        as_of=as_of,
+    )
+
+    asteroids_by_id: dict[UUID, ProjectedAsteroid] = {}
+    bonds_by_id: dict[UUID, ProjectedBond] = {}
+    for event in events:
+        try:
+            service._apply_event(event, asteroids_by_id, bonds_by_id)
+        except ProjectionPayloadError as exc:
+            raise _map_projection_error(exc) from exc
+
+    active_asteroids = [a for a in asteroids_by_id.values() if not a.is_deleted]
+    active_asteroids.sort(key=lambda item: (item.created_at, str(item.id)))
+    active_ids = {item.id for item in active_asteroids}
+
+    active_bonds = [
+        bond
+        for bond in bonds_by_id.values()
+        if not bond.is_deleted and bond.source_id in active_ids and bond.target_id in active_ids
+    ]
+    active_bonds.sort(key=lambda item: (item.created_at, str(item.id)))
+    return active_asteroids, active_bonds
+
+
+async def project_state_from_branch(
+    service: UniverseService,
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    galaxy_id: UUID,
+    branch_id: UUID,
+    as_of: datetime | None,
+) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+    branch = (await session.execute(select(Branch).where(Branch.id == branch_id))).scalar_one_or_none()
+    if branch is None or branch.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+    if branch.galaxy_id != galaxy_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden branch access")
+
+    main_events: list[Event] = []
+    if branch.base_event_id is not None:
+        base_event = (
+            await session.execute(
+                select(Event).where(
+                    Event.id == branch.base_event_id,
+                    Event.user_id == user_id,
+                    Event.galaxy_id == galaxy_id,
+                    Event.branch_id.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if base_event is not None:
+            main_cutoff_time = base_event.timestamp
+            if as_of is not None:
+                main_cutoff_time = min(main_cutoff_time, as_of)
+            main_events = await service.event_store.list_events(
+                session=session,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+                branch_id=None,
+                as_of=main_cutoff_time,
+                up_to_event_seq=base_event.event_seq,
+            )
+
+    branch_events = await service.event_store.list_events(
+        session=session,
+        user_id=user_id,
+        galaxy_id=galaxy_id,
+        branch_id=branch.id,
+        as_of=as_of,
+    )
+
+    asteroids_by_id: dict[UUID, ProjectedAsteroid] = {}
+    bonds_by_id: dict[UUID, ProjectedBond] = {}
+    for event in [*main_events, *branch_events]:
+        try:
+            service._apply_event(event, asteroids_by_id, bonds_by_id)
+        except ProjectionPayloadError as exc:
+            raise _map_projection_error(exc) from exc
+
+    active_asteroids = [a for a in asteroids_by_id.values() if not a.is_deleted]
+    active_asteroids.sort(key=lambda item: (item.created_at, str(item.id)))
+    active_ids = {item.id for item in active_asteroids}
+
+    active_bonds = [
+        bond
+        for bond in bonds_by_id.values()
+        if not bond.is_deleted and bond.source_id in active_ids and bond.target_id in active_ids
+    ]
+    active_bonds.sort(key=lambda item: (item.created_at, str(item.id)))
+    return active_asteroids, active_bonds

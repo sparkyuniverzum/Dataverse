@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.services.auth_service import AuthService
+from app.modules.auth.service import AuthService
 
 
 def test_hash_password_rejects_input_longer_than_bcrypt_limit() -> None:

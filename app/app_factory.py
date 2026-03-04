@@ -1,0 +1,118 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.modules.auth.service import AuthService
+from app.services.bond_dashboard_service import BondDashboardService
+from app.services.constellation_dashboard_service import ConstellationDashboardService
+from app.services.cosmos_service import CosmosService
+from app.services.event_store_service import EventStoreService
+from app.services.galaxy_dashboard_service import GalaxyDashboardService
+from app.services.idempotency_service import IdempotencyService
+from app.services.io_service import ImportExportService
+from app.services.moon_dashboard_service import MoonDashboardService
+from app.services.onboarding_service import OnboardingService
+from app.services.parser2 import Parser2ExecutorBridge, Parser2SemanticPlanner
+from app.services.parser_service import ParserService
+from app.services.planet_dashboard_service import PlanetDashboardService
+from app.services.preset_bundle_service import PresetBundleService
+from app.services.schema_preset_service import SchemaPresetService
+from app.services.task_executor_service import TaskExecutorService
+from app.services.universe_service import UniverseService
+
+
+@dataclass(frozen=True)
+class ServiceContainer:
+    event_store: EventStoreService
+    universe_service: UniverseService
+    parser_service: ParserService
+    parser2_planner: Parser2SemanticPlanner
+    parser2_executor_bridge: Parser2ExecutorBridge
+    task_executor_service: TaskExecutorService
+    auth_service: AuthService
+    io_service: ImportExportService
+    cosmos_service: CosmosService
+    galaxy_dashboard_service: GalaxyDashboardService
+    constellation_dashboard_service: ConstellationDashboardService
+    planet_dashboard_service: PlanetDashboardService
+    moon_dashboard_service: MoonDashboardService
+    bond_dashboard_service: BondDashboardService
+    idempotency_service: IdempotencyService
+    onboarding_service: OnboardingService
+    schema_preset_service: SchemaPresetService
+    preset_bundle_service: PresetBundleService
+
+
+_SERVICE_SINGLETON: ServiceContainer | None = None
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="DataVerse API", version="0.3.0-auth-multitenant")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.state.services = get_or_create_services()
+    return app
+
+
+def create_services() -> ServiceContainer:
+    event_store = EventStoreService()
+    universe_service = UniverseService(event_store=event_store)
+    parser_service = ParserService()
+    parser2_planner = Parser2SemanticPlanner()
+    parser2_executor_bridge = Parser2ExecutorBridge()
+    task_executor_service = TaskExecutorService(event_store=event_store, universe_service=universe_service)
+    auth_service = AuthService()
+    io_service = ImportExportService(task_executor=task_executor_service, universe_service=universe_service)
+    cosmos_service = CosmosService()
+    galaxy_dashboard_service = GalaxyDashboardService(projector=task_executor_service.read_model_projector)
+    constellation_dashboard_service = ConstellationDashboardService(universe_service=universe_service)
+    planet_dashboard_service = PlanetDashboardService(universe_service=universe_service)
+    moon_dashboard_service = MoonDashboardService(universe_service=universe_service)
+    bond_dashboard_service = BondDashboardService(universe_service=universe_service)
+    idempotency_service = IdempotencyService()
+    onboarding_service = OnboardingService()
+    schema_preset_service = SchemaPresetService(
+        universe_service=universe_service,
+        cosmos_service=cosmos_service,
+        task_executor_service=task_executor_service,
+    )
+    preset_bundle_service = PresetBundleService(
+        schema_preset_service=schema_preset_service,
+        universe_service=universe_service,
+        task_executor_service=task_executor_service,
+    )
+    return ServiceContainer(
+        event_store=event_store,
+        universe_service=universe_service,
+        parser_service=parser_service,
+        parser2_planner=parser2_planner,
+        parser2_executor_bridge=parser2_executor_bridge,
+        task_executor_service=task_executor_service,
+        auth_service=auth_service,
+        io_service=io_service,
+        cosmos_service=cosmos_service,
+        galaxy_dashboard_service=galaxy_dashboard_service,
+        constellation_dashboard_service=constellation_dashboard_service,
+        planet_dashboard_service=planet_dashboard_service,
+        moon_dashboard_service=moon_dashboard_service,
+        bond_dashboard_service=bond_dashboard_service,
+        idempotency_service=idempotency_service,
+        onboarding_service=onboarding_service,
+        schema_preset_service=schema_preset_service,
+        preset_bundle_service=preset_bundle_service,
+    )
+
+
+def get_or_create_services() -> ServiceContainer:
+    global _SERVICE_SINGLETON
+    if _SERVICE_SINGLETON is None:
+        _SERVICE_SINGLETON = create_services()
+    return _SERVICE_SINGLETON
