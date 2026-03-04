@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE, apiFetch } from "./lib/dataverseApi";
 import LandingDashboard from "./components/screens/LandingDashboard";
@@ -44,6 +44,8 @@ export default function App() {
   const [galaxyBusy, setGalaxyBusy] = useState(false);
   const [galaxyError, setGalaxyError] = useState("");
   const [newGalaxyName, setNewGalaxyName] = useState("");
+  const [hasLoadedGalaxies, setHasLoadedGalaxies] = useState(false);
+  const autoCreateAttemptedRef = useRef(false);
 
   const selectedGalaxy = useMemo(
     () => galaxies.find((item) => String(item.id) === String(selectedGalaxyId || "")) || null,
@@ -63,6 +65,8 @@ export default function App() {
       selectGalaxy("");
       setLevel(0);
       setGalaxies([]);
+      setHasLoadedGalaxies(false);
+      autoCreateAttemptedRef.current = false;
       return;
     }
     if (!selectedGalaxyId) {
@@ -89,21 +93,13 @@ export default function App() {
         setLevel(1);
       }
 
-      if (!hasSelected) {
-        const next =
-          (live.length === 1 ? live[0].id : "") ||
-          "";
-        if (next) {
-          selectGalaxy(next);
-          setLevel(2);
-        } else {
-          setLevel(1);
-        }
-      }
+      if (hasSelected) setLevel(2);
+      else setLevel(1);
     } catch (error) {
       setGalaxyError(error.message || "Load galaxies failed");
     } finally {
       setGalaxyLoading(false);
+      setHasLoadedGalaxies(true);
     }
   }, [isAuthenticated, selectGalaxy, selectedGalaxyId, setLevel]);
 
@@ -329,6 +325,42 @@ export default function App() {
     [galaxyBusy, loadGalaxies, seedGalaxyPreset, setDefaultGalaxy]
   );
 
+  useEffect(() => {
+    if (!isAuthenticated || !hasLoadedGalaxies) return;
+    if (galaxyLoading || galaxyBusy) return;
+    if (selectedGalaxyId) return;
+    if (galaxies.length > 0) {
+      autoCreateAttemptedRef.current = false;
+      return;
+    }
+    if (autoCreateAttemptedRef.current) return;
+
+    autoCreateAttemptedRef.current = true;
+    const emailAlias = String(user?.email || "")
+      .split("@")[0]
+      .replace(/[._-]+/g, " ")
+      .trim();
+    const workspaceName = emailAlias ? `${emailAlias} workspace` : "Moje galaxie";
+
+    createGalaxy(workspaceName, {
+      preset: "blank",
+      purpose: "general",
+      profileNote: "Auto bootstrap workspace",
+    }).catch((error) => {
+      autoCreateAttemptedRef.current = false;
+      setGalaxyError(error.message || "Auto create galaxy failed");
+    });
+  }, [
+    createGalaxy,
+    galaxies.length,
+    galaxyBusy,
+    galaxyLoading,
+    hasLoadedGalaxies,
+    isAuthenticated,
+    selectedGalaxyId,
+    user?.email,
+  ]);
+
   const handleCreateGalaxy = useCallback(async (options = null) => {
     const name = newGalaxyName.trim();
     if (!name || galaxyBusy) return;
@@ -424,6 +456,7 @@ export default function App() {
   return (
     <UniverseWorkspace
       galaxy={selectedGalaxy}
+      minimalShell
       onCreateGalaxy={createGalaxy}
       onBackToGalaxies={() => {
         selectGalaxy("");

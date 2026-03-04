@@ -53,19 +53,12 @@ from app.schemas import (
     PresetBundleApplyResponse,
     PresetBundleExecutionPublic,
     PresetBundleGraphPlanPublic,
-    PresetBundleListResponse,
-    PresetBundlePublic,
     PresetBundleSummaryPublic,
     PresetApplyMode,
     PresetConflictStrategy,
     RegisterRequest,
-    SchemaPresetApplyRequest,
-    SchemaPresetApplyResponse,
     SchemaPresetContractPreviewPublic,
-    SchemaPresetListResponse,
-    SchemaPresetPublic,
     SchemaPresetSeedPlanPublic,
-    SchemaPresetSummaryPublic,
     SchemaPresetApplyDiffPublic,
     TableContractPublic,
     TableContractUpsertRequest,
@@ -345,82 +338,6 @@ def table_contract_to_public(contract: TableContract) -> TableContractPublic:
         updated_at=contract.updated_at,
         deleted_at=contract.deleted_at,
     )
-
-
-def schema_preset_to_summary(preset: Any) -> SchemaPresetSummaryPublic:
-    field_types = preset.field_types if isinstance(getattr(preset, "field_types", {}), dict) else {}
-    required_fields = preset.required_fields if isinstance(getattr(preset, "required_fields", ()), tuple | list) else []
-    default_rows = preset.default_rows if isinstance(getattr(preset, "default_rows", ()), tuple | list) else []
-    tags = preset.tags if isinstance(getattr(preset, "tags", ()), tuple | list) else []
-    return SchemaPresetSummaryPublic(
-        key=str(preset.key),
-        version=int(preset.version),
-        name=str(preset.name),
-        description=str(preset.description),
-        tags=[str(item) for item in tags],
-        fields_count=len(field_types),
-        required_fields_count=len(required_fields),
-        seed_rows_count=len(default_rows),
-    )
-
-
-def schema_preset_to_public(preset: Any) -> SchemaPresetPublic:
-    summary = schema_preset_to_summary(preset)
-    unique_rules = [item for item in preset.unique_rules if isinstance(item, dict)] if isinstance(preset.unique_rules, tuple | list) else []
-    validators = [item for item in preset.validators if isinstance(item, dict)] if isinstance(preset.validators, tuple | list) else []
-    auto_semantics = [item for item in preset.auto_semantics if isinstance(item, dict)] if isinstance(preset.auto_semantics, tuple | list) else []
-    formulas = [item for item in preset.formula_registry if isinstance(item, dict)] if isinstance(preset.formula_registry, tuple | list) else []
-    physics = preset.physics_rulebook if isinstance(preset.physics_rulebook, dict) else {}
-    defaults = physics.get("defaults") if isinstance(physics.get("defaults"), dict) else {}
-    rules = [item for item in physics.get("rules", []) if isinstance(item, dict)] if isinstance(physics.get("rules"), list) else []
-    default_rows = [
-        {"value": row.value, "metadata": dict(row.metadata) if isinstance(row.metadata, dict) else {}}
-        for row in (preset.default_rows if isinstance(preset.default_rows, tuple | list) else [])
-    ]
-    field_types = {str(key): str(value) for key, value in (preset.field_types or {}).items()}
-    required_fields = [str(item) for item in (preset.required_fields if isinstance(preset.required_fields, tuple | list) else [])]
-    return SchemaPresetPublic(
-        **summary.model_dump(),
-        required_fields=required_fields,
-        field_types=field_types,
-        unique_rules=unique_rules,
-        validators=validators,
-        auto_semantics=auto_semantics,
-        formula_registry=formulas,
-        physics_rulebook={
-            "rules": rules,
-            "defaults": defaults,
-        },
-        default_rows=default_rows,
-    )
-
-
-def preset_bundle_to_summary(bundle: Any) -> PresetBundleSummaryPublic:
-    manifest = bundle.manifest if isinstance(getattr(bundle, "manifest", {}), dict) else {}
-    planets = manifest.get("planets") if isinstance(manifest.get("planets"), list) else []
-    moons = manifest.get("moons") if isinstance(manifest.get("moons"), list) else []
-    bonds = manifest.get("bonds") if isinstance(manifest.get("bonds"), list) else []
-    formulas = manifest.get("formulas") if isinstance(manifest.get("formulas"), list) else []
-    guardians = manifest.get("guardians") if isinstance(manifest.get("guardians"), list) else []
-    tags = bundle.tags if isinstance(getattr(bundle, "tags", ()), tuple | list) else []
-    return PresetBundleSummaryPublic(
-        key=str(bundle.key),
-        version=int(bundle.version),
-        name=str(bundle.name),
-        description=str(bundle.description),
-        tags=[str(item) for item in tags],
-        planets_count=len(planets),
-        moons_count=len(moons),
-        bonds_count=len(bonds),
-        formulas_count=len(formulas),
-        guardians_count=len(guardians),
-    )
-
-
-def preset_bundle_to_public(bundle: Any) -> PresetBundlePublic:
-    summary = preset_bundle_to_summary(bundle)
-    manifest = bundle.manifest if isinstance(getattr(bundle, "manifest", {}), dict) else {}
-    return PresetBundlePublic(**summary.model_dump(), manifest=manifest)
 
 
 def import_job_to_public(job: ImportJob) -> ImportJobPublic:
@@ -1361,44 +1278,6 @@ async def upsert_table_contract(
     return table_contract_to_public(contract)
 
 
-@app.get("/presets/schemas", response_model=SchemaPresetListResponse, status_code=status.HTTP_200_OK)
-async def list_schema_presets(
-    current_user: User = Depends(get_current_user),
-) -> SchemaPresetListResponse:
-    _ = current_user
-    presets = schema_preset_service.list_presets()
-    return SchemaPresetListResponse(presets=[schema_preset_to_summary(item) for item in presets])
-
-
-@app.get("/presets/schemas/{preset_key}", response_model=SchemaPresetPublic, status_code=status.HTTP_200_OK)
-async def get_schema_preset(
-    preset_key: str,
-    current_user: User = Depends(get_current_user),
-) -> SchemaPresetPublic:
-    _ = current_user
-    preset = schema_preset_service.get_preset(preset_key)
-    return schema_preset_to_public(preset)
-
-
-@app.get("/presets/bundles", response_model=PresetBundleListResponse, status_code=status.HTTP_200_OK)
-async def list_preset_bundles(
-    current_user: User = Depends(get_current_user),
-) -> PresetBundleListResponse:
-    _ = current_user
-    bundles = preset_bundle_service.list_bundles()
-    return PresetBundleListResponse(bundles=[preset_bundle_to_summary(item) for item in bundles])
-
-
-@app.get("/presets/bundles/{bundle_key}", response_model=PresetBundlePublic, status_code=status.HTTP_200_OK)
-async def get_preset_bundle(
-    bundle_key: str,
-    current_user: User = Depends(get_current_user),
-) -> PresetBundlePublic:
-    _ = current_user
-    bundle = preset_bundle_service.get_bundle(bundle_key)
-    return preset_bundle_to_public(bundle)
-
-
 @app.post("/presets/apply", response_model=PresetBundleApplyResponse, status_code=status.HTTP_200_OK)
 async def apply_preset_bundle(
     payload: PresetBundleApplyRequest,
@@ -1549,110 +1428,6 @@ async def apply_preset_bundle(
         replay_loader=PresetBundleApplyResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Preset bundle apply failed",
-        resolved_scope=resolved_scope,
-    )
-
-
-@app.post("/planets/{table_id}/apply-preset", response_model=SchemaPresetApplyResponse, status_code=status.HTTP_200_OK)
-async def apply_schema_preset(
-    table_id: UUID,
-    payload: SchemaPresetApplyRequest,
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> SchemaPresetApplyResponse:
-    resolved_scope = await resolve_scope_for_user(
-        session=session,
-        user=current_user,
-        galaxy_id=payload.galaxy_id,
-        branch_id=payload.branch_id,
-    )
-    resolved_galaxy_id, resolved_branch_id = resolved_scope
-
-    async def build_plan_for_scope(target_galaxy_id: UUID, target_branch_id: UUID | None):
-        return await schema_preset_service.build_apply_plan(
-            session=session,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            table_id=table_id,
-            preset_key=payload.preset_key,
-            conflict_strategy=payload.conflict_strategy.value,
-            target_table_name=payload.target_table_name,
-            seed_rows=bool(payload.seed_rows),
-        )
-
-    if payload.mode == PresetApplyMode.preview:
-        plan = await build_plan_for_scope(resolved_galaxy_id, resolved_branch_id)
-        requested_rows = len(plan.preset.default_rows) if payload.seed_rows else 0
-        return SchemaPresetApplyResponse(
-            mode=PresetApplyMode.preview,
-            preset=schema_preset_to_summary(plan.preset),
-            table_id=plan.table_id,
-            table_name=plan.table_name,
-            conflict_strategy=PresetConflictStrategy(plan.conflict_strategy),
-            diff=SchemaPresetApplyDiffPublic(**plan.contract_diff),
-            contract_preview=SchemaPresetContractPreviewPublic(**plan.merged_contract),
-            seed_plan=SchemaPresetSeedPlanPublic(
-                requested_rows=requested_rows,
-                skipped_existing_rows=len(plan.skipped_seed_values),
-                rows_to_create=len(plan.seed_rows_to_create),
-                skipped_values=plan.skipped_seed_values,
-            ),
-            contract=None,
-            result=None,
-        )
-
-    async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> SchemaPresetApplyResponse:
-        plan = await build_plan_for_scope(target_galaxy_id, target_branch_id)
-        contract, execution = await schema_preset_service.apply_plan_commit(
-            session=session,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            plan=plan,
-        )
-        seed_tasks = [
-            AtomicTask(action="INGEST", params={"value": row.value, "metadata": dict(row.metadata)})
-            for row in plan.seed_rows_to_create
-        ]
-        requested_rows = len(plan.preset.default_rows) if payload.seed_rows else 0
-        return SchemaPresetApplyResponse(
-            mode=PresetApplyMode.commit,
-            preset=schema_preset_to_summary(plan.preset),
-            table_id=plan.table_id,
-            table_name=plan.table_name,
-            conflict_strategy=PresetConflictStrategy(plan.conflict_strategy),
-            diff=SchemaPresetApplyDiffPublic(**plan.contract_diff),
-            contract_preview=SchemaPresetContractPreviewPublic(**plan.merged_contract),
-            seed_plan=SchemaPresetSeedPlanPublic(
-                requested_rows=requested_rows,
-                skipped_existing_rows=len(plan.skipped_seed_values),
-                rows_to_create=len(plan.seed_rows_to_create),
-                skipped_values=plan.skipped_seed_values,
-            ),
-            contract=table_contract_to_public(contract),
-            result=execution_to_response(tasks=seed_tasks, execution=execution) if execution is not None else None,
-        )
-
-    return await run_scoped_idempotent(
-        session=session,
-        current_user=current_user,
-        galaxy_id=payload.galaxy_id,
-        branch_id=payload.branch_id,
-        endpoint_key="POST:/planets/{table_id}/apply-preset",
-        idempotency_key=payload.idempotency_key,
-        request_payload={
-            "table_id": str(table_id),
-            "preset_key": payload.preset_key,
-            "mode": payload.mode.value,
-            "conflict_strategy": payload.conflict_strategy.value,
-            "seed_rows": bool(payload.seed_rows),
-            "target_table_name": payload.target_table_name,
-        },
-        execute=execute_scoped,
-        replay_loader=SchemaPresetApplyResponse.model_validate,
-        response_dumper=lambda response: response.model_dump(mode="json"),
-        empty_response_detail="Schema preset apply failed",
         resolved_scope=resolved_scope,
     )
 
