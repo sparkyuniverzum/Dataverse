@@ -29,6 +29,11 @@ const DEFAULT_PANELS = {
     rect: { x: 460, y: 28, width: 360, height: 340 },
     collapsed: true,
   },
+  constellationProfile: {
+    title: "Profil Souhvezdi",
+    rect: { x: 460, y: 380, width: 360, height: 330 },
+    collapsed: true,
+  },
   planets: {
     title: "Planety (V1)",
     rect: { x: 840, y: 28, width: 360, height: 340 },

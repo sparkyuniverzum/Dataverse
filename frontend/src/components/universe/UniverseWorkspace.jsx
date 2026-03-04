@@ -838,6 +838,10 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const [constellations, setConstellations] = useState([]);
   const [constellationsLoading, setConstellationsLoading] = useState(false);
   const [constellationsError, setConstellationsError] = useState("");
+  const [selectedConstellationName, setSelectedConstellationName] = useState("");
+  const [constellationDraftName, setConstellationDraftName] = useState("");
+  const [constellationProfileBusy, setConstellationProfileBusy] = useState(false);
+  const [constellationProfileInfo, setConstellationProfileInfo] = useState("");
   const [planets, setPlanets] = useState([]);
   const [planetsLoading, setPlanetsLoading] = useState(false);
   const [planetsError, setPlanetsError] = useState("");
@@ -893,6 +897,10 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const [gridRemovedRowIds, setGridRemovedRowIds] = useState({});
   const [gridGhostRows, setGridGhostRows] = useState({});
   const [gridViewport, setGridViewport] = useState({ scrollTop: 0, height: 420 });
+  const [tableStructureDraftConstellation, setTableStructureDraftConstellation] = useState("");
+  const [tableStructureDraftPlanet, setTableStructureDraftPlanet] = useState("");
+  const [tableStructureBusy, setTableStructureBusy] = useState(false);
+  const [tableStructureInfo, setTableStructureInfo] = useState("");
   const [inspectorShowAllFacts, setInspectorShowAllFacts] = useState(false);
   const [shellTopOffset, setShellTopOffset] = useState(86);
   const [semanticEffects, setSemanticEffects] = useState([]);
@@ -911,6 +919,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const quickGridScrollRef = useRef(null);
   const gridUndoStackRef = useRef([]);
   const pendingFocusStartedAtRef = useRef(0);
+  const constellationDraftSyncRef = useRef("");
+  const tableStructureSyncRef = useRef("");
 
   const asOfIso = useMemo(() => toAsOfIso(asOfInput), [asOfInput]);
   const historicalMode = Boolean(asOfIso);
@@ -1933,6 +1943,96 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [hierarchyView, planetMetricsByTableId, tableNodeById]);
+  const selectedConstellationProfile = useMemo(() => {
+    if (!constellationPanelItems.length) return null;
+    const normalizedSelected = normalizeText(selectedConstellationName);
+    if (normalizedSelected) {
+      const exact = constellationPanelItems.find((item) => normalizeText(item.name) === normalizedSelected);
+      if (exact) return exact;
+    }
+    const preferred = String(selectedSemantic?.entityName || "").trim();
+    if (preferred) {
+      const bySemantic = constellationPanelItems.find((item) => normalizeText(item.name) === normalizeText(preferred));
+      if (bySemantic) return bySemantic;
+    }
+    return constellationPanelItems[0];
+  }, [constellationPanelItems, selectedConstellationName, selectedSemantic?.entityName]);
+  const selectedConstellationPlanets = useMemo(() => {
+    const selectedName = String(selectedConstellationProfile?.name || "").trim();
+    if (!selectedName) return [];
+    return hierarchyView.planets
+      .map((planet) => {
+        const semantic = splitEntityAndPlanetName(planet.originalNode);
+        return {
+          id: String(planet.id || ""),
+          constellationName: semantic.entityName || "Uncategorized",
+          planetName: semantic.planetName || "Planeta",
+          moonsCount: Array.isArray(planet.moons) ? planet.moons.length : 0,
+          moons: Array.isArray(planet.moons) ? planet.moons : [],
+        };
+      })
+      .filter((item) => normalizeText(item.constellationName) === normalizeText(selectedName))
+      .sort((a, b) => a.planetName.localeCompare(b.planetName));
+  }, [hierarchyView, selectedConstellationProfile?.name]);
+  useEffect(() => {
+    if (!constellationPanelItems.length) {
+      if (selectedConstellationName) setSelectedConstellationName("");
+      return;
+    }
+    const exists = constellationPanelItems.some((item) => normalizeText(item.name) === normalizeText(selectedConstellationName));
+    if (!exists) {
+      const preferred = String(selectedSemantic?.entityName || "").trim();
+      const preferredHit = preferred
+        ? constellationPanelItems.find((item) => normalizeText(item.name) === normalizeText(preferred)) || null
+        : null;
+      setSelectedConstellationName(preferredHit?.name || constellationPanelItems[0].name);
+    }
+  }, [constellationPanelItems, selectedConstellationName, selectedSemantic?.entityName]);
+  useEffect(() => {
+    if (!selectedTableId && !selectedAsteroidId) return;
+    const preferred = String(selectedSemantic?.entityName || "").trim();
+    if (!preferred) return;
+    const exists = constellationPanelItems.some((item) => normalizeText(item.name) === normalizeText(preferred));
+    if (!exists) return;
+    if (normalizeText(selectedConstellationName) === normalizeText(preferred)) return;
+    setSelectedConstellationName(preferred);
+  }, [constellationPanelItems, selectedAsteroidId, selectedConstellationName, selectedSemantic?.entityName, selectedTableId]);
+  useEffect(() => {
+    const name = String(selectedConstellationProfile?.name || "").trim();
+    if (!name) {
+      constellationDraftSyncRef.current = "";
+      if (constellationDraftName) setConstellationDraftName("");
+      return;
+    }
+    if (constellationDraftSyncRef.current === name) return;
+    constellationDraftSyncRef.current = name;
+    setConstellationDraftName(name);
+    setConstellationProfileInfo("");
+  }, [constellationDraftName, selectedConstellationProfile?.name]);
+  useEffect(() => {
+    const tableId = String(selectedTableId || "").trim();
+    const constellation = String(selectedTableIdentity?.entityName || "").trim();
+    const planet = String(selectedTableIdentity?.planetName || "").trim();
+    if (!tableId) {
+      tableStructureSyncRef.current = "";
+      if (tableStructureDraftConstellation) setTableStructureDraftConstellation("");
+      if (tableStructureDraftPlanet) setTableStructureDraftPlanet("");
+      setTableStructureInfo("");
+      return;
+    }
+    const syncKey = `${tableId}:${constellation}:${planet}`;
+    if (tableStructureSyncRef.current === syncKey) return;
+    tableStructureSyncRef.current = syncKey;
+    setTableStructureDraftConstellation(constellation);
+    setTableStructureDraftPlanet(planet);
+    setTableStructureInfo("");
+  }, [
+    selectedTableId,
+    selectedTableIdentity?.entityName,
+    selectedTableIdentity?.planetName,
+    tableStructureDraftConstellation,
+    tableStructureDraftPlanet,
+  ]);
   const planetPanelItems = useMemo(
     () =>
       hierarchyView.planets
@@ -2715,18 +2815,35 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
   const handleAddGridNewRow = useCallback(() => {
     const label = gridNewRowLabel.trim();
-    if (!label) {
-      setError("Zadej nazev mesice pro novy radek.");
-      return;
-    }
+    const field = gridNewRowMetaKey.trim();
+    const metadataValue = gridNewRowMetaValue.trim() || "1";
     if (!selectedTable) {
       setError("Nejdriv vyber planetu/tabulku.");
       return;
     }
+    if (!label) {
+      const selectedRowId = String(gridSelectedRowId || "").trim();
+      if (!selectedRowId || !field) {
+        setError("Pro upravu bunky vyber radek a vypln Pole + Hodnota.");
+        return;
+      }
+      const selectedRow = tableRows.find((row) => String(row?.id || "") === selectedRowId);
+      if (!selectedRow) {
+        setError("Vybrany radek uz neni dostupny.");
+        return;
+      }
+      const baseline = getRowBaselineValue(selectedRow, field);
+      stageGridCellChange(selectedRow.id, field, baseline, metadataValue);
+      focusGridRow(selectedRow.id);
+      setGridBatchInfo(`Pole '${field}' u mesice '${valueToLabel(selectedRow?.value) || selectedRow.id}' pridano do change setu.`);
+      setGridNewRowMetaKey("");
+      setGridNewRowMetaValue("");
+      setError("");
+      return;
+    }
     const metadata = {};
-    const field = gridNewRowMetaKey.trim();
     if (field) {
-      metadata[field] = gridNewRowMetaValue.trim() || "1";
+      metadata[field] = metadataValue;
     }
     const existingRow = tableRows.find((row) => normalizeText(valueToLabel(row?.value)) === normalizeText(label));
     if (existingRow) {
@@ -2771,6 +2888,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     gridNewRowMetaKey,
     gridNewRowMetaValue,
     gridNewRows,
+    gridSelectedRowId,
     pushGridUndoSnapshot,
     selectedTable,
     stageGridCellChange,
@@ -4328,6 +4446,203 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     },
     [activeBranchId, galaxy.id, historicalMode, loadUniverse, selectBondInInspector, snapshot.asteroids]
   );
+  const handleRenameConstellation = useCallback(async () => {
+    if (historicalMode) {
+      setError("Historicky mod je jen pro cteni.");
+      return;
+    }
+    const sourceName = String(selectedConstellationProfile?.name || "").trim();
+    const targetName = String(constellationDraftName || "").trim();
+    if (!sourceName) {
+      setError("Nejdriv vyber souhvezdi.");
+      return;
+    }
+    if (!targetName) {
+      setError("Vypln novy nazev souhvezdi.");
+      return;
+    }
+    if (normalizeText(sourceName) === normalizeText(targetName)) {
+      setConstellationProfileInfo("Nazev souhvezdi se nezmenil.");
+      return;
+    }
+    if (!galaxy?.id) {
+      setError("Chybi aktivni galaxie/workspace.");
+      return;
+    }
+
+    const tasks = [];
+    const seenMoonIds = new Set();
+    selectedConstellationPlanets.forEach((planet) => {
+      const planetName = String(planet?.planetName || "").trim() || "Planeta";
+      const nextTableName =
+        normalizeText(planetName) === normalizeText(targetName) ? targetName : `${targetName} > ${planetName}`;
+      (Array.isArray(planet?.moons) ? planet.moons : []).forEach((moon) => {
+        const asteroid = moon?.originalNode && typeof moon.originalNode === "object" ? moon.originalNode : null;
+        const moonId = String(asteroid?.id || moon?.id || "").trim();
+        if (!moonId || seenMoonIds.has(moonId)) return;
+        seenMoonIds.add(moonId);
+        const currentMetadata = safeMetadata(asteroid?.metadata);
+        const metadataPatch = {};
+        if (currentMetadata.table !== nextTableName) metadataPatch.table = nextTableName;
+        if (currentMetadata.table_name !== nextTableName) metadataPatch.table_name = nextTableName;
+        if (currentMetadata.constellation_name !== targetName) metadataPatch.constellation_name = targetName;
+        if (currentMetadata.planet_name !== planetName) metadataPatch.planet_name = planetName;
+        if (!Object.keys(metadataPatch).length) return;
+        tasks.push({
+          action: "UPDATE_ASTEROID",
+          params: {
+            asteroid_id: moonId,
+            metadata: metadataPatch,
+            ...(Number.isInteger(asteroid?.current_event_seq) ? { expected_event_seq: asteroid.current_event_seq } : {}),
+          },
+        });
+      });
+    });
+
+    if (!tasks.length) {
+      setConstellationProfileInfo("Neni co prepisovat: vsechny mesice uz maji spravnou klasifikaci.");
+      return;
+    }
+
+    setConstellationProfileBusy(true);
+    setConstellationProfileInfo("");
+    setError("");
+    try {
+      const response = await apiFetch(`${API_BASE}/tasks/execute-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          buildTaskBatchPayload({
+            tasks,
+            mode: "commit",
+            galaxyId: galaxy.id,
+            branchId: activeBranchId,
+          })
+        ),
+      });
+      if (!response.ok) {
+        const apiError = await apiErrorFromResponse(response, "Rename souhvezdi failed");
+        throw apiError;
+      }
+      const body = await response.json();
+      const result = body?.result || {};
+      const effects = Array.isArray(result?.semantic_effects) ? result.semantic_effects : [];
+      setSemanticEffects(effects);
+      await loadUniverse();
+      setSelectedConstellationName(targetName);
+      setDraftEntityName(targetName);
+      setConstellationProfileInfo(`Souhvezdi prejmenovano: '${sourceName}' -> '${targetName}' (upraveno mesicu: ${tasks.length}).`);
+    } catch (renameError) {
+      setError(renameError.message || "Prejmenovani souhvezdi selhalo.");
+    } finally {
+      setConstellationProfileBusy(false);
+    }
+  }, [
+    activeBranchId,
+    constellationDraftName,
+    galaxy?.id,
+    historicalMode,
+    loadUniverse,
+    selectedConstellationPlanets,
+    selectedConstellationProfile?.name,
+  ]);
+  const handleRenameSelectedTableStructure = useCallback(async () => {
+    if (historicalMode) {
+      setError("Historicky mod je jen pro cteni.");
+      return;
+    }
+    if (!selectedTableId) {
+      setError("Nejdriv vyber planetu/tabulku.");
+      return;
+    }
+    const nextConstellation = String(tableStructureDraftConstellation || "").trim();
+    const nextPlanet = String(tableStructureDraftPlanet || "").trim();
+    if (!nextConstellation || !nextPlanet) {
+      setError("Vypln Souhvezdi i Planetu.");
+      return;
+    }
+    if (!tableRows.length) {
+      setError("Planeta nema mesice. Nejdriv zaloz aspon jeden mesic.");
+      return;
+    }
+    if (!galaxy?.id) {
+      setError("Chybi aktivni galaxie/workspace.");
+      return;
+    }
+
+    const nextTableName =
+      normalizeText(nextConstellation) === normalizeText(nextPlanet) ? nextPlanet : `${nextConstellation} > ${nextPlanet}`;
+    const tasks = tableRows
+      .map((row) => {
+        const metadata = safeMetadata(row?.metadata);
+        const metadataPatch = {};
+        if (metadata.table !== nextTableName) metadataPatch.table = nextTableName;
+        if (metadata.table_name !== nextTableName) metadataPatch.table_name = nextTableName;
+        if (metadata.constellation_name !== nextConstellation) metadataPatch.constellation_name = nextConstellation;
+        if (metadata.planet_name !== nextPlanet) metadataPatch.planet_name = nextPlanet;
+        if (!Object.keys(metadataPatch).length) return null;
+        return {
+          action: "UPDATE_ASTEROID",
+          params: {
+            asteroid_id: String(row.id),
+            metadata: metadataPatch,
+            ...(Number.isInteger(row?.current_event_seq) ? { expected_event_seq: row.current_event_seq } : {}),
+          },
+        };
+      })
+      .filter(Boolean);
+
+    if (!tasks.length) {
+      setTableStructureInfo("Nazvy odpovidaji aktualnimu stavu. Zadna zmena nebyla potreba.");
+      return;
+    }
+
+    setTableStructureBusy(true);
+    setTableStructureInfo("");
+    setError("");
+    try {
+      const response = await apiFetch(`${API_BASE}/tasks/execute-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          buildTaskBatchPayload({
+            tasks,
+            mode: "commit",
+            galaxyId: galaxy.id,
+            branchId: activeBranchId,
+          })
+        ),
+      });
+      if (!response.ok) {
+        const apiError = await apiErrorFromResponse(response, "Planet structure rename failed");
+        throw apiError;
+      }
+      const body = await response.json();
+      const result = body?.result || {};
+      const effects = Array.isArray(result?.semantic_effects) ? result.semantic_effects : [];
+      setSemanticEffects(effects);
+      await loadUniverse();
+      setSelectedConstellationName(nextConstellation);
+      setDraftEntityName(nextConstellation);
+      setDraftPlanetName(nextPlanet);
+      setTableStructureInfo(`Planeta/Souhvezdi upraveno (mesice prepsane: ${tasks.length}).`);
+      focusByTarget(nextTableName);
+    } catch (renameError) {
+      setError(renameError.message || "Uprava struktury planety selhala.");
+    } finally {
+      setTableStructureBusy(false);
+    }
+  }, [
+    activeBranchId,
+    focusByTarget,
+    galaxy?.id,
+    historicalMode,
+    loadUniverse,
+    selectedTableId,
+    tableRows,
+    tableStructureDraftConstellation,
+    tableStructureDraftPlanet,
+  ]);
 
   const handleQuickCreate = useCallback(async () => {
     const entity = draftEntityName.trim();
@@ -4780,6 +5095,17 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           style={hudButtonStyle}
         >
           Navod
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            patchPanel("constellations", { collapsed: false });
+            patchPanel("constellationProfile", { collapsed: false });
+            patchPanel("planets", { collapsed: false });
+          }}
+          style={hudButtonStyle}
+        >
+          Struktura
         </button>
         <button
           type="button"
@@ -5249,10 +5575,23 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
               <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
                 Kontext: {selectedSemantic?.entityName || "Uncategorized"} · radky {gridFilteredRows.length}/{tableRows.length}
               </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>
+                Souhvezdi upravis v panelu Profil Souhvezdi. Grid je pouze Planeta - Mesice - Nerosty.
+              </div>
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
               <button type="button" style={{ ...hudButtonStyle, background: "rgba(14, 40, 62, 0.92)" }}>
                 Grid
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickGridOpen(false);
+                  backToTables();
+                }}
+                style={ghostButtonStyle}
+              >
+                Planety
               </button>
               <button type="button" onClick={() => setQuickGridOpen(false)} style={ghostButtonStyle}>
                 3D Vesmír
@@ -5297,6 +5636,53 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             </span>
           </div>
 
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr auto auto",
+              gap: 8,
+              alignItems: "center",
+              border: "1px solid rgba(96, 186, 220, 0.22)",
+              borderRadius: 10,
+              background: "rgba(6, 18, 30, 0.52)",
+              padding: "7px 8px",
+            }}
+          >
+            <input
+              value={tableStructureDraftConstellation}
+              onChange={(event) => setTableStructureDraftConstellation(event.target.value)}
+              placeholder="Souhvezdi"
+              disabled={historicalMode || tableStructureBusy || !selectedTableId}
+              style={inputStyle}
+            />
+            <input
+              value={tableStructureDraftPlanet}
+              onChange={(event) => setTableStructureDraftPlanet(event.target.value)}
+              placeholder="Planeta"
+              disabled={historicalMode || tableStructureBusy || !selectedTableId}
+              style={inputStyle}
+            />
+            <button
+              type="button"
+              onClick={handleRenameSelectedTableStructure}
+              disabled={historicalMode || tableStructureBusy || !selectedTableId}
+              style={actionButtonStyle}
+            >
+              {tableStructureBusy ? "..." : "Ulozit strukturu"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                patchPanel("constellations", { collapsed: false });
+                patchPanel("constellationProfile", { collapsed: false });
+                patchPanel("planets", { collapsed: false });
+              }}
+              style={ghostButtonStyle}
+            >
+              Otevrit strukturu
+            </button>
+          </div>
+
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" }}>
             <input
               value={gridNewRowLabel}
@@ -5320,7 +5706,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
               style={{ ...inputStyle, maxWidth: 220 }}
             />
             <button type="button" onClick={handleAddGridNewRow} disabled={historicalMode || gridBatchBusy} style={ghostButtonStyle}>
-              + Radek
+              {gridNewRowLabel.trim() ? "+ Radek" : gridSelectedRowId ? "Ulozit bunku" : "+ Radek"}
             </button>
             <button
               type="button"
@@ -5345,6 +5731,13 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
               Zavrit (/3d)
             </button>
           </div>
+          {gridSelectedRowId ? (
+            <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>
+              Vybrany mesic: <strong>{valueToLabel(tableRowById.get(String(gridSelectedRowId))?.value) || gridSelectedRowId}</strong>. Kdyz nechas "Novy mesic" prazdny,
+              tlacitko "Ulozit bunku" zapise Pole + Hodnota do tohoto radku.
+            </div>
+          ) : null}
+          {tableStructureInfo ? <div style={{ fontSize: "var(--dv-fs-xs)", color: "#9ee8ff" }}>{tableStructureInfo}</div> : null}
 
           {gridBatchInfo ? <div style={{ fontSize: "var(--dv-fs-xs)", color: "#9ee8ff" }}>{gridBatchInfo}</div> : null}
           {gridHasStagedWork ? (
@@ -6449,17 +6842,19 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           <div style={{ display: "grid", gap: 7 }}>
             {constellationPanelItems.map((item) => {
               const statusColor = resolveStatusColor(item.status);
+              const isSelected = normalizeText(item.name) === normalizeText(selectedConstellationProfile?.name);
               return (
                 <button
                   key={item.name}
                   type="button"
                   onClick={() => {
+                    setSelectedConstellationName(item.name);
                     void focusConstellationByName(item.name, { cameraDistance: 220 });
                   }}
                   style={{
-                    border: "1px solid rgba(102, 196, 227, 0.28)",
+                    border: isSelected ? "1px solid rgba(121, 214, 245, 0.62)" : "1px solid rgba(102, 196, 227, 0.28)",
                     borderRadius: 8,
-                    background: "rgba(6, 16, 30, 0.72)",
+                    background: isSelected ? "rgba(8, 27, 44, 0.9)" : "rgba(6, 16, 30, 0.72)",
                     color: "#d8f6ff",
                     padding: "7px 8px",
                     textAlign: "left",
@@ -6481,6 +6876,99 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           </div>
         ) : null}
         {constellationsError ? <div style={{ marginTop: 8, fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{constellationsError}</div> : null}
+      </FloatingPanel>
+
+      <FloatingPanel
+        id="constellationProfile"
+        title={panels.constellationProfile.title}
+        config={panels.constellationProfile}
+        minimizedDockIndex={minimizedPanels.indexOf("constellationProfile")}
+        hideCollapsedHandle
+        onPatch={(panelId, patch) => patchPanel(panelId, patch)}
+      >
+        <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.82, marginBottom: 8 }}>
+          Souhvezdi se edituje zde. Grid dole slouzi jen pro radky (Mesice) vybrane planety.
+        </div>
+        {selectedConstellationProfile ? (
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <span style={hudBadgeStyle}>Souhvezdi: {selectedConstellationProfile.name}</span>
+              <span style={hudBadgeStyle}>Planety: {selectedConstellationProfile.planetsCount}</span>
+              <span style={hudBadgeStyle}>Mesice: {selectedConstellationProfile.moonsCount}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6 }}>
+              <input
+                value={constellationDraftName}
+                onChange={(event) => setConstellationDraftName(event.target.value)}
+                placeholder="Novy nazev souhvezdi"
+                style={inputStyle}
+                disabled={historicalMode || constellationProfileBusy}
+              />
+              <button
+                type="button"
+                onClick={handleRenameConstellation}
+                disabled={historicalMode || constellationProfileBusy}
+                style={actionButtonStyle}
+              >
+                {constellationProfileBusy ? "..." : "Prejmenovat"}
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftEntityName(String(selectedConstellationProfile.name || ""));
+                  patchPanel("command", { collapsed: false });
+                }}
+                style={ghostButtonStyle}
+              >
+                Pouzit v rychlem zalozeni
+              </button>
+              <button
+                type="button"
+                onClick={() => void focusConstellationByName(selectedConstellationProfile.name, { cameraDistance: 220 })}
+                style={hudButtonStyle}
+              >
+                Fokus souhvezdi
+              </button>
+            </div>
+            {selectedConstellationPlanets.length ? (
+              <div style={{ display: "grid", gap: 5, maxHeight: 170, overflowY: "auto", paddingRight: 2 }}>
+                {selectedConstellationPlanets.map((item) => (
+                  <button
+                    key={`const-profile:${item.id}`}
+                    type="button"
+                    onClick={() => void focusPlanetById(item.id, { cameraDistance: 205 })}
+                    style={{
+                      border: "1px solid rgba(102, 196, 227, 0.24)",
+                      borderRadius: 8,
+                      background: "rgba(6, 16, 30, 0.72)",
+                      color: "#d8f6ff",
+                      padding: "6px 8px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      fontSize: "var(--dv-fs-sm)",
+                    }}
+                  >
+                    {item.planetName} · Mesice {item.moonsCount}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.74 }}>
+                V souhvezdi zatim nejsou planety.
+              </div>
+            )}
+            {constellationProfileInfo ? <div style={{ fontSize: "var(--dv-fs-xs)", color: "#9ee8ff" }}>{constellationProfileInfo}</div> : null}
+            {historicalMode ? (
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.74, color: "#ffd7a8" }}>
+                Historicky mod je read-only: prejmenovani je uzamcene.
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Vyber souhvezdi v panelu vlevo.</div>
+        )}
       </FloatingPanel>
 
       <FloatingPanel
@@ -6910,6 +7398,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       >
         <div style={{ fontSize: "var(--dv-fs-lg)", fontWeight: 700, letterSpacing: "var(--dv-tr-medium)", marginBottom: 8 }}>
           {selectedSemantic?.planetName || "Planeta"}
+        </div>
+        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.74, marginBottom: 8 }}>
+          Grid neresi Souhvezdi; to upravis v panelu Profil Souhvezdi.
         </div>
         <div
           style={{
