@@ -1,4 +1,4 @@
-.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full
+.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full be-gate be-gate-quick be-gate-strict
 
 install:
 	./.venv/bin/pip install -r requirements.txt
@@ -98,3 +98,12 @@ v1-release-gate:
 v1-release-full: v1-release-gate
 	$(MAKE) test-backend-integration
 	$(MAKE) ops-smoke
+
+be-gate:
+	./scripts/backend_quality_gate.sh quick
+
+be-gate-quick:
+	./scripts/backend_quality_gate.sh quick
+
+be-gate-strict:
+	./scripts/backend_quality_gate.sh strict

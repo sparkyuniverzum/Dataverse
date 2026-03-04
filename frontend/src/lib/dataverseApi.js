@@ -130,7 +130,6 @@ export function buildParserPayload(command, galaxyId = null, branchId = null) {
   const trimmed = typeof command === "string" ? command.trim() : "";
   const payload = {
     query: trimmed,
-    text: trimmed,
     parser_version: "v2",
   };
   if (galaxyId) {

@@ -107,6 +107,11 @@ Release hardening gate:
 - `make v1-release-gate`
 - `make v1-release-full`
 
+Backend quality gate (parser-level rigor):
+- `make be-gate` (quick, local pre-commit)
+- `make be-gate-strict` (includes full API integration suite)
+- runbook: `docs/release/backend-quality-gate.md`
+
 ## 9. CI
 
 Repo obsahuje workflow:

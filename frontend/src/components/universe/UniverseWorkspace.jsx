@@ -140,27 +140,6 @@ function resolveLinkEndpointValue(value) {
   return String(value);
 }
 
-function resolveCameraTarget(cameraState) {
-  if (Array.isArray(cameraState?.target) && cameraState.target.length === 3) {
-    const [x, y, z] = cameraState.target;
-    if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
-      return [x, y, z];
-    }
-  }
-  return [0, 0, 0];
-}
-
-function resolveCameraDistance(cameraState, fallback = 96) {
-  const position = Array.isArray(cameraState?.position) ? cameraState.position : null;
-  const target = Array.isArray(cameraState?.target) ? cameraState.target : null;
-  if (!position || !target || position.length !== 3 || target.length !== 3) return fallback;
-  const dx = Number(position[0]) - Number(target[0]);
-  const dy = Number(position[1]) - Number(target[1]);
-  const dz = Number(position[2]) - Number(target[2]);
-  const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-  return Number.isFinite(distance) && distance > 0 ? distance : fallback;
-}
-
 function parseSseMessage(block) {
   const text = String(block || "").replace(/\r\n/g, "\n");
   const lines = text.split("\n");
@@ -904,7 +883,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const [importErrors, setImportErrors] = useState([]);
   const [streamState, setStreamState] = useState("OFF");
   const [moonDeleteHover, setMoonDeleteHover] = useState(false);
-  const [pendingMoonFocusId, setPendingMoonFocusId] = useState("");
+  const [pendingFocusRequest, setPendingFocusRequest] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
   const [quickGridOpen, setQuickGridOpen] = useState(false);
   const [gridSearchQuery, setGridSearchQuery] = useState("");
@@ -931,7 +910,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const topHudRef = useRef(null);
   const quickGridScrollRef = useRef(null);
   const gridUndoStackRef = useRef([]);
-  const pendingMoonFocusStartedAtRef = useRef(0);
+  const pendingFocusStartedAtRef = useRef(0);
 
   const asOfIso = useMemo(() => toAsOfIso(asOfInput), [asOfInput]);
   const historicalMode = Boolean(asOfIso);
@@ -1763,6 +1742,19 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     () => splitEntityAndPlanetName(selectedTable),
     [selectedTable]
   );
+  const selectedTableIdentity = useMemo(() => {
+    const entityName = String(selectedSemantic?.entityName || "").trim() || "Uncategorized";
+    const planetName = String(selectedSemantic?.planetName || "").trim() || entityName;
+    const explicitName = String(selectedTable?.name || "").trim();
+    const tableName =
+      explicitName ||
+      (normalizeText(entityName) !== normalizeText(planetName) ? `${entityName} > ${planetName}` : planetName);
+    return {
+      tableName,
+      entityName,
+      planetName,
+    };
+  }, [selectedSemantic, selectedTable]);
 
   const selectedAsteroid = useMemo(
     () => asteroidById.get(String(selectedAsteroidId || "")) || null,
@@ -2032,6 +2024,70 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     },
     [clearSelectedAsteroid, patchPanel]
   );
+  const focusPlanetById = useCallback(
+    (tableId, { cameraDistance = 210 } = {}) => {
+      const normalizedTableId = String(tableId || "").trim();
+      if (!normalizedTableId) return false;
+      const tableNode = tableNodeById.get(normalizedTableId) || null;
+      if (!tableNode) {
+        pendingFocusStartedAtRef.current = Date.now();
+        setPendingFocusRequest({
+          kind: "planet",
+          tableId: normalizedTableId,
+          cameraDistance,
+        });
+        return false;
+      }
+      setSelectedBondId("");
+      focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance });
+      return true;
+    },
+    [focusTable, tableNodeById]
+  );
+  const focusConstellationByName = useCallback(
+    (constellationName, { cameraDistance = 220 } = {}) => {
+      const normalizedName = normalizeText(constellationName);
+      if (!normalizedName) return false;
+      const nodes = tableNodes.filter((node) => normalizeText(node?.entityName) === normalizedName);
+      if (!nodes.length) return false;
+      const node = nodes[0];
+      return focusPlanetById(node.id, { cameraDistance });
+    },
+    [focusPlanetById, tableNodes]
+  );
+  const focusMoonById = useCallback(
+    (moonId, { showOrphanHint = false, cameraDistance = 56 } = {}) => {
+      const normalizedMoonId = String(moonId || "").trim();
+      if (!normalizedMoonId) return false;
+      const moon = asteroidById.get(normalizedMoonId);
+      if (!moon) return false;
+
+      const planetId = String(hierarchyView.indexes.moonToPlanet.get(normalizedMoonId) || "");
+      if (planetId) {
+        void focusPlanetById(planetId, { cameraDistance: 198 });
+      }
+
+      const moonNode = asteroidNodeById.get(normalizedMoonId) || null;
+      if (moonNode) {
+        setSelectedBondId("");
+        focusAsteroid({ asteroidId: moonNode.id, cameraTarget: moonNode.position, cameraDistance });
+        patchPanel("inspector", { collapsed: false });
+        patchPanel("moons", { collapsed: false });
+        return true;
+      }
+
+      pendingFocusStartedAtRef.current = Date.now();
+      setPendingFocusRequest({
+        kind: "moon",
+        moonId: normalizedMoonId,
+        planetId,
+        showOrphanHint,
+        cameraDistance,
+      });
+      return true;
+    },
+    [asteroidById, asteroidNodeById, focusAsteroid, focusPlanetById, hierarchyView, patchPanel]
+  );
   const focusMoonAcrossContext = useCallback(
     (moonId, { showOrphanHint = false } = {}) => {
       const normalizedMoonId = String(moonId || "").trim();
@@ -2041,34 +2097,18 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       if (!moon) return false;
 
       const planetId = String(hierarchyView.indexes.moonToPlanet.get(normalizedMoonId) || "");
-      const directMoonNode = asteroidNodeById.get(normalizedMoonId) || null;
-      const tableNode = planetId ? tableNodeById.get(planetId) || null : null;
 
       setSelectedBondId("");
       patchPanel("moons", { collapsed: false });
       patchPanel("inspector", { collapsed: false });
-
-      if (tableNode) {
-        focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 198 });
-        pendingMoonFocusStartedAtRef.current = Date.now();
-        setPendingMoonFocusId(normalizedMoonId);
-        return true;
-      }
-
-      if (directMoonNode) {
-        focusAsteroid({ asteroidId: directMoonNode.id, cameraTarget: directMoonNode.position, cameraDistance: 56 });
-      } else {
-        const fallbackTarget = resolveCameraTarget(camera);
-        const fallbackDistance = clamp(resolveCameraDistance(camera, 96), 52, 220);
-        focusAsteroid({ asteroidId: normalizedMoonId, cameraTarget: fallbackTarget, cameraDistance: fallbackDistance });
-      }
+      const focused = focusMoonById(normalizedMoonId, { showOrphanHint, cameraDistance: 56 });
 
       if (showOrphanHint && !planetId) {
         setError("Mesic je SIROTEK (bez planety). Nejdriv ho prirad k planete.");
       }
-      return true;
+      return focused;
     },
-    [asteroidById, asteroidNodeById, camera, focusAsteroid, focusTable, hierarchyView, patchPanel, tableNodeById]
+    [asteroidById, focusMoonById, hierarchyView, patchPanel]
   );
   const focusFirstOrphanMoon = useCallback(() => {
     const orphan = moonPanelItems.find((item) => item.isOrphan);
@@ -2080,33 +2120,84 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   }, [focusMoonAcrossContext, moonPanelItems]);
 
   useEffect(() => {
-    if (!pendingMoonFocusId) return;
-    const moonId = String(pendingMoonFocusId);
-    const moonNode = asteroidNodeById.get(moonId);
-    if (!moonNode) {
+    if (!pendingFocusRequest) return;
+    const startedAt = pendingFocusStartedAtRef.current || Date.now();
+    pendingFocusStartedAtRef.current = startedAt;
+    const elapsedMs = Date.now() - startedAt;
+
+    if (pendingFocusRequest.kind === "planet") {
+      const tableId = String(pendingFocusRequest.tableId || "");
+      const tableNode = tableNodeById.get(tableId) || null;
+      if (tableNode) {
+        setSelectedBondId("");
+        focusTable({
+          tableId: tableNode.id,
+          cameraTarget: tableNode.position,
+          cameraDistance: Number(pendingFocusRequest.cameraDistance || 210),
+        });
+        pendingFocusStartedAtRef.current = 0;
+        setPendingFocusRequest(null);
+        return;
+      }
+      if (elapsedMs < 1800) return;
+      const planet = hierarchyView.indexes.planetById.get(tableId);
+      const semantic = planet?.originalNode ? splitEntityAndPlanetName(planet.originalNode) : null;
+      if (!focusConstellationByName(semantic?.entityName || "", { cameraDistance: 230 })) {
+        setError("Fokus planety selhal: cil uz neni v aktualnim layoutu.");
+      }
+      pendingFocusStartedAtRef.current = 0;
+      setPendingFocusRequest(null);
+      return;
+    }
+
+    if (pendingFocusRequest.kind === "moon") {
+      const moonId = String(pendingFocusRequest.moonId || "");
       if (!asteroidById.has(moonId)) {
-        pendingMoonFocusStartedAtRef.current = 0;
-        setPendingMoonFocusId("");
+        pendingFocusStartedAtRef.current = 0;
+        setPendingFocusRequest(null);
         setError("Fokus selhal: Mesic uz neni dostupny.");
         return;
       }
-      const startedAt = pendingMoonFocusStartedAtRef.current || Date.now();
-      pendingMoonFocusStartedAtRef.current = startedAt;
-      if (Date.now() - startedAt < 1200) return;
-      const fallbackTarget = resolveCameraTarget(camera);
-      const fallbackDistance = clamp(resolveCameraDistance(camera, 96), 52, 220);
-      focusAsteroid({ asteroidId: moonId, cameraTarget: fallbackTarget, cameraDistance: fallbackDistance });
-      patchPanel("inspector", { collapsed: false });
-      pendingMoonFocusStartedAtRef.current = 0;
-      setPendingMoonFocusId("");
-      setError("Fokus mesice trval prilis dlouho. Otevren fallback detail bez prepnuti planety.");
-      return;
+      const moonNode = asteroidNodeById.get(moonId) || null;
+      if (moonNode) {
+        setSelectedBondId("");
+        focusAsteroid({
+          asteroidId: moonNode.id,
+          cameraTarget: moonNode.position,
+          cameraDistance: Number(pendingFocusRequest.cameraDistance || 56),
+        });
+        patchPanel("inspector", { collapsed: false });
+        patchPanel("moons", { collapsed: false });
+        pendingFocusStartedAtRef.current = 0;
+        setPendingFocusRequest(null);
+        return;
+      }
+      if (elapsedMs < 2200) return;
+      const fallbackPlanetId = String(pendingFocusRequest.planetId || "");
+      const tableNode = fallbackPlanetId ? tableNodeById.get(fallbackPlanetId) || null : null;
+      if (tableNode) {
+        setSelectedBondId("");
+        focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 208 });
+      }
+      if (pendingFocusRequest.showOrphanHint) {
+        setError("Mesic je SIROTEK nebo mimo aktivni planetu. Nejdriv ho prirad k planete.");
+      } else {
+        setError("Fokus mesice selhal: cil zatim neni vykreslen, zustavam na urovni planety.");
+      }
+      pendingFocusStartedAtRef.current = 0;
+      setPendingFocusRequest(null);
     }
-    focusAsteroid({ asteroidId: moonNode.id, cameraTarget: moonNode.position, cameraDistance: 56 });
-    patchPanel("inspector", { collapsed: false });
-    pendingMoonFocusStartedAtRef.current = 0;
-    setPendingMoonFocusId("");
-  }, [asteroidById, asteroidNodeById, camera, focusAsteroid, patchPanel, pendingMoonFocusId]);
+  }, [
+    asteroidById,
+    asteroidNodeById,
+    focusAsteroid,
+    focusConstellationByName,
+    focusTable,
+    hierarchyView,
+    patchPanel,
+    pendingFocusRequest,
+    tableNodeById,
+  ]);
 
   useEffect(() => {
     if (!moonQuickOptions.length) {
@@ -2168,14 +2259,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const focusFirstMoonInSelectedTable = useCallback(() => {
     if (!tableRows.length) return false;
     const firstMoon = tableRows[0];
-    const moonNode = asteroidNodes.find((item) => String(item.id) === String(firstMoon.id));
-    if (!moonNode) return false;
-    setSelectedBondId("");
-    focusAsteroid({ asteroidId: moonNode.id, cameraTarget: moonNode.position, cameraDistance: 54 });
-    patchPanel("inspector", { collapsed: false });
-    patchPanel("moons", { collapsed: false });
-    return true;
-  }, [asteroidNodes, focusAsteroid, patchPanel, tableRows]);
+    return focusMoonById(firstMoon.id, { cameraDistance: 54 });
+  }, [focusMoonById, tableRows]);
 
   const autoFocusedTableRef = useRef("");
   useEffect(() => {
@@ -2643,6 +2728,27 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     if (field) {
       metadata[field] = gridNewRowMetaValue.trim() || "1";
     }
+    const existingRow = tableRows.find((row) => normalizeText(valueToLabel(row?.value)) === normalizeText(label));
+    if (existingRow) {
+      if (field) {
+        const baseline = getRowBaselineValue(existingRow, field);
+        stageGridCellChange(existingRow.id, field, baseline, metadata[field]);
+        focusGridRow(existingRow.id);
+        setGridBatchInfo(`Mesic '${label}' uz existuje. Pole '${field}' bylo pridano do change setu.`);
+        setGridNewRowLabel("");
+        setGridNewRowMetaKey("");
+        setGridNewRowMetaValue("");
+        setError("");
+        return;
+      }
+      focusGridRow(existingRow.id);
+      setError(`Mesic '${label}' uz v planete existuje. Pro upravu klikni do bunky.`);
+      return;
+    }
+    if (gridNewRows.some((row) => normalizeText(row?.label) === normalizeText(label))) {
+      setError(`Mesic '${label}' uz je staged v novych radcich.`);
+      return;
+    }
     pushGridUndoSnapshot();
     setGridNewRows((prev) => [
       ...prev,
@@ -2658,7 +2764,18 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     setGridBatchPreview(null);
     setGridBatchInfo("");
     setError("");
-  }, [gridNewRowLabel, gridNewRowMetaKey, gridNewRowMetaValue, pushGridUndoSnapshot, selectedTable]);
+  }, [
+    focusGridRow,
+    getRowBaselineValue,
+    gridNewRowLabel,
+    gridNewRowMetaKey,
+    gridNewRowMetaValue,
+    gridNewRows,
+    pushGridUndoSnapshot,
+    selectedTable,
+    stageGridCellChange,
+    tableRows,
+  ]);
 
   const handleRemoveGridNewRow = useCallback((rowId) => {
     pushGridUndoSnapshot();
@@ -2988,10 +3105,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       return { ...task, params: nextParams };
     });
 
-    const entityName = selectedSemantic?.entityName || "Souhvezdi";
-    const planetName = selectedSemantic?.planetName || "Planeta";
-    const selectedTableName = String(selectedTable?.name || "").trim();
-    const targetTableName = selectedTableName || `${entityName} > ${planetName}`;
+    const targetTableName = String(selectedTableIdentity?.tableName || "").trim() || "Uncategorized";
+    const targetConstellation = String(selectedTableIdentity?.entityName || "").trim() || "Uncategorized";
+    const targetPlanet = String(selectedTableIdentity?.planetName || "").trim() || targetConstellation;
     const createTasks = gridNewRows.map((item) => ({
       action: "INGEST",
       params: {
@@ -3000,7 +3116,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           ...(item.metadata || {}),
           table: targetTableName,
           table_name: targetTableName,
-          table_id: String(selectedTableId || ""),
+          constellation_name: targetConstellation,
+          planet_name: targetPlanet,
+          ...(selectedTableId ? { table_id: String(selectedTableId) } : {}),
         },
       },
     }));
@@ -3031,9 +3149,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     gridPendingExtinguishIds,
     rowFactIndexByRowId,
     resolveGridSemanticTarget,
-    selectedTable,
     selectedTableId,
-    selectedSemantic,
+    selectedTableIdentity,
     tableRowById,
   ]);
 
@@ -3334,6 +3451,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       const result = body?.result || {};
       const effects = Array.isArray(result?.semantic_effects) ? result.semantic_effects : [];
       setSemanticEffects(effects);
+      const upsertCreated = effects.filter(
+        (effect) => String(effect?.code || "").toUpperCase() === "MOON_UPSERTED" && Boolean(effect?.outputs?.created)
+      ).length;
+      const upsertUpdated = effects.filter(
+        (effect) => String(effect?.code || "").toUpperCase() === "MOON_UPSERTED" && effect?.outputs?.created === false
+      ).length;
       setGridBatchPreview({
         mode: normalizedMode,
         tasks: Array.isArray(result.tasks) ? result.tasks.length : tasks.length,
@@ -3353,7 +3476,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       if (normalizedMode === "commit") {
         clearGridChangeSet({ resetUndo: true, pushUndo: false });
         await loadUniverse();
-        setGridBatchInfo(`Commit OK: ${tasks.length} tasku zapsano atomicky.`);
+        const upsertInfo =
+          upsertCreated || upsertUpdated
+            ? ` (radky: nove ${upsertCreated}, existujici-upsert ${upsertUpdated})`
+            : "";
+        setGridBatchInfo(`Commit OK: ${tasks.length} tasku zapsano atomicky.${upsertInfo}`);
       } else {
         setGridBatchInfo(`Preview OK: ${tasks.length} tasku je validnich pro commit.`);
       }
@@ -3448,29 +3575,32 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         return normalizeText(semantic.entityName) === targetText || normalizeText(semantic.planetName) === targetText;
       });
       if (foundTable) {
-        const node = tableNodes.find((item) => item.id === String(foundTable.table_id));
-        if (node) {
-          setSelectedBondId("");
-          focusTable({ tableId: node.id, cameraTarget: node.position, cameraDistance: 220 });
-          return true;
-        }
+        return focusPlanetById(String(foundTable.table_id), { cameraDistance: 220 });
       }
 
       return false;
     },
-    [asteroidById, focusMoonAcrossContext, focusTable, tableNodes, tables]
+    [asteroidById, focusMoonAcrossContext, focusPlanetById, tables]
   );
 
   const executeParserCommand = useCallback(
     async (raw, { clearInput = false } = {}) => {
       const normalized = String(raw || "").trim();
       if (!normalized || busy) return false;
+      if (!galaxy?.id) {
+        setError("Chybi aktivni galaxie/workspace.");
+        return false;
+      }
       if (historicalMode) {
         setError("Historicky mod je jen pro cteni.");
         return false;
       }
       const prepared = normalizeParserCommandInput(normalized);
       const command = prepared.command;
+      if (!String(command || "").trim()) {
+        setError("Prazdny prikaz.");
+        return false;
+      }
 
       setBusy(true);
       setError("");
@@ -3478,7 +3608,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         const response = await apiFetch(`${API_BASE}/parser/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildParserPayload(command, galaxy.id, activeBranchId)),
+          body: JSON.stringify(buildParserPayload(command, galaxy?.id, activeBranchId)),
         });
         if (!response.ok) {
           const apiError = await apiErrorFromResponse(response, "Parser failed");
@@ -3503,7 +3633,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         setBusy(false);
       }
     },
-    [activeBranchId, busy, galaxy.id, historicalMode, loadUniverse]
+    [activeBranchId, busy, galaxy?.id, historicalMode, loadUniverse]
   );
 
   const handleCreateBranch = useCallback(async () => {
@@ -4309,17 +4439,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
       if (action === "focus") {
         if (menu.kind === "table") {
-          const table = tableNodes.find((node) => node.id === menu.id);
-          if (table) {
-            setSelectedBondId("");
-            focusTable({ tableId: table.id, cameraTarget: table.position, cameraDistance: 190 });
-          }
+          void focusPlanetById(menu.id, { cameraDistance: 190 });
         } else {
-          const asteroid = asteroidNodes.find((node) => node.id === menu.id);
-          if (asteroid) {
-            setSelectedBondId("");
-            focusAsteroid({ asteroidId: asteroid.id, cameraTarget: asteroid.position, cameraDistance: 54 });
-          }
+          void focusMoonById(menu.id, { cameraDistance: 54 });
         }
         return;
       }
@@ -4331,12 +4453,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       }
 
       if (action === "edit") {
-        const asteroid = asteroidNodes.find((node) => node.id === menu.id);
-        if (asteroid) {
-          setSelectedBondId("");
-          focusAsteroid({ asteroidId: asteroid.id, cameraTarget: asteroid.position, cameraDistance: 54 });
-          patchPanel("inspector", { collapsed: false });
-        }
+        void focusMoonById(menu.id, { cameraDistance: 54 });
+        patchPanel("inspector", { collapsed: false });
         return;
       }
 
@@ -4348,7 +4466,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         }
       }
     },
-    [asteroidNodes, backToTables, closeContextMenu, extinguishAsteroid, focusAsteroid, focusTable, patchPanel, tableNodes]
+    [backToTables, closeContextMenu, extinguishAsteroid, focusMoonById, focusPlanetById, patchPanel]
   );
 
   const levelLabel = level >= 3 ? "L3: Mesice a Nerosty" : "L2: Souhvezdi a Planety";
@@ -4410,8 +4528,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         patchPanel("planets", { collapsed: false });
         return;
       }
-      setSelectedBondId("");
-      focusTable({ tableId: firstTable.id, cameraTarget: firstTable.position, cameraDistance: 210 });
+      void focusPlanetById(firstTable.id, { cameraDistance: 210 });
       return;
     }
     if (primaryGuideAction.key === "pick-moon") {
@@ -4422,7 +4539,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       setQuery("/grid");
       focusCommandInput();
     }
-  }, [focusCommandInput, focusFirstMoonInSelectedTable, focusFirstOrphanMoon, focusTable, patchPanel, primaryGuideAction.key, tableNodes]);
+  }, [focusCommandInput, focusFirstMoonInSelectedTable, focusFirstOrphanMoon, focusPlanetById, patchPanel, primaryGuideAction.key, tableNodes]);
   const smartActions = useMemo(() => {
     return [
       { id: "next", label: primaryGuideAction.label, hint: primaryGuideAction.helper },
@@ -4546,19 +4663,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         linkDraft={linkDraft}
         hideMouseGuide={focusUiMode}
         onSelectTable={(tableId) => {
-          const table = tableNodes.find((node) => node.id === tableId);
-          if (table) {
-            setSelectedBondId("");
-            focusTable({ tableId: table.id, cameraTarget: table.position, cameraDistance: 210 });
-          }
+          void focusPlanetById(tableId, { cameraDistance: 210 });
         }}
         onSelectAsteroid={(asteroidId) => {
-          const asteroid = asteroidNodes.find((node) => node.id === asteroidId);
-          if (asteroid) {
-            setSelectedBondId("");
-            focusAsteroid({ asteroidId: asteroid.id, cameraTarget: asteroid.position, cameraDistance: 56 });
-            patchPanel("inspector", { collapsed: false });
-          }
+          void focusMoonById(asteroidId, { cameraDistance: 56 });
+          patchPanel("inspector", { collapsed: false });
         }}
         onOpenContext={openContextMenu}
         onLinkStart={startLinkDraft}
@@ -6345,10 +6454,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                   key={item.name}
                   type="button"
                   onClick={() => {
-                    const node = item.focusNode;
-                    if (!node) return;
-                    setSelectedBondId("");
-                    focusTable({ tableId: node.id, cameraTarget: node.position, cameraDistance: 220 });
+                    void focusConstellationByName(item.name, { cameraDistance: 220 });
                   }}
                   style={{
                     border: "1px solid rgba(102, 196, 227, 0.28)",
@@ -6403,8 +6509,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                   type="button"
                   onClick={() => {
                     if (!tableNode) return;
-                    setSelectedBondId("");
-                    focusTable({ tableId: tableNode.id, cameraTarget: tableNode.position, cameraDistance: 205 });
+                    void focusPlanetById(tableNode.id, { cameraDistance: 205 });
                   }}
                   style={{
                     border: "1px solid rgba(102, 196, 227, 0.28)",
