@@ -36,11 +36,11 @@ def _context(*, asteroids: list[ProjectedAsteroid] | None = None) -> _TaskExecut
     )
 
 
-def _asteroid(*, value: str) -> ProjectedAsteroid:
+def _asteroid(*, value: str, metadata: dict | None = None) -> ProjectedAsteroid:
     return ProjectedAsteroid(
         id=uuid4(),
         value=value,
-        metadata={},
+        metadata=metadata or {},
         is_deleted=False,
         created_at=datetime.now(timezone.utc),
         deleted_at=None,
@@ -60,6 +60,33 @@ def test_handle_ingest_update_family_ingest_reuses_existing_asteroid() -> None:
     assert len(ctx.result.asteroids) == 1
     assert ctx.result.asteroids[0].id == existing.id
     assert ctx.context_asteroid_ids == [existing.id]
+
+
+def test_handle_ingest_update_family_ingest_does_not_reuse_existing_from_other_table() -> None:
+    service = TaskExecutorService()
+    existing = _asteroid(value="Material", metadata={"table": "Sklad > Material"})
+    ctx = _context(asteroids=[existing])
+    task = AtomicTask(action="INGEST", params={"value": "Material", "metadata": {"table": "Finance > Material"}})
+
+    async def _append_and_project_event(*, entity_id, event_type, payload):  # noqa: ANN001
+        if event_type != "ASTEROID_CREATED":
+            raise AssertionError(f"Unexpected event append: {event_type} {entity_id}")
+        return type("Evt", (), {"timestamp": datetime.now(timezone.utc), "event_seq": 2})
+
+    async def _noop_validate(**kwargs):  # noqa: ANN003
+        return None
+
+    service._validate_table_contract_write = _noop_validate  # type: ignore[method-assign]
+    ctx.append_and_project_event = _append_and_project_event  # type: ignore[assignment]
+
+    handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
+
+    assert handled is True
+    assert len(ctx.result.asteroids) == 1
+    created = ctx.result.asteroids[0]
+    assert created.id != existing.id
+    assert created.metadata.get("table") == "Finance > Material"
+    assert ctx.context_asteroid_ids == [created.id]
 
 
 def test_handle_link_and_bond_mutation_family_requires_context_for_link() -> None:

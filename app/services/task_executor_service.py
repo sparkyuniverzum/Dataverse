@@ -149,6 +149,16 @@ class TaskExecutorService:
         return OccGuards.parse_expected_event_seq(value, field_name=field_name)
 
     @staticmethod
+    def _projected_table_id_for_value(
+        *,
+        galaxy_id: UUID,
+        value: Any,
+        metadata: dict[str, Any],
+    ) -> UUID:
+        table_name = derive_table_name(value=value, metadata=metadata)
+        return derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
+
+    @staticmethod
     def _find_asteroids_by_target(
         asteroids: list[ProjectedAsteroid],
         target: str,
@@ -658,24 +668,60 @@ class TaskExecutorService:
             value = task.params["value"]
             raw_metadata = task.params.get("metadata")
             metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+            requested_table_id = self._projected_table_id_for_value(
+                galaxy_id=ctx.galaxy_id,
+                value=value,
+                metadata=metadata,
+            )
 
             existing = next(
                 (
                     asteroid
                     for asteroid in ctx.asteroids_by_id.values()
                     if asteroid.value == value and not asteroid.is_deleted
+                    and self._projected_table_id_for_value(
+                        galaxy_id=ctx.galaxy_id,
+                        value=asteroid.value,
+                        metadata=asteroid.metadata,
+                    )
+                    == requested_table_id
                 ),
                 None,
             )
             if existing is None and ctx.preload_scope == "partial":
-                existing = await self._load_active_asteroid_by_value(
+                candidate = await self._load_active_asteroid_by_value(
                     session=ctx.session,
                     user_id=ctx.user_id,
                     galaxy_id=ctx.galaxy_id,
                     value=value,
                 )
-                if existing is not None:
-                    ctx.asteroids_by_id[existing.id] = existing
+                if candidate is not None:
+                    candidate_table_id = self._projected_table_id_for_value(
+                        galaxy_id=ctx.galaxy_id,
+                        value=candidate.value,
+                        metadata=candidate.metadata,
+                    )
+                    if candidate_table_id == requested_table_id:
+                        existing = candidate
+                        ctx.asteroids_by_id[existing.id] = existing
+                    else:
+                        # The fast value lookup found a row in a different table.
+                        # Hydrate full scope and retry table-aware match before creating a new row.
+                        await self._hydrate_context_to_full_scope(ctx)
+                        existing = next(
+                            (
+                                asteroid
+                                for asteroid in ctx.asteroids_by_id.values()
+                                if asteroid.value == value and not asteroid.is_deleted
+                                and self._projected_table_id_for_value(
+                                    galaxy_id=ctx.galaxy_id,
+                                    value=asteroid.value,
+                                    metadata=asteroid.metadata,
+                                )
+                                == requested_table_id
+                            ),
+                            None,
+                        )
 
             if existing is None:
                 await self._validate_table_contract_write(

@@ -23,7 +23,7 @@ import {
   normalizeSnapshot,
   toAsOfIso,
 } from "../../lib/dataverseApi";
-import { MODEL_PATH_LABEL, WORKSPACE_GUIDE } from "../../lib/onboarding";
+import { WORKSPACE_GUIDE } from "../../lib/onboarding";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import { buildHierarchyTree, normalizeEdgeSemanticType } from "../../lib/universe_viewmodel";
 import { toMoonRowContract } from "../../lib/universe_contract";
@@ -820,6 +820,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const [gridSavingCells, setGridSavingCells] = useState({});
   const [gridDeletingRows, setGridDeletingRows] = useState({});
   const [gridRemovedRowIds, setGridRemovedRowIds] = useState({});
+  const [gridGhostRows, setGridGhostRows] = useState({});
   const [gridViewport, setGridViewport] = useState({ scrollTop: 0, height: 420 });
   const focusUiMode = true;
 
@@ -2111,9 +2112,22 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const gridCalculatedColumnSet = useMemo(() => new Set(gridCalculatedColumns), [gridCalculatedColumns]);
   const gridFilteredRows = useMemo(() => {
     const needle = normalizeText(gridSearchQuery);
-    return tableRows.filter((row) => {
+    const activeRows = tableRows.filter((row) => {
       const rowId = String(row?.id || "");
       if (!gridShowGhostRows && gridRemovedRowIds[rowId]) return false;
+      return true;
+    });
+
+    const activeRowIds = new Set(activeRows.map((row) => String(row?.id || "")));
+    const ghostRows = gridShowGhostRows
+      ? Object.values(gridGhostRows).filter((row) => {
+          const rowId = String(row?.id || "");
+          return rowId && !activeRowIds.has(rowId);
+        })
+      : [];
+
+    return [...activeRows, ...ghostRows].filter((row) => {
+      const rowId = String(row?.id || "");
       const rowLabel = valueToLabel(row?.value);
       if (!needle) return true;
       const parts = [rowLabel];
@@ -2134,6 +2148,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     gridDraft,
     gridCalculatedColumnSet,
     gridDisplayColumns,
+    gridGhostRows,
     gridRemovedRowIds,
     gridSearchQuery,
     gridShowGhostRows,
@@ -2639,20 +2654,15 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   }, [gridSelectedRowId, tableRowById]);
 
   useEffect(() => {
-    const rowIds = new Set(tableRows.map((row) => String(row.id)));
-    setGridPendingExtinguishIds((prev) => {
-      const next = Object.fromEntries(Object.entries(prev).filter(([rowId]) => rowIds.has(String(rowId))));
-      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
-    });
-    setGridRemovedRowIds((prev) => {
-      const next = Object.fromEntries(Object.entries(prev).filter(([rowId]) => rowIds.has(String(rowId))));
-      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
-    });
+    const rowIds = new Set([
+      ...tableRows.map((row) => String(row.id)),
+      ...Object.keys(gridGhostRows).map((id) => String(id)),
+    ]);
     setGridDeletingRows((prev) => {
       const next = Object.fromEntries(Object.entries(prev).filter(([rowId]) => rowIds.has(String(rowId))));
       return Object.keys(next).length === Object.keys(prev).length ? prev : next;
     });
-  }, [tableRows]);
+  }, [gridGhostRows, tableRows]);
 
   const resolveGridSemanticTarget = useCallback(
     (rawTarget) => {
@@ -2777,13 +2787,17 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
     const entityName = selectedSemantic?.entityName || "Souhvezdi";
     const planetName = selectedSemantic?.planetName || "Planeta";
+    const selectedTableName = String(selectedTable?.name || "").trim();
+    const targetTableName = selectedTableName || `${entityName} > ${planetName}`;
     const createTasks = gridNewRows.map((item) => ({
       action: "INGEST",
       params: {
         value: item.label,
         metadata: {
-          table: `${entityName} > ${planetName}`,
           ...(item.metadata || {}),
+          table: targetTableName,
+          table_name: targetTableName,
+          table_id: String(selectedTableId || ""),
         },
       },
     }));
@@ -2814,6 +2828,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     gridPendingExtinguishIds,
     rowFactIndexByRowId,
     resolveGridSemanticTarget,
+    selectedTable,
+    selectedTableId,
     selectedSemantic,
     tableRowById,
   ]);
@@ -2908,6 +2924,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     setGridSavingCells({});
     setGridSearchQuery("");
     setGridShowGhostRows(false);
+    setGridGhostRows({});
     setGridViewport({ scrollTop: 0, height: 420 });
     setGridSelectedRowId("");
     setGridNewRows([]);
@@ -3328,6 +3345,14 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       if (historicalMode) return;
       const rowId = String(rowIdRaw || "").trim();
       if (!rowId) return;
+      const row = tableRowById.get(rowId);
+      if (!row) return;
+      const ghostSnapshot = {
+        ...row,
+        __ghost: true,
+        deleted_at: new Date().toISOString(),
+      };
+      setGridGhostRows((prev) => ({ ...prev, [rowId]: ghostSnapshot }));
       setGridPendingExtinguishIds((prev) => ({ ...prev, [rowId]: true }));
       setGridDeletingRows((prev) => ({ ...prev, [rowId]: true }));
       setTimeout(() => {
@@ -3348,6 +3373,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           delete copy[rowId];
           return copy;
         });
+        setGridGhostRows((prev) => {
+          if (!Object.prototype.hasOwnProperty.call(prev, rowId)) return prev;
+          const copy = { ...prev };
+          delete copy[rowId];
+          return copy;
+        });
         setError(rowError.message || "Zhasnuti radku selhalo.");
       } finally {
         setGridDeletingRows((prev) => {
@@ -3358,7 +3389,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         });
       }
     },
-    [extinguishAsteroid, historicalMode]
+    [extinguishAsteroid, historicalMode, tableRowById]
   );
 
   const mutateBondType = useCallback(
@@ -3809,7 +3840,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [asteroidNodes, backToTables, closeContextMenu, extinguishAsteroid, focusAsteroid, focusTable, patchPanel, tableNodes]
   );
 
-  const levelLabel = level >= 3 ? "L3: Planeta a Mesice" : "L2: Souhvezdi a Planety";
+  const levelLabel = level >= 3 ? "L3: Mesice a Nerosty" : "L2: Souhvezdi a Planety";
   const selectedMoonLabel = selectedAsteroid ? valueToLabel(selectedAsteroid.value) : "";
   const selectedBondLabel = selectedBond ? `${formatBondTypeLabel(selectedBond.type)} ${selectedBond.directional ? "->" : "<->"}` : "";
   const hasAnyPlanet = hierarchyView.planets.length > 0;
@@ -3920,14 +3951,17 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     }
     return undefined;
   }, [runSmartAction, smartActions]);
-  const breadcrumbTrail = [
-    galaxy?.name || "Galaxie",
-    selectedSemantic?.entityName || "Skupiny",
-    selectedSemantic?.planetName || "Tabulky",
-    selectedMoonLabel || null,
-  ]
-    .filter(Boolean)
-    .join(" / ");
+  const breadcrumbItems = [
+    { key: "workspace", label: "Galaxie", value: galaxy?.name || "My Galaxy" },
+    { key: "oblast", label: "Souhvezdi", value: selectedSemantic?.entityName || "Uncategorized" },
+    { key: "planeta", label: "Planeta", value: selectedSemantic?.planetName || "Uncategorized" },
+    ...(selectedMoonLabel ? [{ key: "mesic", label: "Mesic", value: selectedMoonLabel }] : []),
+  ];
+  const modelPrimer = "Model: Galaxie=workspace · Souhvezdi=skupiny · Planeta=tabulka · Mesic=radek · Nerost=bunka";
+  const hierarchyStatusLabel = hasHierarchyIssues
+    ? `${hierarchyDiagnosticsSummary.orphans} sirotku · ${hierarchyDiagnosticsSummary.warnings} varovani`
+    : "Hierarchie OK";
+  const hierarchyStatusColor = hasHierarchyIssues ? "#ffd2a1" : "#9ef5d7";
   const minimizedPanels = Object.entries(panels)
     .filter(([, cfg]) => cfg.collapsed)
     .map(([id]) => id);
@@ -3981,64 +4015,57 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         }}
       />
 
-      {!focusUiMode ? (
-        <div
-          style={{
-            position: "fixed",
-            top: 12,
-            left: 12,
-            zIndex: 39,
-            borderRadius: 12,
-            border: "1px solid rgba(96, 189, 223, 0.34)",
-            background: "rgba(5, 13, 24, 0.78)",
-            color: "#d9f8ff",
-            padding: "7px 9px",
-            display: "grid",
-            gap: 5,
-            backdropFilter: "blur(8px)",
-            width: "min(620px, calc(100vw - 130px))",
-          }}
-        >
-          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.74 }}>NAVIGACE</div>
-          <div style={{ fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-base)", color: "#dff8ff" }}>{breadcrumbTrail}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-            <span style={{ ...hudBadgeStyle, color: "#9fe8ff" }}>Postup {onboardingProgress}/3</span>
+      <section
+        style={{
+          position: "fixed",
+          top: 12,
+          left: 12,
+          zIndex: 39,
+          borderRadius: 14,
+          border: "1px solid rgba(96, 189, 223, 0.32)",
+          background: "rgba(5, 13, 24, 0.78)",
+          color: "#d9f8ff",
+          padding: "8px 10px",
+          display: "grid",
+          gap: 7,
+          backdropFilter: "blur(10px)",
+          width: "clamp(320px, calc(100vw - 560px), 820px)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.86 }}>AXIOM NAVIGATOR</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={hudBadgeStyle}>{levelLabel}</span>
-            <span style={{ ...hudBadgeStyle, opacity: 0.88 }}>Model: {MODEL_PATH_LABEL}</span>
-            {selectedBondLabel ? (
-              <span style={{ ...hudBadgeStyle, opacity: 0.9 }}>
-                Vazba: <strong>{selectedBondLabel}</strong>
-              </span>
-            ) : null}
-            {hasHierarchyIssues ? (
-              <span style={{ ...hudBadgeStyle, color: "#ffd2a1", borderColor: "rgba(255, 176, 115, 0.45)" }}>
-                Pozor: {hierarchyDiagnosticsSummary.orphans} sirotku · {hierarchyDiagnosticsSummary.warnings} varovani ·{" "}
-                {hierarchyDiagnosticsSummary.droppedEdges} ignorovanych vazeb
-              </span>
-            ) : null}
-            {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam data...</span> : null}
+            <span style={{ ...hudBadgeStyle, color: hierarchyStatusColor }}>{hierarchyStatusLabel}</span>
+            {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam...</span> : null}
           </div>
         </div>
-      ) : (
-        <div
-          style={{
-            position: "fixed",
-            top: 12,
-            left: 12,
-            zIndex: 39,
-            borderRadius: 999,
-            border: "1px solid rgba(96, 189, 223, 0.3)",
-            background: "rgba(5, 13, 24, 0.72)",
-            color: "#d9f8ff",
-            padding: "6px 10px",
-            fontSize: "var(--dv-fs-xs)",
-            maxWidth: "min(520px, calc(100vw - 28px))",
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          {breadcrumbTrail}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {breadcrumbItems.map((item, index) => (
+            <div
+              key={item.key}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                maxWidth: "100%",
+              }}
+            >
+              <span style={{ ...hudBadgeStyle, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {item.label}: <strong>{item.value}</strong>
+              </span>
+              {index < breadcrumbItems.length - 1 ? (
+                <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.5 }}>/</span>
+              ) : null}
+            </div>
+          ))}
         </div>
-      )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
+          <span>Dalsi krok: {nextStepHint}</span>
+          {selectedBondLabel ? <span>Vybrana vazba: {selectedBondLabel}</span> : null}
+        </div>
+        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>{modelPrimer}</div>
+      </section>
 
       <div
         style={{
@@ -4077,6 +4104,9 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         <button type="button" onClick={() => commandInputRef.current?.focus()} style={hudButtonStyle}>
           Prikaz
         </button>
+        <button type="button" onClick={onBackToGalaxies} style={hudButtonStyle}>
+          Galaxie
+        </button>
         <button type="button" onClick={() => setShowHelp((prev) => !prev)} style={hudButtonStyle}>
           Help
         </button>
@@ -4089,36 +4119,35 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         </button>
       </div>
 
-      {!focusUiMode ? (
-        <div
+      {!quickGridOpen ? (
+        <aside
           style={{
             position: "fixed",
-            left: "50%",
-            bottom: 92,
-            transform: "translateX(-50%)",
-            zIndex: 41,
+            right: 14,
+            top: 74,
+            zIndex: 43,
+            width: "min(290px, calc(100vw - 26px))",
             borderRadius: 12,
-            border: "1px solid rgba(102, 194, 227, 0.3)",
-            background: "rgba(6, 16, 28, 0.72)",
-            color: "#ddf8ff",
-            padding: "6px 10px",
-            fontSize: "var(--dv-fs-sm)",
-            display: "flex",
-            alignItems: "center",
+            border: "1px solid rgba(100, 196, 226, 0.34)",
+            background: "rgba(5, 14, 26, 0.82)",
+            color: "#d8f7ff",
+            backdropFilter: "blur(8px)",
+            boxShadow: "0 0 22px rgba(36, 132, 184, 0.2)",
+            padding: "8px 9px",
+            display: "grid",
             gap: 8,
-            flexWrap: "wrap",
-            width: "min(980px, calc(100vw - 26px))",
-            backdropFilter: "blur(6px)",
           }}
         >
-          <strong style={{ color: "#9fe8ff" }}>Dalsi krok:</strong>
-          <span style={{ opacity: 0.92 }}>{nextStepHint}</span>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.84, color: "#bdefff" }}>
+            DALSI KROK
+          </div>
           <button
             type="button"
             onClick={handlePrimaryGuideAction}
             style={{
               ...actionButtonStyle,
-              padding: "6px 10px",
+              width: "100%",
+              textAlign: "left",
               background:
                 primaryGuideAction.key === "fix-orphans"
                   ? "linear-gradient(120deg, #ffad67, #ffd7a8)"
@@ -4128,54 +4157,49 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           >
             {primaryGuideAction.label}
           </button>
-          <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>{primaryGuideAction.helper}</span>
-        </div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>{primaryGuideAction.helper}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => void runSmartAction("command")}
+              style={{
+                width: "100%",
+                border: "1px solid rgba(111, 211, 243, 0.34)",
+                borderRadius: 9,
+                background: "rgba(8, 20, 34, 0.88)",
+                color: "#e1f9ff",
+                padding: "6px 8px",
+                display: "grid",
+                gap: 2,
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>2. Prikaz</span>
+              <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>Otevri command line</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void runSmartAction("refresh")}
+              style={{
+                width: "100%",
+                border: "1px solid rgba(111, 211, 243, 0.34)",
+                borderRadius: 9,
+                background: "rgba(8, 20, 34, 0.88)",
+                color: "#e1f9ff",
+                padding: "6px 8px",
+                display: "grid",
+                gap: 2,
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>3. Obnovit</span>
+              <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>Nacti data znovu</span>
+            </button>
+          </div>
+        </aside>
       ) : null}
-
-      <aside
-        style={{
-          position: "fixed",
-          right: 14,
-          bottom: 98,
-          zIndex: 43,
-          width: "min(320px, calc(100vw - 26px))",
-          borderRadius: 12,
-          border: "1px solid rgba(100, 196, 226, 0.34)",
-          background: "rgba(5, 14, 26, 0.8)",
-          color: "#d8f7ff",
-          backdropFilter: "blur(8px)",
-          boxShadow: "0 0 22px rgba(36, 132, 184, 0.2)",
-          padding: "8px 9px",
-          display: "grid",
-          gap: 7,
-        }}
-      >
-        <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.84 }}>
-          SMART OVLADANI (1/2/3)
-        </div>
-        {smartActions.map((item, index) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => void runSmartAction(item.id)}
-            style={{
-              width: "100%",
-              border: "1px solid rgba(111, 211, 243, 0.34)",
-              borderRadius: 9,
-              background: "rgba(8, 20, 34, 0.88)",
-              color: "#e1f9ff",
-              padding: "7px 9px",
-              display: "grid",
-              gap: 2,
-              textAlign: "left",
-              cursor: "pointer",
-            }}
-          >
-            <span style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>{index + 1}. {item.label}</span>
-            <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>{item.hint}</span>
-          </button>
-        ))}
-      </aside>
 
       <div
         style={{
@@ -4461,7 +4485,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                             focusGridRow(row.id);
                             void extinguishGridRowLive(row.id);
                           }}
-                          disabled={historicalMode || rowDeleting}
+                          disabled={historicalMode || rowDeleting || rowPendingExtinguish}
                           style={{
                             ...ghostButtonStyle,
                             width: "100%",
