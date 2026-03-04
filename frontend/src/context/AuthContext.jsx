@@ -2,7 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { API_BASE, configureApiAuth } from "../lib/dataverseApi";
 
-const TOKEN_KEY = "dataverse_auth_token";
+const LEGACY_ACCESS_TOKEN_KEY = "dataverse_auth_token";
+const ACCESS_TOKEN_KEY = "dataverse_auth_access_token";
+const REFRESH_TOKEN_KEY = "dataverse_auth_refresh_token";
 
 const AuthContext = createContext(null);
 
@@ -10,133 +12,256 @@ function parseErrorMessage(bodyText, fallback) {
   try {
     const parsed = JSON.parse(bodyText);
     if (typeof parsed?.detail === "string" && parsed.detail) return parsed.detail;
+    if (typeof parsed?.detail?.message === "string" && parsed.detail.message) return parsed.detail.message;
   } catch {
     // Ignore invalid JSON response body and use fallback below.
   }
   return bodyText || fallback;
 }
 
+function parseJsonSafe(text) {
+  try {
+    return JSON.parse(String(text || ""));
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || "");
+  const [accessToken, setAccessToken] = useState(
+    () => localStorage.getItem(ACCESS_TOKEN_KEY) || localStorage.getItem(LEGACY_ACCESS_TOKEN_KEY) || ""
+  );
+  const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem(REFRESH_TOKEN_KEY) || "");
   const [user, setUser] = useState(null);
   const [defaultGalaxy, setDefaultGalaxy] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const tokenRef = useRef(token);
 
-  const logout = useCallback(() => {
-    tokenRef.current = "";
-    setToken("");
-    setUser(null);
-    setDefaultGalaxy(null);
-    localStorage.removeItem(TOKEN_KEY);
+  const accessTokenRef = useRef(accessToken);
+  const refreshTokenRef = useRef(refreshToken);
+  const refreshPromiseRef = useRef(null);
+  const refreshSessionRef = useRef(async () => false);
+
+  const persistTokens = useCallback((nextAccessToken, nextRefreshToken) => {
+    const safeAccess = String(nextAccessToken || "");
+    const safeRefresh = String(nextRefreshToken || "");
+
+    accessTokenRef.current = safeAccess;
+    refreshTokenRef.current = safeRefresh;
+
+    setAccessToken(safeAccess);
+    setRefreshToken(safeRefresh);
+
+    if (safeAccess) localStorage.setItem(ACCESS_TOKEN_KEY, safeAccess);
+    else localStorage.removeItem(ACCESS_TOKEN_KEY);
+
+    if (safeRefresh) localStorage.setItem(REFRESH_TOKEN_KEY, safeRefresh);
+    else localStorage.removeItem(REFRESH_TOKEN_KEY);
+
+    localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
   }, []);
 
+  const clearSession = useCallback(() => {
+    accessTokenRef.current = "";
+    refreshTokenRef.current = "";
+    setAccessToken("");
+    setRefreshToken("");
+    setUser(null);
+    setDefaultGalaxy(null);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+  }, []);
+
+  const fetchCurrentUser = useCallback(async (token) => {
+    if (!token) return null;
+    const response = await fetch(`${API_BASE}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    return response.json();
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    const inFlight = refreshPromiseRef.current;
+    if (inFlight) return inFlight;
+
+    const safeRefreshToken = String(refreshTokenRef.current || "").trim();
+    if (!safeRefreshToken) {
+      clearSession();
+      return false;
+    }
+
+    const run = (async () => {
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: safeRefreshToken }),
+      });
+
+      if (!response.ok) {
+        clearSession();
+        return false;
+      }
+
+      const bodyText = await response.text();
+      const body = parseJsonSafe(bodyText);
+      const nextAccessToken = String(body?.access_token || "").trim();
+      const nextRefreshToken = String(body?.refresh_token || "").trim();
+      if (!nextAccessToken || !nextRefreshToken) {
+        clearSession();
+        return false;
+      }
+
+      persistTokens(nextAccessToken, nextRefreshToken);
+      return true;
+    })();
+
+    refreshPromiseRef.current = run;
+    try {
+      return await run;
+    } finally {
+      if (refreshPromiseRef.current === run) {
+        refreshPromiseRef.current = null;
+      }
+    }
+  }, [clearSession, persistTokens]);
+
   useEffect(() => {
-    tokenRef.current = token;
-  }, [token]);
+    refreshSessionRef.current = refreshSession;
+  }, [refreshSession]);
+
+  const logout = useCallback(
+    async ({ remote = true } = {}) => {
+      const safeAccessToken = String(accessTokenRef.current || "");
+      if (remote && safeAccessToken) {
+        try {
+          await fetch(`${API_BASE}/auth/logout`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${safeAccessToken}` },
+          });
+        } catch {
+          // noop
+        }
+      }
+      clearSession();
+    },
+    [clearSession]
+  );
 
   useEffect(() => {
     configureApiAuth({
-      getToken: () => tokenRef.current || null,
-      onUnauthorized: () => logout(),
+      getToken: () => accessTokenRef.current || null,
+      onUnauthorized: async () => {
+        return refreshSessionRef.current();
+      },
     });
-  }, [logout]);
+  }, []);
 
   useEffect(() => {
     let alive = true;
-    async function validateToken() {
-      if (!token) {
+
+    async function bootstrapSession() {
+      const currentAccess = String(accessTokenRef.current || "").trim();
+      const currentRefresh = String(refreshTokenRef.current || "").trim();
+
+      if (!currentAccess && !currentRefresh) {
         if (alive) setIsLoading(false);
         return;
       }
 
-      try {
-        const res = await fetch(`${API_BASE}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) {
-          if (alive) logout();
-          return;
+      let nextUser = await fetchCurrentUser(currentAccess);
+      if (!nextUser) {
+        const refreshed = await refreshSession();
+        if (refreshed) {
+          nextUser = await fetchCurrentUser(accessTokenRef.current);
         }
-        const body = await res.json();
-        if (!alive) return;
-        setUser(body);
-      } finally {
-        if (alive) setIsLoading(false);
       }
+
+      if (!alive) return;
+
+      if (!nextUser) {
+        clearSession();
+      } else {
+        setUser(nextUser);
+      }
+      setIsLoading(false);
     }
 
-    validateToken();
+    void bootstrapSession();
     return () => {
       alive = false;
     };
-  }, [token, logout]);
+  }, [clearSession, fetchCurrentUser, refreshSession]);
 
-  const login = useCallback(async (email, password) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+  const completeAuth = useCallback(
+    (body, fallbackTokenError) => {
+      const nextAccessToken = String(body?.access_token || "").trim();
+      const nextRefreshToken = String(body?.refresh_token || "").trim();
+      if (!nextAccessToken || !nextRefreshToken) {
+        throw new Error(fallbackTokenError);
+      }
 
-    const bodyText = await res.text();
-    if (!res.ok) {
-      throw new Error(parseErrorMessage(bodyText, "Přihlášení selhalo"));
-    }
+      persistTokens(nextAccessToken, nextRefreshToken);
+      setUser(body.user || null);
+      setDefaultGalaxy(body.default_galaxy || null);
+      return body;
+    },
+    [persistTokens]
+  );
 
-    const body = JSON.parse(bodyText);
-    const nextToken = body?.access_token || "";
-    if (!nextToken) {
-      throw new Error("Backend nevrátil access token");
-    }
+  const login = useCallback(
+    async (email, password) => {
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    tokenRef.current = nextToken;
-    localStorage.setItem(TOKEN_KEY, nextToken);
-    setToken(nextToken);
-    setUser(body.user || null);
-    setDefaultGalaxy(body.default_galaxy || null);
-    return body;
-  }, []);
+      const bodyText = await response.text();
+      if (!response.ok) {
+        throw new Error(parseErrorMessage(bodyText, "Přihlášení selhalo"));
+      }
 
-  const register = useCallback(async (email, password) => {
-    const res = await fetch(`${API_BASE}/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+      const body = parseJsonSafe(bodyText);
+      return completeAuth(body, "Backend nevrátil access/refresh token");
+    },
+    [completeAuth]
+  );
 
-    const bodyText = await res.text();
-    if (!res.ok) {
-      throw new Error(parseErrorMessage(bodyText, "Registrace selhala"));
-    }
+  const register = useCallback(
+    async (email, password) => {
+      const response = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    const body = JSON.parse(bodyText);
-    const nextToken = body?.access_token || "";
-    if (!nextToken) {
-      throw new Error("Backend nevrátil access token");
-    }
+      const bodyText = await response.text();
+      if (!response.ok) {
+        throw new Error(parseErrorMessage(bodyText, "Registrace selhala"));
+      }
 
-    tokenRef.current = nextToken;
-    localStorage.setItem(TOKEN_KEY, nextToken);
-    setToken(nextToken);
-    setUser(body.user || null);
-    setDefaultGalaxy(body.default_galaxy || null);
-    return body;
-  }, []);
+      const body = parseJsonSafe(bodyText);
+      return completeAuth(body, "Backend nevrátil access/refresh token");
+    },
+    [completeAuth]
+  );
 
   const value = useMemo(
     () => ({
       user,
-      token,
+      accessToken,
+      refreshToken,
       defaultGalaxy,
-      isAuthenticated: Boolean(token && user),
+      isAuthenticated: Boolean(accessToken && user),
       isLoading,
       login,
       register,
       logout,
+      refreshSession,
       setDefaultGalaxy,
     }),
-    [user, token, defaultGalaxy, isLoading, login, register, logout]
+    [accessToken, defaultGalaxy, isLoading, login, logout, refreshSession, refreshToken, register, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

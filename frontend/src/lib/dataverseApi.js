@@ -1,16 +1,21 @@
-export const API_BASE = "http://127.0.0.1:8000";
+export const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000");
 
 let tokenProvider = () => null;
-let unauthorizedHandler = () => {};
+let unauthorizedHandler = async () => false;
 
 export function configureApiAuth({ getToken, onUnauthorized } = {}) {
   tokenProvider = typeof getToken === "function" ? getToken : () => null;
-  unauthorizedHandler = typeof onUnauthorized === "function" ? onUnauthorized : () => {};
+  unauthorizedHandler = typeof onUnauthorized === "function" ? onUnauthorized : async () => false;
 }
 
 function shouldHandleUnauthorized(url) {
   const asText = String(url || "");
-  return !asText.includes("/auth/login") && !asText.includes("/auth/register");
+  return (
+    !asText.includes("/auth/login") &&
+    !asText.includes("/auth/register") &&
+    !asText.includes("/auth/refresh") &&
+    !asText.includes("/auth/logout")
+  );
 }
 
 export async function apiFetch(input, init = {}) {
@@ -22,7 +27,19 @@ export async function apiFetch(input, init = {}) {
 
   const response = await fetch(input, { ...init, headers });
   if (response.status === 401 && shouldHandleUnauthorized(input)) {
-    unauthorizedHandler?.();
+    try {
+      const recovered = await unauthorizedHandler?.({ input, init, response });
+      if (recovered) {
+        const retryHeaders = new Headers(init.headers || {});
+        const retriedToken = tokenProvider?.();
+        if (retriedToken && !retryHeaders.has("Authorization")) {
+          retryHeaders.set("Authorization", `Bearer ${retriedToken}`);
+        }
+        return fetch(input, { ...init, headers: retryHeaders });
+      }
+    } catch {
+      // noop
+    }
   }
   return response;
 }
