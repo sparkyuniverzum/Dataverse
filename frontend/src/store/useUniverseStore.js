@@ -113,13 +113,12 @@ export const useUniverseStore = create((set) => ({
   backToTables: () =>
     set((state) => ({
       level: 2,
+      selectedTableId: "",
       selectedAsteroidId: "",
       camera: {
         ...state.camera,
-        target: [0, 0, 0],
-        position: [0, 120, 420],
-        minDistance: 20,
-        maxDistance: 3000,
+        minDistance: Math.max(20, Number(state.camera?.minDistance || 20)),
+        maxDistance: Math.max(3000, Number(state.camera?.maxDistance || 3000)),
       },
     })),
 

@@ -198,20 +198,79 @@ export function calculateHierarchyLayout({
     weight: link.weight,
   }));
 
+  const tablesByConstellation = new Map();
+  tableNodes.forEach((node) => {
+    const key = String(node?.entityName || "Uncategorized").trim() || "Uncategorized";
+    if (!tablesByConstellation.has(key)) {
+      tablesByConstellation.set(key, []);
+    }
+    tablesByConstellation.get(key).push(node);
+  });
+
+  const constellationEntries = [...tablesByConstellation.entries()]
+    .map(([name, members]) => [name, [...members].sort((a, b) => a.id.localeCompare(b.id))])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  const constellationCount = constellationEntries.length;
+  const constellationOrbitRadius =
+    constellationCount <= 1 ? 0 : clamp(180 + constellationCount * 34, 180, 540);
+
+  const seededTablePositions = new Map();
+  constellationEntries.forEach(([name, members], constellationIndex) => {
+    const seed = hashText(name);
+    const baseAngle =
+      constellationCount <= 1
+        ? 0
+        : (Math.PI * 2 * constellationIndex) / constellationCount + ((seed % 360) * Math.PI) / 1440;
+    const centerX = constellationCount <= 1 ? 0 : Math.cos(baseAngle) * constellationOrbitRadius;
+    const centerZ = constellationCount <= 1 ? 0 : Math.sin(baseAngle) * constellationOrbitRadius;
+    const centerY = ((constellationIndex % 2 === 0 ? 1 : -1) * (10 + (seed % 16) * 0.8));
+    const localOrbitRadius = clamp(56 + Math.sqrt(Math.max(1, members.length)) * 20, 56, 190);
+
+    members.forEach((node, memberIndex) => {
+      const memberSeed = hashText(`${name}|${node.id}`);
+      const localAngle =
+        members.length <= 1
+          ? 0
+          : (Math.PI * 2 * memberIndex) / members.length + ((memberSeed % 360) * Math.PI) / 360;
+      const localRadiusJitter = 0.82 + ((memberSeed % 37) / 100);
+      const seedX = centerX + Math.cos(localAngle) * localOrbitRadius * localRadiusJitter;
+      const seedY = centerY + Math.sin(localAngle * 2) * 9 + (memberIndex % 2 === 0 ? 4 : -4);
+      const seedZ = centerZ + Math.sin(localAngle) * localOrbitRadius * localRadiusJitter;
+      seededTablePositions.set(node.id, [seedX, seedY, seedZ]);
+    });
+  });
+
+  tableNodes.forEach((node) => {
+    const seeded = seededTablePositions.get(node.id) || [0, 0, 0];
+    const prev = previousTablePositions.get(node.id);
+    if (Array.isArray(prev) && prev.length === 3) {
+      node.x = Number(prev[0]) * 0.84 + Number(seeded[0]) * 0.16;
+      node.y = Number(prev[1]) * 0.84 + Number(seeded[1]) * 0.16;
+      node.z = Number(prev[2]) * 0.84 + Number(seeded[2]) * 0.16;
+      return;
+    }
+    node.x = Number(seeded[0]) || 0;
+    node.y = Number(seeded[1]) || 0;
+    node.z = Number(seeded[2]) || 0;
+  });
+
   const tableSim = forceSimulation(tableNodes)
-    .force("charge", forceManyBody().strength((node) => -2200 - node.mass * 140))
-    .force("center", forceCenter(0, 0, 0).strength(0.08))
-    .force("collision", forceCollide().radius((node) => node.radius + 82).iterations(2))
+    .force("charge", forceManyBody().strength((node) => -420 - node.mass * 58))
+    .force("center", forceCenter(0, 0, 0).strength(0.02))
+    .force("collision", forceCollide().radius((node) => node.radius + 34).iterations(2))
+    .force("x", forceX((node) => seededTablePositions.get(node.id)?.[0] ?? 0).strength(0.12))
+    .force("y", forceY((node) => seededTablePositions.get(node.id)?.[1] ?? 0).strength(0.14))
+    .force("z", forceZ((node) => seededTablePositions.get(node.id)?.[2] ?? 0).strength(0.12))
     .force(
       "link",
       forceLink(tableLinksForLayout)
         .id((node) => node.id)
-        .distance((link) => 220 + Math.min(180, Number(link.weight || 1) * 24))
-        .strength((link) => clamp(0.22 + Number(link.weight || 1) * 0.08, 0.22, 0.78))
+        .distance((link) => 132 + Math.min(84, Number(link.weight || 1) * 18))
+        .strength((link) => clamp(0.16 + Number(link.weight || 1) * 0.06, 0.16, 0.46))
     )
     .stop();
 
-  for (let i = 0; i < 240; i += 1) tableSim.tick();
+  for (let i = 0; i < 120; i += 1) tableSim.tick();
 
   const tablePositions = new Map(tableNodes.map((node) => [node.id, [node.x, node.y, node.z]]));
 

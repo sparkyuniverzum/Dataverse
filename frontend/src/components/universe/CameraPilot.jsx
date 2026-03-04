@@ -39,10 +39,23 @@ function computeBounds(positions) {
   return { center, radius };
 }
 
-export default function CameraPilot({ controlsRef, cameraState, tableNodes, selectedTableNode, selectedAsteroidNode, focusKey }) {
+export default function CameraPilot({
+  controlsRef,
+  cameraState,
+  tableNodes,
+  selectedTableNode,
+  selectedAsteroidNode,
+  selectedTableId,
+  selectedAsteroidId,
+  focusKey,
+}) {
   const { camera } = useThree();
   const lastFocusKeyRef = useRef("");
   const flightTimeRef = useRef(0);
+  const unresolvedSelection =
+    (Boolean(selectedAsteroidId) && !selectedAsteroidNode) ||
+    (!selectedAsteroidId && Boolean(selectedTableId) && !selectedTableNode);
+  const hasExplicitFocusTarget = Boolean(selectedAsteroidNode || selectedTableNode);
 
   const fallback = useMemo(() => {
     const tablePositions = tableNodes.map((node) => node.position);
@@ -50,6 +63,7 @@ export default function CameraPilot({ controlsRef, cameraState, tableNodes, sele
   }, [tableNodes]);
 
   const target = useMemo(() => {
+    if (unresolvedSelection) return null;
     if (selectedAsteroidNode) {
       return {
         center: selectedAsteroidNode.position,
@@ -66,27 +80,36 @@ export default function CameraPilot({ controlsRef, cameraState, tableNodes, sele
       center: fallback.center,
       distance: fallback.radius * 2.8,
     };
-  }, [fallback, selectedAsteroidNode, selectedTableNode]);
+  }, [fallback, selectedAsteroidNode, selectedTableNode, unresolvedSelection]);
 
   const targetPos = useMemo(() => {
+    if (!target) return null;
     const [tx, ty, tz] = target.center;
     return new THREE.Vector3(tx + target.distance * 0.24, ty + target.distance * 0.19, tz + target.distance);
   }, [target]);
 
   const targetLook = useMemo(() => {
+    if (!target) return null;
     const [tx, ty, tz] = target.center;
     return new THREE.Vector3(tx, ty, tz);
   }, [target]);
 
   useEffect(() => {
+    if (unresolvedSelection) return;
+    if (!hasExplicitFocusTarget) {
+      flightTimeRef.current = 0;
+      lastFocusKeyRef.current = String(focusKey || "");
+      return;
+    }
     const key = String(focusKey || "");
     if (lastFocusKeyRef.current !== key) {
       lastFocusKeyRef.current = key;
-      flightTimeRef.current = 1.35;
+      flightTimeRef.current = 0.95;
     }
-  }, [focusKey]);
+  }, [focusKey, hasExplicitFocusTarget, unresolvedSelection]);
 
   useFrame((_, delta) => {
+    if (!target || !targetPos || !targetLook) return;
     const inFlight = flightTimeRef.current > 0;
 
     if (!inFlight) {
@@ -97,10 +120,10 @@ export default function CameraPilot({ controlsRef, cameraState, tableNodes, sele
       return;
     }
 
-    dampVec3(camera.position, targetPos, 4.6, delta);
+    dampVec3(camera.position, targetPos, 4.4, delta);
 
     if (controlsRef.current) {
-      dampVec3(controlsRef.current.target, targetLook, 5.2, delta);
+      dampVec3(controlsRef.current.target, targetLook, 5.0, delta);
       controlsRef.current.minDistance = Math.max(8, target.distance * 0.22, cameraState.minDistance || 8);
       controlsRef.current.maxDistance = Math.max(320, target.distance * 7, cameraState.maxDistance || 320);
       controlsRef.current.update();

@@ -2270,3 +2270,162 @@ def test_task_batch_commit_persists_changes_atomically(auth_client: tuple[httpx.
     after = _snapshot_asteroid(client, galaxy_id=galaxy_id, asteroid_id=asteroid_id)
     assert after.get("metadata", {}).get("batch_field") == "committed"
     assert int(after["current_event_seq"]) > base_seq
+
+
+def test_schema_preset_catalog_endpoints(auth_client: tuple[httpx.Client, str]) -> None:
+    client, _ = auth_client
+
+    listed = client.get("/presets/schemas")
+    assert listed.status_code == 200, listed.text
+    body = listed.json()
+    presets = body.get("presets", [])
+    assert len(presets) >= 10
+    assert any(item.get("key") == "transactions" for item in presets)
+
+    detail = client.get("/presets/schemas/transactions")
+    assert detail.status_code == 200, detail.text
+    detail_body = detail.json()
+    assert detail_body["key"] == "transactions"
+    assert detail_body["field_types"]["amount"] == "number"
+    assert len(detail_body.get("default_rows", [])) >= 2
+
+
+def test_apply_schema_preset_preview_and_commit(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    table_name = f"PresetApply-{uuid.uuid4()}"
+    label = f"PresetSeed-{uuid.uuid4()}"
+
+    created = client.post(
+        "/asteroids/ingest",
+        json={
+            "value": label,
+            "metadata": {"table": table_name, "baseline": True},
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert created.status_code == 200, created.text
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    asteroid = next((item for item in snapshot.json()["asteroids"] if _stringify(item["value"]) == label), None)
+    assert asteroid is not None
+    table_id = asteroid["table_id"]
+
+    preview = client.post(
+        f"/planets/{table_id}/apply-preset",
+        json={
+            "preset_key": "transactions",
+            "mode": "preview",
+            "seed_rows": True,
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    assert preview_body["mode"] == "preview"
+    assert preview_body["preset"]["key"] == "transactions"
+    assert "tx_id" in preview_body["contract_preview"]["required_fields"]
+    assert "amount" in preview_body["contract_preview"]["field_types"]
+    assert preview_body["seed_plan"]["requested_rows"] >= 2
+
+    commit = client.post(
+        f"/planets/{table_id}/apply-preset",
+        json={
+            "preset_key": "transactions",
+            "mode": "commit",
+            "seed_rows": True,
+            "idempotency_key": f"preset-{uuid.uuid4()}",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert commit.status_code == 200, commit.text
+    commit_body = commit.json()
+    assert commit_body["mode"] == "commit"
+    assert commit_body["contract"] is not None
+    assert commit_body["contract"]["version"] >= 1
+
+    fetched_contract = client.get(f"/contracts/{table_id}", params={"galaxy_id": galaxy_id})
+    assert fetched_contract.status_code == 200, fetched_contract.text
+    fetched_body = fetched_contract.json()
+    assert "tx_id" in fetched_body["required_fields"]
+    assert fetched_body["field_types"]["amount"] == "number"
+
+    snapshot_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_after.status_code == 200, snapshot_after.text
+    values = {_stringify(item["value"]) for item in snapshot_after.json()["asteroids"]}
+    assert "TX-Opening-Balance" in values
+
+
+def test_bundle_preset_catalog_endpoints(auth_client: tuple[httpx.Client, str]) -> None:
+    client, _ = auth_client
+
+    listed = client.get("/presets/bundles")
+    assert listed.status_code == 200, listed.text
+    body = listed.json()
+    bundles = body.get("bundles", [])
+    assert len(bundles) >= 2
+    assert any(item.get("key") == "simple_crm" for item in bundles)
+
+    detail = client.get("/presets/bundles/simple_crm")
+    assert detail.status_code == 200, detail.text
+    detail_body = detail.json()
+    assert detail_body["key"] == "simple_crm"
+    assert len(detail_body["manifest"].get("planets", [])) == 2
+    assert len(detail_body["manifest"].get("moons", [])) >= 3
+
+
+def test_apply_bundle_preset_preview_and_commit(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+
+    preview = client.post(
+        "/presets/apply",
+        json={
+            "bundle_key": "simple_crm",
+            "mode": "preview",
+            "seed_rows": True,
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    assert preview_body["mode"] == "preview"
+    assert preview_body["bundle"]["key"] == "simple_crm"
+    assert preview_body["graph_plan"]["moons_requested"] >= 3
+    assert preview_body["graph_plan"]["bonds_requested"] >= 1
+    assert len(preview_body["planets"]) == 2
+
+    commit = client.post(
+        "/presets/apply",
+        json={
+            "bundle_key": "simple_crm",
+            "mode": "commit",
+            "seed_rows": True,
+            "idempotency_key": f"bundle-{uuid.uuid4()}",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert commit.status_code == 200, commit.text
+    commit_body = commit.json()
+    assert commit_body["mode"] == "commit"
+    assert commit_body["bundle"]["key"] == "simple_crm"
+    assert commit_body["execution"] is not None
+    assert commit_body["execution"]["task_count"] >= 1
+    assert len(commit_body["created_refs"]) >= commit_body["graph_plan"]["moons_to_create"]
+
+    clients_planet = next((item for item in commit_body["planets"] if item["planet_key"] == "clients"), None)
+    meetings_planet = next((item for item in commit_body["planets"] if item["planet_key"] == "meetings"), None)
+    assert clients_planet is not None
+    assert meetings_planet is not None
+    assert clients_planet["contract"] is not None
+    assert meetings_planet["contract"] is not None
+
+    clients_contract = client.get(f"/contracts/{clients_planet['table_id']}", params={"galaxy_id": galaxy_id})
+    assert clients_contract.status_code == 200, clients_contract.text
+    clients_contract_body = clients_contract.json()
+    assert "full_name" in clients_contract_body["field_types"]
+
+    snapshot_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_after.status_code == 200, snapshot_after.text
+    values = {_stringify(item["value"]) for item in snapshot_after.json()["asteroids"]}
+    assert "Client ACME" in values
+    assert "Meeting ACME Intro" in values

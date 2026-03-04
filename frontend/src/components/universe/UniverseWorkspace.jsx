@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import {
   API_BASE,
@@ -46,6 +47,8 @@ import {
   normalizeNodePhysicsFromBackend,
   normalizePhysicsKey,
 } from "../../lib/physics_laws";
+import ImmersiveOnboardingLayer from "../onboarding/ImmersiveOnboardingLayer";
+import { OnboardingSteps, useOnboardingStore } from "../../store/useOnboardingStore";
 import { useUniverseStore } from "../../store/useUniverseStore";
 import FloatingPanel from "../ui/FloatingPanel";
 import ContextMenu from "../ui/ContextMenu";
@@ -404,6 +407,95 @@ const QUICK_LINK_TYPE_OPTIONS = [
     description: "A hlida nebo spousti kontrolu nad B.",
   },
 ];
+
+const ONBOARDING_MODE_LABELS = {
+  guided: "Objevovani",
+  template: "Sablony",
+  hardcore: "Hardcore",
+};
+
+const ONBOARDING_CAPABILITY_HINTS = {
+  bonds: "Vazby se odemknou od Stage 2.",
+  formulas: "Formule se odemknou od Stage 3.",
+  guardians: "Guardiany se odemknou od Stage 3.",
+  branches: "Branches se odemknou od Stage 4.",
+};
+
+const STAGE_ONE_FINANCE_TABLE = "Finance > Cashflow";
+const STAGE_ONE_MODEL_LABEL = "Finance Model 2026";
+const STAGE_ONE_MONTH_BLUEPRINT = [
+  { label: "Leden 2026", prijem: 240000, vydaj: 128000 },
+  { label: "Unor 2026", prijem: 228000, vydaj: 132000 },
+  { label: "Brezen 2026", prijem: 256000, vydaj: 141000 },
+];
+const STAGE_ONE_SCHEMA_PRESET_KEY = "personal_cashflow_starter";
+const STAGE_ONE_SCHEMA_PRESET_NAME = "Osobni Cashflow Starter";
+const STAGE_ONE_CASHFLOW_SEED_ROWS = [
+  {
+    ref: "tx_salary",
+    value: "Vyplata - Leden",
+    metadata: {
+      tx_id: "TX-CASH-001",
+      tx_date: "2026-01-05",
+      amount: 62000,
+      currency: "CZK",
+      direction: "in",
+      counterparty: "Zamestnavatel",
+      category: "salary",
+      cost_center: "personal",
+      state: "posted",
+      reference: "stage1_seed",
+    },
+  },
+  {
+    ref: "tx_rent",
+    value: "Najem bytu",
+    metadata: {
+      tx_id: "TX-CASH-002",
+      tx_date: "2026-01-07",
+      amount: 21000,
+      currency: "CZK",
+      direction: "out",
+      counterparty: "Pronajimatel",
+      category: "housing",
+      cost_center: "personal",
+      state: "posted",
+      reference: "stage1_seed",
+    },
+  },
+  {
+    ref: "tx_food",
+    value: "Nakup potravin",
+    metadata: {
+      tx_id: "TX-CASH-003",
+      tx_date: "2026-01-09",
+      amount: 5400,
+      currency: "CZK",
+      direction: "out",
+      counterparty: "Retail",
+      category: "food",
+      cost_center: "personal",
+      state: "posted",
+      reference: "stage1_seed",
+    },
+  },
+];
+const STAGE_TWO_STARTER_BUNDLE_BY_MODE = {
+  guided: "employee_onboarding",
+  template: "simple_crm",
+  hardcore: "employee_onboarding",
+};
+const ONBOARDING_STEP_RANK = {
+  [OnboardingSteps.STEP_INTRO]: 0,
+  [OnboardingSteps.STEP_BLUEPRINT]: 1,
+  [OnboardingSteps.STEP_DROP_PLANET]: 2,
+  [OnboardingSteps.STEP_SCHEMA]: 3,
+  [OnboardingSteps.STEP_DEPENDENCIES]: 4,
+  [OnboardingSteps.STEP_CALCULATIONS]: 5,
+  [OnboardingSteps.STEP_SIMULATION]: 6,
+  [OnboardingSteps.STEP_COMPLETE]: 7,
+  [OnboardingSteps.STEP_UNLOCKED]: 99,
+};
 
 const PARSER_OPERATOR_GUIDE = [
   {
@@ -1120,7 +1212,41 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   const [commandInputFocused, setCommandInputFocused] = useState(false);
   const [commandDockExpanded, setCommandDockExpanded] = useState(false);
   const [helpMode, setHelpMode] = useState("quick");
+  const [onboardingProfile, setOnboardingProfile] = useState(null);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [onboardingBusy, setOnboardingBusy] = useState(false);
+  const [onboardingError, setOnboardingError] = useState("");
+  const [stageOneBusy, setStageOneBusy] = useState(false);
+  const [stageOneInfo, setStageOneInfo] = useState("");
   const focusUiMode = true;
+
+  const {
+    immersiveActive,
+    sessionsByGalaxy,
+    bootSession,
+    syncMissionProgress,
+    acknowledgeIntro,
+    markPlanetDropped,
+    confirmSchema,
+    markDependenciesReady,
+    markCalculationsReady,
+    markSimulationReady,
+    forceUnlock,
+  } = useOnboardingStore(
+    useShallow((state) => ({
+      immersiveActive: state.immersiveActive,
+      sessionsByGalaxy: state.sessionsByGalaxy,
+      bootSession: state.bootSession,
+      syncMissionProgress: state.syncMissionProgress,
+      acknowledgeIntro: state.acknowledgeIntro,
+      markPlanetDropped: state.markPlanetDropped,
+      confirmSchema: state.confirmSchema,
+      markDependenciesReady: state.markDependenciesReady,
+      markCalculationsReady: state.markCalculationsReady,
+      markSimulationReady: state.markSimulationReady,
+      forceUnlock: state.forceUnlock,
+    }))
+  );
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const streamCursorRef = useRef(null);
@@ -1144,10 +1270,137 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [branches, selectedBranchId]
   );
   const activeWorkspaceLabel = selectedBranch ? `branch:${selectedBranch.name}` : "main";
+  const onboardingStages = useMemo(
+    () => (Array.isArray(onboardingProfile?.stages) ? onboardingProfile.stages : []),
+    [onboardingProfile?.stages]
+  );
+  const onboardingMetrics = onboardingProfile?.metrics || {};
+  const onboardingCurrentStage = onboardingStages.find((stage) => stage?.status === "active") || onboardingStages[0] || null;
+  const onboardingCurrentStageOrder = Number(onboardingProfile?.current_stage_order || 1);
+  const onboardingMode = String(onboardingProfile?.mode || "guided");
+  const isStageOneActive = String(onboardingCurrentStage?.key || "") === "galaxy_bootstrap";
+  const isStageOneExclusive = isStageOneActive && onboardingMode !== "hardcore";
+  const onboardingSession = useMemo(
+    () => (galaxy?.id ? sessionsByGalaxy[String(galaxy.id)] || {} : {}),
+    [galaxy?.id, sessionsByGalaxy]
+  );
+  const onboardingMachineStep = isStageOneExclusive && immersiveActive
+    ? String(onboardingSession?.step || OnboardingSteps.STEP_INTRO)
+    : OnboardingSteps.STEP_UNLOCKED;
+  const stageOnePlanetDropped = Boolean(onboardingSession?.planetDropped);
+  const onboardingCapabilities = useMemo(() => {
+    const values = Array.isArray(onboardingProfile?.capabilities) ? onboardingProfile.capabilities : [];
+    return new Set(values.map((item) => String(item || "").trim()).filter(Boolean));
+  }, [onboardingProfile?.capabilities]);
+  const canUseBondActions = isStageOneActive || onboardingCapabilities.has("bonds") || onboardingCapabilities.has("hardcore_editor");
+  const canUseFormulaActions = isStageOneActive || onboardingCapabilities.has("formulas") || onboardingCapabilities.has("hardcore_editor");
+  const canUseGuardianActions = onboardingCapabilities.has("guardians") || onboardingCapabilities.has("hardcore_editor");
+  const canUseBranches = onboardingCapabilities.has("branches") || onboardingCapabilities.has("hardcore_editor");
+  const canUseImports = onboardingCapabilities.has("imports") || onboardingCapabilities.has("hardcore_editor");
   const hierarchyView = useMemo(() => {
     const graph = buildHierarchyGraphInputs(tables, snapshot);
     return buildHierarchyTree(graph.nodes, graph.edges);
   }, [snapshot.asteroids, snapshot.bonds, tables]);
+  const stageOneMission = useMemo(() => {
+    const targetTable = normalizeText(STAGE_ONE_FINANCE_TABLE);
+    const asteroids = Array.isArray(snapshot?.asteroids) ? snapshot.asteroids : [];
+    const bonds = Array.isArray(snapshot?.bonds) ? snapshot.bonds : [];
+    const financeRows = asteroids.filter((row) => {
+      const tableName = normalizeText(String(row?.table_name || row?.metadata?.table || ""));
+      return tableName === targetTable;
+    });
+    const byLabel = new Map(financeRows.map((row) => [normalizeText(valueToLabel(row?.value)), row]));
+    const model = byLabel.get(normalizeText(STAGE_ONE_MODEL_LABEL)) || null;
+    const monthRows = STAGE_ONE_MONTH_BLUEPRINT.map((item) => byLabel.get(normalizeText(item.label)) || null).filter(Boolean);
+    const modelLinks = model
+      ? bonds.filter((bond) => String(bond?.source_id) === String(model.id) || String(bond?.target_id) === String(model.id))
+      : [];
+    const connectedMonthIds = new Set(
+      modelLinks.flatMap((bond) => [String(bond?.source_id || ""), String(bond?.target_id || "")]).filter(Boolean)
+    );
+    const dependencyCount = monthRows.filter((row) => connectedMonthIds.has(String(row?.id))).length;
+    const modelMetadata = safeMetadata(model?.metadata);
+    const modelCalculated = model?.calculated_values && typeof model.calculated_values === "object" ? model.calculated_values : {};
+    const revenueTotal =
+      coerceGridNumber(modelCalculated.prijem_total) ??
+      monthRows.reduce((sum, row) => sum + Number(coerceGridNumber(safeMetadata(row?.metadata).prijem) || 0), 0);
+    const expenseTotal =
+      coerceGridNumber(modelCalculated.vydaj_total) ??
+      monthRows.reduce((sum, row) => sum + Number(coerceGridNumber(safeMetadata(row?.metadata).vydaj) || 0), 0);
+    const marginTotal = Number(revenueTotal || 0) - Number(expenseTotal || 0);
+    const hasFormulas =
+      Object.prototype.hasOwnProperty.call(modelCalculated, "prijem_total") &&
+      Object.prototype.hasOwnProperty.call(modelCalculated, "vydaj_total");
+    const baselineByLabel = new Map(
+      STAGE_ONE_MONTH_BLUEPRINT.map((item) => [normalizeText(item.label), Number(item.vydaj || 0)])
+    );
+    const hasSimulationShock = monthRows.some((row) => {
+      const key = normalizeText(valueToLabel(row?.value));
+      const baseline = Number(baselineByLabel.get(key) || 0);
+      const currentExpense = Number(coerceGridNumber(safeMetadata(row?.metadata).vydaj) || 0);
+      return baseline > 0 && currentExpense > baseline;
+    });
+    const sampleRows = financeRows.filter((row) => String(safeMetadata(row?.metadata).reference || "").trim() === "stage1_seed");
+    const hasFinanceTable = financeRows.length > 0 || tables.some((table) => normalizeText(String(table?.name || "")) === targetTable);
+    const hasModel = Boolean(model);
+    const schemaDefined = financeRows.some((row) => Boolean(String(safeMetadata(row?.metadata).tx_id || "").trim()));
+    const sampleRowsReady = sampleRows.length >= STAGE_ONE_CASHFLOW_SEED_ROWS.length;
+    const dependenciesReady = sampleRowsReady || dependencyCount >= Math.min(2, STAGE_ONE_MONTH_BLUEPRINT.length);
+    const calculationsReady = sampleRowsReady || hasFormulas;
+    const simulationReady = sampleRowsReady || hasSimulationShock;
+    const completion =
+      (hasFinanceTable ? 1 : 0) +
+      (schemaDefined ? 1 : 0) +
+      (sampleRowsReady ? 1 : 0) +
+      (dependenciesReady ? 1 : 0) +
+      (calculationsReady ? 1 : 0);
+    return {
+      financeRows,
+      model,
+      monthRows,
+      dependencyCount,
+      hasFormulas,
+      hasSimulationShock,
+      schemaDefined,
+      sampleRowsReady,
+      dependenciesReady,
+      calculationsReady,
+      simulationReady,
+      revenueTotal: Number(revenueTotal || 0),
+      expenseTotal: Number(expenseTotal || 0),
+      marginTotal: Number(marginTotal || 0),
+      hasFinanceTable,
+      hasModel,
+      modelMetadata,
+      completion,
+    };
+  }, [snapshot, tables]);
+  const stageOneMachineMission = useMemo(
+    () => ({
+      hasFinanceTable: Boolean(stageOneMission.hasFinanceTable),
+      hasModel: Boolean(stageOneMission.hasModel),
+      schemaDefined: Boolean(stageOneMission.schemaDefined),
+      sampleRowsReady: Boolean(stageOneMission.sampleRowsReady),
+      dependenciesReady: Boolean(stageOneMission.dependenciesReady),
+      calculationsReady: Boolean(stageOneMission.calculationsReady),
+      simulationReady: Boolean(stageOneMission.simulationReady),
+    }),
+    [
+      stageOneMission.calculationsReady,
+      stageOneMission.dependenciesReady,
+      stageOneMission.hasFinanceTable,
+      stageOneMission.hasModel,
+      stageOneMission.sampleRowsReady,
+      stageOneMission.schemaDefined,
+      stageOneMission.simulationReady,
+    ]
+  );
+  const stageOneFinanceTableId = useMemo(() => {
+    const target = normalizeText(STAGE_ONE_FINANCE_TABLE);
+    const match = tables.find((table) => normalizeText(String(table?.name || "")) === target);
+    const id = String(match?.table_id || match?.id || "").trim();
+    return id || "";
+  }, [tables]);
   const commandSuggestions = useMemo(() => {
     const staticSuggestions = [
       { key: "refresh", label: ":refresh", insert: ":refresh", hint: "Obnovi snapshot a tabulky" },
@@ -1281,6 +1534,135 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     }
   }, [galaxy?.id]);
 
+  const loadOnboarding = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!galaxy?.id) return null;
+      if (!silent) {
+        setOnboardingLoading(true);
+      }
+      setOnboardingError("");
+      try {
+        const response = await apiFetch(`${API_BASE}/galaxies/${galaxy.id}/onboarding`);
+        if (!response.ok) {
+          throw new Error(`Onboarding failed: ${response.status}`);
+        }
+        const body = await response.json();
+        setOnboardingProfile(body || null);
+        return body;
+      } catch (loadError) {
+        setOnboardingError(loadError.message || "Onboarding load failed");
+        return null;
+      } finally {
+        if (!silent) {
+          setOnboardingLoading(false);
+        }
+      }
+    },
+    [galaxy?.id]
+  );
+
+  const updateOnboarding = useCallback(
+    async (payload) => {
+      if (!galaxy?.id) return null;
+      setOnboardingBusy(true);
+      setOnboardingError("");
+      try {
+        const response = await apiFetch(`${API_BASE}/galaxies/${galaxy.id}/onboarding`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const apiError = await apiErrorFromResponse(response, "Onboarding update failed");
+          throw apiError;
+        }
+        const body = await response.json();
+        setOnboardingProfile(body || null);
+        return body;
+      } catch (updateError) {
+        const message = updateError.message || "Onboarding update failed";
+        setOnboardingError(message);
+        setError(message);
+        return null;
+      } finally {
+        setOnboardingBusy(false);
+      }
+    },
+    [galaxy?.id]
+  );
+
+  const applyStageTwoStarterBundle = useCallback(async () => {
+    if (!galaxy?.id) return false;
+    const bundleKey = STAGE_TWO_STARTER_BUNDLE_BY_MODE[String(onboardingMode || "guided")] || "employee_onboarding";
+    try {
+      const response = await apiFetch(`${API_BASE}/presets/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bundle_key: bundleKey,
+          mode: "commit",
+          conflict_strategy: "skip",
+          seed_rows: true,
+          idempotency_key: `stage2-starter-${bundleKey}-${galaxy.id}-${activeBranchId || "main"}`,
+          galaxy_id: galaxy.id,
+          branch_id: activeBranchId,
+        }),
+      });
+      if (!response.ok) {
+        const apiError = await apiErrorFromResponse(response, "Stage 2 starter apply failed");
+        throw apiError;
+      }
+      const body = await response.json();
+      const created = Number(body?.graph_plan?.moons_to_create || 0);
+      setStageOneInfo(
+        created > 0
+          ? `Stage 2 starter '${bundleKey}' nasazen (${created} novych mesicu).`
+          : `Stage 2 starter '${bundleKey}' uz je pripraven.`
+      );
+      return true;
+    } catch (bundleError) {
+      const message = bundleError.message || "Stage 2 starter apply failed";
+      setOnboardingError(message);
+      setError(message);
+      return false;
+    }
+  }, [activeBranchId, galaxy?.id, onboardingMode]);
+
+  const handleAdvanceOnboardingStage = useCallback(async () => {
+    if (!galaxy?.id) return;
+    const isStageOne = String(onboardingCurrentStage?.key || "") === "galaxy_bootstrap";
+    const stageOneComplete = onboardingMachineStep === OnboardingSteps.STEP_COMPLETE;
+    if (isStageOne && stageOneComplete) {
+      const applied = await applyStageTwoStarterBundle();
+      if (!applied) return;
+    }
+    await updateOnboarding({ action: "advance" });
+  }, [
+    applyStageTwoStarterBundle,
+    galaxy?.id,
+    onboardingCurrentStage?.key,
+    onboardingMachineStep,
+    updateOnboarding,
+  ]);
+
+  const handleSetOnboardingMode = useCallback(
+    async (mode) => {
+      await updateOnboarding({ action: "set_mode", mode });
+    },
+    [updateOnboarding]
+  );
+
+  const syncOnboardingMachine = useCallback(
+    async (machinePatch) => {
+      if (!machinePatch || typeof machinePatch !== "object") return null;
+      return await updateOnboarding({
+        action: "sync_machine",
+        machine: machinePatch,
+      });
+    },
+    [updateOnboarding]
+  );
+
   useEffect(() => {
     setImportFile(null);
     setImportInfo("");
@@ -1312,7 +1694,44 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     setCommandHistoryCursor(-1);
     setCommandHistoryDraft("");
     setCommandSuggestionCursor(0);
+    setOnboardingProfile(null);
+    setOnboardingError("");
+    setStageOneBusy(false);
+    setStageOneInfo("");
   }, [galaxy?.id]);
+
+  useEffect(() => {
+    if (!galaxy?.id) return;
+    void loadOnboarding();
+  }, [galaxy?.id, loadOnboarding]);
+
+  useEffect(() => {
+    if (!galaxy?.id) return;
+    bootSession({
+      galaxyId: galaxy.id,
+      immersiveEnabled: isStageOneExclusive,
+      backendStageKey: onboardingCurrentStage?.key,
+      backendMode: onboardingMode,
+      backendMachine: onboardingProfile?.machine || null,
+    });
+  }, [bootSession, galaxy?.id, isStageOneExclusive, onboardingCurrentStage?.key, onboardingMode, onboardingProfile?.machine]);
+
+  useEffect(() => {
+    if (!galaxy?.id) return;
+    syncMissionProgress({
+      galaxyId: galaxy.id,
+      mission: stageOneMachineMission,
+    });
+  }, [galaxy?.id, stageOneMachineMission, syncMissionProgress]);
+
+  useEffect(() => {
+    if (!galaxy?.id) return;
+    const stageKey = String(onboardingCurrentStage?.key || "");
+    const alreadyPassedStageOne =
+      stageKey !== "galaxy_bootstrap" || Number(onboardingCurrentStageOrder || 1) > 1 || Boolean(onboardingProfile?.completed_at);
+    if (!alreadyPassedStageOne) return;
+    forceUnlock(galaxy.id);
+  }, [forceUnlock, galaxy?.id, onboardingCurrentStage?.key, onboardingCurrentStageOrder, onboardingProfile?.completed_at]);
 
   const loadUniverse = useCallback(async () => {
     if (!galaxy?.id) return;
@@ -1333,12 +1752,13 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
 
       setSnapshot(normalized);
       setTables(Array.isArray(tableBody?.tables) ? tableBody.tables : []);
+      void loadOnboarding({ silent: true });
     } catch (loadError) {
       setError(loadError.message || "Load failed");
     } finally {
       setLoading(false);
     }
-  }, [activeBranchId, asOfIso, galaxy?.id]);
+  }, [activeBranchId, asOfIso, galaxy?.id, loadOnboarding]);
   const refreshDerivedData = useCallback(async () => {
     if (!galaxy?.id) return;
     try {
@@ -1938,9 +2358,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     if (String(selectedTableId || "").trim()) return;
 
     const scopeKey = `${galaxy.id}:${activeBranchId || "main"}:${asOfIso || "live"}`;
-    const signature = `${scopeKey}:${tableNodes.length}:${overviewCamera.target
-      .map((value) => Math.round(Number(value || 0)))
-      .join(",")}`;
+    const signature = `${scopeKey}:overview_initialized`;
     if (entryOverviewCameraRef.current === signature) return;
     entryOverviewCameraRef.current = signature;
 
@@ -2428,10 +2846,29 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       if (!normalizedName) return false;
       const nodes = tableNodes.filter((node) => normalizeText(node?.entityName) === normalizedName);
       if (!nodes.length) return false;
-      const node = nodes[0];
-      return focusPlanetById(node.id, { cameraDistance });
+      const clusterCamera = computeOverviewCamera(nodes);
+      const resolvedDistance = clamp(
+        Number(cameraDistance || 0) > 0 ? Number(cameraDistance) : Number(clusterCamera?.maxDistance || 0) * 0.26,
+        220,
+        960
+      );
+
+      setSelectedBondId("");
+      clearSelectedAsteroid();
+      backToTables();
+      setCamera({
+        target: clusterCamera.target,
+        position: [
+          clusterCamera.target[0] + resolvedDistance * 0.24,
+          clusterCamera.target[1] + resolvedDistance * 0.2,
+          clusterCamera.target[2] + resolvedDistance,
+        ],
+        minDistance: Math.max(24, resolvedDistance * 0.2),
+        maxDistance: Math.max(1400, resolvedDistance * 8),
+      });
+      return true;
     },
-    [focusPlanetById, tableNodes]
+    [backToTables, clearSelectedAsteroid, setCamera, tableNodes]
   );
   const focusMoonById = useCallback(
     (moonId, { showOrphanHint = false, cameraDistance = 56 } = {}) => {
@@ -4112,8 +4549,338 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     [activeBranchId, busy, galaxy?.id, historicalMode, loadUniverse]
   );
 
+  const runStageOneBlueprint = useCallback(async () => {
+    if (!galaxy?.id || stageOneBusy) return;
+    if (historicalMode) {
+      setError("Historicky mod je jen pro cteni.");
+      return;
+    }
+    setStageOneBusy(true);
+    setStageOneInfo("");
+    try {
+      const response = await apiFetch(`${API_BASE}/presets/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "commit",
+          conflict_strategy: "skip",
+          seed_rows: false,
+          idempotency_key: `stage1-blueprint-${galaxy.id}-${activeBranchId || "main"}`,
+          galaxy_id: galaxy.id,
+          branch_id: activeBranchId,
+          manifest: {
+            name: "Stage 1 Finance Foundation",
+            description: "Zero-friction onboarding foundation for the first planet.",
+            planets: [{ key: "cashflow", table_name: STAGE_ONE_FINANCE_TABLE }],
+            moons: [],
+            bonds: [],
+          },
+        }),
+      });
+      if (!response.ok) {
+        const apiError = await apiErrorFromResponse(response, "Blueprint apply failed");
+        throw apiError;
+      }
+      await response.json();
+      setStageOneInfo("Blueprint hotov. Planeta je pripravena k materializaci.");
+      await loadUniverse();
+      await syncOnboardingMachine({
+        step: "drop_planet",
+        intro_ack: true,
+      });
+    } catch (blueprintError) {
+      setError(blueprintError.message || "Blueprint apply failed.");
+      setStageOneInfo("Blueprint se nepodarilo aplikovat.");
+    } finally {
+      setStageOneBusy(false);
+    }
+  }, [activeBranchId, galaxy?.id, historicalMode, loadUniverse, stageOneBusy, syncOnboardingMachine]);
+
+  const runStageOneDependencies = useCallback(async () => {
+    if (!galaxy?.id || stageOneBusy) return;
+    if (historicalMode) {
+      setError("Historicky mod je jen pro cteni.");
+      return;
+    }
+    if (!stageOneMission.model || !stageOneMission.monthRows.length) {
+      setStageOneInfo("Nejdriv vytvor blueprint financni planety.");
+      return;
+    }
+
+    setStageOneBusy(true);
+    setStageOneInfo("");
+    try {
+      const existingKeys = new Set(
+        (Array.isArray(snapshot?.bonds) ? snapshot.bonds : []).map(
+          (bond) => `${String(bond?.source_id || "")}:${String(bond?.target_id || "")}:${normalizeBondType(bond?.type)}`
+        )
+      );
+      let created = 0;
+      for (const row of stageOneMission.monthRows) {
+        const sourceId = String(stageOneMission.model.id);
+        const targetId = String(row.id);
+        const key = `${sourceId}:${targetId}:FLOW`;
+        if (existingKeys.has(key)) continue;
+        const response = await apiFetch(`${API_BASE}/bonds/link`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            source_id: sourceId,
+            target_id: targetId,
+            type: "FLOW",
+            galaxy_id: galaxy.id,
+            branch_id: activeBranchId,
+          }),
+        });
+        if (!response.ok) {
+          if (response.status === 409) {
+            continue;
+          }
+          const apiError = await apiErrorFromResponse(response, "Dependency link failed");
+          throw apiError;
+        }
+        created += 1;
+      }
+      await loadUniverse();
+      setStageOneInfo(created > 0 ? `Vazby hotove (${created} nove FLOW).` : "Vazby uz byly vytvorene.");
+      markDependenciesReady(galaxy.id);
+      await syncOnboardingMachine({
+        step: "calculations",
+        dependencies_confirmed: true,
+      });
+    } catch (dependencyError) {
+      setError(dependencyError.message || "Vazby se nepodarilo vytvorit.");
+    } finally {
+      setStageOneBusy(false);
+    }
+  }, [
+    activeBranchId,
+    galaxy?.id,
+    historicalMode,
+    loadUniverse,
+    markDependenciesReady,
+    snapshot?.bonds,
+    stageOneBusy,
+    stageOneMission.model,
+    stageOneMission.monthRows,
+    syncOnboardingMachine,
+  ]);
+
+  const runStageOneCalculations = useCallback(async () => {
+    if (!galaxy?.id || stageOneBusy) return;
+    if (historicalMode) {
+      setError("Historicky mod je jen pro cteni.");
+      return;
+    }
+    if (!stageOneMission.model) {
+      setStageOneInfo("Nejdriv vytvor model.");
+      return;
+    }
+
+    setStageOneBusy(true);
+    setStageOneInfo("");
+    try {
+      const modelSelector = String(stageOneMission.model?.id || "").trim() || STAGE_ONE_MODEL_LABEL;
+      const commands = [
+        `spocitej : ${modelSelector}.prijem_total = SUM(prijem)`,
+        `spocitej : ${modelSelector}.vydaj_total = SUM(vydaj)`,
+      ];
+      for (const command of commands) {
+        const ok = await executeParserCommand(command, { clearInput: false });
+        if (!ok) {
+          setStageOneInfo("Vyhodnoceni formule selhalo.");
+          return;
+        }
+      }
+      setStageOneInfo("Vypocty hotove. Sleduj celkovy prijem, vydaj a marzi.");
+      markCalculationsReady(galaxy.id);
+      await syncOnboardingMachine({
+        step: "simulation",
+        calculations_confirmed: true,
+      });
+    } finally {
+      setStageOneBusy(false);
+    }
+  }, [executeParserCommand, galaxy?.id, historicalMode, markCalculationsReady, stageOneBusy, stageOneMission.model, syncOnboardingMachine]);
+
+  const runStageOneStressSimulation = useCallback(async () => {
+    if (!galaxy?.id || stageOneBusy) return;
+    if (historicalMode) {
+      setError("Historicky mod je jen pro cteni.");
+      return;
+    }
+    const target =
+      stageOneMission.monthRows.find((row) => normalizeText(valueToLabel(row?.value)).includes(normalizeText("brezen"))) ||
+      stageOneMission.monthRows[0] ||
+      null;
+    if (!target) {
+      setStageOneInfo("Nejdriv vytvor mesicni data.");
+      return;
+    }
+
+    const currentExpense = Number(coerceGridNumber(safeMetadata(target?.metadata).vydaj) || 0);
+    const nextExpense = Math.max(1, currentExpense + 18000);
+
+    setStageOneBusy(true);
+    setStageOneInfo("");
+    try {
+      const response = await apiFetch(`${API_BASE}/asteroids/${target.id}/mutate`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metadata: { vydaj: nextExpense },
+          ...(Number.isInteger(target?.current_event_seq) ? { expected_event_seq: target.current_event_seq } : {}),
+          galaxy_id: galaxy.id,
+          branch_id: activeBranchId,
+        }),
+      });
+      if (!response.ok) {
+        const apiError = await apiErrorFromResponse(response, "Simulation update failed");
+        throw apiError;
+      }
+      await loadUniverse();
+      setStageOneInfo(`Simulace hotova: ${valueToLabel(target?.value)}.vydaj navysen na ${nextExpense}.`);
+      markSimulationReady(galaxy.id);
+      await syncOnboardingMachine({
+        step: "complete",
+        simulation_confirmed: true,
+        completed: true,
+      });
+    } catch (simulationError) {
+      setError(simulationError.message || "Simulace se nepodarila.");
+    } finally {
+      setStageOneBusy(false);
+    }
+  }, [activeBranchId, galaxy?.id, historicalMode, loadUniverse, markSimulationReady, stageOneBusy, stageOneMission.monthRows, syncOnboardingMachine]);
+
+  const acknowledgeStageOneIntro = useCallback(async () => {
+    if (!galaxy?.id) return;
+    acknowledgeIntro(galaxy.id);
+    await syncOnboardingMachine({
+      intro_ack: true,
+      step: "blueprint",
+    });
+  }, [acknowledgeIntro, galaxy?.id, syncOnboardingMachine]);
+
+  const handleStageOnePlanetDrop = useCallback(async () => {
+    if (!galaxy?.id) return;
+    markPlanetDropped({ galaxyId: galaxy.id, dropPoint: [0, 0] });
+    setStageOneInfo("Planeta materializovana. Otevri Setup panel a sloz zakony planety.");
+    patchPanel("planets", { collapsed: false });
+    patchPanel("constellationProfile", { collapsed: false });
+    if (stageOneFinanceTableId) {
+      void focusPlanetById(stageOneFinanceTableId, { cameraDistance: 200 });
+    }
+    setQuickGridOpen(true);
+    await syncOnboardingMachine({
+      planet_dropped: true,
+      step: "schema",
+    });
+  }, [focusPlanetById, galaxy?.id, markPlanetDropped, patchPanel, stageOneFinanceTableId, syncOnboardingMachine]);
+
+  const handleStageOneConfirmSchema = useCallback(async () => {
+    if (!galaxy?.id) return;
+    if (historicalMode) {
+      setError("Historicky mod je jen pro cteni.");
+      return;
+    }
+    if (!stageOneFinanceTableId) {
+      setStageOneInfo("Nejdriv materializuj planetu.");
+      return;
+    }
+    setStageOneBusy(true);
+    setStageOneInfo("");
+    try {
+      const curatedMoons = STAGE_ONE_CASHFLOW_SEED_ROWS.map((item) => ({
+        ref: item.ref,
+        planet: "cashflow",
+        value: item.value,
+        metadata: {
+          table: STAGE_ONE_FINANCE_TABLE,
+          ...item.metadata,
+        },
+      }));
+
+      const response = await apiFetch(`${API_BASE}/presets/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "commit",
+          conflict_strategy: "skip",
+          seed_rows: false,
+          idempotency_key: `stage1-config-${STAGE_ONE_SCHEMA_PRESET_KEY}-${galaxy.id}-${activeBranchId || "main"}`,
+          galaxy_id: galaxy.id,
+          branch_id: activeBranchId,
+          manifest: {
+            name: STAGE_ONE_SCHEMA_PRESET_NAME,
+            description: "Guided personal cashflow preset assembled from onboarding Lego parts.",
+            planets: [
+              {
+                key: "cashflow",
+                table_name: STAGE_ONE_FINANCE_TABLE,
+                schema_preset_key: "transactions",
+              },
+            ],
+            moons: curatedMoons,
+            bonds: [],
+          },
+        }),
+      });
+      if (!response.ok) {
+        const apiError = await apiErrorFromResponse(response, "Stage configuration apply failed");
+        throw apiError;
+      }
+      const body = await response.json();
+      await loadUniverse();
+      const createdMoons = Number(body?.graph_plan?.moons_to_create || 0);
+      setStageOneInfo(
+        createdMoons > 0
+          ? `Jadro zazehnuto. Planeta ma schema a ${createdMoons} ukazkove zaznamy.`
+          : "Jadro uz bylo zazehnuto. Planeta ma schema i ukazkova data."
+      );
+    } catch (schemaError) {
+      setError(schemaError.message || "Stage configuration apply failed.");
+      setStageOneBusy(false);
+      return;
+    }
+    confirmSchema(galaxy.id);
+    markDependenciesReady(galaxy.id);
+    markCalculationsReady(galaxy.id);
+    markSimulationReady(galaxy.id);
+    setStageOneInfo("Planeta aktivovana. Grid je pripraveny se 3 ukazkovymi zaznamy.");
+    setQuickGridOpen(true);
+    if (stageOneFinanceTableId) {
+      void focusPlanetById(stageOneFinanceTableId, { cameraDistance: 190 });
+    }
+    await syncOnboardingMachine({
+      schema_confirmed: true,
+      dependencies_confirmed: true,
+      calculations_confirmed: true,
+      simulation_confirmed: true,
+      completed: true,
+      step: "complete",
+    });
+    setStageOneBusy(false);
+  }, [
+    activeBranchId,
+    confirmSchema,
+    focusPlanetById,
+    galaxy?.id,
+    historicalMode,
+    loadUniverse,
+    markCalculationsReady,
+    markDependenciesReady,
+    markSimulationReady,
+    stageOneFinanceTableId,
+    syncOnboardingMachine,
+  ]);
+
   const handleCreateBranch = useCallback(async () => {
     if (!galaxy?.id) return;
+    if (!canUseBranches) {
+      setError(ONBOARDING_CAPABILITY_HINTS.branches);
+      return;
+    }
     const name = draftBranchName.trim();
     if (!name) {
       setError("Vypln nazev branch.");
@@ -4145,7 +4912,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     } finally {
       setBranchBusy(false);
     }
-  }, [asOfIso, draftBranchName, galaxy?.id, loadBranches, loadUniverse]);
+  }, [asOfIso, canUseBranches, draftBranchName, galaxy?.id, loadBranches, loadUniverse]);
 
   const handlePromoteBranch = useCallback(async () => {
     if (!galaxy?.id || !activeBranchId) return;
@@ -4711,6 +5478,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         return;
       }
 
+      if (isStageOneExclusive) {
+        setError("Stage 1 je rizeny pilot. Pouzij onboarding flow (Blueprint -> Drop -> Schema -> Vazby -> Vypocty -> Simulace).");
+        return;
+      }
+
       if (historicalMode) {
         setError("Historicky mod je jen pro cteni.");
         return;
@@ -4751,6 +5523,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       focusByTarget,
       focusFirstMoonInSelectedTable,
       historicalMode,
+      isStageOneExclusive,
       level,
       loadUniverse,
       onBackToGalaxies,
@@ -4768,6 +5541,10 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       if (sourceKind !== "asteroid" || targetKind !== "asteroid") return;
       if (historicalMode) {
         setError("Historicky mod je jen pro cteni.");
+        return;
+      }
+      if (!canUseBondActions) {
+        setError(ONBOARDING_CAPABILITY_HINTS.bonds);
         return;
       }
       try {
@@ -4802,7 +5579,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         setError(linkError.message || "Link creation failed");
       }
     },
-    [activeBranchId, galaxy.id, historicalMode, loadUniverse, selectBondInInspector, snapshot.asteroids]
+    [activeBranchId, canUseBondActions, galaxy.id, historicalMode, loadUniverse, selectBondInInspector, snapshot.asteroids]
   );
   const handleRenameConstellation = useCallback(async () => {
     if (historicalMode) {
@@ -5040,6 +5817,10 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
   }, [focusByTarget, quickFindTargetId]);
 
   const handleQuickLink = useCallback(async () => {
+    if (!canUseBondActions) {
+      setError(ONBOARDING_CAPABILITY_HINTS.bonds);
+      return;
+    }
     if (!quickLinkSourceId || !quickLinkTargetId) {
       setError("Vyber zdrojovy i cilovy Mesic.");
       return;
@@ -5055,9 +5836,13 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       targetKind: "asteroid",
       relationType: quickLinkType,
     });
-  }, [handleLinkComplete, quickLinkSourceId, quickLinkTargetId, quickLinkType]);
+  }, [canUseBondActions, handleLinkComplete, quickLinkSourceId, quickLinkTargetId, quickLinkType]);
 
   const handleQuickFormula = useCallback(async () => {
+    if (!canUseFormulaActions) {
+      setError(ONBOARDING_CAPABILITY_HINTS.formulas);
+      return;
+    }
     const field = quickFormulaField.trim();
     const sourceField = quickFormulaSourceField.trim();
     if (!quickFormulaTargetId || !field || !sourceField) {
@@ -5069,9 +5854,13 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     if (success) {
       setQuery(command);
     }
-  }, [executeParserCommand, quickFormulaField, quickFormulaFunction, quickFormulaSourceField, quickFormulaTargetId]);
+  }, [canUseFormulaActions, executeParserCommand, quickFormulaField, quickFormulaFunction, quickFormulaSourceField, quickFormulaTargetId]);
 
   const handleQuickGuardian = useCallback(async () => {
+    if (!canUseGuardianActions) {
+      setError(ONBOARDING_CAPABILITY_HINTS.guardians);
+      return;
+    }
     const field = quickGuardianField.trim();
     const threshold = quickGuardianThreshold.trim();
     const actionName = quickGuardianAction.trim();
@@ -5085,6 +5874,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       setQuery(command);
     }
   }, [
+    canUseGuardianActions,
     executeParserCommand,
     quickGuardianAction,
     quickGuardianField,
@@ -5163,18 +5953,67 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           : !selectedAsteroid
             ? "Vyber mesic. Otevre se detail a editace bunek."
             : "Mas vybrany mesic. Pokracuj editaci v detailu nebo v tabulce.";
-  const onboardingProgress = selectedAsteroid ? 3 : hasAnyMoon ? 2 : hasAnyPlanet ? 1 : 0;
-  const primaryGuideAction = hierarchyDiagnosticsSummary.orphans > 0
-    ? { key: "fix-orphans", label: "Opravit sirotky", helper: "Fokus na prvni sirotek" }
-    : !hasAnyPlanet
-      ? { key: "open-setup", label: "1) Otevrit setup", helper: "Panel Akce + sekce Rychle zalozeni" }
-      : !selectedTableId
-        ? { key: "pick-planet", label: "1) Vybrat planetu", helper: "Fokus na prvni planetu" }
-        : !hasMoonsInSelectedPlanet
-          ? { key: "open-setup", label: "2) Zalozit prvni mesic", helper: "Rychle zalozeni v panelu Akce" }
-          : !selectedAsteroid
-            ? { key: "pick-moon", label: "2) Vybrat prvni mesic", helper: "Autofokus v planete" }
-            : { key: "open-grid", label: "3) Otevrit tabulku", helper: "Editace bunek in-place" };
+  const heuristicOnboardingProgress = selectedAsteroid ? 3 : hasAnyMoon ? 2 : hasAnyPlanet ? 1 : 0;
+  const stageOnboardingProgress = Math.max(0, onboardingCurrentStageOrder - 1);
+  const onboardingProgress = Math.max(heuristicOnboardingProgress, stageOnboardingProgress);
+  const onboardingMachineStepRank = ONBOARDING_STEP_RANK[onboardingMachineStep] ?? ONBOARDING_STEP_RANK[OnboardingSteps.STEP_UNLOCKED];
+  const stageOneFlowMaxRank = ONBOARDING_STEP_RANK[OnboardingSteps.STEP_COMPLETE];
+  const stageOneCompletionPct = Math.round((Math.min(stageOneFlowMaxRank, onboardingMachineStepRank) / stageOneFlowMaxRank) * 100);
+  const stageOneReadyForAdvance = onboardingMachineStep === OnboardingSteps.STEP_COMPLETE;
+  const stageOneImmersiveMode = isStageOneExclusive && immersiveActive && onboardingMachineStep !== OnboardingSteps.STEP_UNLOCKED;
+  const stageOneAllowNavigator = !stageOneImmersiveMode || onboardingMachineStepRank >= ONBOARDING_STEP_RANK[OnboardingSteps.STEP_SCHEMA];
+  const stageOneAllowGuidePanel = !stageOneImmersiveMode;
+  const stageOneAllowDetailPanel = !isStageOneExclusive || !stageOneImmersiveMode || onboardingMachineStepRank >= ONBOARDING_STEP_RANK[OnboardingSteps.STEP_CALCULATIONS];
+  const stageOneAllowSupportActions = !stageOneImmersiveMode || onboardingMachineStepRank >= ONBOARDING_STEP_RANK[OnboardingSteps.STEP_SCHEMA];
+  const stageOneStepMessage = onboardingMachineStep === OnboardingSteps.STEP_INTRO
+    ? "Vstup do singularity: aktivuj prvotni objekt a zahaj vycvik."
+    : onboardingMachineStep === OnboardingSteps.STEP_BLUEPRINT
+      ? "Krok 1/6: Odemkni stavebnici a vytvor prvni planetu."
+      : onboardingMachineStep === OnboardingSteps.STEP_DROP_PLANET
+        ? "Krok 2/6: Materializuj planetu pretazenim tokenu do prostoru."
+        : onboardingMachineStep === OnboardingSteps.STEP_SCHEMA
+          ? "Krok 3/6: Vyber preset Cashflow, sloz 3 zakony a klikni Zazehnout Jadro."
+          : onboardingMachineStep === OnboardingSteps.STEP_DEPENDENCIES
+            ? "Krok 4/6: Propoj model s mesici datovymi vazbami."
+            : onboardingMachineStep === OnboardingSteps.STEP_CALCULATIONS
+              ? "Krok 5/6: Zapni vypocty souctu prijmu a vydaju."
+              : onboardingMachineStep === OnboardingSteps.STEP_SIMULATION
+                ? "Krok 6/6: Proved simulaci trhu a sleduj efekt na marzi."
+                : "Stage 1 kompletni. Muzeš postoupit dal.";
+  const stageOneUnlockedPanels = [
+    "3D Kamera",
+    ...(onboardingMachineStepRank >= ONBOARDING_STEP_RANK[OnboardingSteps.STEP_SCHEMA] ? ["Panel Struktura"] : []),
+    ...(onboardingMachineStepRank >= ONBOARDING_STEP_RANK[OnboardingSteps.STEP_DEPENDENCIES] ? ["Mapa Vazeb"] : []),
+    ...(onboardingMachineStepRank >= ONBOARDING_STEP_RANK[OnboardingSteps.STEP_CALCULATIONS] ? ["Telemetrie Vypoctu"] : []),
+  ];
+  const canAdvanceOnboardingUi = Boolean(onboardingProfile?.can_advance) && (!isStageOneActive || stageOneReadyForAdvance);
+  const primaryGuideAction = isStageOneExclusive
+    ? onboardingMachineStep === OnboardingSteps.STEP_INTRO
+      ? { key: "stage1-intro", label: "0) Aktivovat singularitu", helper: "Spust uvodni briefing a otevri dalsi krok" }
+      : onboardingMachineStep === OnboardingSteps.STEP_BLUEPRINT
+        ? { key: "stage1-blueprint", label: "1) Vytvorit blueprint", helper: "Priprav domovskou planetu v panelu stavebnice" }
+      : onboardingMachineStep === OnboardingSteps.STEP_DROP_PLANET
+          ? { key: "stage1-drop", label: "2) Materializovat planetu", helper: "Pretahni token planety do vesmiru" }
+          : onboardingMachineStep === OnboardingSteps.STEP_SCHEMA
+            ? { key: "stage1-schema", label: "3) Slozit zakony", helper: "Vyber Osobni Cashflow a zazehni jadro" }
+            : onboardingMachineStep === OnboardingSteps.STEP_DEPENDENCIES
+              ? { key: "stage1-deps", label: "4) Aktivovat vazby", helper: "Propoj model se vstupnimi mesici" }
+              : onboardingMachineStep === OnboardingSteps.STEP_CALCULATIONS
+                ? { key: "stage1-formulas", label: "5) Spustit vypocty", helper: "Soucty prijmu a vydaju" }
+                : onboardingMachineStep === OnboardingSteps.STEP_SIMULATION
+                  ? { key: "stage1-sim", label: "6) Simulovat trh", helper: "Navys naklady a sleduj marzi" }
+                  : { key: "stage1-ready", label: "Dokoncit stage 1", helper: "Muzes postoupit na dalsi uroven" }
+    : hierarchyDiagnosticsSummary.orphans > 0
+      ? { key: "fix-orphans", label: "Opravit sirotky", helper: "Fokus na prvni sirotek" }
+      : !hasAnyPlanet
+        ? { key: "open-setup", label: "1) Otevrit setup", helper: "Panel Akce + sekce Rychle zalozeni" }
+        : !selectedTableId
+          ? { key: "pick-planet", label: "1) Vybrat planetu", helper: "Fokus na prvni planetu" }
+          : !hasMoonsInSelectedPlanet
+            ? { key: "open-setup", label: "2) Zalozit prvni mesic", helper: "Rychle zalozeni v panelu Akce" }
+            : !selectedAsteroid
+              ? { key: "pick-moon", label: "2) Vybrat prvni mesic", helper: "Autofokus v planete" }
+              : { key: "open-grid", label: "3) Otevrit tabulku", helper: "Editace bunek in-place" };
   const focusCommandInput = useCallback(
     ({ selectAll = false } = {}) => {
       const input = commandInputRef.current;
@@ -5187,6 +6026,14 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     []
   );
   const handlePrimaryGuideAction = useCallback(() => {
+    if (isStageOneExclusive && primaryGuideAction.key.startsWith("stage1-")) {
+      if (primaryGuideAction.key === "stage1-intro") {
+        acknowledgeStageOneIntro();
+        return;
+      }
+      setStageOneInfo("Tento krok je DnD-only. Pretahni modul v immersive onboarding vrstve.");
+      return;
+    }
     if (primaryGuideAction.key === "fix-orphans") {
       focusFirstOrphanMoon();
       return;
@@ -5212,14 +6059,31 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       setQuery("/grid");
       focusCommandInput();
     }
-  }, [focusCommandInput, focusFirstMoonInSelectedTable, focusFirstOrphanMoon, focusPlanetById, patchPanel, primaryGuideAction.key, tableNodes]);
+  }, [
+    acknowledgeStageOneIntro,
+    focusCommandInput,
+    focusFirstMoonInSelectedTable,
+    focusFirstOrphanMoon,
+    focusPlanetById,
+    isStageOneExclusive,
+    patchPanel,
+    primaryGuideAction.key,
+    tableNodes,
+  ]);
   const smartActions = useMemo(() => {
+    if (isStageOneExclusive) {
+      return [
+        { id: "next", label: primaryGuideAction.label, hint: primaryGuideAction.helper },
+        { id: "blueprint", label: "Pilot", hint: "Spusti dalsi krok stage 1" },
+        { id: "refresh", label: "Obnovit", hint: "Nacist data znovu" },
+      ];
+    }
     return [
       { id: "next", label: primaryGuideAction.label, hint: primaryGuideAction.helper },
       { id: "command", label: "Prikaz", hint: "Otevre command line" },
       { id: "refresh", label: "Obnovit", hint: "Nacist data znovu" },
     ];
-  }, [primaryGuideAction.helper, primaryGuideAction.label]);
+  }, [isStageOneExclusive, primaryGuideAction.helper, primaryGuideAction.label]);
   const runSmartAction = useCallback(
     async (actionId) => {
       if (actionId === "next") {
@@ -5228,6 +6092,34 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       }
       if (actionId === "command") {
         focusCommandInput();
+        return;
+      }
+      if (actionId === "blueprint") {
+        if (isStageOneExclusive && stageOneImmersiveMode) {
+          setStageOneInfo("Tento krok je DnD-only. Pretahni modul v immersive onboarding vrstve.");
+          return;
+        }
+        if (onboardingMachineStep === OnboardingSteps.STEP_BLUEPRINT) {
+          await runStageOneBlueprint();
+          return;
+        }
+        if (onboardingMachineStep === OnboardingSteps.STEP_SCHEMA) {
+          handleStageOneConfirmSchema();
+          return;
+        }
+        if (onboardingMachineStep === OnboardingSteps.STEP_DEPENDENCIES) {
+          await runStageOneDependencies();
+          return;
+        }
+        if (onboardingMachineStep === OnboardingSteps.STEP_CALCULATIONS) {
+          await runStageOneCalculations();
+          return;
+        }
+        if (onboardingMachineStep === OnboardingSteps.STEP_SIMULATION) {
+          await runStageOneStressSimulation();
+          return;
+        }
+        setStageOneInfo("Aktualni krok vyzaduje interakci v onboarding overlay.");
         return;
       }
       if (actionId === "refresh") {
@@ -5239,7 +6131,19 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         return;
       }
     },
-    [focusCommandInput, handlePrimaryGuideAction, loadUniverse]
+    [
+      focusCommandInput,
+      handlePrimaryGuideAction,
+      loadUniverse,
+      runStageOneBlueprint,
+      runStageOneCalculations,
+      runStageOneDependencies,
+      runStageOneStressSimulation,
+      onboardingMachineStep,
+      handleStageOneConfirmSchema,
+      isStageOneExclusive,
+      stageOneImmersiveMode,
+    ]
   );
   useEffect(() => {
     const handleSmartActionHotkeys = (event) => {
@@ -5274,8 +6178,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     ? `${hierarchyDiagnosticsSummary.orphans} sirotku · ${hierarchyDiagnosticsSummary.warnings} varovani`
     : "Hierarchie OK";
   const hierarchyStatusColor = hasHierarchyIssues ? "#ffd2a1" : "#9ef5d7";
-  const showGuidePanel = !quickGridOpen && (!selectedAsteroid && !selectedBond || hasHierarchyIssues || onboardingProgress < 3);
-  const showDetailPanel = !quickGridOpen && (Boolean(selectedAsteroid) || Boolean(selectedBond) || onboardingProgress < 2 || hasHierarchyIssues);
+  const showGuidePanel = stageOneAllowGuidePanel && !quickGridOpen && (!selectedAsteroid && !selectedBond || hasHierarchyIssues || onboardingProgress < 3);
+  const showDetailPanel =
+    stageOneAllowDetailPanel &&
+    !quickGridOpen &&
+    (Boolean(selectedAsteroid) || Boolean(selectedBond) || onboardingProgress < 2 || hasHierarchyIssues);
   const minimizedPanels = Object.entries(panels)
     .filter(([, cfg]) => cfg.collapsed)
     .map(([id]) => id);
@@ -5285,7 +6192,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       title: panels[panelId]?.title || panelId,
     }))
     .filter((item) => Boolean(item.id));
-  const importDisabled = importBusy || busy || branchBusy || historicalMode;
+  const importDisabled = importBusy || busy || branchBusy || historicalMode || !canUseImports;
   const semanticEffectsPreview = semanticEffects.slice(-6).reverse();
   const shellSurfaceStyle = {
     border: "1px solid rgba(96, 189, 223, 0.32)",
@@ -5356,17 +6263,38 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         }}
       />
 
-      <section
-        ref={navigatorShellRef}
-        style={{
-          position: "fixed",
-          top: 12,
-          left: 12,
-          zIndex: 39,
-          ...shellHeaderPanelStyle,
-          width: "clamp(320px, calc(100vw - 560px), 820px)",
+      <ImmersiveOnboardingLayer
+        active={stageOneImmersiveMode}
+        step={onboardingMachineStep}
+        mission={{
+          ...stageOneMachineMission,
+          completionPct: stageOneCompletionPct,
+          planetDropped: stageOnePlanetDropped,
         }}
-      >
+        busy={stageOneBusy || onboardingBusy}
+        info={stageOneInfo || onboardingError}
+        onAcknowledgeIntro={acknowledgeStageOneIntro}
+        onRunBlueprint={runStageOneBlueprint}
+        onDropPlanet={handleStageOnePlanetDrop}
+        onConfirmSchema={handleStageOneConfirmSchema}
+        onRunDependencies={runStageOneDependencies}
+        onRunCalculations={runStageOneCalculations}
+        onRunSimulation={runStageOneStressSimulation}
+        onAdvanceStage={handleAdvanceOnboardingStage}
+      />
+
+      {stageOneAllowNavigator ? (
+        <section
+          ref={navigatorShellRef}
+          style={{
+            position: "fixed",
+            top: 12,
+            left: 12,
+            zIndex: 39,
+            ...shellHeaderPanelStyle,
+            width: "clamp(320px, calc(100vw - 560px), 820px)",
+          }}
+        >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.86 }}>AXIOM NAVIGATOR</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -5400,29 +6328,32 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           {selectedBondLabel ? <span>Vybrana vazba: {selectedBondLabel}</span> : null}
         </div>
         <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>{modelPrimer}</div>
-      </section>
+        </section>
+      ) : null}
 
-      <div
-        ref={topHudRef}
-        style={{
-          position: "fixed",
-          top: 12,
-          right: 12,
-          zIndex: 39,
-          ...shellHeaderPanelStyle,
-          borderRadius: 12,
-          padding: "7px 9px",
-          display: "flex",
-          gap: 6,
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          maxWidth: "min(520px, calc(100vw - 30px))",
-        }}
-      >
+      {stageOneAllowNavigator ? (
+        <div
+          ref={topHudRef}
+          style={{
+            position: "fixed",
+            top: 12,
+            right: 12,
+            zIndex: 39,
+            ...shellHeaderPanelStyle,
+            borderRadius: 12,
+            padding: "7px 9px",
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            maxWidth: "min(520px, calc(100vw - 30px))",
+          }}
+        >
         <span style={hudBadgeStyle}>
           Workspace: <strong style={{ color: activeBranchId ? "#8affde" : "#d9f8ff" }}>{activeWorkspaceLabel}</strong>
         </span>
+        {isStageOneExclusive ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Pilot Stage 1</span> : null}
         {!historicalMode ? (
           <span
             style={{
@@ -5435,36 +6366,42 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         ) : (
           <span style={{ ...hudBadgeStyle, color: "#ffd9a4" }}>Historicky rezim</span>
         )}
-        <button type="button" onClick={() => focusCommandInput({ selectAll: true })} style={hudButtonStyle}>
-          Prikaz
-        </button>
+        {!isStageOneExclusive ? (
+          <button type="button" onClick={() => focusCommandInput({ selectAll: true })} style={hudButtonStyle}>
+            Prikaz
+          </button>
+        ) : null}
         <button type="button" onClick={onBackToGalaxies} style={hudButtonStyle}>
           Galaxie
         </button>
-        <button
-          type="button"
-          onClick={() =>
-            setShowHelp((prev) => {
-              const next = !prev;
-              if (next) setHelpMode("quick");
-              return next;
-            })
-          }
-          style={hudButtonStyle}
-        >
-          Navod
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            patchPanel("constellations", { collapsed: false });
-            patchPanel("constellationProfile", { collapsed: false });
-            patchPanel("planets", { collapsed: false });
-          }}
-          style={hudButtonStyle}
-        >
-          Struktura
-        </button>
+        {!isStageOneExclusive || stageOneAllowSupportActions ? (
+          <button
+            type="button"
+            onClick={() =>
+              setShowHelp((prev) => {
+                const next = !prev;
+                if (next) setHelpMode("quick");
+                return next;
+              })
+            }
+            style={hudButtonStyle}
+          >
+            Navod
+          </button>
+        ) : null}
+        {!isStageOneExclusive || stageOneAllowSupportActions ? (
+          <button
+            type="button"
+            onClick={() => {
+              patchPanel("constellations", { collapsed: false });
+              patchPanel("constellationProfile", { collapsed: false });
+              patchPanel("planets", { collapsed: false });
+            }}
+            style={hudButtonStyle}
+          >
+            Struktura
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onLogout}
@@ -5472,7 +6409,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         >
           Logout
         </button>
-      </div>
+        </div>
+      ) : null}
 
       {showGuidePanel ? (
         <aside
@@ -5487,6 +6425,158 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             ...shellSidePanelStyle,
           }}
         >
+          <div
+            style={{
+              border: "1px solid rgba(111, 211, 243, 0.3)",
+              borderRadius: 10,
+              background: "rgba(8, 20, 34, 0.88)",
+              padding: "8px 9px",
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>ONBOARDING</div>
+            <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>
+              {onboardingCurrentStage
+                ? `Stage ${onboardingCurrentStage.order}/5 · ${onboardingCurrentStage.title}`
+                : onboardingLoading
+                  ? "Nacitam onboarding..."
+                  : "Onboarding data nejsou dostupna"}
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
+              Rezim: <strong>{ONBOARDING_MODE_LABELS[onboardingMode] || onboardingMode}</strong>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+              <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>P {Number(onboardingMetrics.planets_count || 0)}</span>
+              <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>M {Number(onboardingMetrics.moons_count || 0)}</span>
+              <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>V {Number(onboardingMetrics.bonds_count || 0)}</span>
+            </div>
+            {onboardingStages.length ? (
+              <div style={{ display: "grid", gap: 4 }}>
+                {onboardingStages.map((stage) => (
+                  <div
+                    key={stage.key}
+                    style={{
+                      fontSize: "var(--dv-fs-2xs)",
+                      opacity: stage.status === "locked" ? 0.55 : 0.9,
+                      color:
+                        stage.status === "completed" ? "#9affd7" : stage.status === "active" ? "#bdefff" : "inherit",
+                    }}
+                  >
+                    {stage.order}. {stage.title}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {!onboardingProfile?.can_advance && onboardingProfile?.advance_blockers?.length ? (
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>
+                Blokery: {onboardingProfile.advance_blockers.slice(0, 2).join(" · ")}
+              </div>
+            ) : null}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <button
+                type="button"
+                onClick={handleAdvanceOnboardingStage}
+                disabled={onboardingBusy || !canAdvanceOnboardingUi}
+                style={ghostButtonStyle}
+              >
+                {onboardingBusy ? "..." : isStageOneActive ? "Dokoncit Stage 1" : "Dalsi stage"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetOnboardingMode("guided")}
+                disabled={onboardingBusy || onboardingMode === "guided"}
+                style={ghostButtonStyle}
+              >
+                Guided
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetOnboardingMode("template")}
+                disabled={onboardingBusy || onboardingMode === "template" || onboardingCurrentStageOrder < 2}
+                style={ghostButtonStyle}
+              >
+                Template
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetOnboardingMode("hardcore")}
+                disabled={onboardingBusy || onboardingMode === "hardcore" || onboardingCurrentStageOrder < 5}
+                style={ghostButtonStyle}
+              >
+                Hardcore
+              </button>
+            </div>
+            {isStageOneActive && !stageOneImmersiveMode ? (
+              <div
+                style={{
+                  border: "1px solid rgba(96, 189, 223, 0.28)",
+                  borderRadius: 8,
+                  padding: "7px 8px",
+                  background: "rgba(6, 16, 28, 0.86)",
+                  display: "grid",
+                  gap: 6,
+                }}
+              >
+                <div style={{ fontSize: "var(--dv-fs-xs)", fontWeight: 700, color: "#d8f7ff" }}>STAGE 1 PILOT: Financni Graf</div>
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.84 }}>
+                  Exkluzivni rizeny rezim. Cilem je postavit prvni planetu, nastavit schema a vlozit ukazkova data.
+                </div>
+                <div style={{ fontSize: "var(--dv-fs-2xs)", color: "#bdefff", lineHeight: "var(--dv-lh-base)" }}>{stageOneStepMessage}</div>
+                <div style={{ height: 5, borderRadius: 999, background: "rgba(70, 120, 150, 0.36)", overflow: "hidden" }}>
+                  <div
+                    style={{
+                      width: `${stageOneCompletionPct}%`,
+                      height: "100%",
+                      background: "linear-gradient(90deg, #59d6ff, #8bffe2)",
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>Dokonceni: {stageOneCompletionPct}%</div>
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>
+                  Odemcene panely: {stageOneUnlockedPanels.join(" · ")}
+                </div>
+                <div style={{ display: "grid", gap: 3, fontSize: "var(--dv-fs-2xs)", opacity: 0.9 }}>
+                  <div>{`${stageOneMission.hasFinanceTable ? "OK" : "..."} Planeta ${STAGE_ONE_FINANCE_TABLE}`}</div>
+                  <div>{`${stageOneMission.schemaDefined ? "OK" : "..."} Schema transactions aplikovano`}</div>
+                  <div>{`${stageOneMission.sampleRowsReady ? "OK" : "..."} Ukazkove zaznamy (${STAGE_ONE_CASHFLOW_SEED_ROWS.length})`}</div>
+                  <div>{`${stageOneReadyForAdvance ? "OK" : "..."} Stage 1 machine krok complete`}</div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  <button type="button" onClick={runStageOneBlueprint} disabled={stageOneBusy || onboardingBusy} style={ghostButtonStyle}>
+                    {stageOneBusy ? "..." : "1) Blueprint"}
+                  </button>
+                  <button type="button" onClick={handleStageOneConfirmSchema} disabled={stageOneBusy || onboardingBusy} style={ghostButtonStyle}>
+                    {stageOneBusy ? "..." : "2) Zazehnout jadro"}
+                  </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                  <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>
+                    Prijem {Math.round(stageOneMission.revenueTotal).toLocaleString("cs-CZ")}
+                  </span>
+                  <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>
+                    Vydaj {Math.round(stageOneMission.expenseTotal).toLocaleString("cs-CZ")}
+                  </span>
+                  <span
+                    style={{
+                      ...hudBadgeStyle,
+                      fontSize: "var(--dv-fs-2xs)",
+                      color: stageOneMission.marginTotal >= 0 ? "#9effd7" : "#ffb7c9",
+                    }}
+                  >
+                    Marze {Math.round(stageOneMission.marginTotal).toLocaleString("cs-CZ")}
+                  </span>
+                </div>
+                {stageOneInfo ? <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.84 }}>{stageOneInfo}</div> : null}
+                {!stageOneReadyForAdvance ? (
+                  <div style={{ fontSize: "var(--dv-fs-2xs)", color: "#ffd6a4" }}>
+                    Stage 1 nelze uzavrit, dokud nejsou hotove vsechny kroky flow.
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {onboardingError ? <div style={{ fontSize: "var(--dv-fs-2xs)", color: "#ffb7c9" }}>{onboardingError}</div> : null}
+          </div>
           <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.84, color: "#bdefff" }}>
             DALSI KROK
           </div>
@@ -5508,22 +6598,17 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           </button>
           <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>{primaryGuideAction.helper}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            <button
-              type="button"
-              onClick={() => void runSmartAction("command")}
-              style={quickActionCardStyle}
-            >
-              <span style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>2. Prikaz</span>
-              <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>Otevri command line</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void runSmartAction("refresh")}
-              style={quickActionCardStyle}
-            >
-              <span style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>3. Obnovit</span>
-              <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>Nacti data znovu</span>
-            </button>
+            {smartActions.slice(1, 3).map((action, index) => (
+              <button
+                key={`smart-action:${action.id}`}
+                type="button"
+                onClick={() => void runSmartAction(action.id)}
+                style={quickActionCardStyle}
+              >
+                <span style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>{`${index + 2}. ${action.label}`}</span>
+                <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.78 }}>{action.hint}</span>
+              </button>
+            ))}
           </div>
           <button
             type="button"
@@ -5804,21 +6889,22 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         </aside>
       ) : null}
 
-      <div
-        style={{
-          position: "fixed",
-          left: "50%",
-          bottom: 16,
-          transform: "translateX(-50%)",
-          zIndex: 42,
-          width: "min(980px, calc(100vw - 26px))",
-          ...shellHeaderPanelStyle,
-          borderRadius: 14,
-          padding: "10px 12px",
-          display: "grid",
-          gap: 8,
-        }}
-      >
+      {!isStageOneExclusive ? (
+        <div
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: 16,
+            transform: "translateX(-50%)",
+            zIndex: 42,
+            width: "min(980px, calc(100vw - 26px))",
+            ...shellHeaderPanelStyle,
+            borderRadius: 14,
+            padding: "10px 12px",
+            display: "grid",
+            gap: 8,
+          }}
+        >
         <form onSubmit={handleCommand} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto auto auto", gap: 8, alignItems: "center" }}>
           <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)", padding: "5px 8px" }}>&gt; cmd</span>
           <input
@@ -5828,11 +6914,15 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             onKeyDown={handleCommandInputKeyDown}
             onFocus={() => setCommandInputFocused(true)}
             onBlur={() => setCommandInputFocused(false)}
-            disabled={busy}
-            placeholder='Prikaz: /grid | /3d | :refresh | Ukaz : "Srouby"'
+            disabled={busy || isStageOneExclusive}
+            placeholder={
+              isStageOneExclusive
+                ? "Stage 1 pilot: prikazy jsou rizene z panelu ONBOARDING"
+                : 'Prikaz: /grid | /3d | :refresh | Ukaz : "Srouby"'
+            }
             style={{ ...inputStyle, fontSize: "var(--dv-fs-md)", padding: "8px 10px" }}
           />
-          <button type="submit" disabled={busy} style={actionButtonStyle}>
+          <button type="submit" disabled={busy || isStageOneExclusive} style={actionButtonStyle}>
             {busy ? "..." : "Run"}
           </button>
           <button type="button" onClick={() => setQuery("")} style={ghostButtonStyle}>X</button>
@@ -5865,6 +6955,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 </button>
               );
             })}
+          </div>
+        ) : null}
+        {isStageOneExclusive ? (
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82, color: "#bdefff" }}>
+            Stage 1 je exkluzivni vycvik. Pouzij sekvenci Blueprint -&gt; Vazby -&gt; Vypocty v panelu ONBOARDING.
           </div>
         ) : null}
         {commandDockExpanded ? (
@@ -5967,7 +7062,8 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             </div>
           </div>
         ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {quickGridOpen ? (
         <section
@@ -6996,7 +8092,12 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
               style={inputStyle}
               disabled={branchBusy}
             />
-            <button type="button" onClick={handleCreateBranch} disabled={branchBusy || !draftBranchName.trim()} style={ghostButtonStyle}>
+            <button
+              type="button"
+              onClick={handleCreateBranch}
+              disabled={branchBusy || !draftBranchName.trim() || !canUseBranches}
+              style={ghostButtonStyle}
+            >
               {branchBusy ? "..." : "Create"}
             </button>
             <button type="button" onClick={loadBranches} disabled={branchBusy || branchesLoading} style={ghostButtonStyle}>
@@ -7013,6 +8114,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
               Promote do main
             </button>
             {historicalMode ? <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.75 }}>Promote je v historical modu uzamcen.</div> : null}
+            {!canUseBranches ? <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.75 }}>{ONBOARDING_CAPABILITY_HINTS.branches}</div> : null}
           </div>
           {branchesLoading ? <div style={{ fontSize: "var(--dv-fs-xs)", color: "#9de7ff" }}>Nacitam branche...</div> : null}
           {branchesError ? <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffb7c9" }}>{branchesError}</div> : null}
@@ -7069,6 +8171,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             >
               Nacist chyby
             </button>
+            {!canUseImports ? <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.75 }}>Import se odemkne od Stage 3.</div> : null}
           </div>
           {importFile ? (
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
@@ -7159,7 +8262,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             />
           </div>
           <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button type="button" onClick={handleQuickCreate} disabled={busy || historicalMode} style={actionButtonStyle}>
+            <button type="button" onClick={handleQuickCreate} disabled={busy || historicalMode || isStageOneExclusive} style={actionButtonStyle}>
               Zalozit
             </button>
             <button
@@ -7193,7 +8296,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 </option>
               ))}
             </select>
-            <button type="button" onClick={handleQuickFocus} style={ghostButtonStyle}>
+            <button type="button" onClick={handleQuickFocus} disabled={isStageOneExclusive} style={ghostButtonStyle}>
               Fokus
             </button>
           </div>
@@ -7224,9 +8327,15 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 </option>
               ))}
             </select>
-            <button type="button" onClick={handleQuickLink} disabled={busy || historicalMode} style={ghostButtonStyle}>
+            <button
+              type="button"
+              onClick={handleQuickLink}
+              disabled={busy || historicalMode || !canUseBondActions || isStageOneExclusive}
+              style={ghostButtonStyle}
+            >
               Vytvorit vazbu
             </button>
+            {!canUseBondActions ? <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>{ONBOARDING_CAPABILITY_HINTS.bonds}</div> : null}
           </div>
 
           <div style={{ display: "grid", gap: 5, marginBottom: 8 }}>
@@ -7266,9 +8375,15 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 disabled={busy || historicalMode}
               />
             </div>
-            <button type="button" onClick={handleQuickFormula} disabled={busy || historicalMode} style={ghostButtonStyle}>
+            <button
+              type="button"
+              onClick={handleQuickFormula}
+              disabled={busy || historicalMode || !canUseFormulaActions || isStageOneExclusive}
+              style={ghostButtonStyle}
+            >
               Nastavit formuli
             </button>
+            {!canUseFormulaActions ? <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>{ONBOARDING_CAPABILITY_HINTS.formulas}</div> : null}
           </div>
 
           <div style={{ display: "grid", gap: 5, marginBottom: 8 }}>
@@ -7315,9 +8430,15 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 disabled={busy || historicalMode}
               />
             </div>
-            <button type="button" onClick={handleQuickGuardian} disabled={busy || historicalMode} style={ghostButtonStyle}>
+            <button
+              type="button"
+              onClick={handleQuickGuardian}
+              disabled={busy || historicalMode || !canUseGuardianActions || isStageOneExclusive}
+              style={ghostButtonStyle}
+            >
               Pridat guardian
             </button>
+            {!canUseGuardianActions ? <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>{ONBOARDING_CAPABILITY_HINTS.guardians}</div> : null}
           </div>
 
           <div style={{ display: "grid", gap: 5 }}>
@@ -7333,7 +8454,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             <button
               type="button"
               onClick={handleQuickDelete}
-              disabled={busy || historicalMode}
+              disabled={busy || historicalMode || isStageOneExclusive}
               style={{ ...ghostButtonStyle, borderColor: "rgba(255, 136, 166, 0.4)", color: "#ffc6d8" }}
             >
               Zhasnout mesic

@@ -74,6 +74,7 @@ async def resolve_target_user_and_galaxy() -> tuple[UUID, UUID]:
     async with AsyncSessionLocal() as session:
         user = None
         galaxy = None
+        created_entities = False
 
         if target_email:
             user = (
@@ -110,6 +111,7 @@ async def resolve_target_user_and_galaxy() -> tuple[UUID, UUID]:
                         password=seed_password,
                         galaxy_name=galaxy_name,
                     )
+                created_entities = True
 
         if galaxy is None and user is not None:
             galaxy = (
@@ -133,6 +135,10 @@ async def resolve_target_user_and_galaxy() -> tuple[UUID, UUID]:
                         user_id=user.id,
                         name=galaxy_name,
                     )
+                created_entities = True
+
+        if created_entities:
+            await session.commit()
 
         if user is None or galaxy is None:
             raise RuntimeError("Cannot resolve seed target user or galaxy")

@@ -1,0 +1,694 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass(frozen=True)
+class SchemaPresetSeedRow:
+    value: Any
+    metadata: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class SchemaPresetDefinition:
+    key: str
+    version: int
+    name: str
+    description: str
+    tags: tuple[str, ...]
+    required_fields: tuple[str, ...]
+    field_types: dict[str, str]
+    unique_rules: tuple[dict[str, Any], ...]
+    validators: tuple[dict[str, Any], ...]
+    auto_semantics: tuple[dict[str, Any], ...]
+    formula_registry: tuple[dict[str, Any], ...]
+    physics_rulebook: dict[str, Any]
+    default_rows: tuple[SchemaPresetSeedRow, ...]
+
+
+SCHEMA_PRESETS: tuple[SchemaPresetDefinition, ...] = (
+    SchemaPresetDefinition(
+        key="registry_core",
+        version=1,
+        name="Registry Core",
+        description="General entity registry for codes, ownership and lifecycle validity.",
+        tags=("core", "master-data", "directory"),
+        required_fields=("entity_id", "name", "status"),
+        field_types={
+            "entity_id": "string",
+            "code": "string",
+            "name": "string",
+            "entity_type": "string",
+            "status": "string",
+            "owner": "string",
+            "valid_from": "string",
+            "valid_to": "string",
+            "tags": "array",
+            "note": "string",
+        },
+        unique_rules=(
+            {"fields": ["entity_id"]},
+            {"fields": ["code"]},
+        ),
+        validators=(
+            {"field": "status", "operator": "semantic", "value": {"mode": "enum"}},
+        ),
+        auto_semantics=(),
+        formula_registry=(),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="Registry Item A",
+                metadata={
+                    "entity_id": "REG-001",
+                    "code": "A-001",
+                    "name": "Sample Registry A",
+                    "entity_type": "general",
+                    "status": "active",
+                    "owner": "ops",
+                    "valid_from": "2026-01-01",
+                    "tags": ["sample", "core"],
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Registry Item B",
+                metadata={
+                    "entity_id": "REG-002",
+                    "code": "A-002",
+                    "name": "Sample Registry B",
+                    "entity_type": "general",
+                    "status": "draft",
+                    "owner": "finance",
+                    "valid_from": "2026-01-01",
+                    "tags": ["sample"],
+                },
+            ),
+        ),
+    ),
+    SchemaPresetDefinition(
+        key="transactions",
+        version=1,
+        name="Transactions",
+        description="Universal movement ledger for financial and operational transactions.",
+        tags=("finance", "ledger", "operations"),
+        required_fields=("tx_id", "tx_date", "amount", "currency", "direction"),
+        field_types={
+            "tx_id": "string",
+            "tx_date": "string",
+            "amount": "number",
+            "currency": "string",
+            "direction": "string",
+            "counterparty": "string",
+            "category": "string",
+            "cost_center": "string",
+            "state": "string",
+            "reference": "string",
+        },
+        unique_rules=({"fields": ["tx_id"]},),
+        validators=(
+            {"field": "amount", "operator": ">", "value": 0},
+        ),
+        auto_semantics=(),
+        formula_registry=(
+            {
+                "id": "transactions.total_amount",
+                "target": "total_amount",
+                "expression": "SUM(amount)",
+                "depends_on": ["amount"],
+                "trigger": "on_commit",
+            },
+        ),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="TX-Opening-Balance",
+                metadata={
+                    "tx_id": "TX-0001",
+                    "tx_date": "2026-01-01",
+                    "amount": 125000,
+                    "currency": "CZK",
+                    "direction": "in",
+                    "counterparty": "Initial Capital",
+                    "category": "capital",
+                    "cost_center": "HQ",
+                    "state": "posted",
+                    "reference": "seed",
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="TX-Subscription-Cost",
+                metadata={
+                    "tx_id": "TX-0002",
+                    "tx_date": "2026-01-03",
+                    "amount": 4200,
+                    "currency": "CZK",
+                    "direction": "out",
+                    "counterparty": "Tooling Vendor",
+                    "category": "software",
+                    "cost_center": "IT",
+                    "state": "posted",
+                    "reference": "seed",
+                },
+            ),
+        ),
+    ),
+    SchemaPresetDefinition(
+        key="catalog_items",
+        version=1,
+        name="Catalog Items",
+        description="Reusable product, service or asset catalog schema.",
+        tags=("catalog", "product", "asset"),
+        required_fields=("item_id", "name", "active"),
+        field_types={
+            "item_id": "string",
+            "sku": "string",
+            "name": "string",
+            "category": "string",
+            "unit": "string",
+            "price": "number",
+            "tax_rate": "number",
+            "active": "boolean",
+            "valid_from": "string",
+            "valid_to": "string",
+        },
+        unique_rules=(
+            {"fields": ["item_id"]},
+            {"fields": ["sku"]},
+        ),
+        validators=(
+            {"field": "price", "operator": ">=", "value": 0},
+        ),
+        auto_semantics=(),
+        formula_registry=(),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="Catalog Item Standard",
+                metadata={
+                    "item_id": "CAT-001",
+                    "sku": "STD-001",
+                    "name": "Standard Service",
+                    "category": "service",
+                    "unit": "hour",
+                    "price": 1200,
+                    "tax_rate": 21,
+                    "active": True,
+                    "valid_from": "2026-01-01",
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Catalog Item Premium",
+                metadata={
+                    "item_id": "CAT-002",
+                    "sku": "PRM-001",
+                    "name": "Premium Service",
+                    "category": "service",
+                    "unit": "hour",
+                    "price": 2100,
+                    "tax_rate": 21,
+                    "active": True,
+                    "valid_from": "2026-01-01",
+                },
+            ),
+        ),
+    ),
+    SchemaPresetDefinition(
+        key="orders_cases",
+        version=1,
+        name="Orders and Cases",
+        description="Case workflow schema for requests, incidents or sales orders.",
+        tags=("workflow", "orders", "cases"),
+        required_fields=("case_id", "case_no", "state"),
+        field_types={
+            "case_id": "string",
+            "case_no": "string",
+            "case_type": "string",
+            "client": "string",
+            "state": "string",
+            "priority": "string",
+            "opened_at": "string",
+            "due_at": "string",
+            "owner": "string",
+            "value": "number",
+        },
+        unique_rules=(
+            {"fields": ["case_id"]},
+            {"fields": ["case_no"]},
+        ),
+        validators=(
+            {"field": "value", "operator": ">=", "value": 0},
+        ),
+        auto_semantics=(),
+        formula_registry=(),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="Case Intake",
+                metadata={
+                    "case_id": "CASE-001",
+                    "case_no": "2026-0001",
+                    "case_type": "request",
+                    "client": "ACME",
+                    "state": "open",
+                    "priority": "medium",
+                    "opened_at": "2026-01-02",
+                    "due_at": "2026-01-10",
+                    "owner": "support",
+                    "value": 0,
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Order Draft",
+                metadata={
+                    "case_id": "CASE-002",
+                    "case_no": "2026-0002",
+                    "case_type": "order",
+                    "client": "Globex",
+                    "state": "draft",
+                    "priority": "high",
+                    "opened_at": "2026-01-03",
+                    "due_at": "2026-01-15",
+                    "owner": "sales",
+                    "value": 89000,
+                },
+            ),
+        ),
+    ),
+    SchemaPresetDefinition(
+        key="tasks_work",
+        version=1,
+        name="Tasks and Work",
+        description="Task execution schema for planning, assignment and tracking effort.",
+        tags=("tasks", "project", "operations"),
+        required_fields=("task_id", "title", "state"),
+        field_types={
+            "task_id": "string",
+            "title": "string",
+            "description": "string",
+            "state": "string",
+            "priority": "string",
+            "assignee": "string",
+            "reporter": "string",
+            "due_date": "string",
+            "estimate_h": "number",
+            "spent_h": "number",
+        },
+        unique_rules=({"fields": ["task_id"]},),
+        validators=(
+            {"field": "estimate_h", "operator": ">=", "value": 0},
+            {"field": "spent_h", "operator": ">=", "value": 0},
+        ),
+        auto_semantics=(),
+        formula_registry=(
+            {
+                "id": "tasks.remaining_hours",
+                "target": "remaining_h",
+                "expression": "SUM(estimate_h)-SUM(spent_h)",
+                "depends_on": ["estimate_h", "spent_h"],
+                "trigger": "on_commit",
+            },
+        ),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="Task Bootstrap",
+                metadata={
+                    "task_id": "TASK-001",
+                    "title": "Bootstrap workspace",
+                    "description": "Initialize first structures",
+                    "state": "todo",
+                    "priority": "high",
+                    "assignee": "owner",
+                    "reporter": "owner",
+                    "due_date": "2026-01-08",
+                    "estimate_h": 6,
+                    "spent_h": 0,
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Task Health Check",
+                metadata={
+                    "task_id": "TASK-002",
+                    "title": "Review data health",
+                    "description": "Validate baseline consistency",
+                    "state": "in_progress",
+                    "priority": "medium",
+                    "assignee": "analyst",
+                    "reporter": "owner",
+                    "due_date": "2026-01-09",
+                    "estimate_h": 4,
+                    "spent_h": 1,
+                },
+            ),
+        ),
+    ),
+    SchemaPresetDefinition(
+        key="inventory_stock",
+        version=1,
+        name="Inventory Stock",
+        description="Inventory and stock balancing schema with quantity controls.",
+        tags=("inventory", "warehouse", "logistics"),
+        required_fields=("stock_id", "item_id", "warehouse", "quantity"),
+        field_types={
+            "stock_id": "string",
+            "item_id": "string",
+            "warehouse": "string",
+            "quantity": "number",
+            "min_level": "number",
+            "max_level": "number",
+            "reserved": "number",
+            "available": "number",
+            "last_movement_at": "string",
+            "state": "string",
+        },
+        unique_rules=(
+            {"fields": ["stock_id"]},
+            {"fields": ["item_id", "warehouse"]},
+        ),
+        validators=(
+            {"field": "quantity", "operator": ">=", "value": 0},
+            {"field": "reserved", "operator": ">=", "value": 0},
+        ),
+        auto_semantics=(),
+        formula_registry=(
+            {
+                "id": "inventory.total_quantity",
+                "target": "total_quantity",
+                "expression": "SUM(quantity)",
+                "depends_on": ["quantity"],
+                "trigger": "on_commit",
+            },
+        ),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="Stock Base A",
+                metadata={
+                    "stock_id": "STK-001",
+                    "item_id": "CAT-001",
+                    "warehouse": "PRG-01",
+                    "quantity": 150,
+                    "min_level": 20,
+                    "max_level": 300,
+                    "reserved": 10,
+                    "available": 140,
+                    "last_movement_at": "2026-01-03",
+                    "state": "ok",
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Stock Base B",
+                metadata={
+                    "stock_id": "STK-002",
+                    "item_id": "CAT-002",
+                    "warehouse": "BRN-01",
+                    "quantity": 65,
+                    "min_level": 15,
+                    "max_level": 180,
+                    "reserved": 5,
+                    "available": 60,
+                    "last_movement_at": "2026-01-04",
+                    "state": "ok",
+                },
+            ),
+        ),
+    ),
+    SchemaPresetDefinition(
+        key="contacts_org",
+        version=1,
+        name="Contacts and Organizations",
+        description="CRM-ready contact and organization schema for outreach and ownership.",
+        tags=("crm", "contacts", "sales"),
+        required_fields=("contact_id", "full_name", "status"),
+        field_types={
+            "contact_id": "string",
+            "full_name": "string",
+            "company": "string",
+            "role": "string",
+            "email": "string",
+            "phone": "string",
+            "segment": "string",
+            "country": "string",
+            "status": "string",
+            "source": "string",
+        },
+        unique_rules=(
+            {"fields": ["contact_id"]},
+            {"fields": ["email"]},
+        ),
+        validators=(
+            {"field": "status", "operator": "semantic", "value": {"mode": "enum"}},
+        ),
+        auto_semantics=(),
+        formula_registry=(),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="Contact Main",
+                metadata={
+                    "contact_id": "CNT-001",
+                    "full_name": "Alex Novak",
+                    "company": "ACME",
+                    "role": "buyer",
+                    "email": "alex.novak@example.com",
+                    "phone": "+420111222333",
+                    "segment": "B2B",
+                    "country": "CZ",
+                    "status": "active",
+                    "source": "web",
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Contact Secondary",
+                metadata={
+                    "contact_id": "CNT-002",
+                    "full_name": "Dana Kral",
+                    "company": "Globex",
+                    "role": "manager",
+                    "email": "dana.kral@example.com",
+                    "phone": "+420333222111",
+                    "segment": "B2B",
+                    "country": "CZ",
+                    "status": "active",
+                    "source": "event",
+                },
+            ),
+        ),
+    ),
+    SchemaPresetDefinition(
+        key="events_calendar",
+        version=1,
+        name="Events and Calendar",
+        description="Event planning schema for scheduling, capacity and ownership.",
+        tags=("events", "calendar", "planning"),
+        required_fields=("event_id", "title", "start_at", "status"),
+        field_types={
+            "event_id": "string",
+            "title": "string",
+            "event_type": "string",
+            "start_at": "string",
+            "end_at": "string",
+            "location": "string",
+            "organizer": "string",
+            "capacity": "number",
+            "status": "string",
+            "reference_url": "string",
+        },
+        unique_rules=({"fields": ["event_id"]},),
+        validators=(
+            {"field": "capacity", "operator": ">=", "value": 0},
+        ),
+        auto_semantics=(),
+        formula_registry=(),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="Kickoff 2026",
+                metadata={
+                    "event_id": "EVT-001",
+                    "title": "Kickoff",
+                    "event_type": "internal",
+                    "start_at": "2026-01-10T09:00:00Z",
+                    "end_at": "2026-01-10T11:00:00Z",
+                    "location": "Prague HQ",
+                    "organizer": "ops",
+                    "capacity": 30,
+                    "status": "planned",
+                    "reference_url": "https://example.local/events/evt-001",
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Client Webinar",
+                metadata={
+                    "event_id": "EVT-002",
+                    "title": "Client Webinar",
+                    "event_type": "external",
+                    "start_at": "2026-01-15T13:00:00Z",
+                    "end_at": "2026-01-15T14:30:00Z",
+                    "location": "Online",
+                    "organizer": "marketing",
+                    "capacity": 200,
+                    "status": "planned",
+                    "reference_url": "https://example.local/events/evt-002",
+                },
+            ),
+        ),
+    ),
+    SchemaPresetDefinition(
+        key="metrics_timeseries",
+        version=1,
+        name="Metrics Time Series",
+        description="KPI time-series schema with dimensions and data quality indicator.",
+        tags=("metrics", "kpi", "analytics"),
+        required_fields=("point_id", "metric_key", "value", "ts"),
+        field_types={
+            "point_id": "string",
+            "metric_key": "string",
+            "metric_name": "string",
+            "value": "number",
+            "unit": "string",
+            "ts": "string",
+            "dimension_1": "string",
+            "dimension_2": "string",
+            "source": "string",
+            "quality": "string",
+        },
+        unique_rules=(
+            {"fields": ["point_id"]},
+            {"fields": ["metric_key", "ts", "dimension_1", "dimension_2"]},
+        ),
+        validators=(),
+        auto_semantics=(),
+        formula_registry=(
+            {
+                "id": "metrics.total_value",
+                "target": "total_value",
+                "expression": "SUM(value)",
+                "depends_on": ["value"],
+                "trigger": "on_commit",
+            },
+        ),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="Revenue Jan",
+                metadata={
+                    "point_id": "MET-001",
+                    "metric_key": "revenue",
+                    "metric_name": "Revenue",
+                    "value": 250000,
+                    "unit": "CZK",
+                    "ts": "2026-01-31",
+                    "dimension_1": "region:cz",
+                    "dimension_2": "channel:direct",
+                    "source": "erp",
+                    "quality": "high",
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Revenue Feb",
+                metadata={
+                    "point_id": "MET-002",
+                    "metric_key": "revenue",
+                    "metric_name": "Revenue",
+                    "value": 265000,
+                    "unit": "CZK",
+                    "ts": "2026-02-28",
+                    "dimension_1": "region:cz",
+                    "dimension_2": "channel:direct",
+                    "source": "erp",
+                    "quality": "high",
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Costs Feb",
+                metadata={
+                    "point_id": "MET-003",
+                    "metric_key": "cost",
+                    "metric_name": "Cost",
+                    "value": 142000,
+                    "unit": "CZK",
+                    "ts": "2026-02-28",
+                    "dimension_1": "region:cz",
+                    "dimension_2": "channel:direct",
+                    "source": "erp",
+                    "quality": "medium",
+                },
+            ),
+        ),
+    ),
+    SchemaPresetDefinition(
+        key="knowledge_docs",
+        version=1,
+        name="Knowledge and Documents",
+        description="Knowledge base and decision log schema for governance and traceability.",
+        tags=("knowledge", "documents", "governance"),
+        required_fields=("doc_id", "title", "status"),
+        field_types={
+            "doc_id": "string",
+            "title": "string",
+            "doc_type": "string",
+            "status": "string",
+            "version": "string",
+            "author": "string",
+            "published_at": "string",
+            "valid_to": "string",
+            "related_entity": "string",
+            "url": "string",
+        },
+        unique_rules=(
+            {"fields": ["doc_id"]},
+        ),
+        validators=(),
+        auto_semantics=(),
+        formula_registry=(),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="Runbook Core",
+                metadata={
+                    "doc_id": "DOC-001",
+                    "title": "Core Runbook",
+                    "doc_type": "runbook",
+                    "status": "active",
+                    "version": "1.0",
+                    "author": "ops",
+                    "published_at": "2026-01-05",
+                    "valid_to": "2026-12-31",
+                    "related_entity": "REG-001",
+                    "url": "https://example.local/docs/doc-001",
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Architecture Decision",
+                metadata={
+                    "doc_id": "DOC-002",
+                    "title": "Architecture Decision Log",
+                    "doc_type": "decision",
+                    "status": "active",
+                    "version": "1.0",
+                    "author": "engineering",
+                    "published_at": "2026-01-06",
+                    "valid_to": "",
+                    "related_entity": "TASK-001",
+                    "url": "https://example.local/docs/doc-002",
+                },
+            ),
+        ),
+    ),
+)
+
+
+def list_schema_presets() -> list[SchemaPresetDefinition]:
+    return list(SCHEMA_PRESETS)
+
+
+def get_schema_preset(preset_key: str) -> SchemaPresetDefinition | None:
+    key = str(preset_key or "").strip()
+    if not key:
+        return None
+    for preset in SCHEMA_PRESETS:
+        if preset.key == key:
+            return preset
+    return None

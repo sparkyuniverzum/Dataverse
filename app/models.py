@@ -58,6 +58,45 @@ class Galaxy(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class OnboardingProgress(Base):
+    __tablename__ = "onboarding_progress"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        primary_key=True,
+    )
+    galaxy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("galaxies.id"),
+        primary_key=True,
+    )
+    mode: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'guided'"))
+    stage_key: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'galaxy_bootstrap'"))
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    stage_started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notes: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+
 class GalaxySummaryRM(Base):
     __tablename__ = "galaxy_summary_rm"
 
