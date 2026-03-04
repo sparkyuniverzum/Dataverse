@@ -3,13 +3,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Billboard, OrbitControls, Stars, Text } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import * as THREE from "three";
-import { API_BASE, apiFetch } from "../../lib/dataverseApi";
-import {
-  GALAXY_CREATION_PRESETS,
-  GALAXY_GUIDE,
-  GALAXY_PURPOSE_OPTIONS,
-  MODEL_PATH_LABEL,
-} from "../../lib/onboarding";
+import { MODEL_PATH_LABEL } from "../../lib/onboarding";
 
 function hashText(input) {
   const text = String(input || "");
@@ -256,13 +250,6 @@ function buildPositions(galaxies) {
   return positions;
 }
 
-function formatDateTime(value) {
-  if (!value) return "n/a";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "n/a";
-  return date.toLocaleString();
-}
-
 function GalaxyNode({ galaxy, position, selected, hovered, onHover, onClick, onDoubleClick }) {
   const groupRef = useRef(null);
   const baseScale = selected ? 1.22 : hovered ? 1.1 : 1;
@@ -427,22 +414,11 @@ export default function GalaxySelector3D({
   onSelect,
   onCreate,
   onNameChange,
-  onExtinguish,
   onRefresh,
   onLogout,
 }) {
   const [candidateGalaxyId, setCandidateGalaxyId] = useState(selectedGalaxyId || "");
   const [hoveredGalaxyId, setHoveredGalaxyId] = useState("");
-  const [workspacePurpose, setWorkspacePurpose] = useState("general");
-  const [workspaceProfileNote, setWorkspaceProfileNote] = useState("");
-  const [creationPreset, setCreationPreset] = useState("blank");
-  const [showFirstRunAdvanced, setShowFirstRunAdvanced] = useState(false);
-  const [dashboardLoading, setDashboardLoading] = useState(false);
-  const [dashboardError, setDashboardError] = useState("");
-  const [summary, setSummary] = useState(null);
-  const [health, setHealth] = useState(null);
-  const [activity, setActivity] = useState([]);
-  const [showGuide, setShowGuide] = useState(false);
   const firstRunNameInputRef = useRef(null);
 
   useEffect(() => {
@@ -463,66 +439,6 @@ export default function GalaxySelector3D({
     () => galaxies.find((item) => String(item.id) === String(hoveredGalaxyId || "")) || null,
     [hoveredGalaxyId, galaxies]
   );
-  const selectedCreationPreset = useMemo(
-    () => GALAXY_CREATION_PRESETS.find((item) => item.key === creationPreset) || GALAXY_CREATION_PRESETS[0],
-    [creationPreset]
-  );
-  const selectedPurposeOption = useMemo(
-    () => GALAXY_PURPOSE_OPTIONS.find((item) => item.key === workspacePurpose) || GALAXY_PURPOSE_OPTIONS[0],
-    [workspacePurpose]
-  );
-
-  useEffect(() => {
-    if (!candidateGalaxyId) {
-      setSummary(null);
-      setHealth(null);
-      setActivity([]);
-      setDashboardError("");
-      return;
-    }
-
-    let active = true;
-    const loadDashboard = async () => {
-      setDashboardLoading(true);
-      setDashboardError("");
-      try {
-        const [summaryRes, healthRes, activityRes] = await Promise.all([
-          apiFetch(`${API_BASE}/galaxies/${candidateGalaxyId}/summary`),
-          apiFetch(`${API_BASE}/galaxies/${candidateGalaxyId}/health`),
-          apiFetch(`${API_BASE}/galaxies/${candidateGalaxyId}/activity?limit=8`),
-        ]);
-
-        if (!summaryRes.ok || !healthRes.ok || !activityRes.ok) {
-          throw new Error(`Dashboard load failed (${summaryRes.status}/${healthRes.status}/${activityRes.status})`);
-        }
-        const [summaryBody, healthBody, activityBody] = await Promise.all([
-          summaryRes.json(),
-          healthRes.json(),
-          activityRes.json(),
-        ]);
-        if (!active) return;
-        setSummary(summaryBody || null);
-        setHealth(healthBody || null);
-        setActivity(Array.isArray(activityBody?.items) ? activityBody.items : []);
-      } catch (error) {
-        if (!active) return;
-        setDashboardError(error.message || "Dashboard load failed");
-      } finally {
-        if (active) setDashboardLoading(false);
-      }
-    };
-
-    loadDashboard();
-    return () => {
-      active = false;
-    };
-  }, [candidateGalaxyId]);
-
-  const healthColor = health?.status === "RED"
-    ? "#ff8ea5"
-    : health?.status === "YELLOW"
-      ? "#ffd28e"
-      : "#8fffd2";
   const noGalaxiesYet = galaxies.length === 0;
 
   useEffect(() => {
@@ -541,14 +457,6 @@ export default function GalaxySelector3D({
     firstRunNameInputRef.current.focus();
   }, [noGalaxiesYet]);
 
-  const createOptions = useMemo(
-    () => ({
-      preset: creationPreset,
-      purpose: workspacePurpose,
-      profileNote: workspaceProfileNote,
-    }),
-    [creationPreset, workspaceProfileNote, workspacePurpose]
-  );
   const canCreate = !busy && Boolean(String(newGalaxyName || "").trim());
 
   return (
@@ -603,7 +511,7 @@ export default function GalaxySelector3D({
               onKeyDown={(event) => {
                 if (event.key === "Enter" && canCreate) {
                   event.preventDefault();
-                  onCreate(createOptions);
+                  onCreate();
                 }
               }}
               placeholder="Nazev workspace (napr. Finance 2026)"
@@ -611,62 +519,13 @@ export default function GalaxySelector3D({
             />
             <button
               type="button"
-              onClick={() => onCreate(createOptions)}
+              onClick={onCreate}
               disabled={!canCreate}
               style={actionButtonStyle}
             >
               Vytvorit a vstoupit
             </button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr minmax(200px, 260px)", gap: 8 }}>
-            <select
-              value={workspacePurpose}
-              onChange={(event) => setWorkspacePurpose(event.target.value)}
-              style={selectStyle}
-            >
-              {GALAXY_PURPOSE_OPTIONS.map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => setShowFirstRunAdvanced((prev) => !prev)}
-              style={ghostButtonStyle}
-            >
-              {showFirstRunAdvanced ? "Skryt pokrocile" : "Pokrocile volby"}
-            </button>
-          </div>
-          {showFirstRunAdvanced ? (
-            <>
-              <select
-                value={creationPreset}
-                onChange={(event) => setCreationPreset(event.target.value)}
-                style={selectStyle}
-              >
-                {GALAXY_CREATION_PRESETS.map((item) => (
-                  <option key={item.key} value={item.key}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={workspaceProfileNote}
-                onChange={(event) => setWorkspaceProfileNote(event.target.value)}
-                placeholder="Volitelna charakteristika (napr. Interni finance + reporting)"
-                style={inputStyle}
-              />
-            </>
-          ) : null}
-          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
-            Ucel: <strong>{selectedPurposeOption.label}</strong> - {selectedPurposeOption.description}
-          </div>
-          {showFirstRunAdvanced ? (
-            <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
-              Predvyplneni: <strong>{selectedCreationPreset.label}</strong> - {selectedCreationPreset.description}
-            </div>
-          ) : null}
           {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{error}</div> : null}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
@@ -751,51 +610,12 @@ export default function GalaxySelector3D({
           />
           <button
             type="button"
-            onClick={() => onCreate(createOptions)}
+            onClick={onCreate}
             disabled={busy || !newGalaxyName.trim()}
             style={actionButtonStyle}
           >
             ↗ Launch
           </button>
-        </div>
-        <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.76 }}>Ucel workspace</div>
-          <select
-            value={workspacePurpose}
-            onChange={(event) => setWorkspacePurpose(event.target.value)}
-            style={selectStyle}
-          >
-            {GALAXY_PURPOSE_OPTIONS.map((item) => (
-              <option key={item.key} value={item.key}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.84 }}>{selectedPurposeOption.description}</div>
-        </div>
-        <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.76 }}>Charakteristika (volitelna)</div>
-          <input
-            value={workspaceProfileNote}
-            onChange={(event) => setWorkspaceProfileNote(event.target.value)}
-            placeholder="Napriklad: QA backlog + incidenty"
-            style={inputStyle}
-          />
-        </div>
-        <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.76 }}>Preddefinovani pri vytvoreni</div>
-          <select
-            value={creationPreset}
-            onChange={(event) => setCreationPreset(event.target.value)}
-            style={selectStyle}
-          >
-            {GALAXY_CREATION_PRESETS.map((item) => (
-              <option key={item.key} value={item.key}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.84 }}>{selectedCreationPreset.description}</div>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -806,14 +626,6 @@ export default function GalaxySelector3D({
             style={actionButtonStyle}
           >
             Vstoupit
-          </button>
-          <button
-            type="button"
-            onClick={() => candidateGalaxyId && onExtinguish(candidateGalaxyId)}
-            disabled={!candidateGalaxyId || busy}
-            style={dangerButtonStyle}
-          >
-            Zhasnout
           </button>
           <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
             Obnovit
@@ -826,107 +638,6 @@ export default function GalaxySelector3D({
         <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.8 }}>
           {noGalaxiesYet ? "Nejdriv vytvor galaxii. Potom funguje klik=vyber, dvojklik=vstup." : "Tip: dvojklik na galaxii = okamzity vstup."}
         </div>
-
-        {!noGalaxiesYet ? (
-          <div style={{ display: "grid", gap: 6 }}>
-            <button
-              type="button"
-              onClick={() => setShowGuide((prev) => !prev)}
-              style={{
-                ...ghostButtonStyle,
-                justifySelf: "start",
-                borderRadius: 999,
-                width: 30,
-                height: 30,
-                padding: 0,
-                fontSize: "var(--dv-fs-lg)",
-                fontWeight: 700,
-              }}
-              title="Napoveda"
-            >
-              ?
-            </button>
-            {showGuide ? (
-              <div
-                style={{
-                  border: "1px solid rgba(98, 190, 222, 0.28)",
-                  borderRadius: 10,
-                  background: "rgba(4, 11, 20, 0.76)",
-                  padding: 10,
-                  display: "grid",
-                  gap: 6,
-                }}
-              >
-                <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.78 }}>JAK POKRACOVAT BEZ VAHANI</div>
-                {GALAXY_GUIDE.map((item) => (
-                  <div key={item} style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88 }}>
-                    - {item}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {!noGalaxiesYet ? (
-          <div
-            style={{
-              border: "1px solid rgba(98, 190, 222, 0.28)",
-              borderRadius: 10,
-              background: "rgba(4, 11, 20, 0.76)",
-              padding: 10,
-              display: "grid",
-              gap: 8,
-            }}
-          >
-            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.78 }}>GALAXY DASHBOARD V1</div>
-            {dashboardLoading ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#9adfff" }}>Nacitam summary/health/activity...</div> : null}
-            {!dashboardLoading && summary ? (
-              <div style={{ display: "grid", gap: 5, fontSize: "var(--dv-fs-sm)" }}>
-                <div>Souhvezdi: <strong>{summary.constellations_count}</strong></div>
-                <div>Planety: <strong>{summary.planets_count}</strong></div>
-                <div>Mesice: <strong>{summary.moons_count}</strong></div>
-                <div>Vazby: <strong>{summary.bonds_count}</strong></div>
-                <div>Vzorce: <strong>{summary.formula_fields_count}</strong></div>
-              </div>
-            ) : null}
-            {!dashboardLoading && health ? (
-              <div style={{ display: "grid", gap: 5, fontSize: "var(--dv-fs-sm)" }}>
-                <div>
-                  Stav:
-                  <strong style={{ marginLeft: 6, color: healthColor }}>{health.status}</strong>
-                  <span style={{ marginLeft: 6, opacity: 0.84 }}>({health.quality_score}/100)</span>
-                </div>
-                <div>Guardian pravidla: <strong>{health.guardian_rules_count}</strong></div>
-                <div>Aktivni alerty: <strong>{health.alerted_asteroids_count}</strong></div>
-                <div>Kruhove odkazy: <strong>{health.circular_fields_count}</strong></div>
-              </div>
-            ) : null}
-            {!dashboardLoading && activity.length ? (
-              <div style={{ display: "grid", gap: 5 }}>
-                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>Posledni aktivita</div>
-                {activity.slice(0, 6).map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      border: "1px solid rgba(96, 180, 210, 0.2)",
-                      borderRadius: 8,
-                      padding: "6px 7px",
-                      background: "rgba(6, 16, 30, 0.68)",
-                      fontSize: "var(--dv-fs-xs)",
-                      display: "grid",
-                      gap: 2,
-                    }}
-                  >
-                    <div style={{ color: "#cfeef8" }}>{item.event_type}</div>
-                    <div style={{ opacity: 0.76 }}>{formatDateTime(item.happened_at)}</div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {dashboardError ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{dashboardError}</div> : null}
-          </div>
-        ) : null}
 
         {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{error}</div> : null}
         </aside>
@@ -948,11 +659,6 @@ const inputStyle = {
   boxSizing: "border-box",
 };
 
-const selectStyle = {
-  ...inputStyle,
-  appearance: "none",
-};
-
 const actionButtonStyle = {
   border: "1px solid rgba(113, 222, 255, 0.5)",
   background: "linear-gradient(120deg, #22b5e2, #53dbff)",
@@ -962,16 +668,6 @@ const actionButtonStyle = {
   fontWeight: 700,
   fontSize: "var(--dv-fs-xs)",
   letterSpacing: "var(--dv-tr-medium)",
-  cursor: "pointer",
-};
-
-const dangerButtonStyle = {
-  border: "1px solid rgba(255, 130, 160, 0.45)",
-  background: "rgba(40, 13, 21, 0.76)",
-  color: "#ffc7d7",
-  borderRadius: 8,
-  padding: "7px 10px",
-  fontSize: "var(--dv-fs-sm)",
   cursor: "pointer",
 };
 

@@ -1420,18 +1420,6 @@ def test_branch_create_rejects_duplicate_normalized_name(auth_client: tuple[http
     assert duplicate.status_code == 409, duplicate.text
     assert "same normalized name" in duplicate.text
 
-    extinguished = client.patch(
-        f"/branches/{first.json()['id']}/extinguish",
-        params={"galaxy_id": galaxy_id},
-    )
-    assert extinguished.status_code == 200, extinguished.text
-
-    recreated = client.post(
-        "/branches",
-        json={"name": "SCENARIO A", "galaxy_id": galaxy_id},
-    )
-    assert recreated.status_code == 201, recreated.text
-
 
 def test_branch_snapshot_isolated_from_new_main_events(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client

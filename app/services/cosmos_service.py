@@ -259,24 +259,6 @@ class CosmosService:
         await session.refresh(branch)
         return branch
 
-    async def extinguish_branch(
-        self,
-        session: AsyncSession,
-        *,
-        user_id: UUID,
-        galaxy_id: UUID | None,
-        branch_id: UUID,
-    ) -> Branch:
-        galaxy = await self._resolve_user_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)
-        branch = (await session.execute(select(Branch).where(Branch.id == branch_id))).scalar_one_or_none()
-        if branch is None or branch.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
-        if branch.galaxy_id != galaxy.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden branch access")
-        if branch.deleted_at is None:
-            branch.deleted_at = datetime.now(timezone.utc)
-        return branch
-
     async def promote_branch(
         self,
         session: AsyncSession,

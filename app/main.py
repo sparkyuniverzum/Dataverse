@@ -783,17 +783,6 @@ async def auth_me(
     return user_to_public(current_user)
 
 
-@app.patch("/auth/me/extinguish", response_model=UserPublic, status_code=status.HTTP_200_OK)
-async def auth_extinguish_me(
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> UserPublic:
-    async with transactional_context(session):
-        user = await auth_service.soft_delete_user(session=session, user=current_user)
-    await commit_if_active(session)
-    return user_to_public(user)
-
-
 @app.get("/galaxies", response_model=list[GalaxyPublic], status_code=status.HTTP_200_OK)
 async def list_galaxies(
     session: AsyncSession = Depends(get_session),
@@ -1211,24 +1200,6 @@ async def promote_branch(
         )
     await commit_if_active(session)
     return BranchPromoteResponse(branch=branch_to_public(branch), promoted_events_count=promoted_events_count)
-
-
-@app.patch("/branches/{branch_id}/extinguish", response_model=BranchPublic, status_code=status.HTTP_200_OK)
-async def extinguish_branch(
-    branch_id: UUID,
-    galaxy_id: UUID | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> BranchPublic:
-    async with transactional_context(session):
-        branch = await cosmos_service.extinguish_branch(
-            session=session,
-            user_id=current_user.id,
-            galaxy_id=galaxy_id,
-            branch_id=branch_id,
-        )
-    await commit_if_active(session)
-    return branch_to_public(branch)
 
 
 @app.get("/contracts/{table_id}", response_model=TableContractPublic, status_code=status.HTTP_200_OK)

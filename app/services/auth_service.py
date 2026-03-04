@@ -152,13 +152,6 @@ class AuthService:
             galaxy.deleted_at = datetime.now(timezone.utc)
         return galaxy
 
-    async def soft_delete_user(self, session: AsyncSession, *, user: User) -> User:
-        if user.deleted_at is None:
-            user.deleted_at = datetime.now(timezone.utc)
-        user.is_active = False
-        return user
-
-
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     session: AsyncSession = Depends(get_session),
