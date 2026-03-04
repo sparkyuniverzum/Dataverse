@@ -21,6 +21,36 @@ export const FACT_STATUSES = Object.freeze({
   INVALID: "invalid",
 });
 
+export const MINERAL_ROLES = Object.freeze({
+  PRIMARY: "primary",
+  ATTRIBUTE: "attribute",
+  METRIC: "metric",
+  FLAG: "flag",
+  TEMPORAL: "temporal",
+  STRUCTURED: "structured",
+  CALCULATED: "calculated",
+  INVALID: "invalid",
+});
+
+export const MOON_PURPOSE_TEXT =
+  "Mesic je jeden radek tabulky (record), ktery drzi historii faktu a reaguje na semantiku, calc i guardian pravidla.";
+
+export const MOON_FUNCTIONS = Object.freeze([
+  "Identita zaznamu: key 'value' nese nazev radku.",
+  "Datova vrstva: nerosty z metadata jsou editovatelne fakta bunky.",
+  "Vypoctova vrstva: calculated fakty jsou read-only vystup Calc Engine.",
+  "Auditovatelnost: kazdy zapis je event, ne hard prepis historie.",
+  "Bezpecne mazani: zhasnuti = soft delete (EXTINGUISH).",
+]);
+
+export const MOON_CONTROL_STYLE = Object.freeze([
+  "LMB na mesic: fokus + otevreni detailu.",
+  "Detail mesice: editace nazvu radku a nerostu onBlur (commit).",
+  "Grid (/grid): editace bunek in-place, batch preview + commit.",
+  "Parser prikaz: A.pole := hodnota, A + B, A : Typ, A -> B.",
+  "Delete je vzdy soft delete (zhasnout), ne hard delete.",
+]);
+
 /**
  * @typedef {Object} MineralFact
  * @property {string} key
@@ -116,6 +146,40 @@ export function buildMoonFacts({ value = null, metadata = {}, calculatedValues =
   return facts;
 }
 
+function normalizeToken(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+const TEMPORAL_FACT_KEY_TOKENS = Object.freeze([
+  "date",
+  "datum",
+  "time",
+  "cas",
+  "deadline",
+  "due",
+  "created",
+  "updated",
+]);
+
+export function classifyMineralRole(fact) {
+  const item = fact && typeof fact === "object" ? fact : {};
+  const key = normalizeToken(item.key);
+  const source = normalizeToken(item.source);
+  const valueType = normalizeToken(item.value_type);
+  const status = normalizeToken(item.status);
+
+  if (status === FACT_STATUSES.INVALID) return MINERAL_ROLES.INVALID;
+  if (source === FACT_SOURCES.CALCULATED) return MINERAL_ROLES.CALCULATED;
+  if (key === "value") return MINERAL_ROLES.PRIMARY;
+  if (TEMPORAL_FACT_KEY_TOKENS.some((token) => key.includes(token))) return MINERAL_ROLES.TEMPORAL;
+  if (valueType === FACT_VALUE_TYPES.BOOLEAN) return MINERAL_ROLES.FLAG;
+  if (valueType === FACT_VALUE_TYPES.NUMBER) return MINERAL_ROLES.METRIC;
+  if (valueType === FACT_VALUE_TYPES.JSON) return MINERAL_ROLES.STRUCTURED;
+  return MINERAL_ROLES.ATTRIBUTE;
+}
+
 function normalizeFact(raw) {
   const item = raw && typeof raw === "object" ? raw : {};
   const key = String(item.key || "").trim();
@@ -164,5 +228,52 @@ export function toMoonRowContract(asteroidSnapshot) {
     current_event_seq: Number(snapshot.current_event_seq || 0),
     active_alerts: activeAlerts,
     facts,
+  };
+}
+
+/**
+ * @param {MoonRowContract | null | undefined} moonRow
+ * @returns {{
+ *   moon_id: string,
+ *   label: string,
+ *   purpose: string,
+ *   functions: string[],
+ *   control_style: string[],
+ *   summary: { total: number, editable: number, calculated: number, invalid: number },
+ *   role_counts: Record<string, number>,
+ *   role_by_key: Record<string, string>,
+ * }}
+ */
+export function buildMoonCharacterization(moonRow) {
+  const row = moonRow && typeof moonRow === "object" ? moonRow : {};
+  const facts = Array.isArray(row.facts) ? row.facts : [];
+  const roleCounts = {};
+  const roleByKey = {};
+
+  facts.forEach((fact) => {
+    const role = classifyMineralRole(fact);
+    roleCounts[role] = Number(roleCounts[role] || 0) + 1;
+    const key = String(fact?.key || "").trim();
+    if (key) roleByKey[key] = role;
+  });
+
+  const editable = facts.filter((fact) => !fact?.readonly && String(fact?.source || "") !== FACT_SOURCES.CALCULATED).length;
+  const calculated = facts.filter((fact) => String(fact?.source || "") === FACT_SOURCES.CALCULATED).length;
+  const invalid = facts.filter((fact) => String(fact?.status || "") === FACT_STATUSES.INVALID).length;
+
+  return {
+    moon_id: String(row.moon_id || ""),
+    label: String(row.label || row.moon_id || "Mesic"),
+    purpose: MOON_PURPOSE_TEXT,
+    functions: [...MOON_FUNCTIONS],
+    control_style: [...MOON_CONTROL_STYLE],
+    summary: {
+      total: facts.length,
+      editable,
+      calculated,
+      invalid,
+    },
+    role_counts: roleCounts,
+    role_by_key: roleByKey,
   };
 }

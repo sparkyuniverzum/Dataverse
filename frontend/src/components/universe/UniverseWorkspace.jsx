@@ -26,7 +26,15 @@ import {
 import { WORKSPACE_GUIDE } from "../../lib/onboarding";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import { buildHierarchyTree, normalizeEdgeSemanticType } from "../../lib/universe_viewmodel";
-import { toMoonRowContract } from "../../lib/universe_contract";
+import {
+  MINERAL_ROLES,
+  MOON_CONTROL_STYLE,
+  MOON_FUNCTIONS,
+  MOON_PURPOSE_TEXT,
+  buildMoonCharacterization,
+  classifyMineralRole,
+  toMoonRowContract,
+} from "../../lib/universe_contract";
 import {
   DEFAULT_NODE_PHYSICS,
   deriveAsteroidBondDensityMap,
@@ -480,6 +488,17 @@ const CONTROL_PLAYBOOK = [
   },
 ];
 
+const MINERAL_ROLE_GUIDE = [
+  { role: MINERAL_ROLES.PRIMARY, label: "PRIMARY", meaning: "Nazev radku (key 'value'), hlavni identita mesice." },
+  { role: MINERAL_ROLES.ATTRIBUTE, label: "ATTR", meaning: "Bezny popisny nerost (text / metadata)." },
+  { role: MINERAL_ROLES.METRIC, label: "METRIC", meaning: "Ciselna hodnota (KPI, mnozstvi, cena, score)." },
+  { role: MINERAL_ROLES.FLAG, label: "FLAG", meaning: "Boolean signal (ano/ne), stavovy prepinac." },
+  { role: MINERAL_ROLES.TEMPORAL, label: "TIME", meaning: "Casova data (datum, deadline, cas)." },
+  { role: MINERAL_ROLES.STRUCTURED, label: "JSON", meaning: "Strukturovane pole (objekt/pole)." },
+  { role: MINERAL_ROLES.CALCULATED, label: "CALC", meaning: "Read-only vystup vzorce z Calc Engine." },
+  { role: MINERAL_ROLES.INVALID, label: "ERR", meaning: "Neplatny nebo rozbity nerost (nutny zasah)." },
+];
+
 function formatBondTypeLabel(rawType) {
   const normalized = normalizeBondType(rawType);
   if (normalized === "RELATION") return "Vztah";
@@ -526,6 +545,153 @@ function inferMineralGlyph(key, value) {
   if (Number.isFinite(numericValue) || /^[+-]?\d+([.,]\d+)?$/.test(valueText)) return "NUM";
   if (valueText.includes("true") || valueText.includes("false")) return "BIN";
   return "TXT";
+}
+
+function formatMineralRoleLabel(role) {
+  const normalized = String(role || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === MINERAL_ROLES.PRIMARY) return "PRIMARY";
+  if (normalized === MINERAL_ROLES.ATTRIBUTE) return "ATTR";
+  if (normalized === MINERAL_ROLES.METRIC) return "METRIC";
+  if (normalized === MINERAL_ROLES.FLAG) return "FLAG";
+  if (normalized === MINERAL_ROLES.TEMPORAL) return "TIME";
+  if (normalized === MINERAL_ROLES.STRUCTURED) return "JSON";
+  if (normalized === MINERAL_ROLES.CALCULATED) return "CALC";
+  if (normalized === MINERAL_ROLES.INVALID) return "ERR";
+  return "ATTR";
+}
+
+function inferMineralRoleFromFieldType(expectedRaw) {
+  const expected = String(expectedRaw || "")
+    .trim()
+    .toLowerCase();
+  if (!expected) return MINERAL_ROLES.ATTRIBUTE;
+  if (["number", "int", "integer", "float", "double", "decimal"].includes(expected)) return MINERAL_ROLES.METRIC;
+  if (["bool", "boolean"].includes(expected)) return MINERAL_ROLES.FLAG;
+  if (["datetime", "date", "time", "timestamp"].includes(expected)) return MINERAL_ROLES.TEMPORAL;
+  if (["json", "array", "list", "object", "dict", "map"].includes(expected)) return MINERAL_ROLES.STRUCTURED;
+  return MINERAL_ROLES.ATTRIBUTE;
+}
+
+const MINERAL_ROLE_ALIASES = Object.freeze({
+  primary: MINERAL_ROLES.PRIMARY,
+  id: MINERAL_ROLES.PRIMARY,
+  name: MINERAL_ROLES.PRIMARY,
+  label: MINERAL_ROLES.PRIMARY,
+  attr: MINERAL_ROLES.ATTRIBUTE,
+  attribute: MINERAL_ROLES.ATTRIBUTE,
+  text: MINERAL_ROLES.ATTRIBUTE,
+  metric: MINERAL_ROLES.METRIC,
+  number: MINERAL_ROLES.METRIC,
+  numeric: MINERAL_ROLES.METRIC,
+  kpi: MINERAL_ROLES.METRIC,
+  flag: MINERAL_ROLES.FLAG,
+  bool: MINERAL_ROLES.FLAG,
+  boolean: MINERAL_ROLES.FLAG,
+  temporal: MINERAL_ROLES.TEMPORAL,
+  time: MINERAL_ROLES.TEMPORAL,
+  datetime: MINERAL_ROLES.TEMPORAL,
+  date: MINERAL_ROLES.TEMPORAL,
+  structured: MINERAL_ROLES.STRUCTURED,
+  json: MINERAL_ROLES.STRUCTURED,
+  object: MINERAL_ROLES.STRUCTURED,
+  calc: MINERAL_ROLES.CALCULATED,
+  calculated: MINERAL_ROLES.CALCULATED,
+  formula: MINERAL_ROLES.CALCULATED,
+  invalid: MINERAL_ROLES.INVALID,
+  error: MINERAL_ROLES.INVALID,
+  err: MINERAL_ROLES.INVALID,
+});
+
+function normalizeMineralRoleToken(rawRole) {
+  const normalized = String(rawRole || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return "";
+  return MINERAL_ROLE_ALIASES[normalized] || "";
+}
+
+function resolveContractMineralRole(rawValue) {
+  if (typeof rawValue === "string") return normalizeMineralRoleToken(rawValue);
+  if (!rawValue || typeof rawValue !== "object" || Array.isArray(rawValue)) return "";
+  const candidate =
+    rawValue.role ??
+    rawValue.mineral_role ??
+    rawValue.field_role ??
+    rawValue.ui_role ??
+    rawValue.type ??
+    "";
+  return normalizeMineralRoleToken(candidate);
+}
+
+function mergeContractRoleMap(target, rawMap) {
+  if (!rawMap || typeof rawMap !== "object" || Array.isArray(rawMap)) return;
+  Object.entries(rawMap).forEach(([rawKey, rawValue]) => {
+    const key = String(rawKey || "").trim();
+    if (!key || RESERVED_METADATA_KEYS.has(key)) return;
+    const role = resolveContractMineralRole(rawValue);
+    if (!role) return;
+    target[key] = role;
+  });
+}
+
+function readContractMineralRoles(contract) {
+  const base = contract && typeof contract === "object" ? contract : {};
+  const schema = base.schema_registry && typeof base.schema_registry === "object" ? base.schema_registry : {};
+  const schemaUi = schema.ui && typeof schema.ui === "object" ? schema.ui : {};
+  const physics = base.physics_rulebook && typeof base.physics_rulebook === "object" ? base.physics_rulebook : {};
+  const physicsDefaults = physics.defaults && typeof physics.defaults === "object" ? physics.defaults : {};
+
+  const result = {};
+  mergeContractRoleMap(result, base.field_roles);
+  mergeContractRoleMap(result, base.mineral_roles);
+  mergeContractRoleMap(result, schema.field_roles);
+  mergeContractRoleMap(result, schema.mineral_roles);
+  mergeContractRoleMap(result, schemaUi.field_roles);
+  mergeContractRoleMap(result, schemaUi.mineral_roles);
+  mergeContractRoleMap(result, physicsDefaults.field_roles);
+  mergeContractRoleMap(result, physicsDefaults.mineral_roles);
+  return result;
+}
+
+const MINERAL_ROLE_PRIORITY = Object.freeze({
+  [MINERAL_ROLES.INVALID]: 9,
+  [MINERAL_ROLES.CALCULATED]: 8,
+  [MINERAL_ROLES.PRIMARY]: 7,
+  [MINERAL_ROLES.METRIC]: 6,
+  [MINERAL_ROLES.TEMPORAL]: 5,
+  [MINERAL_ROLES.FLAG]: 4,
+  [MINERAL_ROLES.STRUCTURED]: 3,
+  [MINERAL_ROLES.ATTRIBUTE]: 2,
+});
+
+function mineralRoleTone(role) {
+  const normalized = String(role || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === MINERAL_ROLES.PRIMARY) {
+    return { accent: "#8fe7ff", chipBg: "rgba(50, 137, 169, 0.24)", cellBg: "rgba(21, 53, 74, 0.26)" };
+  }
+  if (normalized === MINERAL_ROLES.METRIC) {
+    return { accent: "#ffd08f", chipBg: "rgba(150, 101, 38, 0.26)", cellBg: "rgba(64, 41, 19, 0.22)" };
+  }
+  if (normalized === MINERAL_ROLES.FLAG) {
+    return { accent: "#9af7cb", chipBg: "rgba(39, 121, 92, 0.24)", cellBg: "rgba(20, 52, 42, 0.2)" };
+  }
+  if (normalized === MINERAL_ROLES.TEMPORAL) {
+    return { accent: "#9dd7ff", chipBg: "rgba(53, 103, 153, 0.24)", cellBg: "rgba(21, 42, 63, 0.22)" };
+  }
+  if (normalized === MINERAL_ROLES.STRUCTURED) {
+    return { accent: "#7ce6dd", chipBg: "rgba(25, 116, 111, 0.24)", cellBg: "rgba(17, 50, 48, 0.2)" };
+  }
+  if (normalized === MINERAL_ROLES.CALCULATED) {
+    return { accent: "#c7d3df", chipBg: "rgba(98, 114, 129, 0.28)", cellBg: "rgba(34, 42, 52, 0.26)" };
+  }
+  if (normalized === MINERAL_ROLES.INVALID) {
+    return { accent: "#ffb2c5", chipBg: "rgba(149, 48, 81, 0.3)", cellBg: "rgba(67, 20, 36, 0.3)" };
+  }
+  return { accent: "#b9d7e6", chipBg: "rgba(66, 106, 124, 0.22)", cellBg: "rgba(19, 37, 49, 0.18)" };
 }
 
 function semanticEffectTone(rawSeverity) {
@@ -1791,6 +1957,11 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
     }
     return toMoonRowContract(selectedAsteroid).facts;
   }, [selectedAsteroid, selectedMoonContract]);
+  const selectedMoonCharacterization = useMemo(() => {
+    if (!selectedAsteroid) return null;
+    const row = selectedMoonContract || toMoonRowContract(selectedAsteroid);
+    return buildMoonCharacterization(row);
+  }, [selectedAsteroid, selectedMoonContract]);
   const selectedEditableFacts = useMemo(
     () =>
       selectedAsteroidFacts.filter((fact) => {
@@ -2985,6 +3156,86 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
       ])
     );
   }, [gridContractBase]);
+  const contractMineralRolesByColumn = useMemo(
+    () => readContractMineralRoles(gridContractBase),
+    [gridContractBase]
+  );
+  const gridRoleByColumn = useMemo(() => {
+    const roleCountsByColumn = new Map();
+    gridDisplayColumns.forEach((column) => {
+      roleCountsByColumn.set(String(column), new Map());
+    });
+
+    tableRows.forEach((row) => {
+      const rowId = String(row?.id || "");
+      if (!rowId) return;
+      const factIndex = rowFactIndexByRowId.get(rowId) || null;
+      gridDisplayColumns.forEach((column) => {
+        const col = String(column || "");
+        if (!col) return;
+        let role = "";
+        if (col === "value") {
+          role = MINERAL_ROLES.PRIMARY;
+        } else if (gridCalculatedColumnSet.has(col)) {
+          role = MINERAL_ROLES.CALCULATED;
+        } else if (factIndex?.has(col)) {
+          role = classifyMineralRole(factIndex.get(col));
+        }
+        if (!role) return;
+        const bucket = roleCountsByColumn.get(col);
+        if (!bucket) return;
+        bucket.set(role, Number(bucket.get(role) || 0) + 1);
+      });
+    });
+
+    const result = {};
+    gridDisplayColumns.forEach((column) => {
+      const col = String(column || "");
+      if (!col) return;
+      if (col === "value") {
+        result[col] = MINERAL_ROLES.PRIMARY;
+        return;
+      }
+      if (gridCalculatedColumnSet.has(col)) {
+        result[col] = MINERAL_ROLES.CALCULATED;
+        return;
+      }
+      const explicitRole = contractMineralRolesByColumn[col];
+      if (explicitRole) {
+        result[col] = explicitRole;
+        return;
+      }
+      const bucket = roleCountsByColumn.get(col) || new Map();
+      let bestRole = "";
+      let bestCount = -1;
+      bucket.forEach((count, role) => {
+        const numericCount = Number(count || 0);
+        const currentPriority = Number(MINERAL_ROLE_PRIORITY[role] || 0);
+        const bestPriority = Number(MINERAL_ROLE_PRIORITY[bestRole] || 0);
+        if (numericCount > bestCount || (numericCount === bestCount && currentPriority > bestPriority)) {
+          bestCount = numericCount;
+          bestRole = role;
+        }
+      });
+      result[col] = bestRole || inferMineralRoleFromFieldType(gridFieldTypes[col]) || MINERAL_ROLES.ATTRIBUTE;
+    });
+    return result;
+  }, [contractMineralRolesByColumn, gridCalculatedColumnSet, gridDisplayColumns, gridFieldTypes, rowFactIndexByRowId, tableRows]);
+  const resolveGridCellRole = useCallback(
+    (rowIdRaw, columnRaw, isCalculated = false) => {
+      const rowId = String(rowIdRaw || "").trim();
+      const column = String(columnRaw || "").trim();
+      if (!column) return MINERAL_ROLES.ATTRIBUTE;
+      if (column === "value") return MINERAL_ROLES.PRIMARY;
+      if (isCalculated) return MINERAL_ROLES.CALCULATED;
+      const fact = rowFactIndexByRowId.get(rowId)?.get(column);
+      if (String(fact?.status || "").trim().toLowerCase() === "invalid") return MINERAL_ROLES.INVALID;
+      if (contractMineralRolesByColumn[column]) return contractMineralRolesByColumn[column];
+      if (fact) return classifyMineralRole(fact);
+      return gridRoleByColumn[column] || inferMineralRoleFromFieldType(gridFieldTypes[column]) || MINERAL_ROLES.ATTRIBUTE;
+    },
+    [contractMineralRolesByColumn, gridFieldTypes, gridRoleByColumn, rowFactIndexByRowId]
+  );
   const gridValidation = useMemo(() => {
     const errorsByCell = {};
     const issues = [];
@@ -5218,6 +5469,46 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 ) : null}
               </div>
 
+              {selectedMoonCharacterization ? (
+                <div
+                  style={{
+                    border: "1px solid rgba(97, 185, 218, 0.24)",
+                    borderRadius: 8,
+                    background: "rgba(8, 19, 34, 0.58)",
+                    padding: "6px 7px",
+                    display: "grid",
+                    gap: 5,
+                  }}
+                >
+                  <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72, letterSpacing: "var(--dv-tr-wide)" }}>UCEL MESICE</div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>{selectedMoonCharacterization.purpose}</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>
+                      Fakty {selectedMoonCharacterization.summary.total}
+                    </span>
+                    <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>
+                      Edit {selectedMoonCharacterization.summary.editable}
+                    </span>
+                    <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>
+                      Calc {selectedMoonCharacterization.summary.calculated}
+                    </span>
+                    <span
+                      style={{
+                        ...hudBadgeStyle,
+                        fontSize: "var(--dv-fs-2xs)",
+                        borderColor:
+                          selectedMoonCharacterization.summary.invalid > 0
+                            ? "rgba(255, 142, 169, 0.56)"
+                            : hudBadgeStyle.borderColor,
+                        color: selectedMoonCharacterization.summary.invalid > 0 ? "#ffcad8" : hudBadgeStyle.color,
+                      }}
+                    >
+                      Chyby {selectedMoonCharacterization.summary.invalid}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
               <label style={{ display: "grid", gap: 4 }}>
                 <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.66, letterSpacing: "var(--dv-tr-wide)" }}>MESIC (NAZEV RADKU)</span>
                 <input
@@ -5240,10 +5531,16 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                 {inspectorVisibleFacts.map((fact) => {
                   const key = String(fact?.key || "");
                   const typedValue = fact?.typed_value;
+                  const role =
+                    (String(fact?.status || "").trim().toLowerCase() === "invalid"
+                      ? MINERAL_ROLES.INVALID
+                      : contractMineralRolesByColumn[key]) ||
+                    selectedMoonCharacterization?.role_by_key?.[key] ||
+                    MINERAL_ROLES.ATTRIBUTE;
                   return (
                     <label key={`inspector:${selectedAsteroid.id}:${key}`} style={{ display: "grid", gap: 4 }}>
                       <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>
-                        {inferMineralGlyph(key, typedValue)} · {key}
+                        {inferMineralGlyph(key, typedValue)} · {formatMineralRoleLabel(role)} · {key}
                       </span>
                       <input
                         key={`inspector:value:${selectedAsteroid.id}:${key}:${valueToLabel(typedValue)}`}
@@ -5683,6 +5980,31 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
             </button>
           </div>
 
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>Role nerostu:</span>
+            <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>
+              schema role: {Object.keys(contractMineralRolesByColumn).length}
+            </span>
+            {MINERAL_ROLE_GUIDE.slice(0, 6).map((item) => {
+              const tone = mineralRoleTone(item.role);
+              return (
+                <span
+                  key={`quick-grid-role:${item.role}`}
+                  style={{
+                    fontSize: "var(--dv-fs-2xs)",
+                    border: `1px solid ${tone.accent}66`,
+                    background: tone.chipBg,
+                    color: tone.accent,
+                    borderRadius: 999,
+                    padding: "1px 6px",
+                  }}
+                >
+                  {item.label}
+                </span>
+              );
+            })}
+          </div>
+
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" }}>
             <input
               value={gridNewRowLabel}
@@ -5847,28 +6169,49 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                     stav
                   </th>
                   {gridDisplayColumns.map((column) => (
-                    <th
-                      key={column}
-                      style={{
-                        position: "sticky",
-                        top: 0,
-                        left: column === "value" ? 112 : undefined,
-                        zIndex: column === "value" ? 5 : 4,
-                        background: "rgba(8, 18, 32, 0.98)",
-                        color: "#cbeef8",
-                        borderBottom: "1px solid rgba(95, 177, 207, 0.32)",
-                        padding: "7px 8px",
-                        textAlign: "left",
-                        fontSize: "var(--dv-fs-2xs)",
-                        letterSpacing: "var(--dv-tr-medium)",
-                        minWidth: column === "value" ? 220 : 160,
-                      }}
-                    >
-                      {column === "value" ? "mesic" : column}
-                      {gridCalculatedColumnSet.has(column) ? (
-                        <span style={{ marginLeft: 6, opacity: 0.76, color: "#9ccbe0" }}>ƒ</span>
-                      ) : null}
-                    </th>
+                    (() => {
+                      const columnRole = gridRoleByColumn[column] || (column === "value" ? MINERAL_ROLES.PRIMARY : MINERAL_ROLES.ATTRIBUTE);
+                      const roleTone = mineralRoleTone(columnRole);
+                      return (
+                        <th
+                          key={column}
+                          style={{
+                            position: "sticky",
+                            top: 0,
+                            left: column === "value" ? 112 : undefined,
+                            zIndex: column === "value" ? 5 : 4,
+                            background: "rgba(8, 18, 32, 0.98)",
+                            color: "#cbeef8",
+                            borderBottom: "1px solid rgba(95, 177, 207, 0.32)",
+                            padding: "7px 8px",
+                            textAlign: "left",
+                            fontSize: "var(--dv-fs-2xs)",
+                            letterSpacing: "var(--dv-tr-medium)",
+                            minWidth: column === "value" ? 220 : 160,
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            <span>{column === "value" ? "mesic" : column}</span>
+                            {gridCalculatedColumnSet.has(column) ? (
+                              <span style={{ opacity: 0.76, color: "#9ccbe0" }}>ƒ</span>
+                            ) : null}
+                            <span
+                              style={{
+                                fontSize: "var(--dv-fs-2xs)",
+                                border: `1px solid ${roleTone.accent}66`,
+                                background: roleTone.chipBg,
+                                color: roleTone.accent,
+                                borderRadius: 999,
+                                padding: "1px 6px",
+                                letterSpacing: "var(--dv-tr-medium)",
+                              }}
+                            >
+                              {formatMineralRoleLabel(columnRole)}
+                            </span>
+                          </div>
+                        </th>
+                      );
+                    })()
                   ))}
                 </tr>
               </thead>
@@ -5927,14 +6270,20 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                         const isCalculated = gridCalculatedColumnSet.has(column);
                         const baseline = isCalculated ? getCalculatedBaselineValue(row, column) : getRowBaselineValue(row, column);
                         const cellValue = isCalculated ? baseline : getCellDraft(row.id, column, baseline);
+                        const cellRole = resolveGridCellRole(row.id, column, isCalculated);
+                        const roleTone = mineralRoleTone(cellRole);
+                        const roleLabel = formatMineralRoleLabel(cellRole);
                         const isEditing = gridEditingCell === cellId && !isCalculated && !rowPendingExtinguish;
                         const isSaving = Boolean(gridSavingCells[cellId]);
                         const isStaged = Boolean(gridChangeSet[cellId]);
                         const isInvalid = Boolean(gridValidation.errorsByCell[cellId]);
+                        const cellTitle = gridValidation.errorsByCell[cellId]
+                          ? `${gridValidation.errorsByCell[cellId]}\nRole: ${roleLabel}`
+                          : `Role: ${roleLabel}`;
                         return (
                           <td
                             key={`${row.id}:${column}`}
-                            title={gridValidation.errorsByCell[cellId] || ""}
+                            title={cellTitle}
                             style={{
                               position: column === "value" ? "sticky" : "relative",
                               left: column === "value" ? 112 : undefined,
@@ -5948,14 +6297,14 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                                 : isCalculated
                                   ? column === "value"
                                     ? "rgba(8, 20, 34, 0.95)"
-                                    : "rgba(19, 30, 44, 0.5)"
+                                    : roleTone.cellBg
                                   : isInvalid
                                     ? "rgba(54, 131, 176, 0.26)"
                                     : isStaged
                                       ? "rgba(64, 161, 198, 0.16)"
                                       : column === "value"
                                         ? "rgba(7, 18, 30, 0.95)"
-                                        : "transparent",
+                                        : roleTone.cellBg,
                             }}
                           >
                             {isEditing ? (
@@ -6018,6 +6367,17 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                                   gap: 6,
                                 }}
                               >
+                                <span
+                                  aria-hidden
+                                  style={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: "50%",
+                                    background: roleTone.accent,
+                                    opacity: 0.9,
+                                    flex: "0 0 auto",
+                                  }}
+                                />
                                 {isCalculated ? <span style={{ opacity: 0.72 }}>ƒ</span> : null}
                                 <span>{cellValue || "—"}</span>
                                 {isSaving ? <span style={{ opacity: 0.7, fontSize: "var(--dv-fs-2xs)" }}>sync...</span> : null}
@@ -6222,6 +6582,41 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                       <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>{item.meaning}</div>
                     </div>
                   ))}
+                </div>
+              </details>
+
+              <details>
+                <summary style={{ cursor: "pointer", fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>Mesic a Nerosty (jadro)</summary>
+                <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
+                  <div style={{ border: "1px solid rgba(99, 189, 220, 0.2)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.52)" }}>
+                    <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                      <strong>Ucel:</strong> {MOON_PURPOSE_TEXT}
+                    </div>
+                  </div>
+                  <div style={{ border: "1px solid rgba(99, 189, 220, 0.2)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.5)", display: "grid", gap: 4 }}>
+                    <div style={{ fontSize: "var(--dv-fs-xs)", fontWeight: 700 }}>Funkce Mesice</div>
+                    {MOON_FUNCTIONS.map((line) => (
+                      <div key={`moon:function:${line}`} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ border: "1px solid rgba(99, 189, 220, 0.2)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.5)", display: "grid", gap: 4 }}>
+                    <div style={{ fontSize: "var(--dv-fs-xs)", fontWeight: 700 }}>Styl ovladani</div>
+                    {MOON_CONTROL_STYLE.map((line) => (
+                      <div key={`moon:control:${line}`} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ border: "1px solid rgba(99, 189, 220, 0.2)", borderRadius: 8, padding: "6px 7px", background: "rgba(5, 15, 27, 0.5)", display: "grid", gap: 4 }}>
+                    <div style={{ fontSize: "var(--dv-fs-xs)", fontWeight: 700 }}>Typy Nerostu</div>
+                    {MINERAL_ROLE_GUIDE.map((item) => (
+                      <div key={`moon:role:${item.role}`} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                        <strong>{item.label}</strong> - {item.meaning}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </details>
 
@@ -7402,6 +7797,30 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
         <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.74, marginBottom: 8 }}>
           Grid neresi Souhvezdi; to upravis v panelu Profil Souhvezdi.
         </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>Role:</span>
+          <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-2xs)" }}>
+            schema role: {Object.keys(contractMineralRolesByColumn).length}
+          </span>
+          {MINERAL_ROLE_GUIDE.slice(0, 5).map((item) => {
+            const tone = mineralRoleTone(item.role);
+            return (
+              <span
+                key={`panel-grid-role:${item.role}`}
+                style={{
+                  fontSize: "var(--dv-fs-2xs)",
+                  border: `1px solid ${tone.accent}66`,
+                  background: tone.chipBg,
+                  color: tone.accent,
+                  borderRadius: 999,
+                  padding: "1px 6px",
+                }}
+              >
+                {item.label}
+              </span>
+            );
+          })}
+        </div>
         <div
           style={{
             display: "grid",
@@ -7425,7 +7844,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.85, letterSpacing: "var(--dv-tr-medium)" }}>
-                Semantika sloupcu: vyber, zda bunka upravuje hodnotu nebo vytvari vazbu.
+                Semantika sloupcu: vyber, zda bunka upravuje hodnotu nebo vytvari vazbu. Role nerostu se berou primarne ze schema_registry.
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 <button
@@ -7679,22 +8098,43 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                   stav
                 </th>
                 {gridColumns.map((column) => (
-                  <th
-                    key={column}
-                    style={{
-                      position: "sticky",
-                      top: 0,
-                      background: "rgba(8, 18, 32, 0.58)",
-                      color: "#cbeef8",
-                      borderBottom: "1px solid rgba(95, 177, 207, 0.28)",
-                      padding: "6px 8px",
-                      textAlign: "left",
-                      fontSize: "var(--dv-fs-2xs)",
-                      letterSpacing: "var(--dv-tr-medium)",
-                    }}
-                  >
-                    {column === "value" ? "mesic" : column}
-                  </th>
+                  (() => {
+                    const columnRole = gridRoleByColumn[column] || (column === "value" ? MINERAL_ROLES.PRIMARY : MINERAL_ROLES.ATTRIBUTE);
+                    const roleTone = mineralRoleTone(columnRole);
+                    return (
+                      <th
+                        key={column}
+                        style={{
+                          position: "sticky",
+                          top: 0,
+                          background: "rgba(8, 18, 32, 0.58)",
+                          color: "#cbeef8",
+                          borderBottom: "1px solid rgba(95, 177, 207, 0.28)",
+                          padding: "6px 8px",
+                          textAlign: "left",
+                          fontSize: "var(--dv-fs-2xs)",
+                          letterSpacing: "var(--dv-tr-medium)",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <span>{column === "value" ? "mesic" : column}</span>
+                          <span
+                            style={{
+                              fontSize: "var(--dv-fs-2xs)",
+                              border: `1px solid ${roleTone.accent}66`,
+                              background: roleTone.chipBg,
+                              color: roleTone.accent,
+                              borderRadius: 999,
+                              padding: "1px 6px",
+                              letterSpacing: "var(--dv-tr-medium)",
+                            }}
+                          >
+                            {formatMineralRoleLabel(columnRole)}
+                          </span>
+                        </div>
+                      </th>
+                    );
+                  })()
                 ))}
               </tr>
             </thead>
@@ -7739,15 +8179,23 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                   </td>
                   {gridColumns.map((column) => {
                     const cellId = `${row.id}::${column}`;
-                    const isEditing = gridEditingCell === cellId;
+                    const isCalculated = gridCalculatedColumnSet.has(column);
+                    const isEditing = gridEditingCell === cellId && !isCalculated;
                     const isStaged = Boolean(gridChangeSet[cellId]);
                     const isInvalid = Boolean(gridValidation.errorsByCell[cellId]);
-                    const baseline = getRowBaselineValue(row, column);
+                    const cellRole = resolveGridCellRole(row.id, column, isCalculated);
+                    const roleTone = mineralRoleTone(cellRole);
+                    const roleLabel = formatMineralRoleLabel(cellRole);
+                    const baseline = isCalculated ? getCalculatedBaselineValue(row, column) : getRowBaselineValue(row, column);
                     const currentValue = getCellDraft(row.id, column, baseline);
                     return (
                       <td
                         key={`${row.id}:${column}`}
-                        title={gridValidation.errorsByCell[cellId] || ""}
+                        title={
+                          gridValidation.errorsByCell[cellId]
+                            ? `${gridValidation.errorsByCell[cellId]}\nRole: ${roleLabel}`
+                            : `Role: ${roleLabel}`
+                        }
                         style={{
                           borderBottom: "1px solid rgba(95, 177, 207, 0.14)",
                           padding: "4px 7px",
@@ -7757,7 +8205,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                               ? "rgba(54, 131, 176, 0.26)"
                               : isStaged
                                 ? "rgba(64, 161, 198, 0.16)"
-                                : "transparent",
+                                : roleTone.cellBg,
                         }}
                       >
                         {isEditing && !rowPendingExtinguish ? (
@@ -7793,7 +8241,7 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                               if (historicalMode) return;
                               stageGridCellChange(row.id, column, baseline, nextValue);
                             }}
-                            disabled={historicalMode || rowPendingExtinguish}
+                            disabled={historicalMode || rowPendingExtinguish || isCalculated}
                             style={{
                               width: "100%",
                               border: isInvalid ? "1px solid rgba(120, 206, 247, 0.7)" : "1px solid rgba(106, 192, 223, 0.35)",
@@ -7811,24 +8259,39 @@ export default function UniverseWorkspace({ galaxy, onCreateGalaxy, onBackToGala
                           <button
                             type="button"
                             onClick={() => {
-                              if (historicalMode || rowPendingExtinguish) return;
+                              if (historicalMode || rowPendingExtinguish || isCalculated) return;
                               focusGridRow(row.id);
                               setGridEditingCell(cellId);
                             }}
                             style={{
                               border: "none",
                               background: "transparent",
-                              color: rowPendingExtinguish ? "rgba(223, 248, 255, 0.58)" : "#dff8ff",
+                              color: rowPendingExtinguish ? "rgba(223, 248, 255, 0.58)" : isCalculated ? "#b7c9d8" : "#dff8ff",
                               width: "100%",
                               textAlign: "left",
                               fontSize: "var(--dv-fs-sm)",
                               padding: "3px 2px",
-                              cursor: historicalMode || rowPendingExtinguish ? "default" : "text",
+                              cursor: historicalMode || rowPendingExtinguish || isCalculated ? "default" : "text",
                               textDecoration: rowPendingExtinguish ? "line-through" : "none",
                               opacity: rowPendingExtinguish ? 0.72 : 1,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
                             }}
                           >
-                            {currentValue || "—"}
+                            <span
+                              aria-hidden
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: "50%",
+                                background: roleTone.accent,
+                                opacity: 0.9,
+                                flex: "0 0 auto",
+                              }}
+                            />
+                            {isCalculated ? <span style={{ opacity: 0.72 }}>ƒ</span> : null}
+                            <span>{currentValue || "—"}</span>
                           </button>
                         )}
                       </td>

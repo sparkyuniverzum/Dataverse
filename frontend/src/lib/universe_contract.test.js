@@ -4,7 +4,10 @@ import {
   FACT_SOURCES,
   FACT_STATUSES,
   FACT_VALUE_TYPES,
+  MINERAL_ROLES,
+  buildMoonCharacterization,
   buildMoonFacts,
+  classifyMineralRole,
   inferFactValueType,
   toMoonRowContract,
 } from "./universe_contract";
@@ -76,5 +79,47 @@ describe("universe_contract", () => {
     expect(row.facts).toHaveLength(2);
     expect(row.facts[0].typed_value).toBe("Canonical label");
     expect(row.facts[1].key).toBe("rozpocet");
+  });
+
+  it("classifies mineral role by source, type and key semantics", () => {
+    expect(classifyMineralRole({ key: "value", source: "value", value_type: "string", status: "valid" })).toBe(
+      MINERAL_ROLES.PRIMARY
+    );
+    expect(classifyMineralRole({ key: "cena", source: "metadata", value_type: "number", status: "valid" })).toBe(
+      MINERAL_ROLES.METRIC
+    );
+    expect(classifyMineralRole({ key: "active", source: "metadata", value_type: "boolean", status: "valid" })).toBe(
+      MINERAL_ROLES.FLAG
+    );
+    expect(classifyMineralRole({ key: "due_date", source: "metadata", value_type: "string", status: "valid" })).toBe(
+      MINERAL_ROLES.TEMPORAL
+    );
+    expect(classifyMineralRole({ key: "celkem", source: "calculated", value_type: "number", status: "valid" })).toBe(
+      MINERAL_ROLES.CALCULATED
+    );
+    expect(classifyMineralRole({ key: "bad", source: "calculated", value_type: "string", status: "invalid" })).toBe(
+      MINERAL_ROLES.INVALID
+    );
+  });
+
+  it("builds moon characterization summary for UI", () => {
+    const row = toMoonRowContract({
+      id: "m-3",
+      value: "Polozka",
+      table_id: "p-1",
+      constellation_name: "Sklad",
+      planet_name: "Material",
+      metadata: { cena: 10, aktivni: true, due_date: "2026-03-10" },
+      calculated_values: { celkem: 100, bad: "#CIRC!" },
+    });
+    const profile = buildMoonCharacterization(row);
+
+    expect(profile.summary.total).toBeGreaterThanOrEqual(1);
+    expect(profile.summary.editable).toBeGreaterThanOrEqual(1);
+    expect(profile.summary.calculated).toBe(2);
+    expect(profile.summary.invalid).toBe(1);
+    expect(profile.role_counts[MINERAL_ROLES.PRIMARY]).toBe(1);
+    expect(profile.role_by_key.value).toBe(MINERAL_ROLES.PRIMARY);
+    expect(profile.role_by_key.cena).toBe(MINERAL_ROLES.METRIC);
   });
 });
