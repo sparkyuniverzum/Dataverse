@@ -5,10 +5,11 @@ def test_schema_preset_catalog_has_expected_core_set() -> None:
     presets = list_schema_presets()
     keys = [item.key for item in presets]
 
-    assert len(presets) == 10
+    assert len(presets) == 11
     assert len(set(keys)) == len(keys)
     assert "registry_core" in keys
     assert "transactions" in keys
+    assert "junction_links" in keys
     assert "metrics_timeseries" in keys
 
 

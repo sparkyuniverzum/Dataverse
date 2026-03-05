@@ -1,7 +1,7 @@
 # DataVerse API Contract v1
 
 Status: frozen from current implementation (`app/main.py`, `app/schemas.py`)  
-Date: 2026-02-28
+Date: 2026-02-28 (updated 2026-03-05 for planets + grid sync contract)
 
 ## Global rules
 - No hard delete endpoints exist. Data removal is soft only (`.../extinguish` or parser `DELETE` command).
@@ -77,6 +77,38 @@ Date: 2026-02-28
 - Auth required.
 - Query: `galaxy_id?: uuid`.
 - Response `200`: `BranchPublic` (`deleted_at` set).
+
+## Planets (table aggregate lifecycle)
+### `GET /planets`
+- Auth required.
+- Query: `galaxy_id?: uuid`, `branch_id?: uuid`.
+- Response `200`: `{ items: PlanetPublic[] }`.
+- `PlanetPublic` includes: `table_id`, `table_name`, `constellation_name`, `planet_name`, `archetype`, `contract_version`, `moons_count`, `schema_fields`, `formula_fields`, `internal_bonds_count`, `external_bonds_count`, `sector`, `is_empty`, optional `contract`.
+
+### `GET /planets/{table_id}`
+- Auth required.
+- Query: `galaxy_id?: uuid`, `branch_id?: uuid`.
+- Response `200`: `PlanetPublic`.
+- Errors: `404` planet not found in resolved scope.
+
+### `POST /planets`
+- Auth required.
+- Request:
+  - `{ "name": string(2..120), "archetype"?: "catalog"|"stream"|"junction", "visual_position"?: {x,y,z}, "initial_schema_mode"?: "empty"|"preset", "schema_preset_key"?: string, "seed_rows"?: bool, "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
+- Response `201`: `PlanetCreateResponse` with `contract` + `table`.
+- Rules:
+  - lifecycle writes are allowed only on main timeline (`branch_id=null`), otherwise `409`
+  - for `initial_schema_mode="preset"`, `schema_preset_key` is required
+  - appends `PLANET_CREATED` event and projects to read models in same transaction boundary (main timeline)
+
+### `PATCH /planets/{table_id}/extinguish`
+- Auth required.
+- Query: `galaxy_id?: uuid`, `branch_id?: uuid`, `idempotency_key?: string`.
+- Response `200`: `{ table_id, extinguished, deleted_contract_versions }`.
+- Rules:
+  - lifecycle writes are allowed only on main timeline (`branch_id=null`), otherwise `409`
+  - extinguish allowed only for empty planet (no members, no internal/external bonds), otherwise `409`
+  - soft-delete contract history only (no hard delete), appends `PLANET_EXTINGUISHED`
 
 ## Asteroids and bonds
 ### `POST /asteroids/ingest`
@@ -164,7 +196,27 @@ Date: 2026-02-28
 - Query: `galaxy_id?: uuid`, `as_of?: datetime`, `branch_id?: uuid`.
 - Response `200`: `{ tables: UniverseTableSnapshot[] }`.
 - Each table contains schema/formula summary, members, bonds, and sector projection.
+- `UniverseTableSnapshot` also includes `archetype?` and `contract_version?`.
 - Access errors: `403` foreign galaxy/branch, `404` galaxy or branch not found/deleted.
+
+## Galaxy event stream (SSE)
+### `GET /galaxies/{galaxy_id}/events/stream`
+- Auth required.
+- Query:
+  - `branch_id?: uuid`
+  - `last_event_seq?: int>=0`
+  - `poll_ms?: int` (`300..10000`, default `1200`)
+  - `heartbeat_sec?: int` (`5..60`, default `15`)
+  - `batch_size?: int` (`1..256`, default `64`)
+- Response: `text/event-stream`.
+- Event types:
+  - `ready`: initial cursor (`last_event_seq`)
+  - `update`: batch with `events[]` (`event_seq`, `event_type`, `entity_id`, `payload`, `timestamp`)
+  - `keepalive`: heartbeat with current cursor
+- Contract for FE:
+  - stream is convergence trigger, not direct renderer state source
+  - on `update`, FE refreshes projection sources (`/universe/snapshot` + `/universe/tables`)
+  - after reconnect, FE resumes by `last_event_seq` and performs full projection refresh on sequence uncertainty
 
 ## IO (CSV import/export, Phase 1)
 ### `POST /io/imports`

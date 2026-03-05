@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from "react";
+
 import { tableDisplayName } from "./workspaceFormatters";
 
 const inputStyle = {
@@ -55,10 +57,45 @@ export default function QuickGridOverlay({
   gridFilteredRows,
   gridSearchQuery,
   onGridSearchChange,
+  selectedAsteroidId,
+  onSelectRow,
+  onCreateRow,
+  onUpdateRow,
+  onDeleteRow,
+  onUpsertMetadata,
+  pendingCreate = false,
+  pendingRowOps = {},
+  busy = false,
   onClose,
   readGridCell,
 }) {
+  const [createValue, setCreateValue] = useState("");
+  const [editValue, setEditValue] = useState("");
+  const [metadataKey, setMetadataKey] = useState("");
+  const [metadataValue, setMetadataValue] = useState("");
+  const selectedRow = useMemo(
+    () => tableRows.find((row) => String(row.id) === String(selectedAsteroidId || "")) || null,
+    [selectedAsteroidId, tableRows]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    if (!selectedRow) {
+      setEditValue("");
+      setMetadataKey("");
+      setMetadataValue("");
+      return;
+    }
+    setEditValue(String(selectedRow?.value ?? ""));
+    const metadata = selectedRow?.metadata && typeof selectedRow.metadata === "object" ? selectedRow.metadata : {};
+    const firstMetadataKey = Object.keys(metadata)[0] || "";
+    setMetadataKey(String(firstMetadataKey));
+    setMetadataValue(firstMetadataKey ? String(metadata[firstMetadataKey] ?? "") : "");
+  }, [open, selectedRow]);
+
   if (!open) return null;
+
+  const pendingRowsCount = Object.keys(pendingRowOps || {}).length;
 
   return (
     <section
@@ -77,7 +114,7 @@ export default function QuickGridOverlay({
         boxShadow: "0 0 30px rgba(34, 136, 188, 0.24)",
         padding: 12,
         display: "grid",
-        gridTemplateRows: "auto auto 1fr",
+        gridTemplateRows: "auto auto auto auto auto 1fr",
         gap: 10,
       }}
     >
@@ -104,7 +141,7 @@ export default function QuickGridOverlay({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr auto",
+          gridTemplateColumns: "1fr auto auto",
           gap: 8,
           alignItems: "center",
           border: "1px solid rgba(96, 186, 220, 0.22)",
@@ -122,7 +159,132 @@ export default function QuickGridOverlay({
         <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
           sloupce {gridColumns.length}
         </span>
+        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
+          write {busy ? "..." : "ready"}
+        </span>
       </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
+          gap: 8,
+          alignItems: "center",
+          border: "1px solid rgba(96, 186, 220, 0.22)",
+          borderRadius: 10,
+          background: "rgba(6, 18, 30, 0.52)",
+          padding: "7px 8px",
+        }}
+      >
+        <input
+          value={createValue}
+          onChange={(event) => setCreateValue(event.target.value)}
+          placeholder="Nova hodnota mesice..."
+          style={inputStyle}
+          disabled={busy}
+        />
+        <button
+          type="button"
+          style={ghostButtonStyle}
+          disabled={busy || pendingCreate || !String(createValue || "").trim() || !selectedTable}
+          onClick={async () => {
+            const ok = await onCreateRow?.(createValue);
+            if (ok) {
+              setCreateValue("");
+            }
+          }}
+        >
+          {pendingCreate ? "Pridavam..." : "Pridat mesic"}
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr auto auto",
+          gap: 8,
+          alignItems: "center",
+          border: "1px solid rgba(96, 186, 220, 0.22)",
+          borderRadius: 10,
+          background: "rgba(6, 18, 30, 0.52)",
+          padding: "7px 8px",
+        }}
+      >
+        <input
+          value={editValue}
+          onChange={(event) => setEditValue(event.target.value)}
+          placeholder={selectedRow ? "Upravit hodnotu vybraneho mesice..." : "Vyber mesic v tabulce..."}
+          style={inputStyle}
+          disabled={busy || !selectedRow}
+        />
+        <button
+          type="button"
+          style={ghostButtonStyle}
+          disabled={busy || !selectedRow || editValue === String(selectedRow?.value ?? "")}
+          onClick={() => {
+            void onUpdateRow?.(selectedRow?.id, editValue);
+          }}
+        >
+          {selectedRow && pendingRowOps[String(selectedRow.id)] === "mutate" ? "Ukladam..." : "Ulozit"}
+        </button>
+        <button
+          type="button"
+          style={{ ...ghostButtonStyle, borderColor: "rgba(255, 152, 162, 0.45)", color: "#ffd6de" }}
+          disabled={busy || !selectedRow}
+          onClick={() => {
+            void onDeleteRow?.(selectedRow?.id);
+          }}
+        >
+          {selectedRow && pendingRowOps[String(selectedRow.id)] === "extinguish" ? "Zhasinam..." : "Zhasnout"}
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(160px, 0.9fr) minmax(200px, 1fr) auto",
+          gap: 8,
+          alignItems: "center",
+          border: "1px solid rgba(96, 186, 220, 0.22)",
+          borderRadius: 10,
+          background: "rgba(6, 18, 30, 0.52)",
+          padding: "7px 8px",
+        }}
+      >
+        <input
+          value={metadataKey}
+          onChange={(event) => setMetadataKey(event.target.value)}
+          placeholder="Nerost / sloupec"
+          style={inputStyle}
+          disabled={busy || !selectedRow}
+        />
+        <input
+          value={metadataValue}
+          onChange={(event) => setMetadataValue(event.target.value)}
+          placeholder={selectedRow ? "Hodnota (prázdné = odebrat)" : "Vyber mesic v tabulce..."}
+          style={inputStyle}
+          disabled={busy || !selectedRow}
+        />
+        <button
+          type="button"
+          style={ghostButtonStyle}
+          disabled={busy || !selectedRow || !String(metadataKey || "").trim()}
+          onClick={async () => {
+            const ok = await onUpsertMetadata?.(selectedRow?.id, metadataKey, metadataValue);
+            if (ok && !String(metadataValue || "").trim()) {
+              setMetadataValue("");
+            }
+          }}
+        >
+          {selectedRow && pendingRowOps[String(selectedRow.id)] === "metadata" ? "Ukladam..." : "Ulozit nerost"}
+        </button>
+      </div>
+
+      {pendingRowsCount ? (
+        <div style={{ ...hudBadgeStyle, width: "fit-content", fontSize: "var(--dv-fs-xs)" }}>
+          pending radky {pendingRowsCount}
+        </div>
+      ) : null}
 
       <div
         style={{
@@ -160,28 +322,41 @@ export default function QuickGridOverlay({
             </tr>
           </thead>
           <tbody>
-            {gridFilteredRows.map((row) => (
-              <tr key={String(row.id)}>
-                {gridColumns.map((column, index) => (
-                  <td
-                    key={`${row.id}:${column}`}
-                    style={{
-                      position: index === 0 ? "sticky" : "relative",
-                      left: index === 0 ? 0 : undefined,
-                      zIndex: index === 0 ? 1 : 0,
-                      borderBottom: "1px solid rgba(95, 177, 207, 0.14)",
-                      background: index === 0 ? "rgba(7, 18, 30, 0.95)" : "rgba(7, 18, 30, 0.72)",
-                      color: "#dff8ff",
-                      padding: "6px 8px",
-                      fontSize: "var(--dv-fs-sm)",
-                      lineHeight: "var(--dv-lh-base)",
-                    }}
-                  >
-                    {readGridCell(row, column) || "—"}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {gridFilteredRows.map((row) => {
+              const rowPendingOp = pendingRowOps[String(row.id)] || null;
+              return (
+                <tr
+                  key={String(row.id)}
+                  onClick={() => onSelectRow?.(String(row.id))}
+                  style={{ cursor: "pointer" }}
+                >
+                  {gridColumns.map((column, index) => (
+                    <td
+                      key={`${row.id}:${column}`}
+                      style={{
+                        position: index === 0 ? "sticky" : "relative",
+                        left: index === 0 ? 0 : undefined,
+                        zIndex: index === 0 ? 1 : 0,
+                        borderBottom: "1px solid rgba(95, 177, 207, 0.14)",
+                        background:
+                          String(selectedAsteroidId || "") === String(row.id)
+                            ? "rgba(17, 57, 84, 0.85)"
+                            : index === 0
+                              ? "rgba(7, 18, 30, 0.95)"
+                              : "rgba(7, 18, 30, 0.72)",
+                        opacity: rowPendingOp ? 0.72 : 1,
+                        color: "#dff8ff",
+                        padding: "6px 8px",
+                        fontSize: "var(--dv-fs-sm)",
+                        lineHeight: "var(--dv-lh-base)",
+                      }}
+                    >
+                      {`${readGridCell(row, column) || "—"}${index === 0 && rowPendingOp ? ` (${rowPendingOp})` : ""}`}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
             {!gridFilteredRows.length ? (
               <tr>
                 <td

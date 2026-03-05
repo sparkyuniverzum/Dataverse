@@ -2316,3 +2316,124 @@ def test_apply_bundle_preset_preview_and_commit(auth_client: tuple[httpx.Client,
     values = {_stringify(item["value"]) for item in snapshot_after.json()["asteroids"]}
     assert "Client ACME" in values
     assert "Meeting ACME Intro" in values
+
+
+def test_planet_mvp_create_list_detail_and_universe_tables(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"Ops > Planet-{uuid.uuid4().hex[:8]}"
+    created = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"planet-create-{uuid.uuid4()}",
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    table_id = body["table_id"]
+    assert body["archetype"] == "catalog"
+    assert body["table"]["table_id"] == table_id
+    assert body["table"]["archetype"] == "catalog"
+    assert body["table"]["contract_version"] >= 1
+
+    listed = client.get("/planets", params={"galaxy_id": galaxy_id})
+    assert listed.status_code == 200, listed.text
+    listed_items = listed.json().get("items", [])
+    listed_row = next((item for item in listed_items if item.get("table_id") == table_id), None)
+    assert listed_row is not None
+    assert listed_row["is_empty"] is True
+    assert listed_row["archetype"] == "catalog"
+
+    detail = client.get(f"/planets/{table_id}", params={"galaxy_id": galaxy_id})
+    assert detail.status_code == 200, detail.text
+    detail_body = detail.json()
+    assert detail_body["table_id"] == table_id
+    assert detail_body["archetype"] == "catalog"
+    assert detail_body["is_empty"] is True
+
+    universe_tables = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert universe_tables.status_code == 200, universe_tables.text
+    table_row = next(
+        (item for item in universe_tables.json().get("tables", []) if item.get("table_id") == table_id),
+        None,
+    )
+    assert table_row is not None
+    assert table_row["archetype"] == "catalog"
+
+
+def test_planet_mvp_extinguish_empty_planet(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    created = client.post(
+        "/planets",
+        json={
+            "name": f"Ops > Extinguish-{uuid.uuid4().hex[:8]}",
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert created.status_code == 201, created.text
+    table_id = created.json()["table_id"]
+
+    extinguished = client.patch(
+        f"/planets/{table_id}/extinguish",
+        params={"galaxy_id": galaxy_id, "idempotency_key": f"planet-extinguish-{uuid.uuid4()}"},
+    )
+    assert extinguished.status_code == 200, extinguished.text
+    body = extinguished.json()
+    assert body["table_id"] == table_id
+    assert body["extinguished"] is True
+    assert body["deleted_contract_versions"] >= 1
+
+    detail = client.get(f"/planets/{table_id}", params={"galaxy_id": galaxy_id})
+    assert detail.status_code == 404, detail.text
+
+    universe_tables = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert universe_tables.status_code == 200, universe_tables.text
+    assert not any(item.get("table_id") == table_id for item in universe_tables.json().get("tables", []))
+
+
+def test_planet_mvp_extinguish_rejects_non_empty_planet(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    created = client.post(
+        "/planets",
+        json={
+            "name": f"Ops > Busy-{uuid.uuid4().hex[:8]}",
+            "archetype": "catalog",
+            "initial_schema_mode": "preset",
+            "schema_preset_key": "registry_core",
+            "seed_rows": True,
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert created.status_code == 201, created.text
+    table_id = created.json()["table_id"]
+
+    extinguish = client.patch(f"/planets/{table_id}/extinguish", params={"galaxy_id": galaxy_id})
+    assert extinguish.status_code == 409, extinguish.text
+    assert "not empty" in extinguish.text.lower()
+
+
+def test_presets_catalog_reflects_stage_unlocks(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    response = client.get("/presets/catalog", params={"galaxy_id": galaxy_id})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    archetypes = body.get("archetypes", [])
+    assert archetypes and isinstance(archetypes, list)
+
+    all_items = [item for group in archetypes for item in group.get("presets", [])]
+    by_key = {item["key"]: item for item in all_items}
+
+    assert "catalog_starter" in by_key
+    assert by_key["catalog_starter"]["starter"] is True
+    assert by_key["catalog_starter"]["is_unlocked"] is True
+    assert by_key["catalog_starter"]["locked_by_stage"] == 1
+
+    assert "simple_crm" in by_key
+    assert by_key["simple_crm"]["locked_by_stage"] >= 2
+    assert by_key["simple_crm"]["is_unlocked"] is False
+    assert isinstance(by_key["simple_crm"]["lock_reason"], str) and by_key["simple_crm"]["lock_reason"]

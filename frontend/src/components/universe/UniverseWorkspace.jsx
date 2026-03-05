@@ -4,14 +4,15 @@ import {
   API_BASE,
   apiErrorFromResponse,
   apiFetch,
-  buildSnapshotUrl,
-  buildTablesUrl,
-  normalizeSnapshot,
+  buildOccConflictMessage,
+  isOccConflictError,
 } from "../../lib/dataverseApi";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import LinkHoverTooltip from "./LinkHoverTooltip";
 import QuickGridOverlay from "./QuickGridOverlay";
+import { mergeMetadataValue } from "./rowWriteUtils";
 import UniverseCanvas from "./UniverseCanvas";
+import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
 import WorkspaceSidebar from "./WorkspaceSidebar";
 import {
   collectGridColumns,
@@ -27,13 +28,30 @@ const DEFAULT_CAMERA_STATE = {
   maxDistance: 1800,
 };
 
-export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, minimalShell = false }) {
-  const [snapshot, setSnapshot] = useState({ asteroids: [], bonds: [] });
-  const [tables, setTables] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+function nextIdempotencyKey(prefix) {
+  const safePrefix = String(prefix || "ui").trim() || "ui";
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${safePrefix}-${crypto.randomUUID()}`;
+  }
+  return `${safePrefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
+export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, minimalShell = false }) {
+  const galaxyId = String(galaxy?.id || "");
+
+  const {
+    snapshot,
+    tables,
+    loading,
+    error,
+    setRuntimeError,
+    clearRuntimeError,
+    refreshProjection,
+  } = useUniverseRuntimeSync({ galaxyId });
+
+  const [busy, setBusy] = useState(false);
+  const [pendingCreate, setPendingCreate] = useState(false);
+  const [pendingRowOps, setPendingRowOps] = useState({});
   const [selectedTableId, setSelectedTableId] = useState("");
   const [selectedAsteroidId, setSelectedAsteroidId] = useState("");
   const [linkDraft, setLinkDraft] = useState(null);
@@ -44,37 +62,9 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
 
-  const loadUniverse = useCallback(async () => {
-    if (!galaxy?.id) return;
-    setLoading(true);
-    setError("");
-    try {
-      const [snapshotResponse, tablesResponse] = await Promise.all([
-        apiFetch(buildSnapshotUrl(API_BASE, null, galaxy.id, null)),
-        apiFetch(buildTablesUrl(API_BASE, null, galaxy.id, null)),
-      ]);
-      if (!snapshotResponse.ok) {
-        throw await apiErrorFromResponse(snapshotResponse, `Universe snapshot failed: ${snapshotResponse.status}`);
-      }
-      if (!tablesResponse.ok) {
-        throw await apiErrorFromResponse(tablesResponse, `Universe tables failed: ${tablesResponse.status}`);
-      }
-
-      const snapshotBody = await snapshotResponse.json();
-      const tablesBody = await tablesResponse.json();
-      const normalized = normalizeSnapshot(snapshotBody || {});
-      const nextTables = Array.isArray(tablesBody?.tables) ? tablesBody.tables : [];
-
-      setSnapshot(normalized);
-      setTables(nextTables);
-    } catch (loadError) {
-      setError(loadError.message || "Načtení vesmíru selhalo.");
-    } finally {
-      setLoading(false);
-    }
-  }, [galaxy?.id]);
-
   useEffect(() => {
+    setPendingCreate(false);
+    setPendingRowOps({});
     setSelectedTableId("");
     setSelectedAsteroidId("");
     setQuickGridOpen(false);
@@ -82,10 +72,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     setLinkDraft(null);
     setHoveredLink(null);
     layoutRef.current = { tablePositions: new Map(), asteroidPositions: new Map() };
-    if (galaxy?.id) {
-      void loadUniverse();
-    }
-  }, [galaxy?.id, loadUniverse]);
+  }, [galaxyId]);
 
   const tableById = useMemo(
     () => new Map((Array.isArray(tables) ? tables : []).map((table) => [String(table.table_id), table])),
@@ -109,6 +96,13 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     () => new Map((Array.isArray(snapshot.asteroids) ? snapshot.asteroids : []).map((item) => [String(item.id), item])),
     [snapshot.asteroids]
   );
+
+  useEffect(() => {
+    if (!selectedAsteroidId) return;
+    if (!asteroidById.has(String(selectedAsteroidId))) {
+      setSelectedAsteroidId("");
+    }
+  }, [asteroidById, selectedAsteroidId]);
 
   const layout = useMemo(
     () =>
@@ -178,11 +172,20 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
 
   const handleCreateLink = useCallback(
     async (payload) => {
-      if (!galaxy?.id || !payload?.sourceId || !payload?.targetId) return;
+      if (!galaxyId || !payload?.sourceId || !payload?.targetId) return;
       if (String(payload.sourceId) === String(payload.targetId)) return;
 
+      const sourceAsteroid = asteroidById.get(String(payload.sourceId));
+      const targetAsteroid = asteroidById.get(String(payload.targetId));
+      const expectedSourceEventSeq = Number.isInteger(sourceAsteroid?.current_event_seq)
+        ? Number(sourceAsteroid.current_event_seq)
+        : null;
+      const expectedTargetEventSeq = Number.isInteger(targetAsteroid?.current_event_seq)
+        ? Number(targetAsteroid.current_event_seq)
+        : null;
+
       setBusy(true);
-      setError("");
+      clearRuntimeError();
       try {
         const response = await apiFetch(`${API_BASE}/bonds/link`, {
           method: "POST",
@@ -191,20 +194,220 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
             source_id: payload.sourceId,
             target_id: payload.targetId,
             type: "RELATION",
-            galaxy_id: galaxy.id,
+            galaxy_id: galaxyId,
+            idempotency_key: nextIdempotencyKey("link"),
+            ...(expectedSourceEventSeq !== null ? { expected_source_event_seq: expectedSourceEventSeq } : {}),
+            ...(expectedTargetEventSeq !== null ? { expected_target_event_seq: expectedTargetEventSeq } : {}),
           }),
         });
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Vazba se nepodařila vytvořit: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Vazba se nepodarila vytvorit: ${response.status}`);
         }
-        await loadUniverse();
+
+        await refreshProjection({ silent: true });
       } catch (createError) {
-        setError(createError.message || "Vazbu se nepodařilo vytvořit.");
+        if (isOccConflictError(createError)) {
+          setRuntimeError(buildOccConflictMessage(createError, "vytvoreni vazby"));
+          await refreshProjection({ silent: true });
+        } else {
+          setRuntimeError(createError?.message || "Vazbu se nepodarilo vytvorit.");
+        }
       } finally {
         setBusy(false);
       }
     },
-    [galaxy?.id, loadUniverse]
+    [asteroidById, clearRuntimeError, galaxyId, refreshProjection, setRuntimeError]
+  );
+
+  const handleCreateRow = useCallback(
+    async (value) => {
+      if (!galaxyId || !selectedTableId) return false;
+      const trimmed = String(value || "").trim();
+      if (!trimmed) return false;
+
+      setBusy(true);
+      setPendingCreate(true);
+      clearRuntimeError();
+      try {
+        const response = await apiFetch(`${API_BASE}/asteroids/ingest`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            value: trimmed,
+            metadata: {
+              table_id: selectedTableId,
+            },
+            galaxy_id: galaxyId,
+            idempotency_key: nextIdempotencyKey("ingest"),
+          }),
+        });
+        if (!response.ok) {
+          throw await apiErrorFromResponse(response, `Mesic se nepodarilo vytvorit: ${response.status}`);
+        }
+        const payload = await response.json().catch(() => ({}));
+        const asteroidId = payload?.id ? String(payload.id) : "";
+
+        await refreshProjection({ silent: true });
+        if (asteroidId) {
+          setSelectedAsteroidId(asteroidId);
+        }
+        return true;
+      } catch (createError) {
+        setRuntimeError(createError?.message || "Mesic se nepodarilo vytvorit.");
+        return false;
+      } finally {
+        setPendingCreate(false);
+        setBusy(false);
+      }
+    },
+    [clearRuntimeError, galaxyId, refreshProjection, selectedTableId, setRuntimeError]
+  );
+
+  const handleUpdateRow = useCallback(
+    async (asteroidId, value) => {
+      const targetId = String(asteroidId || "").trim();
+      if (!galaxyId || !targetId) return;
+
+      const asteroid = asteroidById.get(targetId);
+      if (!asteroid) return;
+      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq) ? Number(asteroid.current_event_seq) : null;
+
+      setBusy(true);
+      setPendingRowOps((prev) => ({ ...prev, [targetId]: "mutate" }));
+      clearRuntimeError();
+      try {
+        const response = await apiFetch(`${API_BASE}/asteroids/${targetId}/mutate`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            value,
+            galaxy_id: galaxyId,
+            idempotency_key: nextIdempotencyKey("mutate"),
+            ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
+          }),
+        });
+        if (!response.ok) {
+          throw await apiErrorFromResponse(response, `Mesic se nepodarilo upravit: ${response.status}`);
+        }
+        await refreshProjection({ silent: true });
+      } catch (updateError) {
+        if (isOccConflictError(updateError)) {
+          setRuntimeError(buildOccConflictMessage(updateError, "uprava mesice"));
+          await refreshProjection({ silent: true });
+        } else {
+          setRuntimeError(updateError?.message || "Mesic se nepodarilo upravit.");
+        }
+      } finally {
+        setPendingRowOps((prev) => {
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+        });
+        setBusy(false);
+      }
+    },
+    [asteroidById, clearRuntimeError, galaxyId, refreshProjection, setRuntimeError]
+  );
+
+  const handleDeleteRow = useCallback(
+    async (asteroidId) => {
+      const targetId = String(asteroidId || "").trim();
+      if (!galaxyId || !targetId) return;
+
+      const asteroid = asteroidById.get(targetId);
+      if (!asteroid) return;
+      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq) ? Number(asteroid.current_event_seq) : null;
+
+      setBusy(true);
+      setPendingRowOps((prev) => ({ ...prev, [targetId]: "extinguish" }));
+      clearRuntimeError();
+      try {
+        const url = new URL(`${API_BASE}/asteroids/${targetId}/extinguish`);
+        url.searchParams.set("galaxy_id", galaxyId);
+        url.searchParams.set("idempotency_key", nextIdempotencyKey("extinguish"));
+        if (expectedEventSeq !== null) {
+          url.searchParams.set("expected_event_seq", String(expectedEventSeq));
+        }
+
+        const response = await apiFetch(url.toString(), {
+          method: "PATCH",
+        });
+        if (!response.ok) {
+          throw await apiErrorFromResponse(response, `Mesic se nepodarilo zhasnout: ${response.status}`);
+        }
+
+        await refreshProjection({ silent: true });
+        if (String(selectedAsteroidId) === targetId) {
+          setSelectedAsteroidId("");
+        }
+      } catch (deleteError) {
+        if (isOccConflictError(deleteError)) {
+          setRuntimeError(buildOccConflictMessage(deleteError, "zhasnuti mesice"));
+          await refreshProjection({ silent: true });
+        } else {
+          setRuntimeError(deleteError?.message || "Mesic se nepodarilo zhasnout.");
+        }
+      } finally {
+        setPendingRowOps((prev) => {
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+        });
+        setBusy(false);
+      }
+    },
+    [asteroidById, clearRuntimeError, galaxyId, refreshProjection, selectedAsteroidId, setRuntimeError]
+  );
+
+  const handleUpsertMetadata = useCallback(
+    async (asteroidId, key, rawValue) => {
+      const targetId = String(asteroidId || "").trim();
+      const metadataKey = String(key || "").trim();
+      if (!galaxyId || !targetId || !metadataKey) return false;
+
+      const asteroid = asteroidById.get(targetId);
+      if (!asteroid) return false;
+      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq) ? Number(asteroid.current_event_seq) : null;
+      const currentMetadata = asteroid?.metadata && typeof asteroid.metadata === "object" ? asteroid.metadata : {};
+      const nextMetadata = mergeMetadataValue(currentMetadata, metadataKey, rawValue);
+
+      setBusy(true);
+      setPendingRowOps((prev) => ({ ...prev, [targetId]: "metadata" }));
+      clearRuntimeError();
+      try {
+        const response = await apiFetch(`${API_BASE}/asteroids/${targetId}/mutate`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            metadata: nextMetadata,
+            galaxy_id: galaxyId,
+            idempotency_key: nextIdempotencyKey("metadata"),
+            ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
+          }),
+        });
+        if (!response.ok) {
+          throw await apiErrorFromResponse(response, `Nerost se nepodarilo ulozit: ${response.status}`);
+        }
+        await refreshProjection({ silent: true });
+        return true;
+      } catch (metadataError) {
+        if (isOccConflictError(metadataError)) {
+          setRuntimeError(buildOccConflictMessage(metadataError, "uprava nerostu"));
+          await refreshProjection({ silent: true });
+        } else {
+          setRuntimeError(metadataError?.message || "Nerost se nepodarilo ulozit.");
+        }
+        return false;
+      } finally {
+        setPendingRowOps((prev) => {
+          const next = { ...prev };
+          delete next[targetId];
+          return next;
+        });
+        setBusy(false);
+      }
+    },
+    [asteroidById, clearRuntimeError, galaxyId, refreshProjection, setRuntimeError]
   );
 
   const selectedTableLabel = selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "";
@@ -264,7 +467,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         }}
         onOpenGrid={() => setQuickGridOpen(true)}
         onRefresh={() => {
-          void loadUniverse();
+          void refreshProjection();
         }}
         onBackToGalaxies={onBackToGalaxies}
         onLogout={onLogout}
@@ -278,6 +481,15 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         gridFilteredRows={gridFilteredRows}
         gridSearchQuery={gridSearchQuery}
         onGridSearchChange={setGridSearchQuery}
+        selectedAsteroidId={selectedAsteroidId}
+        onSelectRow={setSelectedAsteroidId}
+        onCreateRow={handleCreateRow}
+        onUpdateRow={handleUpdateRow}
+        onDeleteRow={handleDeleteRow}
+        onUpsertMetadata={handleUpsertMetadata}
+        pendingCreate={pendingCreate}
+        pendingRowOps={pendingRowOps}
+        busy={busy}
         onClose={() => setQuickGridOpen(false)}
         readGridCell={readGridCell}
       />

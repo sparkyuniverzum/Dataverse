@@ -67,6 +67,9 @@ class PlanetDashboardService:
                 "table_id": table_id,
                 "name": planet_name,
                 "constellation_name": constellation_name,
+                "archetype": str(table.get("archetype") or "").strip() or None,
+                "contract_version": int(table.get("contract_version") or 0) or None,
+                "is_empty": len(members) == 0,
                 "moons_count": len(members),
                 "schema_fields_count": len(table.get("schema_fields") or []),
                 "formula_fields_count": len(table.get("formula_fields") or []),
@@ -140,4 +143,3 @@ class PlanetDashboardService:
 
         rows.sort(key=lambda item: (str(item["constellation_name"]).lower(), str(item["name"]).lower()))
         return rows
-

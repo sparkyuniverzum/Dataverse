@@ -154,6 +154,53 @@ SCHEMA_PRESETS: tuple[SchemaPresetDefinition, ...] = (
         ),
     ),
     SchemaPresetDefinition(
+        key="junction_links",
+        version=1,
+        name="Junction Links",
+        description="Bridge records for explicit linking and weighted allocation between entities.",
+        tags=("junction", "bridges", "allocation"),
+        required_fields=("link_id", "source_ref", "target_ref"),
+        field_types={
+            "link_id": "string",
+            "source_ref": "string",
+            "target_ref": "string",
+            "weight": "number",
+            "role": "string",
+            "active": "boolean",
+        },
+        unique_rules=({"fields": ["link_id"]},),
+        validators=(
+            {"field": "weight", "operator": ">=", "value": 0},
+        ),
+        auto_semantics=(),
+        formula_registry=(),
+        physics_rulebook={"rules": [], "defaults": {}},
+        default_rows=(
+            SchemaPresetSeedRow(
+                value="Bridge A -> B",
+                metadata={
+                    "link_id": "BRIDGE-001",
+                    "source_ref": "NODE-A",
+                    "target_ref": "NODE-B",
+                    "weight": 0.6,
+                    "role": "allocation",
+                    "active": True,
+                },
+            ),
+            SchemaPresetSeedRow(
+                value="Bridge A -> C",
+                metadata={
+                    "link_id": "BRIDGE-002",
+                    "source_ref": "NODE-A",
+                    "target_ref": "NODE-C",
+                    "weight": 0.4,
+                    "role": "allocation",
+                    "active": True,
+                },
+            ),
+        ),
+    ),
+    SchemaPresetDefinition(
         key="catalog_items",
         version=1,
         name="Catalog Items",

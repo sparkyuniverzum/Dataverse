@@ -32,6 +32,7 @@ def build_tables_snapshot(
     galaxy_id: UUID,
     asteroids: list[ProjectedAsteroid | dict[str, Any]],
     bonds: list[ProjectedBond | dict[str, Any]],
+    contract_hints: Mapping[UUID, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     asteroid_rows: list[dict[str, Any]] = []
     for asteroid in asteroids:
@@ -82,6 +83,37 @@ def build_tables_snapshot(
     asteroid_by_id: dict[UUID, dict[str, Any]] = {item["id"]: item for item in asteroid_rows}
 
     table_buckets: dict[UUID, dict[str, Any]] = {}
+    if isinstance(contract_hints, Mapping):
+        for table_id, hint in contract_hints.items():
+            if not isinstance(table_id, UUID) or not isinstance(hint, Mapping):
+                continue
+            raw_name = hint.get("table_name")
+            table_name = normalize_table_name(raw_name if isinstance(raw_name, str) else str(table_id))
+            raw_schema_fields = hint.get("schema_fields")
+            raw_formula_fields = hint.get("formula_fields")
+            schema_fields = {
+                str(item).strip()
+                for item in (raw_schema_fields if isinstance(raw_schema_fields, list) else [])
+                if str(item).strip()
+            }
+            formula_fields = {
+                str(item).strip()
+                for item in (raw_formula_fields if isinstance(raw_formula_fields, list) else [])
+                if str(item).strip()
+            }
+            table_buckets[table_id] = {
+                "table_id": table_id,
+                "galaxy_id": galaxy_id,
+                "name": table_name,
+                "archetype": str(hint.get("planet_archetype") or "").strip() or None,
+                "contract_version": int(hint.get("contract_version") or 0) or None,
+                "schema_fields": schema_fields,
+                "formula_fields": formula_fields,
+                "members": [],
+                "internal_bonds": [],
+                "external_bonds": [],
+            }
+
     for row in asteroid_rows:
         table_id = row["table_id"]
         table_name = row["table_name"]
@@ -91,6 +123,8 @@ def build_tables_snapshot(
                 "table_id": table_id,
                 "galaxy_id": galaxy_id,
                 "name": table_name,
+                "archetype": None,
+                "contract_version": None,
                 "schema_fields": set(),
                 "formula_fields": set(),
                 "members": [],
@@ -98,6 +132,8 @@ def build_tables_snapshot(
                 "external_bonds": [],
             },
         )
+        if isinstance(table_name, str) and table_name.strip() and table_name != "Uncategorized":
+            bucket["name"] = table_name
         metadata = row.get("metadata", {})
         if isinstance(metadata, dict):
             for key, value in metadata.items():
@@ -183,6 +219,8 @@ def build_tables_snapshot(
                 "name": table["name"],
                 "constellation_name": constellation_name,
                 "planet_name": planet_name,
+                "archetype": table.get("archetype"),
+                "contract_version": table.get("contract_version"),
                 "schema_fields": schema_fields,
                 "formula_fields": formula_fields,
                 "members": members,

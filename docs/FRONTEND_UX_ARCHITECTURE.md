@@ -31,6 +31,22 @@
   - `contextMenu`
   - `linkDraft` (source -> pointer)
 
+## Planet <-> Grid sync contract (runtime)
+- Grid rows must be derived only from the same source cycle as selected Planet:
+  - `GET /universe/snapshot`
+  - `GET /universe/tables`
+- SSE stream (`/galaxies/{galaxy_id}/events/stream`) is convergence trigger:
+  - on `update`, refresh both projection endpoints in one cycle
+  - keep `last_event_seq` cursor per selected galaxy/branch
+- Write flow:
+  - optimistic local pending state for row/link mutation
+  - authoritative reconcile after write response and post-stream refresh
+  - on OCC conflict (`409`) clear pending mark, show deterministic conflict toast, reload projections
+- Selection resilience:
+  - selected `table_id` survives refresh if still present
+  - if missing (extinguished/scope change), fallback to first table and reset selected row
+- Quick Grid and 3D Planet view must consume the same in-memory projection objects (no separate fetch models).
+
 ## Layout engine
 - `lib/hierarchy_layout.js`
   - Planety (`tableNodes`): d3-force s odpuzováním + kolizemi + centeringem + table-link přitažlivostí.
@@ -44,6 +60,13 @@
   - Planeta = tabulka
   - Asteroid = řádek
   - Metadata = buňky
+
+## FE DoD for perfect sync
+- No stale rows after write + stream converge.
+- No phantom rows after soft extinguish.
+- No duplicate rows after reconnect/reload.
+- Grid sort/filter state remains stable after incremental updates.
+- Selected Planet badge shows `contract_version` and does not allow schema-blind edits.
 
 ## Drag & Drop Bonding
 - L2 (Souhvezdi/Entity):

@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Event, Galaxy
+from app.models import Event, Galaxy, TableContract
 from app.services.event_store_service import EventStoreService
 from app.services.universe.event_projection import (
     apply_event as apply_projection_event,
@@ -335,9 +335,64 @@ class UniverseService:
             branch_id=branch_id,
             as_of=as_of,
         )
+        contract_hints = await self._load_latest_contract_hints(
+            session=session,
+            galaxy_id=galaxy_id,
+        )
         return build_tables_snapshot(
             self,
             galaxy_id=galaxy_id,
             asteroids=asteroids,
             bonds=bonds,
+            contract_hints=contract_hints,
         )
+
+    async def _load_latest_contract_hints(
+        self,
+        *,
+        session: AsyncSession,
+        galaxy_id: UUID,
+    ) -> dict[UUID, dict[str, Any]]:
+        stmt = (
+            select(TableContract)
+            .where(
+                and_(
+                    TableContract.galaxy_id == galaxy_id,
+                    TableContract.deleted_at.is_(None),
+                )
+            )
+            .order_by(
+                TableContract.table_id.asc(),
+                TableContract.version.desc(),
+                TableContract.created_at.desc(),
+                TableContract.id.desc(),
+            )
+        )
+        contracts = list((await session.execute(stmt)).scalars().all())
+        hints: dict[UUID, dict[str, Any]] = {}
+        for contract in contracts:
+            table_id = contract.table_id
+            if table_id in hints:
+                continue
+            field_types = contract.field_types if isinstance(contract.field_types, dict) else {}
+            formula_registry = contract.formula_registry if isinstance(contract.formula_registry, list) else []
+            physics_rulebook = contract.physics_rulebook if isinstance(contract.physics_rulebook, dict) else {}
+            defaults = physics_rulebook.get("defaults") if isinstance(physics_rulebook.get("defaults"), dict) else {}
+            table_name = str(defaults.get("table_name") or "").strip()
+            if not table_name:
+                continue
+            formula_fields: list[str] = []
+            for formula in formula_registry:
+                if not isinstance(formula, dict):
+                    continue
+                target = str(formula.get("target") or "").strip()
+                if target and target not in formula_fields:
+                    formula_fields.append(target)
+            hints[table_id] = {
+                "table_name": table_name,
+                "schema_fields": [str(key) for key in field_types.keys() if str(key).strip()],
+                "formula_fields": formula_fields,
+                "planet_archetype": str(defaults.get("planet_archetype") or "").strip() or None,
+                "contract_version": int(contract.version or 1),
+            }
+        return hints

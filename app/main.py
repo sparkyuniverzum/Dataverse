@@ -7,6 +7,7 @@ from app.api.routers.contracts import router as contracts_router
 from app.api.routers.galaxies import router as galaxies_router
 from app.api.routers.io import router as io_router
 from app.api.routers.parser import router as parser_router
+from app.api.routers.planets import router as planets_router
 from app.api.routers.presets import router as presets_router
 from app.api.routers.tasks import router as tasks_router
 from app.api.routers.universe import router as universe_router
@@ -25,3 +26,4 @@ app.include_router(parser_router)
 app.include_router(tasks_router)
 app.include_router(universe_router)
 app.include_router(io_router)
+app.include_router(planets_router)

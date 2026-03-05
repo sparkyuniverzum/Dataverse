@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.schema_models.branch_contracts import TableContractPublic
 from app.schema_models.execution import ParseCommandResponse
+from app.schema_models.planetary import PlanetArchetype
 
 
 class SchemaPresetSeedRowPublic(BaseModel):
@@ -128,6 +129,32 @@ class PresetBundlePublic(PresetBundleSummaryPublic):
 
 class PresetBundleListResponse(BaseModel):
     bundles: list[PresetBundleSummaryPublic] = Field(default_factory=list)
+
+
+class PresetCatalogItemPublic(BaseModel):
+    key: str
+    name: str
+    description: str
+    tags: list[str] = Field(default_factory=list)
+    archetype: PlanetArchetype
+    difficulty: str = "standard"
+    seedable: bool = True
+    locked_by_stage: int = 1
+    starter: bool = False
+    is_unlocked: bool = True
+    lock_reason: str | None = None
+    bundle_key: str
+
+
+class PresetCatalogArchetypePublic(BaseModel):
+    archetype: PlanetArchetype
+    title: str
+    description: str
+    presets: list[PresetCatalogItemPublic] = Field(default_factory=list)
+
+
+class PresetCatalogResponse(BaseModel):
+    archetypes: list[PresetCatalogArchetypePublic] = Field(default_factory=list)
 
 
 class PresetBundleApplyRequest(BaseModel):

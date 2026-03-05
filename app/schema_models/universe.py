@@ -263,6 +263,8 @@ class UniverseTableSnapshot(BaseModel):
     name: str
     constellation_name: str
     planet_name: str
+    archetype: str | None = None
+    contract_version: int | None = None
     schema_fields: list[str] = Field(default_factory=list)
     formula_fields: list[str] = Field(default_factory=list)
     members: list[UniverseTableMemberSnapshot] = Field(default_factory=list)

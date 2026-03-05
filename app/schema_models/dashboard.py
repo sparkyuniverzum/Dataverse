@@ -69,6 +69,9 @@ class PlanetSummaryPublic(BaseModel):
     table_id: uuid.UUID
     name: str
     constellation_name: str
+    archetype: str | None = None
+    contract_version: int | None = None
+    is_empty: bool = True
     moons_count: int
     schema_fields_count: int
     formula_fields_count: int

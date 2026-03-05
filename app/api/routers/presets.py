@@ -3,15 +3,18 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import table_contract_to_public
-from app.api.runtime import get_service_container, resolve_scope_for_user, run_scoped_idempotent
+from app.api.runtime import get_service_container, resolve_galaxy_id_for_user, resolve_scope_for_user, run_scoped_idempotent
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import TableContract, User
 from app.schemas import (
+    PresetCatalogArchetypePublic,
+    PresetCatalogItemPublic,
+    PresetCatalogResponse,
     PresetBundleApplyPlanetResultPublic,
     PresetBundleApplyRequest,
     PresetBundleApplyResponse,
@@ -27,6 +30,94 @@ from app.modules.auth.dependencies import get_current_user
 from app.services.task_executor_service import TaskExecutionResult
 
 router = APIRouter(tags=["presets"])
+
+
+@router.get("/presets/catalog", response_model=PresetCatalogResponse, status_code=status.HTTP_200_OK)
+async def presets_catalog(
+    galaxy_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> PresetCatalogResponse:
+    target_galaxy_id = await resolve_galaxy_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=galaxy_id,
+        services=services,
+    )
+    onboarding = await services.onboarding_service.get_public(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+    )
+    current_stage = int(onboarding.current_stage_order or 1)
+
+    bundles = services.preset_bundle_service.list_bundles()
+    groups: dict[str, list[PresetCatalogItemPublic]] = {
+        "catalog": [],
+        "stream": [],
+        "junction": [],
+    }
+    for bundle in bundles:
+        archetype = str(getattr(bundle, "archetype", "") or "").strip().lower()
+        if archetype not in groups:
+            continue
+        locked_by_stage = int(getattr(bundle, "locked_by_stage", 1) or 1)
+        is_unlocked = current_stage >= locked_by_stage
+        lock_reason = None
+        if not is_unlocked:
+            lock_reason = f"Odemkne se od Stage {locked_by_stage}. Aktualne Stage {current_stage}."
+        groups[archetype].append(
+            PresetCatalogItemPublic(
+                key=bundle.key,
+                name=bundle.name,
+                description=bundle.description,
+                tags=[str(item) for item in bundle.tags],
+                archetype=archetype,
+                difficulty=str(getattr(bundle, "difficulty", "standard") or "standard"),
+                seedable=bool(getattr(bundle, "seedable", True)),
+                locked_by_stage=locked_by_stage,
+                starter=bool(getattr(bundle, "starter", False)),
+                is_unlocked=is_unlocked,
+                lock_reason=lock_reason,
+                bundle_key=bundle.key,
+            )
+        )
+
+    archetype_meta = {
+        "catalog": (
+            "Katalog (Staticka civilizace)",
+            "Dlouhodobe entity se stabilni identitou, kde se meni hlavne vlastnosti.",
+        ),
+        "stream": (
+            "Datovy proud (Transakcni civilizace)",
+            "Prubezne udalosti a transakce zapisovane do historie jako tok v case.",
+        ),
+        "junction": (
+            "Rozcestnik (Spojovaci civilizace)",
+            "Mosty mezi civilizacemi pro alokace, mapovani a many-to-many vazby.",
+        ),
+    }
+    ordered: list[PresetCatalogArchetypePublic] = []
+    for key in ("catalog", "stream", "junction"):
+        title, description = archetype_meta[key]
+        presets = sorted(
+            groups[key],
+            key=lambda item: (
+                not item.starter,
+                item.locked_by_stage,
+                item.name.lower(),
+            ),
+        )
+        ordered.append(
+            PresetCatalogArchetypePublic(
+                archetype=key,
+                title=title,
+                description=description,
+                presets=presets,
+            )
+        )
+    return PresetCatalogResponse(archetypes=ordered)
 
 
 @router.post("/presets/apply", response_model=PresetBundleApplyResponse, status_code=status.HTTP_200_OK)

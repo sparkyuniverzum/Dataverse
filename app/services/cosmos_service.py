@@ -14,6 +14,7 @@ from app.models import Branch, Event, Galaxy, TableContract
 from app.services.event_store_service import EventStoreService
 from app.services.galaxy_scope_service import resolve_user_galaxy_for_user
 from app.services.read_model_projector import ReadModelProjector
+from app.services.universe.types import derive_table_id, normalize_table_name
 
 
 class CosmosService:
@@ -136,6 +137,58 @@ class CosmosService:
     @staticmethod
     def _normalize_branch_name(name: str) -> str:
         return str(name).strip().casefold()
+
+    @staticmethod
+    def _normalize_planet_archetype(raw: str) -> str:
+        archetype = str(raw or "").strip().lower()
+        if archetype not in {"catalog", "stream", "junction"}:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Unsupported planet archetype. Use 'catalog', 'stream' or 'junction'.",
+            )
+        return archetype
+
+    @staticmethod
+    def _archetype_schema_template(archetype: str) -> tuple[list[str], dict[str, str], list[dict[str, Any]], list[dict[str, Any]]]:
+        if archetype == "catalog":
+            return (
+                ["entity_id", "label", "state"],
+                {
+                    "entity_id": "string",
+                    "label": "string",
+                    "state": "string",
+                    "description": "string",
+                    "tags": "array",
+                },
+                [{"fields": ["entity_id"]}],
+                [],
+            )
+        if archetype == "stream":
+            return (
+                ["event_id", "event_time", "value"],
+                {
+                    "event_id": "string",
+                    "event_time": "datetime",
+                    "value": "number",
+                    "direction": "string",
+                    "note": "string",
+                    "source": "string",
+                },
+                [{"fields": ["event_id"]}],
+                [],
+            )
+        return (
+            ["link_id", "source_ref", "target_ref"],
+            {
+                "link_id": "string",
+                "source_ref": "string",
+                "target_ref": "string",
+                "weight": "number",
+                "role": "string",
+            },
+            [{"fields": ["link_id"]}],
+            [],
+        )
 
     @staticmethod
     def _branch_name_lock_key(*, galaxy_id: UUID, normalized_name: str) -> int:
@@ -418,3 +471,139 @@ class CosmosService:
         await session.flush()
         await session.refresh(contract)
         return contract
+
+    async def create_planet_contract(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        table_name: str,
+        archetype: str,
+        visual_position: dict[str, float] | None = None,
+    ) -> tuple[TableContract, UUID, str]:
+        galaxy = await self._resolve_user_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)
+        normalized_table_name = normalize_table_name(table_name)
+        normalized_archetype = self._normalize_planet_archetype(archetype)
+        table_id = derive_table_id(galaxy_id=galaxy.id, table_name=normalized_table_name)
+
+        active_contract = (
+            await session.execute(
+                select(TableContract)
+                .where(
+                    and_(
+                        TableContract.galaxy_id == galaxy.id,
+                        TableContract.table_id == table_id,
+                        TableContract.deleted_at.is_(None),
+                    )
+                )
+                .order_by(TableContract.version.desc(), TableContract.id.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if active_contract is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Planet with this name already exists in this galaxy.",
+            )
+
+        required_fields, field_types, unique_rules, validators = self._archetype_schema_template(normalized_archetype)
+        physics_defaults: dict[str, Any] = {
+            "table_name": normalized_table_name,
+            "planet_archetype": normalized_archetype,
+            "planet_created_via": "POST:/planets",
+        }
+        if isinstance(visual_position, dict):
+            x = float(visual_position.get("x", 0.0))
+            y = float(visual_position.get("y", 0.0))
+            z = float(visual_position.get("z", 0.0))
+            physics_defaults["planet_visual_position"] = {"x": x, "y": y, "z": z}
+
+        contract = await self.upsert_table_contract(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy.id,
+            table_id=table_id,
+            schema_registry={
+                "required_fields": required_fields,
+                "field_types": field_types,
+                "unique_rules": unique_rules,
+                "validators": validators,
+                "auto_semantics": [],
+            },
+            required_fields=required_fields,
+            field_types=field_types,
+            unique_rules=unique_rules,
+            validators=validators,
+            auto_semantics=[],
+            formula_registry=[],
+            physics_rulebook={"rules": [], "defaults": physics_defaults},
+        )
+        return contract, table_id, normalized_table_name
+
+    async def list_latest_table_contracts(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        table_ids: list[UUID] | None = None,
+    ) -> dict[UUID, TableContract]:
+        galaxy = await self._resolve_user_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)
+        stmt = (
+            select(TableContract)
+            .where(
+                and_(
+                    TableContract.galaxy_id == galaxy.id,
+                    TableContract.deleted_at.is_(None),
+                )
+            )
+            .order_by(
+                TableContract.table_id.asc(),
+                TableContract.version.desc(),
+                TableContract.created_at.desc(),
+                TableContract.id.desc(),
+            )
+        )
+        if table_ids is not None:
+            stmt = stmt.where(TableContract.table_id.in_(table_ids))
+        contracts = list((await session.execute(stmt)).scalars().all())
+        by_table: dict[UUID, TableContract] = {}
+        for contract in contracts:
+            if contract.table_id in by_table:
+                continue
+            by_table[contract.table_id] = contract
+        return by_table
+
+    async def soft_delete_planet_contracts(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        table_id: UUID,
+    ) -> int:
+        galaxy = await self._resolve_user_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)
+        active_contracts = list(
+            (
+                await session.execute(
+                    select(TableContract).where(
+                        and_(
+                            TableContract.galaxy_id == galaxy.id,
+                            TableContract.table_id == table_id,
+                            TableContract.deleted_at.is_(None),
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not active_contracts:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Planet contract not found")
+        now = datetime.now(timezone.utc)
+        for contract in active_contracts:
+            contract.deleted_at = now
+            contract.updated_at = now
+        await session.flush()
+        return len(active_contracts)

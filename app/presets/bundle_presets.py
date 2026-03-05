@@ -12,15 +12,267 @@ class BundleDefinition:
     description: str
     tags: tuple[str, ...]
     manifest: dict[str, Any]
+    archetype: str = "catalog"
+    difficulty: str = "standard"
+    seedable: bool = True
+    locked_by_stage: int = 1
+    starter: bool = False
 
 
 PRESET_BUNDLES: tuple[BundleDefinition, ...] = (
+    BundleDefinition(
+        key="catalog_starter",
+        version=1,
+        name="Catalog Starter",
+        description="Starter template for long-lived entities with stable identity and controlled updates.",
+        tags=("starter", "catalog", "foundation"),
+        archetype="catalog",
+        difficulty="guided",
+        seedable=True,
+        locked_by_stage=1,
+        starter=True,
+        manifest={
+            "planets": [
+                {
+                    "key": "catalog_core",
+                    "table_name": "Catalog > Core",
+                    "schema_preset_key": "registry_core",
+                }
+            ],
+            "moons": [
+                {
+                    "ref": "catalog_item_alpha",
+                    "planet": "catalog_core",
+                    "value": "Entity Alpha",
+                    "metadata": {
+                        "entity_id": "ENT-001",
+                        "code": "ALPHA",
+                        "name": "Entity Alpha",
+                        "entity_type": "core",
+                        "status": "active",
+                        "owner": "ops",
+                        "valid_from": "2026-01-01",
+                        "tags": ["starter", "catalog"],
+                    },
+                },
+                {
+                    "ref": "catalog_item_beta",
+                    "planet": "catalog_core",
+                    "value": "Entity Beta",
+                    "metadata": {
+                        "entity_id": "ENT-002",
+                        "code": "BETA",
+                        "name": "Entity Beta",
+                        "entity_type": "core",
+                        "status": "draft",
+                        "owner": "ops",
+                        "valid_from": "2026-01-01",
+                        "tags": ["starter", "catalog"],
+                    },
+                },
+                {
+                    "ref": "catalog_item_gamma",
+                    "planet": "catalog_core",
+                    "value": "Entity Gamma",
+                    "metadata": {
+                        "entity_id": "ENT-003",
+                        "code": "GAMMA",
+                        "name": "Entity Gamma",
+                        "entity_type": "core",
+                        "status": "active",
+                        "owner": "ops",
+                        "valid_from": "2026-01-01",
+                        "tags": ["starter", "catalog"],
+                    },
+                },
+            ],
+        },
+    ),
+    BundleDefinition(
+        key="stream_starter",
+        version=1,
+        name="Stream Starter",
+        description="Starter template for transactional append-only flows and time-based history.",
+        tags=("starter", "stream", "events"),
+        archetype="stream",
+        difficulty="guided",
+        seedable=True,
+        locked_by_stage=1,
+        starter=True,
+        manifest={
+            "planets": [
+                {
+                    "key": "stream_events",
+                    "table_name": "Stream > Events",
+                    "schema_preset_key": "transactions",
+                }
+            ],
+            "moons": [
+                {
+                    "ref": "stream_event_1",
+                    "planet": "stream_events",
+                    "value": "Event Inflow 001",
+                    "metadata": {
+                        "tx_id": "EVT-001",
+                        "tx_date": "2026-03-01",
+                        "amount": 1000,
+                        "currency": "CZK",
+                        "direction": "in",
+                        "counterparty": "Source A",
+                        "category": "starter",
+                        "cost_center": "core",
+                        "state": "posted",
+                        "reference": "starter",
+                    },
+                },
+                {
+                    "ref": "stream_event_2",
+                    "planet": "stream_events",
+                    "value": "Event Outflow 001",
+                    "metadata": {
+                        "tx_id": "EVT-002",
+                        "tx_date": "2026-03-02",
+                        "amount": 420,
+                        "currency": "CZK",
+                        "direction": "out",
+                        "counterparty": "Target B",
+                        "category": "starter",
+                        "cost_center": "core",
+                        "state": "posted",
+                        "reference": "starter",
+                    },
+                },
+                {
+                    "ref": "stream_event_3",
+                    "planet": "stream_events",
+                    "value": "Event Outflow 002",
+                    "metadata": {
+                        "tx_id": "EVT-003",
+                        "tx_date": "2026-03-03",
+                        "amount": 210,
+                        "currency": "CZK",
+                        "direction": "out",
+                        "counterparty": "Target C",
+                        "category": "starter",
+                        "cost_center": "core",
+                        "state": "posted",
+                        "reference": "starter",
+                    },
+                },
+            ],
+        },
+    ),
+    BundleDefinition(
+        key="junction_starter",
+        version=1,
+        name="Junction Starter",
+        description="Starter template for bridge records linking multiple entities through explicit allocations.",
+        tags=("starter", "junction", "bridges"),
+        archetype="junction",
+        difficulty="guided",
+        seedable=True,
+        locked_by_stage=1,
+        starter=True,
+        manifest={
+            "planets": [
+                {
+                    "key": "nodes",
+                    "table_name": "Junction > Nodes",
+                    "schema_preset_key": "registry_core",
+                },
+                {
+                    "key": "bridges",
+                    "table_name": "Junction > Bridges",
+                    "schema_preset_key": "junction_links",
+                },
+            ],
+            "moons": [
+                {
+                    "ref": "node_alpha",
+                    "planet": "nodes",
+                    "value": "Node Alpha",
+                    "metadata": {
+                        "entity_id": "NODE-001",
+                        "code": "ALPHA",
+                        "name": "Node Alpha",
+                        "entity_type": "node",
+                        "status": "active",
+                        "owner": "ops",
+                        "valid_from": "2026-01-01",
+                    },
+                },
+                {
+                    "ref": "node_beta",
+                    "planet": "nodes",
+                    "value": "Node Beta",
+                    "metadata": {
+                        "entity_id": "NODE-002",
+                        "code": "BETA",
+                        "name": "Node Beta",
+                        "entity_type": "node",
+                        "status": "active",
+                        "owner": "ops",
+                        "valid_from": "2026-01-01",
+                    },
+                },
+                {
+                    "ref": "node_gamma",
+                    "planet": "nodes",
+                    "value": "Node Gamma",
+                    "metadata": {
+                        "entity_id": "NODE-003",
+                        "code": "GAMMA",
+                        "name": "Node Gamma",
+                        "entity_type": "node",
+                        "status": "active",
+                        "owner": "ops",
+                        "valid_from": "2026-01-01",
+                    },
+                },
+                {
+                    "ref": "bridge_alpha_beta",
+                    "planet": "bridges",
+                    "value": "Bridge Alpha -> Beta",
+                    "metadata": {
+                        "link_id": "BR-001",
+                        "source_ref": "NODE-001",
+                        "target_ref": "NODE-002",
+                        "weight": 0.7,
+                        "role": "allocation",
+                    },
+                },
+                {
+                    "ref": "bridge_alpha_gamma",
+                    "planet": "bridges",
+                    "value": "Bridge Alpha -> Gamma",
+                    "metadata": {
+                        "link_id": "BR-002",
+                        "source_ref": "NODE-001",
+                        "target_ref": "NODE-003",
+                        "weight": 0.3,
+                        "role": "allocation",
+                    },
+                },
+            ],
+            "bonds": [
+                {"source_ref": "bridge_alpha_beta", "target_ref": "node_alpha", "type": "FLOW"},
+                {"source_ref": "bridge_alpha_beta", "target_ref": "node_beta", "type": "FLOW"},
+                {"source_ref": "bridge_alpha_gamma", "target_ref": "node_alpha", "type": "FLOW"},
+                {"source_ref": "bridge_alpha_gamma", "target_ref": "node_gamma", "type": "FLOW"},
+            ],
+        },
+    ),
     BundleDefinition(
         key="simple_crm",
         version=1,
         name="Simple CRM",
         description="Clients and meetings bundle with mandatory linkage from meetings to clients.",
         tags=("crm", "sales", "starter"),
+        archetype="catalog",
+        difficulty="standard",
+        seedable=True,
+        locked_by_stage=2,
+        starter=False,
         manifest={
             "planets": [
                 {
@@ -111,6 +363,11 @@ PRESET_BUNDLES: tuple[BundleDefinition, ...] = (
         name="Employee Onboarding",
         description="Template employee moon plus linked onboarding tasks and approval workflow.",
         tags=("hr", "onboarding", "process"),
+        archetype="catalog",
+        difficulty="standard",
+        seedable=True,
+        locked_by_stage=2,
+        starter=False,
         manifest={
             "planets": [
                 {
