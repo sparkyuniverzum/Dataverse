@@ -1094,11 +1094,16 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
     policy = client.get(f"/galaxies/{galaxy_id}/star-core/policy")
     assert policy.status_code == 200, policy.text
     policy_body = policy.json()
-    assert policy_body["galaxy_id"] == galaxy_id
+    assert "galaxy_id" not in policy_body
+    assert "user_id" not in policy_body
+    assert "generated_at" not in policy_body
+    assert "topology_mode" not in policy_body
+    assert "soft_delete_flag_field" not in policy_body
+    assert "soft_delete_timestamp_field" not in policy_body
+    assert "event_sourcing_enabled" not in policy_body
+    assert "locked_by" not in policy_body
     assert policy_body["no_hard_delete"] is True
     assert policy_body["deletion_mode"] == "soft_delete"
-    assert policy_body["soft_delete_flag_field"] == "is_deleted"
-    assert policy_body["soft_delete_timestamp_field"] == "deleted_at"
     assert policy_body["lock_status"] in {"draft", "locked"}
 
     lock = client.post(
@@ -1107,7 +1112,14 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
     )
     assert lock.status_code == 200, lock.text
     lock_body = lock.json()
-    assert lock_body["galaxy_id"] == galaxy_id
+    assert "galaxy_id" not in lock_body
+    assert "user_id" not in lock_body
+    assert "generated_at" not in lock_body
+    assert "topology_mode" not in lock_body
+    assert "soft_delete_flag_field" not in lock_body
+    assert "soft_delete_timestamp_field" not in lock_body
+    assert "event_sourcing_enabled" not in lock_body
+    assert "locked_by" not in lock_body
     assert lock_body["profile_key"] == "SENTINEL"
     assert lock_body["lock_status"] == "locked"
     assert lock_body["can_edit_core_laws"] is False
@@ -1121,13 +1133,18 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
     runtime = client.get(f"/galaxies/{galaxy_id}/star-core/runtime", params={"window_events": 64})
     assert runtime.status_code == 200, runtime.text
     runtime_body = runtime.json()
-    assert runtime_body["galaxy_id"] == galaxy_id
-    assert runtime_body["sampled_window_size"] == 64
+    assert "galaxy_id" not in runtime_body
+    assert "user_id" not in runtime_body
+    assert "branch_id" not in runtime_body
+    assert "sampled_window_size" not in runtime_body
+    assert "sampled_since" not in runtime_body
+    assert "sampled_until" not in runtime_body
+    assert "hot_event_types" not in runtime_body
+    assert "hot_entities_count" not in runtime_body
+    assert "updated_at" not in runtime_body
     assert runtime_body["as_of_event_seq"] >= 1
     assert runtime_body["events_count"] >= 1
     assert isinstance(runtime_body["writes_per_minute"], float)
-    assert isinstance(runtime_body["hot_event_types"], list)
-    assert isinstance(runtime_body["hot_entities_count"], int)
 
     pulse = client.get(f"/galaxies/{galaxy_id}/star-core/pulse", params={"limit": 20})
     assert pulse.status_code == 200, pulse.text
@@ -1140,7 +1157,8 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
     assert "event_seq" in first_event
     assert "event_type" in first_event
     assert "entity_id" in first_event
-    assert "timestamp" in first_event
+    assert "timestamp" not in first_event
+    assert "payload" not in first_event
     assert first_event["visual_hint"] in {"source_shockwave", "fade_to_singularity", "bridge_flux", "surface_pulse", "orbital_pulse"}
     assert isinstance(first_event["intensity"], float)
 
@@ -1154,9 +1172,19 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
     if domains_body["domains"]:
         domain = domains_body["domains"][0]
         assert "domain_name" in domain
+        assert "status" in domain
         assert "events_count" in domain
-        assert "writes_per_minute" in domain
         assert "activity_intensity" in domain
+        assert "planets_count" not in domain
+        assert "moons_count" not in domain
+        assert "internal_bonds_count" not in domain
+        assert "external_bonds_count" not in domain
+        assert "guardian_rules_count" not in domain
+        assert "alerted_moons_count" not in domain
+        assert "circular_fields_count" not in domain
+        assert "quality_score" not in domain
+        assert "writes_per_minute" not in domain
+        assert "hot_event_types" not in domain
 
 
 def test_constellation_layer_v1_endpoint_returns_l2_group_metrics(auth_client: tuple[httpx.Client, str]) -> None:

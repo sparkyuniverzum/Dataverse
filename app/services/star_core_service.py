@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -50,33 +50,23 @@ class StarCoreService:
         cls,
         *,
         row: StarCorePolicyRM | None,
-        user_id: UUID,
-        galaxy_id: UUID,
     ) -> dict[str, Any]:
         if row is None:
             profile_key = "ORIGIN"
             law_preset = cls._law_preset_for_profile(profile_key)
             return {
-                "user_id": user_id,
-                "galaxy_id": galaxy_id,
                 "profile_key": profile_key,
                 "law_preset": law_preset,
                 "profile_mode": "auto",
-                "topology_mode": "single_star_per_galaxy",
                 "no_hard_delete": True,
                 "deletion_mode": "soft_delete",
-                "soft_delete_flag_field": "is_deleted",
-                "soft_delete_timestamp_field": "deleted_at",
-                "event_sourcing_enabled": True,
                 "occ_enforced": True,
                 "idempotency_supported": True,
                 "branch_scope_supported": True,
                 "lock_status": "draft",
                 "policy_version": 1,
                 "locked_at": None,
-                "locked_by": None,
                 "can_edit_core_laws": True,
-                "generated_at": datetime.now(UTC),
             }
 
         lock_status = str(row.lock_status or "draft").strip().lower() or "draft"
@@ -84,28 +74,19 @@ class StarCoreService:
         law_preset = str(row.law_preset or cls._law_preset_for_profile(profile_key)).strip() or cls._law_preset_for_profile(
             profile_key
         )
-        generated_at = row.updated_at if row.updated_at is not None else datetime.now(UTC)
         return {
-            "user_id": row.user_id,
-            "galaxy_id": row.galaxy_id,
             "profile_key": profile_key,
             "law_preset": law_preset,
             "profile_mode": "locked" if lock_status == "locked" else "auto",
-            "topology_mode": "single_star_per_galaxy",
             "no_hard_delete": bool(row.no_hard_delete),
             "deletion_mode": str(row.deletion_mode or "soft_delete"),
-            "soft_delete_flag_field": str(row.soft_delete_flag_field or "is_deleted"),
-            "soft_delete_timestamp_field": str(row.soft_delete_timestamp_field or "deleted_at"),
-            "event_sourcing_enabled": bool(row.event_sourcing_enabled),
             "occ_enforced": bool(row.occ_enforced),
             "idempotency_supported": bool(row.idempotency_supported),
             "branch_scope_supported": bool(row.branch_scope_supported),
             "lock_status": lock_status,
             "policy_version": max(1, int(row.policy_version or 1)),
             "locked_at": row.locked_at,
-            "locked_by": row.locked_by,
             "can_edit_core_laws": lock_status != "locked",
-            "generated_at": generated_at,
         }
 
     async def get_policy(
@@ -123,7 +104,7 @@ class StarCoreService:
                 )
             )
         ).scalar_one_or_none()
-        return self._serialize_policy_row(row=row, user_id=user_id, galaxy_id=galaxy_id)
+        return self._serialize_policy_row(row=row)
 
     async def apply_profile_and_lock(
         self,
@@ -192,7 +173,7 @@ class StarCoreService:
             row.policy_version = 1
 
         await session.flush()
-        return self._serialize_policy_row(row=row, user_id=user_id, galaxy_id=galaxy_id)
+        return self._serialize_policy_row(row=row)
 
     async def get_runtime(
         self,
@@ -213,18 +194,9 @@ class StarCoreService:
 
         if latest_event_seq <= 0:
             return {
-                "user_id": user_id,
-                "galaxy_id": galaxy_id,
-                "branch_id": branch_id,
                 "as_of_event_seq": 0,
-                "sampled_window_size": safe_window,
-                "sampled_since": None,
-                "sampled_until": None,
                 "events_count": 0,
                 "writes_per_minute": 0.0,
-                "hot_event_types": [],
-                "hot_entities_count": 0,
-                "updated_at": datetime.now(UTC),
             }
 
         events = await self.event_store.list_events_after(
@@ -236,29 +208,12 @@ class StarCoreService:
             limit=safe_window,
         )
 
-        sampled_since: datetime | None = events[0].timestamp if events else None
-        sampled_until: datetime | None = events[-1].timestamp if events else None
-        event_counter = Counter(str(item.event_type or "") for item in events if item.event_type)
-        hot_event_types = [
-            event_type
-            for event_type, _count in sorted(event_counter.items(), key=lambda pair: (-pair[1], pair[0]))[:5]
-        ]
-        unique_entities = {item.entity_id for item in events if item.entity_id is not None}
         writes_per_minute = self._compute_writes_per_minute(events=events)
 
         return {
-            "user_id": user_id,
-            "galaxy_id": galaxy_id,
-            "branch_id": branch_id,
             "as_of_event_seq": int(latest_event_seq),
-            "sampled_window_size": safe_window,
-            "sampled_since": sampled_since,
-            "sampled_until": sampled_until,
             "events_count": len(events),
             "writes_per_minute": writes_per_minute,
-            "hot_event_types": hot_event_types,
-            "hot_entities_count": len(unique_entities),
-            "updated_at": datetime.now(UTC),
         }
 
     async def list_pulse(
@@ -310,10 +265,8 @@ class StarCoreService:
                     "event_seq": int(item.event_seq),
                     "event_type": str(item.event_type or ""),
                     "entity_id": item.entity_id,
-                    "timestamp": item.timestamp,
                     "visual_hint": visual_hint,
                     "intensity": intensity,
-                    "payload": item.payload if isinstance(item.payload, dict) else {},
                 }
             )
 
@@ -371,18 +324,8 @@ class StarCoreService:
                 "domains": [
                     {
                         "domain_name": str(item.get("name") or "Uncategorized"),
-                        "planets_count": int(item.get("planets_count") or 0),
-                        "moons_count": int(item.get("moons_count") or 0),
-                        "internal_bonds_count": int(item.get("internal_bonds_count") or 0),
-                        "external_bonds_count": int(item.get("external_bonds_count") or 0),
-                        "guardian_rules_count": int(item.get("guardian_rules_count") or 0),
-                        "alerted_moons_count": int(item.get("alerted_moons_count") or 0),
-                        "circular_fields_count": int(item.get("circular_fields_count") or 0),
-                        "quality_score": int(item.get("quality_score") or 100),
                         "status": str(item.get("status") or "GREEN"),
                         "events_count": 0,
-                        "writes_per_minute": 0.0,
-                        "hot_event_types": [],
                         "activity_intensity": 0.0,
                     }
                     for item in constellations
@@ -403,7 +346,6 @@ class StarCoreService:
         sampled_until: datetime | None = events[-1].timestamp if events else None
 
         domain_event_counts: dict[str, int] = defaultdict(int)
-        domain_event_types: dict[str, Counter[str]] = defaultdict(Counter)
         for event in events:
             domains = self._resolve_event_domains(
                 entity_id=event.entity_id,
@@ -412,14 +354,10 @@ class StarCoreService:
                 asteroid_to_domain=asteroid_to_domain,
                 bond_to_domains=bond_to_domains,
             )
-            event_type = str(event.event_type or "")
             for domain in domains:
                 domain_event_counts[domain] += 1
-                if event_type:
-                    domain_event_types[domain][event_type] += 1
 
         max_event_count = max(domain_event_counts.values(), default=0)
-        writes_by_minute = self._compute_domain_writes_per_minute(events=events, domain_event_counts=domain_event_counts)
 
         baseline_by_domain: dict[str, dict[str, Any]] = {}
         for item in constellations:
@@ -428,14 +366,6 @@ class StarCoreService:
             name = str(item.get("name") or "Uncategorized")
             baseline_by_domain[name] = {
                 "domain_name": name,
-                "planets_count": int(item.get("planets_count") or 0),
-                "moons_count": int(item.get("moons_count") or 0),
-                "internal_bonds_count": int(item.get("internal_bonds_count") or 0),
-                "external_bonds_count": int(item.get("external_bonds_count") or 0),
-                "guardian_rules_count": int(item.get("guardian_rules_count") or 0),
-                "alerted_moons_count": int(item.get("alerted_moons_count") or 0),
-                "circular_fields_count": int(item.get("circular_fields_count") or 0),
-                "quality_score": int(item.get("quality_score") or 100),
                 "status": str(item.get("status") or "GREEN"),
             }
 
@@ -446,30 +376,15 @@ class StarCoreService:
                 domain_name,
                 {
                     "domain_name": domain_name,
-                    "planets_count": 0,
-                    "moons_count": 0,
-                    "internal_bonds_count": 0,
-                    "external_bonds_count": 0,
-                    "guardian_rules_count": 0,
-                    "alerted_moons_count": 0,
-                    "circular_fields_count": 0,
-                    "quality_score": 100,
                     "status": "GREEN",
                 },
             )
             event_count = int(domain_event_counts.get(domain_name, 0))
-            event_type_counter = domain_event_types.get(domain_name, Counter())
-            hot_event_types = [
-                key
-                for key, _count in sorted(event_type_counter.items(), key=lambda pair: (-pair[1], pair[0]))[:3]
-            ]
             activity_intensity = round((event_count / max_event_count), 3) if max_event_count > 0 else 0.0
             rows.append(
                 {
                     **baseline,
                     "events_count": event_count,
-                    "writes_per_minute": float(writes_by_minute.get(domain_name, 0.0)),
-                    "hot_event_types": hot_event_types,
                     "activity_intensity": activity_intensity,
                 }
             )
@@ -494,15 +409,6 @@ class StarCoreService:
         last = events[-1].timestamp
         span_minutes = max(1.0, (last - first).total_seconds() / 60.0)
         return round(len(events) / span_minutes, 3)
-
-    @staticmethod
-    def _compute_domain_writes_per_minute(*, events: list[Any], domain_event_counts: dict[str, int]) -> dict[str, float]:
-        if not events:
-            return {name: 0.0 for name in domain_event_counts.keys()}
-        first = events[0].timestamp
-        last = events[-1].timestamp
-        span_minutes = max(1.0, (last - first).total_seconds() / 60.0)
-        return {name: round(count / span_minutes, 3) for name, count in domain_event_counts.items()}
 
     @staticmethod
     def _parse_uuid_like(value: Any) -> UUID | None:

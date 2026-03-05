@@ -14,6 +14,12 @@ import {
   normalizeSnapshot,
 } from "../../lib/dataverseApi";
 import { applySseFrameCursor, drainSseBuffer, parseSseFrame, sleep } from "./runtimeSyncUtils";
+import {
+  normalizeStarDomains,
+  normalizeStarPolicy,
+  normalizeStarPulsePayload,
+  normalizeStarRuntime,
+} from "./starContract";
 
 const STREAM_RECONNECT_DELAY_MS = 900;
 const STAR_TELEMETRY_THROTTLE_MS = 4000;
@@ -43,20 +49,19 @@ export function useUniverseRuntimeSync({ galaxyId }) {
 
   const mergePulsePayload = useCallback((payload, scopeGalaxyId) => {
     if (activeGalaxyRef.current !== scopeGalaxyId) return;
-    const events = Array.isArray(payload?.events) ? payload.events : [];
+    const normalizedPulse = normalizeStarPulsePayload(payload);
+    const events = normalizedPulse.events;
     const now = Date.now();
     const next = new Map(pulseByEntityRef.current);
     events.forEach((event) => {
-      const entityId = String(event?.entity_id || "").trim();
+      const entityId = String(event.entity_id || "").trim();
       if (!entityId) return;
-      const eventSeq = Number.isFinite(event?.event_seq) ? Math.floor(Number(event.event_seq)) : 0;
-      const intensityRaw = Number.isFinite(event?.intensity) ? Number(event.intensity) : 0;
       next.set(entityId, {
-        visualHint: String(event?.visual_hint || "orbital_pulse"),
-        intensity: Math.max(0, Math.min(1.5, intensityRaw)),
-        eventType: String(event?.event_type || ""),
+        visualHint: event.visual_hint,
+        intensity: event.intensity,
+        eventType: event.event_type,
         updatedAtMs: now,
-        eventSeq,
+        eventSeq: event.event_seq,
       });
     });
     for (const [entityId, item] of next.entries()) {
@@ -67,8 +72,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
     pulseByEntityRef.current = next;
     setStarPulseByEntity(Object.fromEntries(next.entries()));
 
-    const nextCursorRaw = Number(payload?.last_event_seq);
-    const nextCursor = Number.isFinite(nextCursorRaw) && nextCursorRaw >= 0 ? Math.floor(nextCursorRaw) : pulseCursorRef.current;
+    const nextCursor = Math.max(0, Math.floor(Number(normalizedPulse.last_event_seq || 0)));
     pulseCursorRef.current = Math.max(pulseCursorRef.current, nextCursor);
     setStarPulseLastEventSeq(pulseCursorRef.current);
   }, []);
@@ -149,9 +153,9 @@ export function useUniverseRuntimeSync({ galaxyId }) {
           if (activeGalaxyRef.current !== scopeGalaxyId) {
             return;
           }
-          setStarRuntime(runtimeBody && typeof runtimeBody === "object" ? runtimeBody : null);
-          setStarDomains(Array.isArray(domainsBody?.domains) ? domainsBody.domains : []);
-          setStarPolicy(policyBody && typeof policyBody === "object" ? policyBody : null);
+          setStarRuntime(normalizeStarRuntime(runtimeBody));
+          setStarDomains(normalizeStarDomains(domainsBody?.domains));
+          setStarPolicy(normalizeStarPolicy(policyBody));
         } catch {
           // Telemetry is non-blocking for core workspace operations.
         }

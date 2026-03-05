@@ -69,6 +69,9 @@ run_step "scope + auth parity" run_pytest \
   tests/test_galaxy_scope_service.py \
   tests/test_auth_service.py
 
+run_step "star contract baseline parity (be models -> frozen baseline)" run_pytest \
+  tests/test_star_contract_baseline.py
+
 if [[ "$PROFILE" == "strict" ]]; then
   run_step "api healthcheck ($API_BASE)" ./scripts/wait_for_http.sh "$API_BASE/openapi.json" 90
   run_step "api integration contract suite" env DATAVERSE_API_BASE="$API_BASE" PYTHONPATH=. "$PYTEST_BIN" -q tests/test_api_integration.py

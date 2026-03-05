@@ -73,8 +73,6 @@ def test_star_core_runtime_returns_zero_state_when_no_events() -> None:
     assert result["as_of_event_seq"] == 0
     assert result["events_count"] == 0
     assert result["writes_per_minute"] == 0.0
-    assert result["hot_event_types"] == []
-    assert result["hot_entities_count"] == 0
 
 
 def test_star_core_pulse_derives_visual_hints_from_event_types() -> None:
@@ -191,6 +189,6 @@ def test_star_core_domain_metrics_returns_domain_activity_from_recent_events() -
     assert result["domains"]
     finance = next((item for item in result["domains"] if item["domain_name"] == "Finance"), None)
     assert finance is not None
+    assert finance["status"] == "GREEN"
     assert finance["events_count"] == 3
-    assert finance["writes_per_minute"] > 0
-    assert "ASTEROID_CREATED" in finance["hot_event_types"]
+    assert finance["activity_intensity"] >= 0.0

@@ -1,0 +1,215 @@
+{
+  "version": "v1",
+  "frozen_at": "2026-03-05T09:51:57.943Z",
+  "source_of_truth": {
+    "policy": {
+      "be_fields": [
+        "profile_key",
+        "law_preset",
+        "profile_mode",
+        "no_hard_delete",
+        "deletion_mode",
+        "occ_enforced",
+        "idempotency_supported",
+        "branch_scope_supported",
+        "lock_status",
+        "policy_version",
+        "locked_at",
+        "can_edit_core_laws"
+      ],
+      "fe_used_fields": [
+        "profile_key",
+        "law_preset",
+        "profile_mode",
+        "no_hard_delete",
+        "deletion_mode",
+        "occ_enforced",
+        "idempotency_supported",
+        "branch_scope_supported",
+        "lock_status",
+        "policy_version",
+        "locked_at",
+        "can_edit_core_laws"
+      ]
+    },
+    "runtime": {
+      "be_fields": [
+        "as_of_event_seq",
+        "events_count",
+        "writes_per_minute"
+      ],
+      "fe_used_fields": [
+        "as_of_event_seq",
+        "events_count",
+        "writes_per_minute"
+      ]
+    },
+    "domains": {
+      "be_fields": [
+        "domain_name",
+        "status",
+        "events_count",
+        "activity_intensity"
+      ],
+      "fe_used_fields": [
+        "domain_name",
+        "events_count",
+        "status",
+        "activity_intensity"
+      ]
+    },
+    "pulse_event": {
+      "be_fields": [
+        "event_seq",
+        "event_type",
+        "entity_id",
+        "visual_hint",
+        "intensity"
+      ],
+      "fe_used_fields": [
+        "event_seq",
+        "event_type",
+        "entity_id",
+        "visual_hint",
+        "intensity"
+      ]
+    }
+  },
+  "diff": {
+    "policy": {
+      "unused_from_be": [],
+      "missing_in_be": []
+    },
+    "runtime": {
+      "unused_from_be": [],
+      "missing_in_be": []
+    },
+    "domains": {
+      "unused_from_be": [],
+      "missing_in_be": []
+    },
+    "pulse_event": {
+      "unused_from_be": [],
+      "missing_in_be": []
+    }
+  },
+  "classification": {
+    "classes": {
+      "USE_NOW": "USE_NOW",
+      "RESERVED": "RESERVED",
+      "DROP_CANDIDATE": "DROP_CANDIDATE"
+    },
+    "by_section": {
+      "policy": {
+        "profile_key": "USE_NOW",
+        "law_preset": "USE_NOW",
+        "profile_mode": "USE_NOW",
+        "no_hard_delete": "USE_NOW",
+        "deletion_mode": "USE_NOW",
+        "occ_enforced": "USE_NOW",
+        "idempotency_supported": "USE_NOW",
+        "branch_scope_supported": "USE_NOW",
+        "lock_status": "USE_NOW",
+        "policy_version": "USE_NOW",
+        "locked_at": "USE_NOW",
+        "can_edit_core_laws": "USE_NOW"
+      },
+      "runtime": {
+        "as_of_event_seq": "USE_NOW",
+        "events_count": "USE_NOW",
+        "writes_per_minute": "USE_NOW"
+      },
+      "domains": {
+        "domain_name": "USE_NOW",
+        "status": "USE_NOW",
+        "events_count": "USE_NOW",
+        "activity_intensity": "USE_NOW"
+      },
+      "pulse_event": {
+        "event_seq": "USE_NOW",
+        "event_type": "USE_NOW",
+        "entity_id": "USE_NOW",
+        "visual_hint": "USE_NOW",
+        "intensity": "USE_NOW"
+      }
+    },
+    "report": {
+      "policy": {
+        "by_class": {
+          "USE_NOW": [
+            "profile_key",
+            "law_preset",
+            "profile_mode",
+            "no_hard_delete",
+            "deletion_mode",
+            "occ_enforced",
+            "idempotency_supported",
+            "branch_scope_supported",
+            "lock_status",
+            "policy_version",
+            "locked_at",
+            "can_edit_core_laws"
+          ],
+          "RESERVED": [],
+          "DROP_CANDIDATE": []
+        },
+        "unclassified": [],
+        "orphan_class_entries": [],
+        "invalid_class_entries": [],
+        "use_now_not_in_fe_used": [],
+        "fe_used_not_use_now": []
+      },
+      "runtime": {
+        "by_class": {
+          "USE_NOW": [
+            "as_of_event_seq",
+            "events_count",
+            "writes_per_minute"
+          ],
+          "RESERVED": [],
+          "DROP_CANDIDATE": []
+        },
+        "unclassified": [],
+        "orphan_class_entries": [],
+        "invalid_class_entries": [],
+        "use_now_not_in_fe_used": [],
+        "fe_used_not_use_now": []
+      },
+      "domains": {
+        "by_class": {
+          "USE_NOW": [
+            "domain_name",
+            "status",
+            "events_count",
+            "activity_intensity"
+          ],
+          "RESERVED": [],
+          "DROP_CANDIDATE": []
+        },
+        "unclassified": [],
+        "orphan_class_entries": [],
+        "invalid_class_entries": [],
+        "use_now_not_in_fe_used": [],
+        "fe_used_not_use_now": []
+      },
+      "pulse_event": {
+        "by_class": {
+          "USE_NOW": [
+            "event_seq",
+            "event_type",
+            "entity_id",
+            "visual_hint",
+            "intensity"
+          ],
+          "RESERVED": [],
+          "DROP_CANDIDATE": []
+        },
+        "unclassified": [],
+        "orphan_class_entries": [],
+        "invalid_class_entries": [],
+        "use_now_not_in_fe_used": [],
+        "fe_used_not_use_now": []
+      }
+    }
+  }
+}

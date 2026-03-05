@@ -45,6 +45,9 @@ jobs:
       - name: Backend unit tests
         run: pytest -q tests/test_parser_service.py tests/test_calc_service.py
 
+      - name: Star contract baseline parity (backend)
+        run: pytest -q tests/test_star_contract_baseline.py
+
       - name: Parser2 spec contract tests
         run: |
           pytest -q tests/test_parser2_spec_contract.py tests/test_parser2_lexer.py tests/test_parser2_ast.py tests/test_parser2_planner.py tests/test_parser2_resolver.py
@@ -82,6 +85,9 @@ jobs:
 
       - name: Frontend tests
         run: npm test
+
+      - name: Star contract baseline parity (frontend)
+        run: npm test -- --run src/components/universe/starContract.test.js
 
       - name: Frontend build
         run: npm run build
