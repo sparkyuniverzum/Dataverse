@@ -24,5 +24,26 @@ describe("parser execution mode", () => {
       extinguish: true,
     });
   });
-});
 
+  it("enables only LINK by default in staging mode", () => {
+    expect(resolveParserExecutionMode({ MODE: "staging" })).toEqual({
+      link: true,
+      ingest: false,
+      extinguish: false,
+    });
+  });
+
+  it("allows env override over staging defaults", () => {
+    expect(
+      resolveParserExecutionMode({
+        MODE: "staging",
+        VITE_PARSER_ONLY_LINK: "false",
+        VITE_PARSER_ONLY_INGEST: "true",
+      })
+    ).toEqual({
+      link: false,
+      ingest: true,
+      extinguish: false,
+    });
+  });
+});
