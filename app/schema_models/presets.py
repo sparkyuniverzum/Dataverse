@@ -63,7 +63,7 @@ class SchemaPresetApplyRequest(BaseModel):
     branch_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def validate_payload(self) -> "SchemaPresetApplyRequest":
+    def validate_payload(self) -> SchemaPresetApplyRequest:
         preset_key = str(self.preset_key or "").strip()
         if not preset_key:
             raise ValueError("`preset_key` is required")
@@ -168,7 +168,7 @@ class PresetBundleApplyRequest(BaseModel):
     branch_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def validate_payload(self) -> "PresetBundleApplyRequest":
+    def validate_payload(self) -> PresetBundleApplyRequest:
         key = str(self.bundle_key or "").strip()
         has_manifest = isinstance(self.manifest, dict) and bool(self.manifest)
         if not key and not has_manifest:

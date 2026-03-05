@@ -218,6 +218,18 @@ export function buildTableContractUrl(apiBase, tableId, galaxyId = null) {
   return url.toString();
 }
 
+export function buildBranchesUrl(apiBase, galaxyId = null) {
+  const url = new URL(`${apiBase}/branches`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  return url.toString();
+}
+
+export function buildGalaxyOnboardingUrl(apiBase, galaxyId) {
+  return `${apiBase}/galaxies/${galaxyId}/onboarding`;
+}
+
 export function buildGalaxyPlanetsUrl(apiBase, galaxyId, asOfIso = null, branchId = null) {
   const url = new URL(`${apiBase}/galaxies/${galaxyId}/planets`);
   if (asOfIso) {
@@ -285,6 +297,28 @@ export function buildStarCorePolicyUrl(apiBase, galaxyId) {
 
 export function buildStarCorePolicyLockUrl(apiBase, galaxyId) {
   return `${apiBase}/galaxies/${galaxyId}/star-core/policy/lock`;
+}
+
+export function buildStarCorePhysicsProfileUrl(apiBase, galaxyId) {
+  return `${apiBase}/galaxies/${galaxyId}/star-core/physics/profile`;
+}
+
+export function buildStarCorePlanetPhysicsUrl(
+  apiBase,
+  galaxyId,
+  { branchId = null, afterEventSeq = null, limit = 200 } = {}
+) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/star-core/physics/planets`);
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  if (Number.isFinite(afterEventSeq) && Number(afterEventSeq) >= 0) {
+    url.searchParams.set("after_event_seq", String(Math.floor(Number(afterEventSeq))));
+  }
+  if (Number.isFinite(limit)) {
+    url.searchParams.set("limit", String(Math.max(1, Math.min(1000, Math.floor(Number(limit))))));
+  }
+  return url.toString();
 }
 
 export function buildStarCorePulseUrl(apiBase, galaxyId, { branchId = null, afterEventSeq = null, limit = 64 } = {}) {

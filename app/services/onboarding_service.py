@@ -130,9 +130,13 @@ class OnboardingService:
             baseline["step"] = "complete"
         if baseline["simulation_confirmed"] and self._step_index(str(baseline["step"])) < self._step_index("complete"):
             baseline["step"] = "complete"
-        if baseline["calculations_confirmed"] and self._step_index(str(baseline["step"])) < self._step_index("simulation"):
+        if baseline["calculations_confirmed"] and self._step_index(str(baseline["step"])) < self._step_index(
+            "simulation"
+        ):
             baseline["step"] = "simulation"
-        if baseline["dependencies_confirmed"] and self._step_index(str(baseline["step"])) < self._step_index("calculations"):
+        if baseline["dependencies_confirmed"] and self._step_index(str(baseline["step"])) < self._step_index(
+            "calculations"
+        ):
             baseline["step"] = "calculations"
         if baseline["schema_confirmed"] and self._step_index(str(baseline["step"])) < self._step_index("dependencies"):
             baseline["step"] = "dependencies"
@@ -308,7 +312,9 @@ class OnboardingService:
             advance_blockers = self._describe_blockers(missing_for_next, next_stage.requirements)
             if current_stage.key == STAGES[0].key and machine_state["step"] != "complete":
                 can_advance = False
-                advance_blockers = ["Dokonci Stage 1 flow (Blueprint -> Drop -> Schema -> Vazby -> Vypocty -> Simulace)."]
+                advance_blockers = [
+                    "Dokonci Stage 1 flow (Blueprint -> Drop -> Schema -> Vazby -> Vypocty -> Simulace)."
+                ]
 
         return OnboardingPublic(
             user_id=progress.user_id,
@@ -355,7 +361,9 @@ class OnboardingService:
             progress.updated_at = now
         elif payload.action == OnboardingAction.sync_machine:
             if payload.machine is None:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="machine payload is required")
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="machine payload is required"
+                )
             current_machine = self._machine_state_from_progress(progress)
             next_machine = self._apply_machine_patch(current=current_machine, patch=payload.machine)
             self._set_machine_state_on_progress(progress=progress, machine=next_machine)

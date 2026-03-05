@@ -20,8 +20,18 @@ echo "[star-contract-gate] backend baseline parity"
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_star_contract_baseline.py
 
 echo
-echo "[star-contract-gate] frontend baseline + classification parity"
-npm --prefix frontend test -- --run src/components/universe/starContract.test.js
+echo "[star-contract-gate] backend domain contract closure"
+PYTHONPATH=. "$PYTEST_BIN" -q tests/test_contract_docs_closure.py tests/test_domain_payload_contract_shapes.py
+
+echo
+echo "[star-contract-gate] frontend contract parity (star + workspace + app gate)"
+npm --prefix frontend test -- --run \
+  src/components/universe/starContract.test.js \
+  src/components/universe/scene/physicsSystem.test.js \
+  src/components/universe/workspaceContract.test.js \
+  src/components/universe/workspaceFormatters.test.js \
+  src/lib/workspaceScopeContract.test.js \
+  src/lib/dataverseApi.test.js
 
 echo
 echo "[star-contract-gate] PASS"

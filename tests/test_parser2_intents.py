@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from pydantic import TypeAdapter
 
@@ -107,7 +107,9 @@ def test_invalid_discriminator_is_rejected() -> None:
 
 
 def test_selector_type_id_can_be_used_for_future_resolver_phase() -> None:
-    intent = UpsertNodeIntent(node=NodeSelector(selector_type=NodeSelectorType.ID, value="63b9d570-5ef6-47eb-8bf4-70bcdb6db95b"))
+    intent = UpsertNodeIntent(
+        node=NodeSelector(selector_type=NodeSelectorType.ID, value="63b9d570-5ef6-47eb-8bf4-70bcdb6db95b")
+    )
     assert intent.node.selector_type == NodeSelectorType.ID
 
 

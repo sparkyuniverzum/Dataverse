@@ -24,6 +24,8 @@ class StarCorePolicyPublic(BaseModel):
 class StarCoreProfileApplyRequest(BaseModel):
     profile_key: str = Field(default="ORIGIN", min_length=2, max_length=32)
     lock_after_apply: bool = True
+    physical_profile_key: str = Field(default="BALANCE", min_length=3, max_length=32)
+    physical_profile_version: int = Field(default=1, ge=1)
 
 
 class StarCoreRuntimePublic(BaseModel):
@@ -65,3 +67,45 @@ class StarCoreDomainMetricsResponse(BaseModel):
     total_events_count: int
     domains: list[StarCoreDomainMetricPublic] = Field(default_factory=list)
     updated_at: datetime
+
+
+class StarCorePhysicsProfilePublic(BaseModel):
+    galaxy_id: uuid.UUID
+    profile_key: str = "BALANCE"
+    profile_version: int = 1
+    lock_status: str = "draft"
+    locked_at: datetime | None = None
+    coefficients: dict[str, float] = Field(default_factory=dict)
+
+
+class StarCorePlanetPhysicsMetricsPublic(BaseModel):
+    activity: float = 0.0
+    stress: float = 0.0
+    health: float = 1.0
+    inactivity: float = 0.0
+    corrosion: float = 0.0
+    rows: int = 0
+
+
+class StarCorePlanetPhysicsVisualPublic(BaseModel):
+    size_factor: float = 1.0
+    luminosity: float = 0.0
+    pulse_rate: float = 0.0
+    hue: float = 0.0
+    saturation: float = 0.0
+    corrosion_level: float = 0.0
+    crack_intensity: float = 0.0
+
+
+class StarCorePlanetPhysicsItemPublic(BaseModel):
+    table_id: uuid.UUID
+    phase: str = "CALM"
+    metrics: StarCorePlanetPhysicsMetricsPublic
+    visual: StarCorePlanetPhysicsVisualPublic
+    source_event_seq: int = 0
+    engine_version: str = "star-physics-v2-preview"
+
+
+class StarCorePlanetPhysicsResponse(BaseModel):
+    as_of_event_seq: int
+    items: list[StarCorePlanetPhysicsItemPublic] = Field(default_factory=list)

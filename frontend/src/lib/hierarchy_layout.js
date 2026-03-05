@@ -1,8 +1,11 @@
-import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, forceZ } from "d3-force-3d";
+import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, forceZ } from "d3-force-3d";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
+
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const STAR_CLEARANCE_RADIUS = 260;
 
 function hashText(input) {
   const text = String(input || "");
@@ -12,6 +15,16 @@ function hashText(input) {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+function spiralPolar(index, minRadius, radiusStep) {
+  const i = Math.max(0, Number(index) || 0);
+  // r(i) = r0 + step * sqrt(i + 1)
+  // theta(i) = i * golden_angle
+  return {
+    radius: minRadius + radiusStep * Math.sqrt(i + 1),
+    angle: i * GOLDEN_ANGLE,
+  };
 }
 
 function orbitalSeedPosition(index, total, center, radiusBase = 84) {
@@ -53,6 +66,31 @@ function splitEntityAndPlanetName(table) {
     entityName: raw,
     planetName: raw,
   };
+}
+
+function clampToStarClearance(point, minRadius = 260) {
+  const x = Number(point?.[0] || 0);
+  const y = Number(point?.[1] || 0);
+  const z = Number(point?.[2] || 0);
+  const radius = Math.sqrt(x * x + y * y + z * z);
+  if (radius >= minRadius) return [x, y, z];
+  if (radius < 1e-6) return [minRadius, 0, 0];
+  const scale = minRadius / radius;
+  return [x * scale, y * scale, z * scale];
+}
+
+function readSectorCenter(table) {
+  const center = Array.isArray(table?.sector?.center) ? table.sector.center : null;
+  if (!center || center.length !== 3) return null;
+  const x = Number(center[0]);
+  const y = Number(center[1]);
+  const z = Number(center[2]);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
+  return clampToStarClearance([x, y, z]);
+}
+
+function hasManualSectorPosition(table) {
+  return String(table?.sector?.mode || "").toLowerCase() === "manual" && Boolean(readSectorCenter(table));
 }
 
 function aggregateTableLinks(tables) {
@@ -153,7 +191,6 @@ export function calculateHierarchyLayout({
     };
   }
 
-  const previousTablePositions = previous?.tablePositions instanceof Map ? previous.tablePositions : new Map();
   const previousAsteroidPositions = previous?.asteroidPositions instanceof Map ? previous.asteroidPositions : new Map();
   const safeTablePhysicsById = tablePhysicsById instanceof Map ? tablePhysicsById : new Map();
   const safeAsteroidPhysicsById = asteroidPhysicsById instanceof Map ? asteroidPhysicsById : new Map();
@@ -165,13 +202,12 @@ export function calculateHierarchyLayout({
       const baseRadius = clamp(16 + Math.sqrt(Math.max(1, memberCount)) * 3.8, 16, 46);
       const baseMass = clamp(1 + memberCount * 0.18, 1, 18);
       const physics = safeTablePhysicsById.get(id) || null;
-      const radiusFactor = clamp(Number(physics?.radiusFactor) || 1, 0.85, 1.35);
-      const massFactor = clamp(Number(physics?.massFactor) || 1, 0.8, 1.9);
+      const radiusFactor = clamp(Number(physics?.radiusFactor) || 1, 0.85, 2.4);
+      const massFactor = clamp(Number(physics?.massFactor) || 1, 0.8, 2.4);
       const radius = clamp(baseRadius * radiusFactor, 14, 52);
       const mass = clamp(baseMass * massFactor, 1, 24);
-      const prev = previousTablePositions.get(id);
-      const sectorCenter = Array.isArray(table?.sector?.center) ? table.sector.center : [0, 0, 0];
-      const [x, y, z] = Array.isArray(prev) ? prev : sectorCenter;
+      const sectorCenter = readSectorCenter(table) || [0, 0, 0];
+      const [x, y, z] = sectorCenter;
       const { entityName, planetName } = splitEntityAndPlanetName(table);
       return {
         id,
@@ -181,6 +217,7 @@ export function calculateHierarchyLayout({
         planetName,
         memberCount,
         table,
+        hasManualPosition: hasManualSectorPosition(table),
         radius,
         mass,
         x: Number(x) || 0,
@@ -191,12 +228,6 @@ export function calculateHierarchyLayout({
     .sort((a, b) => a.id.localeCompare(b.id));
 
   const tableLinks = aggregateTableLinks(safeTables);
-  const tableLinksForLayout = tableLinks.map((link) => ({
-    id: link.id,
-    source: link.source,
-    target: link.target,
-    weight: link.weight,
-  }));
 
   const tablesByConstellation = new Map();
   tableNodes.forEach((node) => {
@@ -210,67 +241,38 @@ export function calculateHierarchyLayout({
   const constellationEntries = [...tablesByConstellation.entries()]
     .map(([name, members]) => [name, [...members].sort((a, b) => a.id.localeCompare(b.id))])
     .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-  const constellationCount = constellationEntries.length;
-  const constellationOrbitRadius =
-    constellationCount <= 1 ? 0 : clamp(180 + constellationCount * 34, 180, 540);
-
   const seededTablePositions = new Map();
   constellationEntries.forEach(([name, members], constellationIndex) => {
     const seed = hashText(name);
-    const baseAngle =
-      constellationCount <= 1
-        ? 0
-        : (Math.PI * 2 * constellationIndex) / constellationCount + ((seed % 360) * Math.PI) / 1440;
-    const centerX = constellationCount <= 1 ? 0 : Math.cos(baseAngle) * constellationOrbitRadius;
-    const centerZ = constellationCount <= 1 ? 0 : Math.sin(baseAngle) * constellationOrbitRadius;
-    const centerY = ((constellationIndex % 2 === 0 ? 1 : -1) * (10 + (seed % 16) * 0.8));
-    const localOrbitRadius = clamp(56 + Math.sqrt(Math.max(1, members.length)) * 20, 56, 190);
+    const constellationSeedAngle = ((seed % 360) * Math.PI) / 180;
+    const constellationPolar = spiralPolar(constellationIndex, STAR_CLEARANCE_RADIUS + 120, 170);
+    const centerX = Math.cos(constellationPolar.angle + constellationSeedAngle * 0.1) * constellationPolar.radius;
+    const centerZ = Math.sin(constellationPolar.angle + constellationSeedAngle * 0.1) * constellationPolar.radius;
+    const centerY = Math.sin(constellationPolar.angle * 0.9) * 10;
 
     members.forEach((node, memberIndex) => {
+      if (node.hasManualPosition) {
+        const manualCenter = readSectorCenter(node.table) || [node.x, node.y, node.z];
+        seededTablePositions.set(node.id, manualCenter);
+        return;
+      }
       const memberSeed = hashText(`${name}|${node.id}`);
-      const localAngle =
-        members.length <= 1
-          ? 0
-          : (Math.PI * 2 * memberIndex) / members.length + ((memberSeed % 360) * Math.PI) / 360;
-      const localRadiusJitter = 0.82 + ((memberSeed % 37) / 100);
-      const seedX = centerX + Math.cos(localAngle) * localOrbitRadius * localRadiusJitter;
-      const seedY = centerY + Math.sin(localAngle * 2) * 9 + (memberIndex % 2 === 0 ? 4 : -4);
-      const seedZ = centerZ + Math.sin(localAngle) * localOrbitRadius * localRadiusJitter;
-      seededTablePositions.set(node.id, [seedX, seedY, seedZ]);
+      const localSeedAngle = ((memberSeed % 360) * Math.PI) / 180;
+      const localPolar = spiralPolar(memberIndex, 86, 56);
+      const localAngle = localPolar.angle + localSeedAngle * 0.08 + constellationPolar.angle * 0.24;
+      const seedX = centerX + Math.cos(localAngle) * localPolar.radius;
+      const seedY = centerY + Math.sin(localAngle * 1.7) * 7;
+      const seedZ = centerZ + Math.sin(localAngle) * localPolar.radius;
+      seededTablePositions.set(node.id, clampToStarClearance([seedX, seedY, seedZ], STAR_CLEARANCE_RADIUS));
     });
   });
 
   tableNodes.forEach((node) => {
     const seeded = seededTablePositions.get(node.id) || [0, 0, 0];
-    const prev = previousTablePositions.get(node.id);
-    if (Array.isArray(prev) && prev.length === 3) {
-      node.x = Number(prev[0]) * 0.84 + Number(seeded[0]) * 0.16;
-      node.y = Number(prev[1]) * 0.84 + Number(seeded[1]) * 0.16;
-      node.z = Number(prev[2]) * 0.84 + Number(seeded[2]) * 0.16;
-      return;
-    }
     node.x = Number(seeded[0]) || 0;
     node.y = Number(seeded[1]) || 0;
     node.z = Number(seeded[2]) || 0;
   });
-
-  const tableSim = forceSimulation(tableNodes)
-    .force("charge", forceManyBody().strength((node) => -420 - node.mass * 58))
-    .force("center", forceCenter(0, 0, 0).strength(0.02))
-    .force("collision", forceCollide().radius((node) => node.radius + 34).iterations(2))
-    .force("x", forceX((node) => seededTablePositions.get(node.id)?.[0] ?? 0).strength(0.12))
-    .force("y", forceY((node) => seededTablePositions.get(node.id)?.[1] ?? 0).strength(0.14))
-    .force("z", forceZ((node) => seededTablePositions.get(node.id)?.[2] ?? 0).strength(0.12))
-    .force(
-      "link",
-      forceLink(tableLinksForLayout)
-        .id((node) => node.id)
-        .distance((link) => 132 + Math.min(84, Number(link.weight || 1) * 18))
-        .strength((link) => clamp(0.16 + Number(link.weight || 1) * 0.06, 0.16, 0.46))
-    )
-    .stop();
-
-  for (let i = 0; i < 120; i += 1) tableSim.tick();
 
   const tablePositions = new Map(tableNodes.map((node) => [node.id, [node.x, node.y, node.z]]));
 

@@ -5,6 +5,8 @@ import {
   apiErrorFromResponse,
   apiFetch,
   buildGalaxyEventsStreamUrl,
+  buildStarCorePhysicsProfileUrl,
+  buildStarCorePlanetPhysicsUrl,
   buildSnapshotUrl,
   buildStarCoreDomainMetricsUrl,
   buildStarCorePolicyUrl,
@@ -16,6 +18,8 @@ import {
 import { applySseFrameCursor, drainSseBuffer, parseSseFrame, sleep } from "./runtimeSyncUtils";
 import {
   normalizeStarDomains,
+  normalizeStarPhysicsProfile,
+  normalizeStarPlanetPhysicsPayload,
   normalizeStarPolicy,
   normalizeStarPulsePayload,
   normalizeStarRuntime,
@@ -33,6 +37,9 @@ export function useUniverseRuntimeSync({ galaxyId }) {
   const [starRuntime, setStarRuntime] = useState(null);
   const [starDomains, setStarDomains] = useState([]);
   const [starPolicy, setStarPolicy] = useState(null);
+  const [starPhysicsProfile, setStarPhysicsProfile] = useState(null);
+  const [starPlanetPhysics, setStarPlanetPhysics] = useState({ as_of_event_seq: 0, items: [] });
+  const [starPlanetPhysicsByTableId, setStarPlanetPhysicsByTableId] = useState({});
   const [starPulseByEntity, setStarPulseByEntity] = useState({});
   const [starPulseLastEventSeq, setStarPulseLastEventSeq] = useState(0);
 
@@ -137,25 +144,48 @@ export function useUniverseRuntimeSync({ galaxyId }) {
       const scopeGalaxyId = galaxyId;
       const task = (async () => {
         try {
-          const [runtimeResponse, domainsResponse, policyResponse] = await Promise.all([
-            apiFetch(buildStarCoreRuntimeUrl(API_BASE, scopeGalaxyId, { windowEvents: 120 })),
-            apiFetch(buildStarCoreDomainMetricsUrl(API_BASE, scopeGalaxyId, { windowEvents: 240 })),
-            apiFetch(buildStarCorePolicyUrl(API_BASE, scopeGalaxyId)),
-          ]);
-          if (!runtimeResponse.ok || !domainsResponse.ok || !policyResponse.ok) {
-            return;
-          }
-          const [runtimeBody, domainsBody, policyBody] = await Promise.all([
-            runtimeResponse.json().catch(() => null),
-            domainsResponse.json().catch(() => null),
-            policyResponse.json().catch(() => null),
+          const [runtimeResponse, domainsResponse, policyResponse, physicsProfileResponse, planetPhysicsResponse] =
+            await Promise.all([
+              apiFetch(buildStarCoreRuntimeUrl(API_BASE, scopeGalaxyId, { windowEvents: 120 })),
+              apiFetch(buildStarCoreDomainMetricsUrl(API_BASE, scopeGalaxyId, { windowEvents: 240 })),
+              apiFetch(buildStarCorePolicyUrl(API_BASE, scopeGalaxyId)),
+              apiFetch(buildStarCorePhysicsProfileUrl(API_BASE, scopeGalaxyId)),
+              apiFetch(buildStarCorePlanetPhysicsUrl(API_BASE, scopeGalaxyId, { limit: 1000 })),
+            ]);
+
+          const [runtimeBody, domainsBody, policyBody, physicsProfileBody, planetPhysicsBody] = await Promise.all([
+            runtimeResponse.ok ? runtimeResponse.json().catch(() => null) : Promise.resolve(null),
+            domainsResponse.ok ? domainsResponse.json().catch(() => null) : Promise.resolve(null),
+            policyResponse.ok ? policyResponse.json().catch(() => null) : Promise.resolve(null),
+            physicsProfileResponse.ok ? physicsProfileResponse.json().catch(() => null) : Promise.resolve(null),
+            planetPhysicsResponse.ok ? planetPhysicsResponse.json().catch(() => null) : Promise.resolve(null),
           ]);
           if (activeGalaxyRef.current !== scopeGalaxyId) {
             return;
           }
-          setStarRuntime(normalizeStarRuntime(runtimeBody));
-          setStarDomains(normalizeStarDomains(domainsBody?.domains));
-          setStarPolicy(normalizeStarPolicy(policyBody));
+          if (runtimeBody) {
+            setStarRuntime(normalizeStarRuntime(runtimeBody));
+          }
+          if (domainsBody) {
+            setStarDomains(normalizeStarDomains(domainsBody?.domains));
+          }
+          if (policyBody) {
+            setStarPolicy(normalizeStarPolicy(policyBody));
+          }
+          if (physicsProfileBody) {
+            setStarPhysicsProfile(normalizeStarPhysicsProfile(physicsProfileBody));
+          }
+          if (planetPhysicsBody) {
+            const normalizedPlanetPhysics = normalizeStarPlanetPhysicsPayload(planetPhysicsBody);
+            setStarPlanetPhysics(normalizedPlanetPhysics);
+            const nextByTableId = {};
+            normalizedPlanetPhysics.items.forEach((item) => {
+              const tableId = String(item?.table_id || "").trim();
+              if (!tableId) return;
+              nextByTableId[tableId] = item;
+            });
+            setStarPlanetPhysicsByTableId(nextByTableId);
+          }
         } catch {
           // Telemetry is non-blocking for core workspace operations.
         }
@@ -248,6 +278,9 @@ export function useUniverseRuntimeSync({ galaxyId }) {
     setStarRuntime(null);
     setStarDomains([]);
     setStarPolicy(null);
+    setStarPhysicsProfile(null);
+    setStarPlanetPhysics({ as_of_event_seq: 0, items: [] });
+    setStarPlanetPhysicsByTableId({});
     setStarPulseByEntity({});
     setStarPulseLastEventSeq(0);
 
@@ -358,6 +391,9 @@ export function useUniverseRuntimeSync({ galaxyId }) {
     starRuntime,
     starDomains,
     starPolicy,
+    starPhysicsProfile,
+    starPlanetPhysics,
+    starPlanetPhysicsByTableId,
     starPulseByEntity,
     starPulseLastEventSeq,
     setRuntimeError: setError,

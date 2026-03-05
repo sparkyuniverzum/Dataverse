@@ -24,7 +24,7 @@ class AsteroidMutateRequest(BaseModel):
     branch_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def validate_has_patch(self) -> "AsteroidMutateRequest":
+    def validate_has_patch(self) -> AsteroidMutateRequest:
         if self.value is None and not self.metadata:
             raise ValueError("Provide either 'value' or non-empty 'metadata'")
         return self
@@ -61,7 +61,7 @@ class BondMutateRequest(BaseModel):
     branch_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def validate_type(self) -> "BondMutateRequest":
+    def validate_type(self) -> BondMutateRequest:
         if not str(self.type or "").strip():
             raise ValueError("Provide non-empty 'type'")
         self.type = str(self.type).strip()
@@ -92,7 +92,7 @@ class ParseCommandRequest(BaseModel):
     branch_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def validate_text_or_query(self) -> "ParseCommandRequest":
+    def validate_text_or_query(self) -> ParseCommandRequest:
         text = self.text.strip() if isinstance(self.text, str) else None
         query = self.query.strip() if isinstance(self.query, str) else None
 
@@ -165,7 +165,7 @@ class TaskBatchExecuteRequest(BaseModel):
     branch_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def validate_payload(self) -> "TaskBatchExecuteRequest":
+    def validate_payload(self) -> TaskBatchExecuteRequest:
         if not self.tasks:
             raise ValueError("Provide non-empty 'tasks'")
         mode = str(self.mode or "commit").strip().lower()

@@ -33,7 +33,9 @@ class PhysicsEngineService:
     def __init__(self, *, engine_version: str = "physics-v1") -> None:
         self.engine_version = str(engine_version).strip() or "physics-v1"
 
-    def _derive_asteroid_state(self, *, error_count: int, circular_fields_count: int, bond_degree: int) -> dict[str, float]:
+    def _derive_asteroid_state(
+        self, *, error_count: int, circular_fields_count: int, bond_degree: int
+    ) -> dict[str, float]:
         error_pressure = _saturate_count(error_count, 2.1)
         circular_pressure = _saturate_count(circular_fields_count, 1.8)
         bond_pressure = _saturate_count(bond_degree, 2.6)
@@ -106,8 +108,7 @@ class PhysicsEngineService:
                         CalcStateRM.error_count,
                         CalcStateRM.circular_fields_count,
                         CalcStateRM.calculated_values,
-                    )
-                    .where(
+                    ).where(
                         and_(
                             CalcStateRM.user_id == user_id,
                             CalcStateRM.galaxy_id == galaxy_id,
@@ -123,8 +124,7 @@ class PhysicsEngineService:
         bonds = list(
             (
                 await session.execute(
-                    select(Bond.id, Bond.source_id, Bond.target_id, Bond.type)
-                    .where(
+                    select(Bond.id, Bond.source_id, Bond.target_id, Bond.type).where(
                         and_(
                             Bond.user_id == user_id,
                             Bond.galaxy_id == galaxy_id,
@@ -164,7 +164,9 @@ class PhysicsEngineService:
                 "error_count": int(row.error_count or 0),
                 "circular_fields_count": int(row.circular_fields_count or 0),
                 "bond_degree": int(degree_by_asteroid.get(asteroid_id, 0) or 0),
-                "calculated_values_keys": sorted(list((row.calculated_values or {}).keys())) if isinstance(row.calculated_values, dict) else [],
+                "calculated_values_keys": sorted(list((row.calculated_values or {}).keys()))
+                if isinstance(row.calculated_values, dict)
+                else [],
             }
             await self._upsert_state(
                 session=session,
@@ -292,8 +294,7 @@ class PhysicsEngineService:
         rows = list(
             (
                 await session.execute(
-                    select(PhysicsStateRM.entity_kind, PhysicsStateRM.entity_id)
-                    .where(
+                    select(PhysicsStateRM.entity_kind, PhysicsStateRM.entity_id).where(
                         and_(
                             PhysicsStateRM.user_id == user_id,
                             PhysicsStateRM.galaxy_id == galaxy_id,
@@ -305,9 +306,7 @@ class PhysicsEngineService:
         )
 
         stale_keys = {
-            (str(row.entity_kind or ""), row.entity_id)
-            for row in rows
-            if isinstance(row.entity_id, UUID)
+            (str(row.entity_kind or ""), row.entity_id) for row in rows if isinstance(row.entity_id, UUID)
         } - active_entity_keys
         if not stale_keys:
             return

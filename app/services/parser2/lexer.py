@@ -107,7 +107,7 @@ class Parser2Lexer:
     def _consume_atom(self, text: str, start_index: int) -> tuple[Token, int]:
         index = start_index
         length = len(text)
-        stop_chars = set(':+.,()=\"\'')
+        stop_chars = set(":+.,()=\"'")
 
         while index < length:
             ch = text[index]

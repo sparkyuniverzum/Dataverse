@@ -126,13 +126,17 @@ class ConstellationDashboardService:
 
             guardians = metadata_dict.get("_guardians")
             if isinstance(guardians, list):
-                guardians_by_constellation[constellation_name] += len([rule for rule in guardians if isinstance(rule, dict)])
+                guardians_by_constellation[constellation_name] += len(
+                    [rule for rule in guardians if isinstance(rule, dict)]
+                )
 
             if isinstance(active_alerts, list) and active_alerts:
                 alerts_by_constellation[constellation_name] += 1
 
             if isinstance(calculated_values, dict):
-                circular_by_constellation[constellation_name] += sum(1 for value in calculated_values.values() if value == "#CIRC!")
+                circular_by_constellation[constellation_name] += sum(
+                    1 for value in calculated_values.values() if value == "#CIRC!"
+                )
 
         rows: list[dict[str, Any]] = []
         for constellation_name, bucket in by_name.items():

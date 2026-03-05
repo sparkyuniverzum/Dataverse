@@ -12,7 +12,7 @@ from app.presets.bundle_presets import BundleDefinition, get_preset_bundle, list
 from app.services.parser_service import AtomicTask
 from app.services.schema_preset_service import PresetApplyPlan, SchemaPresetService
 from app.services.task_executor_service import TaskExecutionResult, TaskExecutorService
-from app.services.universe_service import UniverseService, ProjectedAsteroid, derive_table_id, derive_table_name
+from app.services.universe_service import ProjectedAsteroid, UniverseService, derive_table_id, derive_table_name
 
 
 @dataclass(frozen=True)
@@ -301,7 +301,14 @@ class PresetBundleService:
         return by_table
 
     @staticmethod
-    def _bundle_summary(bundle_key: str, bundle_version: int, bundle_name: str, bundle_description: str, bundle_tags: list[str], parsed: ParsedBundleManifest) -> dict[str, Any]:
+    def _bundle_summary(
+        bundle_key: str,
+        bundle_version: int,
+        bundle_name: str,
+        bundle_description: str,
+        bundle_tags: list[str],
+        parsed: ParsedBundleManifest,
+    ) -> dict[str, Any]:
         return {
             "key": bundle_key,
             "version": bundle_version,
@@ -397,7 +404,9 @@ class PresetBundleService:
             metadata = dict(moon.metadata)
             metadata["table"] = planet_plan.planet.table_name
             if skip_existing:
-                warnings.append(f"Moon '{moon.ref}' skipped in plan (existing value in table '{planet_plan.planet.table_name}').")
+                warnings.append(
+                    f"Moon '{moon.ref}' skipped in plan (existing value in table '{planet_plan.planet.table_name}')."
+                )
             else:
                 if normalized:
                     values.add(normalized)
@@ -476,7 +485,9 @@ class PresetBundleService:
         return refs
 
     @staticmethod
-    def _merge_executions(first: TaskExecutionResult | None, second: TaskExecutionResult | None) -> TaskExecutionResult | None:
+    def _merge_executions(
+        first: TaskExecutionResult | None, second: TaskExecutionResult | None
+    ) -> TaskExecutionResult | None:
         if first is None and second is None:
             return None
         merged = TaskExecutionResult()

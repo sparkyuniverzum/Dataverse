@@ -64,6 +64,8 @@ const hudBadgeStyle = {
 
 export default function WorkspaceSidebar({
   galaxy,
+  branches = [],
+  onboarding = null,
   tableNodes,
   asteroidCount,
   bondCount,
@@ -102,6 +104,18 @@ export default function WorkspaceSidebar({
       <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.84 }}>SIDEBAR</div>
       <div style={{ fontSize: "var(--dv-fs-sm)" }}>
         Galaxie: <strong>{galaxy?.name || "n/a"}</strong>
+      </div>
+      <div style={{ display: "grid", gap: 4, fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+        <div>
+          Aktivni branches: <strong>{Array.isArray(branches) ? branches.length : 0}</strong>
+        </div>
+        <div>
+          Onboarding: <strong>{String(onboarding?.current_stage_key || "n/a")}</strong>
+        </div>
+        <div>
+          Rezim: <strong>{String(onboarding?.mode || "n/a")}</strong> | Can advance:{" "}
+          <strong>{onboarding?.can_advance ? "ano" : "ne"}</strong>
+        </div>
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <span style={hudBadgeStyle}>Planety {tableNodes.length}</span>

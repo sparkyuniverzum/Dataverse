@@ -4,6 +4,8 @@ export default function GalaxyGateScreen({
   user,
   galaxies,
   selectedGalaxyId,
+  branchesByGalaxyId,
+  onboardingByGalaxyId,
   newGalaxyName,
   loading,
   busy,
@@ -11,6 +13,8 @@ export default function GalaxyGateScreen({
   onSelect,
   onCreate,
   onNameChange,
+  onLoadBranches,
+  onLoadOnboarding,
   onRefresh,
   onLogout,
 }) {
@@ -19,6 +23,8 @@ export default function GalaxyGateScreen({
       user={user}
       galaxies={galaxies}
       selectedGalaxyId={selectedGalaxyId}
+      branchesByGalaxyId={branchesByGalaxyId}
+      onboardingByGalaxyId={onboardingByGalaxyId}
       newGalaxyName={newGalaxyName}
       loading={loading}
       busy={busy}
@@ -26,6 +32,8 @@ export default function GalaxyGateScreen({
       onSelect={onSelect}
       onCreate={onCreate}
       onNameChange={onNameChange}
+      onLoadBranches={onLoadBranches}
+      onLoadOnboarding={onLoadOnboarding}
       onRefresh={onRefresh}
       onLogout={onLogout}
     />

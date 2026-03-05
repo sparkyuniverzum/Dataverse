@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
 _ALIASES: dict[str, str] = {
     "RELATION": "RELATION",
     "REL": "RELATION",
@@ -56,4 +55,3 @@ def bond_semantics(raw_value: Any) -> BondSemantics:
         flow_direction=flow_direction,
         description=description,
     )
-

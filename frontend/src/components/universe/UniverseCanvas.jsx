@@ -46,8 +46,6 @@ export default function UniverseCanvas({
   onLinkMove,
   onLinkComplete,
   onLinkCancel,
-  onPlanetDrop,
-  onPlanetDropHoverChange,
   onHoverLink,
   onLeaveLink,
   onSelectLink,
@@ -158,43 +156,8 @@ export default function UniverseCanvas({
     return String(value);
   };
 
-  const handlePlanetDragOver = (event) => {
-    if (!builderDropActive) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "copy";
-    onPlanetDropHoverChange?.(true);
-  };
-
-  const handlePlanetDragLeave = (event) => {
-    if (!builderDropActive) return;
-    if (event.currentTarget.contains(event.relatedTarget)) return;
-    onPlanetDropHoverChange?.(false);
-  };
-
-  const handlePlanetDrop = (event) => {
-    if (!builderDropActive) return;
-    event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    onPlanetDropHoverChange?.(false);
-    onPlanetDrop?.({
-      x: event.clientX,
-      y: event.clientY,
-      viewport: {
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-        height: rect.height,
-      },
-    });
-  };
-
   return (
-    <div
-      style={{ position: "relative", width: "100%", height: "100%" }}
-      onDragOver={handlePlanetDragOver}
-      onDragLeave={handlePlanetDragLeave}
-      onDrop={handlePlanetDrop}
-    >
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <Canvas
         camera={{
           position: cameraState.position,

@@ -6,6 +6,8 @@ import {
   buildOccConflictMessage,
   buildGalaxyEventsStreamUrl,
   buildStarCoreDomainMetricsUrl,
+  buildStarCorePhysicsProfileUrl,
+  buildStarCorePlanetPhysicsUrl,
   buildStarCorePolicyLockUrl,
   buildStarCorePolicyUrl,
   buildStarCorePulseUrl,
@@ -13,6 +15,8 @@ import {
   buildImportJobErrorsUrl,
   buildImportJobUrl,
   buildImportRunUrl,
+  buildBranchesUrl,
+  buildGalaxyOnboardingUrl,
   buildParserPayload,
   buildTableContractUrl,
   buildTaskBatchPayload,
@@ -81,6 +85,33 @@ describe("normalizeSnapshot", () => {
     expect(result.asteroids.map((asteroid) => asteroid.id)).toEqual(["a1", "a3"]);
     expect(result.bonds.map((bond) => bond.id)).toEqual(["b1"]);
   });
+
+  it("keeps civilization/mineral payload fields required by workspace UI", () => {
+    const snapshot = {
+      asteroids: [
+        {
+          id: "m1",
+          value: "Moon-1",
+          table_id: "t-1",
+          table_name: "Finance > Cashflow",
+          metadata: { amount: 1500, type: "income" },
+          calculated_values: { tax: 300 },
+          current_event_seq: 9,
+          is_deleted: false,
+        },
+      ],
+      bonds: [],
+    };
+    const result = normalizeSnapshot(snapshot);
+    expect(result.asteroids).toHaveLength(1);
+    const row = result.asteroids[0];
+    expect(row.id).toBe("m1");
+    expect(row.table_id).toBe("t-1");
+    expect(row.table_name).toBe("Finance > Cashflow");
+    expect(row.metadata.amount).toBe(1500);
+    expect(row.calculated_values.tax).toBe(300);
+    expect(row.current_event_seq).toBe(9);
+  });
 });
 
 describe("time machine helpers", () => {
@@ -139,6 +170,19 @@ describe("star core urls", () => {
 
     const lockUrl = buildStarCorePolicyLockUrl("http://127.0.0.1:8000", "g-42");
     expect(lockUrl).toBe("http://127.0.0.1:8000/galaxies/g-42/star-core/policy/lock");
+
+    const profileUrl = buildStarCorePhysicsProfileUrl("http://127.0.0.1:8000", "g-42");
+    expect(profileUrl).toBe("http://127.0.0.1:8000/galaxies/g-42/star-core/physics/profile");
+
+    const planetsUrl = buildStarCorePlanetPhysicsUrl("http://127.0.0.1:8000", "g-42", {
+      afterEventSeq: 200,
+      limit: 500,
+      branchId: "br-7",
+    });
+    expect(planetsUrl).toContain("/galaxies/g-42/star-core/physics/planets");
+    expect(planetsUrl).toContain("after_event_seq=200");
+    expect(planetsUrl).toContain("limit=500");
+    expect(planetsUrl).toContain("branch_id=br-7");
   });
 });
 
@@ -172,6 +216,17 @@ describe("io urls", () => {
 
     const plain = buildTableContractUrl("http://127.0.0.1:8000", "table-2");
     expect(plain).toBe("http://127.0.0.1:8000/contracts/table-2");
+  });
+
+  it("builds branches and onboarding URLs", () => {
+    const scopedBranches = buildBranchesUrl("http://127.0.0.1:8000", "g-42");
+    expect(scopedBranches).toBe("http://127.0.0.1:8000/branches?galaxy_id=g-42");
+
+    const plainBranches = buildBranchesUrl("http://127.0.0.1:8000");
+    expect(plainBranches).toBe("http://127.0.0.1:8000/branches");
+
+    const onboardingUrl = buildGalaxyOnboardingUrl("http://127.0.0.1:8000", "g-42");
+    expect(onboardingUrl).toBe("http://127.0.0.1:8000/galaxies/g-42/onboarding");
   });
 });
 

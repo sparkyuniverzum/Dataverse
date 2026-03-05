@@ -8,7 +8,14 @@ from app.api.runtime import commit_if_active, get_service_container, transaction
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.modules.auth.dependencies import AuthContext, get_current_auth_context, get_current_user
-from app.modules.auth.schemas import AuthResponse, LoginRequest, LogoutResponse, RefreshRequest, RefreshResponse, RegisterRequest
+from app.modules.auth.schemas import (
+    AuthResponse,
+    LoginRequest,
+    LogoutResponse,
+    RefreshRequest,
+    RefreshResponse,
+    RegisterRequest,
+)
 from app.schema_models.auth_onboarding import UserPublic
 
 router = APIRouter(tags=["auth"])

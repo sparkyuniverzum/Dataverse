@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from hashlib import blake2b, sha256
-import json
 from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select, text as sql_text
+from sqlalchemy import and_, select
+from sqlalchemy import text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import IdempotencyRecord
@@ -34,7 +35,7 @@ class IdempotencyService:
         idempotency_key: str,
     ) -> int:
         digest = blake2b(
-            f"{user_id}:{galaxy_id}:{branch_scope}:{endpoint}:{idempotency_key}".encode("utf-8"),
+            f"{user_id}:{galaxy_id}:{branch_scope}:{endpoint}:{idempotency_key}".encode(),
             digest_size=8,
         ).digest()
         return int.from_bytes(digest, byteorder="big", signed=True)

@@ -34,6 +34,42 @@ export const STAR_PULSE_EVENT_BE_FIELDS = Object.freeze([
   "intensity",
 ]);
 
+export const STAR_PHYSICS_PROFILE_BE_FIELDS = Object.freeze([
+  "galaxy_id",
+  "profile_key",
+  "profile_version",
+  "lock_status",
+  "locked_at",
+  "coefficients",
+]);
+
+export const STAR_PLANET_PHYSICS_ITEM_BE_FIELDS = Object.freeze([
+  "table_id",
+  "phase",
+  "metrics",
+  "visual",
+  "source_event_seq",
+  "engine_version",
+]);
+
+export const STAR_PHYSICS_PROFILE_FE_USED_FIELDS = Object.freeze([
+  "galaxy_id",
+  "profile_key",
+  "profile_version",
+  "lock_status",
+  "locked_at",
+  "coefficients",
+]);
+
+export const STAR_PLANET_PHYSICS_ITEM_FE_USED_FIELDS = Object.freeze([
+  "table_id",
+  "phase",
+  "metrics",
+  "visual",
+  "source_event_seq",
+  "engine_version",
+]);
+
 // This list intentionally tracks fields directly consumed by FE logic.
 export const STAR_POLICY_FE_USED_FIELDS = Object.freeze([
   "profile_key",
@@ -195,6 +231,76 @@ export function normalizeStarPulsePayload(payload) {
   };
 }
 
+function normalizePhysicsCoefficients(coefficients) {
+  if (!coefficients || typeof coefficients !== "object") return {};
+  const out = {};
+  Object.entries(coefficients).forEach(([key, value]) => {
+    const safeKey = String(key || "").trim();
+    if (!safeKey) return;
+    out[safeKey] = toFiniteNumber(value, 0);
+  });
+  return out;
+}
+
+function normalizePlanetPhysicsMetrics(metrics) {
+  const source = metrics && typeof metrics === "object" ? metrics : {};
+  return {
+    activity: clamp(toFiniteNumber(source.activity, 0), 0, 1),
+    stress: clamp(toFiniteNumber(source.stress, 0), 0, 1),
+    health: clamp(toFiniteNumber(source.health, 1), 0, 1),
+    inactivity: clamp(toFiniteNumber(source.inactivity, 0), 0, 1),
+    corrosion: clamp(toFiniteNumber(source.corrosion, 0), 0, 1),
+    rows: Math.max(0, Math.floor(toFiniteNumber(source.rows, 0))),
+  };
+}
+
+function normalizePlanetPhysicsVisual(visual) {
+  const source = visual && typeof visual === "object" ? visual : {};
+  return {
+    size_factor: clamp(toFiniteNumber(source.size_factor, 1), 0.4, 4),
+    luminosity: clamp(toFiniteNumber(source.luminosity, 0), 0, 1),
+    pulse_rate: clamp(toFiniteNumber(source.pulse_rate, 0), 0, 5),
+    hue: clamp(toFiniteNumber(source.hue, 0), 0, 1),
+    saturation: clamp(toFiniteNumber(source.saturation, 0), 0, 1),
+    corrosion_level: clamp(toFiniteNumber(source.corrosion_level, 0), 0, 1),
+    crack_intensity: clamp(toFiniteNumber(source.crack_intensity, 0), 0, 1),
+  };
+}
+
+function normalizePlanetPhysicsItem(item) {
+  const source = item && typeof item === "object" ? item : {};
+  return {
+    table_id: toStringOr(source.table_id, ""),
+    phase: toStringOr(source.phase, "CALM").toUpperCase(),
+    metrics: normalizePlanetPhysicsMetrics(source.metrics),
+    visual: normalizePlanetPhysicsVisual(source.visual),
+    source_event_seq: Math.max(0, Math.floor(toFiniteNumber(source.source_event_seq, 0))),
+    engine_version: toStringOr(source.engine_version, "star-physics-v2-preview"),
+  };
+}
+
+export function normalizeStarPhysicsProfile(payload) {
+  const source = payload && typeof payload === "object" ? payload : {};
+  return {
+    galaxy_id: source.galaxy_id ?? null,
+    profile_key: toStringOr(source.profile_key, "BALANCE").toUpperCase(),
+    profile_version: Math.max(1, Math.floor(toFiniteNumber(source.profile_version, 1))),
+    lock_status: toStringOr(source.lock_status, "draft").toLowerCase(),
+    locked_at: source.locked_at ?? null,
+    coefficients: normalizePhysicsCoefficients(source.coefficients),
+  };
+}
+
+export function normalizeStarPlanetPhysicsPayload(payload) {
+  const source = payload && typeof payload === "object" ? payload : {};
+  const itemsRaw = Array.isArray(source.items) ? source.items : [];
+  const items = itemsRaw.map((item) => normalizePlanetPhysicsItem(item)).filter((item) => Boolean(item.table_id));
+  return {
+    as_of_event_seq: Math.max(0, Math.floor(toFiniteNumber(source.as_of_event_seq, 0))),
+    items,
+  };
+}
+
 function diff(beFields, usedFields) {
   const beSet = new Set(beFields);
   const usedSet = new Set(usedFields);
@@ -234,6 +340,13 @@ export function getStarContractUsageDiff() {
     runtime: diff(STAR_RUNTIME_BE_FIELDS, STAR_RUNTIME_FE_USED_FIELDS),
     domains: diff(STAR_DOMAIN_BE_FIELDS, STAR_DOMAIN_FE_USED_FIELDS),
     pulse_event: diff(STAR_PULSE_EVENT_BE_FIELDS, STAR_PULSE_FE_USED_FIELDS),
+  };
+}
+
+export function getStarPhysicsContractUsageDiff() {
+  return {
+    physics_profile: diff(STAR_PHYSICS_PROFILE_BE_FIELDS, STAR_PHYSICS_PROFILE_FE_USED_FIELDS),
+    planet_physics_item: diff(STAR_PLANET_PHYSICS_ITEM_BE_FIELDS, STAR_PLANET_PHYSICS_ITEM_FE_USED_FIELDS),
   };
 }
 

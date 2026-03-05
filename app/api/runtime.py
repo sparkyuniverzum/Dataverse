@@ -12,6 +12,7 @@ from app.models import User
 
 services: ServiceContainer = get_or_create_services()
 
+
 def get_service_container(request: Request) -> ServiceContainer:
     container = getattr(request.app.state, "services", None)
     if isinstance(container, ServiceContainer):

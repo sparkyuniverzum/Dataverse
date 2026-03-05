@@ -13,13 +13,21 @@ from app.models import Event, Galaxy, TableContract
 from app.services.event_store_service import EventStoreService
 from app.services.universe.event_projection import (
     apply_event as apply_projection_event,
+)
+from app.services.universe.event_projection import (
     project_state_from_branch,
     project_state_from_events,
 )
 from app.services.universe.read_model_projection import (
     _load_calc_state_by_asteroid_id as rm_load_calc_state_by_asteroid_id,
+)
+from app.services.universe.read_model_projection import (
     _load_physics_state_by_asteroid_id as rm_load_physics_state_by_asteroid_id,
+)
+from app.services.universe.read_model_projection import (
     _load_physics_state_by_bond_id as rm_load_physics_state_by_bond_id,
+)
+from app.services.universe.read_model_projection import (
     enrich_bonds_from_read_models,
     enrich_main_timeline_from_read_models,
     evaluate_fallback_universe,
@@ -28,9 +36,9 @@ from app.services.universe.read_model_projection import (
 from app.services.universe.tables_snapshot import build_tables_snapshot
 from app.services.universe.types import (
     DEFAULT_GALAXY_ID,
+    ProjectionPayloadError,
     ProjectedAsteroid,
     ProjectedBond,
-    ProjectionPayloadError,
     derive_table_id,
     derive_table_name,
     normalize_table_name,
@@ -381,6 +389,16 @@ class UniverseService:
             table_name = str(defaults.get("table_name") or "").strip()
             if not table_name:
                 continue
+            raw_visual_position = defaults.get("planet_visual_position")
+            visual_position: dict[str, float] | None = None
+            if isinstance(raw_visual_position, dict):
+                try:
+                    x = float(raw_visual_position.get("x", 0.0))
+                    y = float(raw_visual_position.get("y", 0.0))
+                    z = float(raw_visual_position.get("z", 0.0))
+                    visual_position = {"x": x, "y": y, "z": z}
+                except (TypeError, ValueError):
+                    visual_position = None
             formula_fields: list[str] = []
             for formula in formula_registry:
                 if not isinstance(formula, dict):
@@ -394,5 +412,6 @@ class UniverseService:
                 "formula_fields": formula_fields,
                 "planet_archetype": str(defaults.get("planet_archetype") or "").strip() or None,
                 "contract_version": int(contract.version or 1),
+                "planet_visual_position": visual_position,
             }
         return hints

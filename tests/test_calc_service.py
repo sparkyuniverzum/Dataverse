@@ -1,8 +1,8 @@
+import sys
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-import sys
-import uuid
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 

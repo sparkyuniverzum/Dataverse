@@ -87,6 +87,36 @@ export const STAR_CORE_PROFILES = Object.freeze({
   }),
 });
 
+export const STAR_PHYSICAL_PROFILES = Object.freeze({
+  FORGE: Object.freeze({
+    key: "FORGE",
+    label: "Forge Physics",
+    description: "Rychla odezva, vyssi pulzace a agrese rustu pri zatezi.",
+    focus: "Transakcni toky a vysoka frekvence zapisu.",
+    coefficientsHint: "Vyssi d,g,h; nizsi c,f",
+    primaryColor: "#ffad57",
+    secondaryColor: "#ffd184",
+  }),
+  BALANCE: Object.freeze({
+    key: "BALANCE",
+    label: "Balance Physics",
+    description: "Vyvazene chovani mezi vykonem, stabilitou a citlivosti.",
+    focus: "Obecny univerzalni rezim pro vetsinu galaxii.",
+    coefficientsHint: "Stredni vahy vsech koeficientu",
+    primaryColor: "#74d9ff",
+    secondaryColor: "#8de7ff",
+  }),
+  ARCHIVE: Object.freeze({
+    key: "ARCHIVE",
+    label: "Archive Physics",
+    description: "Konzervativni dynamika, pomalejsi pulz a vyssi tolerance klidu.",
+    focus: "Katalogova a dlouhodobe archivni data.",
+    coefficientsHint: "Nizsi d,g,h; vyssi c,f",
+    primaryColor: "#9fb7d8",
+    secondaryColor: "#b9dbff",
+  }),
+});
+
 function safeDomainActivity(domainMetric) {
   return clamp(
     Number(domainMetric?.activity_intensity || 0),
@@ -231,7 +261,12 @@ function resolveProfileByKey(key) {
   return STAR_CORE_PROFILES[normalized] || STAR_CORE_PROFILES.ORIGIN;
 }
 
-export function resolveStarCoreProfile({ starRuntime = null, starDomains = null, starPolicy = null } = {}) {
+function resolvePhysicalProfileByKey(key) {
+  const normalized = String(key || "").trim().toUpperCase();
+  return STAR_PHYSICAL_PROFILES[normalized] || STAR_PHYSICAL_PROFILES.BALANCE;
+}
+
+export function resolveStarCoreProfile({ starRuntime = null, starDomains = null, starPolicy = null, starPhysicsProfile = null } = {}) {
   const writesPerMinute = Number(starRuntime?.writes_per_minute || 0);
   const eventsCount = Number(starRuntime?.events_count || 0);
   const domains = Array.isArray(starDomains) ? starDomains : [];
@@ -257,11 +292,16 @@ export function resolveStarCoreProfile({ starRuntime = null, starDomains = null,
 
   const recommendedLawPreset = policyPresetRaw || profile.lawPreset;
   const profileMode = isLocked ? "locked" : String(starPolicy?.profile_mode || "auto");
+  const physicalProfileKey = String(starPhysicsProfile?.profile_key || "BALANCE").toUpperCase();
+  const physicalProfile = resolvePhysicalProfileByKey(physicalProfileKey);
+  const physicalProfileVersion = Math.max(1, Number(starPhysicsProfile?.profile_version || 1));
 
   return {
     topologyMode: "single_star_per_galaxy",
     profileMode,
     profile,
+    physicalProfile,
+    physicalProfileVersion,
     recommendedLawPreset,
     writesPerMinute: Number.isFinite(writesPerMinute) ? writesPerMinute : 0,
     eventsCount: Number.isFinite(eventsCount) ? eventsCount : 0,

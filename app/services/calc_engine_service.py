@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-import re
 from typing import Any
 from uuid import UUID
 
@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import CalcStateRM, TableContract
 from app.services.bond_semantics import normalize_bond_type
 from app.services.universe_service import derive_table_id, derive_table_name
-
 
 _FORMULA_RE = re.compile(r"^\s*=?\s*(SUM|AVG|MIN|MAX|COUNT)\s*\(\s*([^)]+)\s*\)\s*$", re.IGNORECASE)
 
@@ -67,7 +66,7 @@ class CalcEngineService:
         if isinstance(value, float):
             return Decimal(str(value))
         if isinstance(value, str):
-            normalized = value.strip().replace("\u00A0", "").replace(" ", "").replace(",", ".")
+            normalized = value.strip().replace("\u00a0", "").replace(" ", "").replace(",", ".")
             if not normalized:
                 return None
             try:
@@ -108,10 +107,14 @@ class CalcEngineService:
         op = str(match.group(1) or "").strip().upper()
         source_attr = str(match.group(2) or "").strip()
         if not source_attr:
-            return None, FormulaError(field="", code="FORMULA_SOURCE_ATTR_MISSING", message="Formula source attribute is empty")
+            return None, FormulaError(
+                field="", code="FORMULA_SOURCE_ATTR_MISSING", message="Formula source attribute is empty"
+            )
 
         if op not in {"SUM", "AVG", "MIN", "MAX", "COUNT"}:
-            return None, FormulaError(field="", code="FORMULA_UNSUPPORTED_OP", message=f"Unsupported formula operation '{op}'")
+            return None, FormulaError(
+                field="", code="FORMULA_UNSUPPORTED_OP", message=f"Unsupported formula operation '{op}'"
+            )
 
         return FormulaSpec(op=op, source_attr=source_attr), None
 
@@ -124,7 +127,9 @@ class CalcEngineService:
             return text.split(".")[-1].strip()
         return text
 
-    def _registry_formulas_for_table(self, contract: Mapping[str, Any] | None) -> tuple[dict[str, FormulaSpec], list[FormulaError]]:
+    def _registry_formulas_for_table(
+        self, contract: Mapping[str, Any] | None
+    ) -> tuple[dict[str, FormulaSpec], list[FormulaError]]:
         formulas: dict[str, FormulaSpec] = {}
         errors: list[FormulaError] = []
         if not isinstance(contract, Mapping):
@@ -180,7 +185,12 @@ class CalcEngineService:
                             TableContract.deleted_at.is_(None),
                         )
                     )
-                    .order_by(TableContract.table_id.asc(), TableContract.version.desc(), TableContract.created_at.desc(), TableContract.id.desc())
+                    .order_by(
+                        TableContract.table_id.asc(),
+                        TableContract.version.desc(),
+                        TableContract.created_at.desc(),
+                        TableContract.id.desc(),
+                    )
                 )
             )
             .scalars()
@@ -244,7 +254,9 @@ class CalcEngineService:
             flow_incoming[target_id].add(source_id)
 
         cache: dict[tuple[UUID, str], Any] = {}
-        error_map: dict[UUID, list[FormulaError]] = {node_id: list(node["registry_errors"]) for node_id, node in nodes.items()}
+        error_map: dict[UUID, list[FormulaError]] = {
+            node_id: list(node["registry_errors"]) for node_id, node in nodes.items()
+        }
         error_signatures: dict[UUID, set[tuple[str, str, str]]] = {
             node_id: {(error.field, error.code, error.message) for error in errors}
             for node_id, errors in error_map.items()

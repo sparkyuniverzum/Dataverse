@@ -20,8 +20,11 @@ export function SourceCoreStar({ starCore, onSelectStar, onOpenControlCenter, is
   const domainActivity = clamp(Number(starCore?.domainActivity || 0), 0, 1);
   const profile = starCore?.profile || null;
   const lastEventSeq = Number.isFinite(Number(starCore?.lastEventSeq)) ? Number(starCore.lastEventSeq) : 0;
-  const primaryColor = String(profile?.primaryColor || "#7ee8ff");
-  const secondaryColor = String(profile?.secondaryColor || "#82ffd4");
+  // Star must be visually distinct from planets: warm, bright stellar core.
+  const primaryColor = "#ffd36b";
+  const secondaryColor = "#ff8a3a";
+  const coronaColor = "#fff0b3";
+  const ringColor = "#ffb65a";
   const label = String(profile?.label || "Source Core");
   const subtitle = `${String(starCore?.recommendedLawPreset || "balanced")} · ${writesPerMinute.toFixed(2)} write/min`;
 
@@ -43,7 +46,7 @@ export function SourceCoreStar({ starCore, onSelectStar, onOpenControlCenter, is
     }
   }, [lastEventSeq]);
 
-  const baseRadius = useMemo(() => 12 + domainActivity * 4.5, [domainActivity]);
+  const baseRadius = useMemo(() => 30 + domainActivity * 10, [domainActivity]);
   const pulseSpeed = useMemo(() => 0.75 + domainActivity * 1.15 + Math.min(writesPerMinute / 18, 1), [domainActivity, writesPerMinute]);
 
   useFrame((state, delta) => {
@@ -74,14 +77,14 @@ export function SourceCoreStar({ starCore, onSelectStar, onOpenControlCenter, is
       ringBRef.current.material.opacity = clamp(0.18 + (isFocused ? 0.16 : 0) + (isControlCenterOpen ? 0.14 : 0), 0.14, 0.68);
     }
     if (lightRef.current) {
-      lightRef.current.intensity = 2.8 + wave * 1.2 + burst * 1.4 + (isFocused ? 0.9 : 0) + (isControlCenterOpen ? 0.6 : 0);
-      lightRef.current.distance = 280 + domainActivity * 180;
+      lightRef.current.intensity = 5.8 + wave * 2.8 + burst * 2.7 + (isFocused ? 1.8 : 0) + (isControlCenterOpen ? 1.2 : 0);
+      lightRef.current.distance = 560 + domainActivity * 280;
     }
   });
 
   return (
     <group position={[0, 0, 0]}>
-      <pointLight ref={lightRef} color={primaryColor} intensity={3.1} distance={320} decay={2} />
+      <pointLight ref={lightRef} color={secondaryColor} intensity={5.9} distance={620} decay={2} />
       <group ref={coreRef}>
         <mesh
           onPointerOver={(event) => {
@@ -106,20 +109,24 @@ export function SourceCoreStar({ starCore, onSelectStar, onOpenControlCenter, is
           }}
         >
           <icosahedronGeometry args={[baseRadius, 2]} />
-          <meshStandardMaterial color={primaryColor} emissive={secondaryColor} emissiveIntensity={1.5} roughness={0.25} metalness={0.22} />
+          <meshStandardMaterial color={primaryColor} emissive={secondaryColor} emissiveIntensity={2.2} roughness={0.18} metalness={0.3} />
         </mesh>
         <mesh ref={auraRef} raycast={() => null}>
-          <sphereGeometry args={[baseRadius * 1.7, 22, 22]} />
-          <meshBasicMaterial color={secondaryColor} transparent opacity={0.22} depthWrite={false} />
+          <sphereGeometry args={[baseRadius * 2.15, 30, 30]} />
+          <meshBasicMaterial color={coronaColor} transparent opacity={0.24} depthWrite={false} />
+        </mesh>
+        <mesh raycast={() => null}>
+          <octahedronGeometry args={[baseRadius * 1.45, 1]} />
+          <meshBasicMaterial color="#ffe9a8" wireframe transparent opacity={0.24} depthWrite={false} />
         </mesh>
       </group>
       <mesh ref={ringARef} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
-        <torusGeometry args={[baseRadius * 2.1, baseRadius * 0.08, 16, 120]} />
-        <meshBasicMaterial color={primaryColor} transparent opacity={0.4} depthWrite={false} />
+        <torusGeometry args={[baseRadius * 2.75, baseRadius * 0.095, 16, 128]} />
+        <meshBasicMaterial color={ringColor} transparent opacity={0.42} depthWrite={false} />
       </mesh>
       <mesh ref={ringBRef} rotation={[-Math.PI / 2 + 0.5, 0.3, 0.2]} raycast={() => null}>
-        <torusGeometry args={[baseRadius * 2.55, baseRadius * 0.05, 14, 100]} />
-        <meshBasicMaterial color={secondaryColor} transparent opacity={0.32} depthWrite={false} />
+        <torusGeometry args={[baseRadius * 3.2, baseRadius * 0.065, 14, 112]} />
+        <meshBasicMaterial color={coronaColor} transparent opacity={0.34} depthWrite={false} />
       </mesh>
 
       <Billboard position={[0, baseRadius * 2.95, 0]}>

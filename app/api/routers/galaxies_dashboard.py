@@ -19,6 +19,7 @@ from app.api.runtime import get_service_container
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
+from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
     BondSummaryResponse,
     ConstellationSummaryResponse,
@@ -28,7 +29,6 @@ from app.schemas import (
     MoonSummaryResponse,
     PlanetSummaryResponse,
 )
-from app.modules.auth.dependencies import get_current_user
 
 router = APIRouter(tags=["galaxies"])
 
@@ -120,7 +120,9 @@ async def galaxy_activity(
     return GalaxyActivityResponse(items=[galaxy_activity_to_public(item) for item in items])
 
 
-@router.get("/galaxies/{galaxy_id}/constellations", response_model=ConstellationSummaryResponse, status_code=status.HTTP_200_OK)
+@router.get(
+    "/galaxies/{galaxy_id}/constellations", response_model=ConstellationSummaryResponse, status_code=status.HTTP_200_OK
+)
 async def galaxy_constellations(
     galaxy_id: UUID,
     as_of: datetime | None = Query(default=None),

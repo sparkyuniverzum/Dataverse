@@ -31,12 +31,23 @@ export function mapDropPointToPlanetPosition(dropPoint, viewportRect) {
   const y = clamp((toFinite(dropPoint?.y, top) - top) / height, 0, 1);
 
   // Convert screen point to simple world-ish plane around universe center.
-  const worldX = (x - 0.5) * 420;
-  const worldY = (0.5 - y) * 240;
+  let worldX = (x - 0.5) * 420;
+  let worldY = (0.5 - y) * 240;
+  const radius = Math.sqrt(worldX * worldX + worldY * worldY);
+  const minStarClearance = 260;
+  if (radius < minStarClearance) {
+    if (radius < 1e-6) {
+      worldX = minStarClearance;
+      worldY = 0;
+    } else {
+      const scale = minStarClearance / radius;
+      worldX *= scale;
+      worldY *= scale;
+    }
+  }
   return {
     x: Number(worldX.toFixed(2)),
     y: Number(worldY.toFixed(2)),
     z: 0,
   };
 }
-

@@ -17,15 +17,19 @@ async def resolve_user_galaxy_for_user(
 ) -> Galaxy:
     if galaxy_id is None:
         galaxy = (
-            await session.execute(
-                select(Galaxy)
-                .where(
-                    Galaxy.owner_id == user_id,
-                    Galaxy.deleted_at.is_(None),
+            (
+                await session.execute(
+                    select(Galaxy)
+                    .where(
+                        Galaxy.owner_id == user_id,
+                        Galaxy.deleted_at.is_(None),
+                    )
+                    .order_by(Galaxy.created_at.asc(), Galaxy.id.asc())
                 )
-                .order_by(Galaxy.created_at.asc(), Galaxy.id.asc())
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if galaxy is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active galaxy for user")
         return galaxy

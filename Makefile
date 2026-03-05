@@ -1,4 +1,4 @@
-.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full be-gate be-gate-quick be-gate-strict star-contract-gate staging-parser-rollout-smoke parser-full-smoke
+.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full be-gate be-gate-quick be-gate-strict star-contract-gate contract-gate staging-parser-rollout-smoke parser-full-smoke
 
 install:
 	./.venv/bin/pip install -r requirements.txt
@@ -93,6 +93,7 @@ v1-release-gate:
 	$(MAKE) migrate-check
 	$(MAKE) test-backend-unit
 	$(MAKE) test-contracts
+	$(MAKE) contract-gate
 	cd frontend && npm ci && npm test && npm run build
 
 v1-release-full: v1-release-gate
@@ -109,6 +110,9 @@ be-gate-strict:
 	./scripts/backend_quality_gate.sh strict
 
 star-contract-gate:
+	./scripts/star_contract_gate.sh
+
+contract-gate:
 	./scripts/star_contract_gate.sh
 
 staging-parser-rollout-smoke:

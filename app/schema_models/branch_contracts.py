@@ -56,7 +56,7 @@ class TableContractUpsertRequest(BaseModel):
     physics_rulebook: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def normalize_registries(self) -> "TableContractUpsertRequest":
+    def normalize_registries(self) -> TableContractUpsertRequest:
         schema = self.schema_registry if isinstance(self.schema_registry, dict) else {}
 
         if not self.required_fields:

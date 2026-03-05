@@ -7,26 +7,31 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import table_contract_to_public
-from app.api.runtime import get_service_container, resolve_galaxy_id_for_user, resolve_scope_for_user, run_scoped_idempotent
+from app.api.runtime import (
+    get_service_container,
+    resolve_galaxy_id_for_user,
+    resolve_scope_for_user,
+    run_scoped_idempotent,
+)
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import TableContract, User
+from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
-    PresetCatalogArchetypePublic,
-    PresetCatalogItemPublic,
-    PresetCatalogResponse,
+    PresetApplyMode,
     PresetBundleApplyPlanetResultPublic,
     PresetBundleApplyRequest,
     PresetBundleApplyResponse,
     PresetBundleExecutionPublic,
     PresetBundleGraphPlanPublic,
     PresetBundleSummaryPublic,
-    PresetApplyMode,
+    PresetCatalogArchetypePublic,
+    PresetCatalogItemPublic,
+    PresetCatalogResponse,
     SchemaPresetApplyDiffPublic,
     SchemaPresetContractPreviewPublic,
     SchemaPresetSeedPlanPublic,
 )
-from app.modules.auth.dependencies import get_current_user
 from app.services.task_executor_service import TaskExecutionResult
 
 router = APIRouter(tags=["presets"])

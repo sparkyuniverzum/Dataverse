@@ -136,7 +136,9 @@ class Parser2SemanticPlanner:
                 )
             return SemanticPlanResult(
                 envelope=IntentEnvelope(
-                    intents=[ExtinguishNodeIntent(target=NodeSelector(selector_type=NodeSelectorType.NAME, value=target))]
+                    intents=[
+                        ExtinguishNodeIntent(target=NodeSelector(selector_type=NodeSelectorType.NAME, value=target))
+                    ]
                 ),
                 ast=None,
                 errors=[],
@@ -218,7 +220,9 @@ class Parser2SemanticPlanner:
 
     def _compile_statement(self, node: AstNode) -> _CompileResult:
         if isinstance(node, AssignNode):
-            target_selector, target_intents, target_errors = self._resolve_entity(node.target.entity, create_missing=True)
+            target_selector, target_intents, target_errors = self._resolve_entity(
+                node.target.entity, create_missing=True
+            )
             if target_errors:
                 return _CompileResult(selectors=[], intents=target_intents, errors=target_errors)
 
@@ -433,7 +437,7 @@ class Parser2SemanticPlanner:
         candidate = str(value).strip()
         if not candidate:
             return ""
-        normalized = candidate.replace("\u00A0", "").replace(" ", "").replace(",", ".")
+        normalized = candidate.replace("\u00a0", "").replace(" ", "").replace(",", ".")
         try:
             float_value = float(normalized)
         except ValueError:
@@ -547,7 +551,9 @@ class Parser2SemanticPlanner:
             return SemanticPlanResult(
                 envelope=None,
                 ast=None,
-                errors=[PlanIssue(code="PLAN_METADATA_UNBALANCED_PARENTHESES", message="Unbalanced parentheses in command")],
+                errors=[
+                    PlanIssue(code="PLAN_METADATA_UNBALANCED_PARENTHESES", message="Unbalanced parentheses in command")
+                ],
             )
 
         has_plus = self._count_top_level_operator(normalized, "+") > 0
@@ -556,7 +562,11 @@ class Parser2SemanticPlanner:
             return SemanticPlanResult(
                 envelope=None,
                 ast=None,
-                errors=[PlanIssue(code="PLAN_METADATA_MIXED_OPERATORS", message="Mixed operators '+' and ':' are not supported")],
+                errors=[
+                    PlanIssue(
+                        code="PLAN_METADATA_MIXED_OPERATORS", message="Mixed operators '+' and ':' are not supported"
+                    )
+                ],
             )
 
         operator = "+" if has_plus else (":" if has_colon else "")
@@ -565,7 +575,9 @@ class Parser2SemanticPlanner:
             return SemanticPlanResult(
                 envelope=None,
                 ast=None,
-                errors=[PlanIssue(code="PLAN_METADATA_EMPTY_OPERAND", message="Metadata expression contains empty operand")],
+                errors=[
+                    PlanIssue(code="PLAN_METADATA_EMPTY_OPERAND", message="Metadata expression contains empty operand")
+                ],
             )
 
         parsed_parts = [self._parse_atom_with_metadata(part) for part in raw_parts]

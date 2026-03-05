@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import re
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -357,14 +357,12 @@ class ReadModelProjector:
             .scalars()
             .all()
         )
-        active_bonds = [
-            bond
-            for bond in bonds
-            if bond.source_id in active_ids and bond.target_id in active_ids
-        ]
+        active_bonds = [bond for bond in bonds if bond.source_id in active_ids and bond.target_id in active_ids]
 
         table_names = [
-            self._derive_table_name(value=atom.value, metadata=(atom.metadata_ if isinstance(atom.metadata_, dict) else {}))
+            self._derive_table_name(
+                value=atom.value, metadata=(atom.metadata_ if isinstance(atom.metadata_, dict) else {})
+            )
             for atom in atoms
         ]
         planets_count = len(set(table_names))
@@ -374,7 +372,9 @@ class ReadModelProjector:
         guardian_rules_count = 0
         for atom in atoms:
             metadata = atom.metadata_ if isinstance(atom.metadata_, dict) else {}
-            formula_fields_count += sum(1 for value in metadata.values() if isinstance(value, str) and value.strip().startswith("="))
+            formula_fields_count += sum(
+                1 for value in metadata.values() if isinstance(value, str) and value.strip().startswith("=")
+            )
             guardians = metadata.get("_guardians")
             if isinstance(guardians, list):
                 guardian_rules_count += len([rule for rule in guardians if isinstance(rule, dict)])

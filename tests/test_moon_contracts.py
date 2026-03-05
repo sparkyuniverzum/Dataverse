@@ -42,6 +42,20 @@ def test_build_moon_facts_includes_value_metadata_and_calculated_layers() -> Non
     assert "table" not in by_key
 
 
+def test_build_moon_facts_keeps_metadata_source_when_calculated_key_collides() -> None:
+    facts = build_moon_facts(
+        value="Payment",
+        metadata={"table": "Finance > Transactions", "amount": 123.45, "status": "paid"},
+        calculated_values={"amount": 999.99, "vat": 25},
+    )
+    by_key = {item.key: item for item in facts}
+
+    assert by_key["amount"].source == FactSource.METADATA
+    assert by_key["amount"].typed_value == 123.45
+    assert by_key["vat"].source == FactSource.CALCULATED
+    assert by_key["vat"].readonly is True
+
+
 def test_asteroid_snapshot_to_moon_row_projects_canonical_shape() -> None:
     snapshot = UniverseAsteroidSnapshot(
         id=uuid.uuid4(),

@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import StarCorePolicyRM
+from app.models import PhysicsStateRM, StarCorePolicyRM
 from app.services.constellation_dashboard_service import ConstellationDashboardService
 from app.services.event_store_service import EventStoreService
 from app.services.universe_service import UniverseService
@@ -21,6 +22,50 @@ class StarCoreService:
         "FLUX": "high_throughput",
         "SENTINEL": "integrity_first",
         "ARCHIVE": "low_activity",
+    }
+    _PHYSICAL_PROFILE_COEFFICIENTS: dict[str, dict[str, float]] = {
+        "FORGE": {
+            "a": 0.10,
+            "b": 0.22,
+            "c": 0.10,
+            "d": 0.55,
+            "e": 0.25,
+            "f": 0.25,
+            "u": 0.05,
+            "v": 0.08,
+            "g": 0.45,
+            "h": 0.28,
+            "l0": 0.26,
+            "p0": 0.25,
+        },
+        "BALANCE": {
+            "a": 0.08,
+            "b": 0.14,
+            "c": 0.14,
+            "d": 0.40,
+            "e": 0.20,
+            "f": 0.30,
+            "u": 0.07,
+            "v": 0.07,
+            "g": 0.35,
+            "h": 0.22,
+            "l0": 0.24,
+            "p0": 0.20,
+        },
+        "ARCHIVE": {
+            "a": 0.06,
+            "b": 0.08,
+            "c": 0.18,
+            "d": 0.28,
+            "e": 0.15,
+            "f": 0.35,
+            "u": 0.10,
+            "v": 0.05,
+            "g": 0.22,
+            "h": 0.16,
+            "l0": 0.22,
+            "p0": 0.16,
+        },
     }
 
     def __init__(
@@ -46,6 +91,31 @@ class StarCoreService:
         return cls._PROFILE_PRESETS.get(profile_key, cls._PROFILE_PRESETS["ORIGIN"])
 
     @classmethod
+    def _normalize_physical_profile_key(cls, profile_key: str | None) -> str:
+        candidate = str(profile_key or "BALANCE").strip().upper()
+        return candidate if candidate in cls._PHYSICAL_PROFILE_COEFFICIENTS else "BALANCE"
+
+    @staticmethod
+    def _clamp(value: float, min_value: float, max_value: float) -> float:
+        return max(min_value, min(max_value, float(value)))
+
+    @staticmethod
+    def _phase_from_metrics(
+        *, activity: float, stress: float, health: float, inactivity: float, corrosion: float
+    ) -> str:
+        if health <= 0.25 or (stress >= 0.85 and corrosion >= 0.65):
+            return "CRITICAL"
+        if corrosion >= 0.60:
+            return "CORRODING"
+        if stress >= 0.72:
+            return "OVERLOADED"
+        if activity >= 0.55:
+            return "ACTIVE"
+        if activity <= 0.20 and inactivity >= 0.55:
+            return "DORMANT"
+        return "CALM"
+
+    @classmethod
     def _serialize_policy_row(
         cls,
         *,
@@ -57,6 +127,8 @@ class StarCoreService:
             return {
                 "profile_key": profile_key,
                 "law_preset": law_preset,
+                "physical_profile_key": "BALANCE",
+                "physical_profile_version": 1,
                 "profile_mode": "auto",
                 "no_hard_delete": True,
                 "deletion_mode": "soft_delete",
@@ -71,12 +143,16 @@ class StarCoreService:
 
         lock_status = str(row.lock_status or "draft").strip().lower() or "draft"
         profile_key = cls._normalize_profile_key(row.profile_key)
-        law_preset = str(row.law_preset or cls._law_preset_for_profile(profile_key)).strip() or cls._law_preset_for_profile(
-            profile_key
-        )
+        law_preset = str(
+            row.law_preset or cls._law_preset_for_profile(profile_key)
+        ).strip() or cls._law_preset_for_profile(profile_key)
         return {
             "profile_key": profile_key,
             "law_preset": law_preset,
+            "physical_profile_key": cls._normalize_physical_profile_key(
+                getattr(row, "physical_profile_key", "BALANCE")
+            ),
+            "physical_profile_version": max(1, int(getattr(row, "physical_profile_version", 1) or 1)),
             "profile_mode": "locked" if lock_status == "locked" else "auto",
             "no_hard_delete": bool(row.no_hard_delete),
             "deletion_mode": str(row.deletion_mode or "soft_delete"),
@@ -113,6 +189,8 @@ class StarCoreService:
         user_id: UUID,
         galaxy_id: UUID,
         profile_key: str,
+        physical_profile_key: str | None = None,
+        physical_profile_version: int | None = None,
         lock_after_apply: bool = True,
     ) -> dict[str, Any]:
         created_new = False
@@ -149,12 +227,22 @@ class StarCoreService:
             )
 
         normalized_profile_key = self._normalize_profile_key(profile_key)
+        normalized_physical_profile_key = self._normalize_physical_profile_key(physical_profile_key)
+        normalized_physical_profile_version = max(1, int(physical_profile_version or 1))
         now = datetime.now(UTC)
         profile_changed = str(row.profile_key or "").upper() != normalized_profile_key
+        physical_changed = (
+            str(getattr(row, "physical_profile_key", "BALANCE") or "").upper() != normalized_physical_profile_key
+        )
+        physical_version_changed = (
+            max(1, int(getattr(row, "physical_profile_version", 1) or 1)) != normalized_physical_profile_version
+        )
         lock_changed = lock_after_apply and current_lock_status != "locked"
 
         row.profile_key = normalized_profile_key
         row.law_preset = self._law_preset_for_profile(normalized_profile_key)
+        row.physical_profile_key = normalized_physical_profile_key
+        row.physical_profile_version = normalized_physical_profile_version
         row.updated_at = now
         if lock_after_apply:
             row.lock_status = "locked"
@@ -167,13 +255,213 @@ class StarCoreService:
 
         if created_new:
             row.policy_version = 1
-        elif profile_changed or lock_changed:
+        elif profile_changed or physical_changed or physical_version_changed or lock_changed:
             row.policy_version = max(1, int(row.policy_version or 1)) + 1
         elif not row.policy_version:
             row.policy_version = 1
 
         await session.flush()
         return self._serialize_policy_row(row=row)
+
+    async def get_physics_profile(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+    ) -> dict[str, Any]:
+        row = (
+            await session.execute(
+                select(StarCorePolicyRM).where(
+                    StarCorePolicyRM.user_id == user_id,
+                    StarCorePolicyRM.galaxy_id == galaxy_id,
+                )
+            )
+        ).scalar_one_or_none()
+        lock_status = str(getattr(row, "lock_status", "draft") or "draft").strip().lower() or "draft"
+        profile_key = self._normalize_physical_profile_key(getattr(row, "physical_profile_key", "BALANCE"))
+        profile_version = max(1, int(getattr(row, "physical_profile_version", 1) or 1))
+        coefficients = dict(
+            self._PHYSICAL_PROFILE_COEFFICIENTS.get(profile_key, self._PHYSICAL_PROFILE_COEFFICIENTS["BALANCE"])
+        )
+        return {
+            "galaxy_id": galaxy_id,
+            "profile_key": profile_key,
+            "profile_version": profile_version,
+            "lock_status": lock_status,
+            "locked_at": getattr(row, "locked_at", None),
+            "coefficients": coefficients,
+        }
+
+    async def get_planet_physics_runtime(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        branch_id: UUID | None = None,
+        after_event_seq: int | None = None,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        latest_event_seq = await self.event_store.latest_event_seq(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+        )
+        if latest_event_seq <= 0:
+            return {"as_of_event_seq": 0, "items": []}
+
+        safe_limit = max(1, min(int(limit), 1000))
+        profile = await self.get_physics_profile(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+        )
+        coefficients = profile.get("coefficients") if isinstance(profile.get("coefficients"), dict) else {}
+        a = float(coefficients.get("a", 0.08))
+        b = float(coefficients.get("b", 0.14))
+        c = float(coefficients.get("c", 0.14))
+        d = float(coefficients.get("d", 0.40))
+        e = float(coefficients.get("e", 0.20))
+        f = float(coefficients.get("f", 0.30))
+        g = float(coefficients.get("g", 0.35))
+        h = float(coefficients.get("h", 0.22))
+        l0 = float(coefficients.get("l0", 0.24))
+        p0 = float(coefficients.get("p0", 0.20))
+
+        tables = await self.universe_service.tables_snapshot(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+            as_of=None,
+        )
+        if not tables:
+            return {"as_of_event_seq": int(latest_event_seq), "items": []}
+
+        asteroid_ids: set[UUID] = set()
+        table_member_ids: dict[UUID, list[UUID]] = {}
+        for table in tables:
+            if not isinstance(table, dict):
+                continue
+            table_id_raw = table.get("table_id")
+            if not isinstance(table_id_raw, UUID):
+                continue
+            member_ids: list[UUID] = []
+            for member in table.get("members") or []:
+                if not isinstance(member, dict):
+                    continue
+                member_id = member.get("id")
+                if isinstance(member_id, UUID):
+                    member_ids.append(member_id)
+                    asteroid_ids.add(member_id)
+            table_member_ids[table_id_raw] = member_ids
+
+        if not table_member_ids:
+            return {"as_of_event_seq": int(latest_event_seq), "items": []}
+
+        physics_rows = list(
+            (
+                await session.execute(
+                    select(PhysicsStateRM).where(
+                        and_(
+                            PhysicsStateRM.user_id == user_id,
+                            PhysicsStateRM.galaxy_id == galaxy_id,
+                            PhysicsStateRM.entity_kind == "asteroid",
+                            PhysicsStateRM.deleted_at.is_(None),
+                            PhysicsStateRM.entity_id.in_(asteroid_ids if asteroid_ids else {UUID(int=0)}),
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        physics_by_asteroid_id = {row.entity_id: row for row in physics_rows if isinstance(row.entity_id, UUID)}
+
+        items: list[dict[str, Any]] = []
+        for table_id, members in table_member_ids.items():
+            rows_count = len(members)
+            if rows_count <= 0:
+                activity = 0.0
+                stress = 0.0
+                corrosion = 0.0
+                source_event_seq = 0
+            else:
+                accumulator_activity = 0.0
+                accumulator_stress = 0.0
+                accumulator_corrosion = 0.0
+                source_event_seq = 0
+                for asteroid_id in members:
+                    state = physics_by_asteroid_id.get(asteroid_id)
+                    if state is None:
+                        continue
+                    pulse_factor = float(getattr(state, "pulse_factor", 1.0) or 1.0)
+                    stress_score = float(getattr(state, "stress_score", 0.0) or 0.0)
+                    opacity_factor = float(getattr(state, "opacity_factor", 1.0) or 1.0)
+                    accumulator_activity += self._clamp((pulse_factor - 0.9) / 1.5, 0.0, 1.0)
+                    accumulator_stress += self._clamp(stress_score, 0.0, 1.0)
+                    accumulator_corrosion += self._clamp(1.0 - opacity_factor, 0.0, 1.0)
+                    source_event_seq = max(source_event_seq, int(getattr(state, "source_event_seq", 0) or 0))
+                divisor = max(1, len(members))
+                activity = self._clamp(accumulator_activity / divisor, 0.0, 1.0)
+                stress = self._clamp(accumulator_stress / divisor, 0.0, 1.0)
+                corrosion = self._clamp(accumulator_corrosion / divisor, 0.0, 1.0)
+
+            inactivity = self._clamp(1.0 - activity, 0.0, 1.0)
+            health = self._clamp(1.0 - (stress * 0.65 + corrosion * 0.35), 0.0, 1.0)
+            size_factor = self._clamp(
+                1.0 + a * math.log10(max(1, rows_count) + 1) + b * activity - c * corrosion, 0.85, 2.4
+            )
+            luminosity = self._clamp(l0 + d * activity + e * stress - f * corrosion, 0.0, 1.0)
+            pulse_rate = self._clamp(p0 + g * activity + h * stress, 0.1, 2.5)
+            hue = self._clamp(0.01 + health * 0.33 - corrosion * 0.08, 0.0, 1.0)
+            saturation = self._clamp(0.45 + (1.0 - health) * 0.35 + corrosion * 0.20, 0.0, 1.0)
+            crack_intensity = self._clamp(corrosion * 0.9 + stress * 0.2, 0.0, 1.0)
+            phase = self._phase_from_metrics(
+                activity=activity,
+                stress=stress,
+                health=health,
+                inactivity=inactivity,
+                corrosion=corrosion,
+            )
+            items.append(
+                {
+                    "table_id": table_id,
+                    "phase": phase,
+                    "metrics": {
+                        "activity": activity,
+                        "stress": stress,
+                        "health": health,
+                        "inactivity": inactivity,
+                        "corrosion": corrosion,
+                        "rows": rows_count,
+                    },
+                    "visual": {
+                        "size_factor": size_factor,
+                        "luminosity": luminosity,
+                        "pulse_rate": pulse_rate,
+                        "hue": hue,
+                        "saturation": saturation,
+                        "corrosion_level": corrosion,
+                        "crack_intensity": crack_intensity,
+                    },
+                    "source_event_seq": source_event_seq,
+                    "engine_version": "star-physics-v2-preview",
+                }
+            )
+
+        filtered = [
+            item
+            for item in items
+            if after_event_seq is None or int(item.get("source_event_seq") or 0) > int(after_event_seq)
+        ]
+        filtered.sort(key=lambda item: (-int(item.get("source_event_seq") or 0), str(item.get("table_id") or "")))
+        return {
+            "as_of_event_seq": int(latest_event_seq),
+            "items": filtered[:safe_limit],
+        }
 
     async def get_runtime(
         self,
@@ -259,7 +547,9 @@ class StarCoreService:
 
         serialized: list[dict[str, Any]] = []
         for item in events:
-            visual_hint, intensity = self._derive_visual_hint(event_type=str(item.event_type or ""), payload=item.payload)
+            visual_hint, intensity = self._derive_visual_hint(
+                event_type=str(item.event_type or ""), payload=item.payload
+            )
             serialized.append(
                 {
                     "event_seq": int(item.event_seq),
@@ -369,7 +659,9 @@ class StarCoreService:
                 "status": str(item.get("status") or "GREEN"),
             }
 
-        domains = sorted(set(baseline_by_domain.keys()) | set(domain_event_counts.keys()), key=lambda value: value.lower())
+        domains = sorted(
+            set(baseline_by_domain.keys()) | set(domain_event_counts.keys()), key=lambda value: value.lower()
+        )
         rows: list[dict[str, Any]] = []
         for domain_name in domains:
             baseline = baseline_by_domain.get(

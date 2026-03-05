@@ -16,10 +16,7 @@ def resolve_database_url() -> str:
     if user and database and password is not None:
         host = (os.getenv("POSTGRES_HOST") or "localhost").strip() or "localhost"
         port = (os.getenv("POSTGRES_PORT") or "5432").strip() or "5432"
-        return (
-            "postgresql+asyncpg://"
-            f"{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{quote_plus(database)}"
-        )
+        return f"postgresql+asyncpg://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{quote_plus(database)}"
 
     return "postgresql+asyncpg://postgres:postgres@localhost:5432/dataverse"
 

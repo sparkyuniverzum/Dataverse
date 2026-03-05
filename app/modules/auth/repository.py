@@ -109,13 +109,11 @@ class AuthRepository:
         return auth_session
 
     async def get_auth_session(self, session: AsyncSession, *, session_id: UUID) -> AuthSession | None:
-        return (
-            await session.execute(
-                select(AuthSession).where(AuthSession.id == session_id)
-            )
-        ).scalar_one_or_none()
+        return (await session.execute(select(AuthSession).where(AuthSession.id == session_id))).scalar_one_or_none()
 
-    async def get_active_auth_session(self, session: AsyncSession, *, session_id: UUID, user_id: UUID) -> AuthSession | None:
+    async def get_active_auth_session(
+        self, session: AsyncSession, *, session_id: UUID, user_id: UUID
+    ) -> AuthSession | None:
         now = datetime.now(timezone.utc)
         return (
             await session.execute(

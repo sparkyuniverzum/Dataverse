@@ -44,7 +44,7 @@ class LexResult:
 
 @dataclass(frozen=True)
 class ParseResult:
-    ast: "AstNode | None"
+    ast: AstNode | None
     tokens: list[Token]
     errors: list[ParseError]
 

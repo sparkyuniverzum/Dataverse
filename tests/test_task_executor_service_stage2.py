@@ -17,7 +17,9 @@ from app.services.universe_service import ProjectedAsteroid
 
 
 def _context(*, asteroids: list[ProjectedAsteroid] | None = None) -> _TaskExecutionContext:
-    async def _append_and_project_event(*, entity_id, event_type, payload):  # pragma: no cover - should not be called in these tests
+    async def _append_and_project_event(
+        *, entity_id, event_type, payload
+    ):  # pragma: no cover - should not be called in these tests
         raise AssertionError(f"Unexpected event append: {event_type} {entity_id}")
 
     asteroid_map = {asteroid.id: asteroid for asteroid in (asteroids or [])}
@@ -140,11 +142,16 @@ def test_build_preload_plan_partial_for_id_only_tasks() -> None:
     bond_id = uuid4()
     asteroid_id = uuid4()
     tasks = [
-        AtomicTask(action="LINK", params={"source_id": str(source_id), "target_id": str(target_id), "type": "RELATION"}),
+        AtomicTask(
+            action="LINK", params={"source_id": str(source_id), "target_id": str(target_id), "type": "RELATION"}
+        ),
         AtomicTask(action="EXTINGUISH_BOND", params={"bond_id": str(bond_id)}),
         AtomicTask(action="UPDATE_ASTEROID", params={"asteroid_id": str(asteroid_id), "metadata": {"x": 1}}),
         AtomicTask(action="SET_FORMULA", params={"target": str(asteroid_id), "field": "f", "formula": "=1"}),
-        AtomicTask(action="ADD_GUARDIAN", params={"target": str(asteroid_id), "field": "f", "operator": ">", "threshold": 1, "action": "alert"}),
+        AtomicTask(
+            action="ADD_GUARDIAN",
+            params={"target": str(asteroid_id), "field": "f", "operator": ">", "threshold": 1, "action": "alert"},
+        ),
     ]
 
     plan = service._build_preload_plan(tasks=tasks, branch_id=None)
@@ -261,7 +268,9 @@ def test_load_auto_semantic_rules_reads_from_physics_defaults_registry() -> None
 def test_handle_ingest_update_family_applies_auto_semantic_reclassification() -> None:
     service = TaskExecutorService()
     ctx = _context(asteroids=[])
-    task = AtomicTask(action="INGEST", params={"value": "Alice", "metadata": {"table": "General > People", "role": "employee"}})
+    task = AtomicTask(
+        action="INGEST", params={"value": "Alice", "metadata": {"table": "General > People", "role": "employee"}}
+    )
 
     async def _append_and_project_event(*, entity_id, event_type, payload):  # noqa: ANN001
         if event_type not in {"ASTEROID_CREATED", "METADATA_UPDATED"}:

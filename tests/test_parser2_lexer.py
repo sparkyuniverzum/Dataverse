@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -46,7 +46,7 @@ def test_lexer_recognizes_assign_and_arrow_and_group_tokens() -> None:
 
 def test_lexer_handles_quoted_strings() -> None:
     lexer = Parser2Lexer()
-    result = lexer.tokenize('"Projekt Alfa" + \'Projekt Beta\'')
+    result = lexer.tokenize("\"Projekt Alfa\" + 'Projekt Beta'")
 
     assert result.errors == []
     assert [token.type for token in result.tokens] == [

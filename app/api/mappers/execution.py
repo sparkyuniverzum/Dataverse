@@ -115,7 +115,9 @@ def universe_asteroid_to_snapshot(
         active_alerts = asteroid.get("active_alerts", [])
         if not isinstance(active_alerts, list):
             active_alerts = []
-        error_count = int(asteroid.get("error_count", len([item for item in calc_errors if isinstance(item, dict)])) or 0)
+        error_count = int(
+            asteroid.get("error_count", len([item for item in calc_errors if isinstance(item, dict)])) or 0
+        )
         circular_fields_count = int(asteroid.get("circular_fields_count", 0) or 0)
         table_name_raw = asteroid.get("table_name")
         table_name = (
@@ -125,13 +127,20 @@ def universe_asteroid_to_snapshot(
         )
         constellation_name_raw = asteroid.get("constellation_name")
         planet_name_raw = asteroid.get("planet_name")
-        if isinstance(constellation_name_raw, str) and constellation_name_raw.strip() and isinstance(planet_name_raw, str) and planet_name_raw.strip():
+        if (
+            isinstance(constellation_name_raw, str)
+            and constellation_name_raw.strip()
+            and isinstance(planet_name_raw, str)
+            and planet_name_raw.strip()
+        ):
             constellation_name = constellation_name_raw.strip()
             planet_name = planet_name_raw.strip()
         else:
             constellation_name, planet_name = split_constellation_and_planet_name(table_name)
         table_id = asteroid.get("table_id")
-        table_uuid = table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
+        table_uuid = (
+            table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
+        )
         return UniverseAsteroidSnapshot(
             id=asteroid["id"],
             value=asteroid.get("value"),

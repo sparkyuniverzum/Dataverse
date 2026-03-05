@@ -22,7 +22,7 @@ class UniverseAsteroidSnapshot(BaseModel):
     circular_fields_count: int = 0
     active_alerts: list[str] = Field(default_factory=list)
     physics: dict[str, Any] = Field(default_factory=dict)
-    facts: list["MineralFact"] = Field(default_factory=list)
+    facts: list[MineralFact] = Field(default_factory=list)
     created_at: datetime
     current_event_seq: int = 0
 
@@ -135,32 +135,48 @@ def build_moon_facts(
             status=FactStatus.VALID,
         )
     ]
+    fact_index: dict[str, int] = {"value": 0}
 
     for key in sorted(metadata_dict.keys()):
         if key in FACT_RESERVED_METADATA_KEYS:
             continue
         typed_value = metadata_dict.get(key)
+        normalized_key = str(key)
+        if normalized_key in fact_index:
+            continue
         facts.append(
             MineralFact(
-                key=str(key),
+                key=normalized_key,
                 typed_value=typed_value,
                 value_type=infer_fact_value_type(typed_value),
                 source=FactSource.METADATA,
                 status=FactStatus.VALID,
             )
         )
+        fact_index[normalized_key] = len(facts) - 1
 
     for key in sorted(calculated_dict.keys()):
+        normalized_key = str(key)
         typed_value = calculated_dict.get(key)
-        field_errors = list(errors_by_field.get(str(key), []))
+        field_errors = list(errors_by_field.get(normalized_key, []))
         is_circular = typed_value == "#CIRC!"
         status = FactStatus.INVALID if is_circular or bool(field_errors) else FactStatus.VALID
         errors = field_errors
         if is_circular and "Circular formula dependency" not in errors:
             errors.append("Circular formula dependency")
+        if normalized_key in fact_index:
+            if errors:
+                current_fact = facts[fact_index[normalized_key]]
+                merged_errors = list(current_fact.errors)
+                for message in errors:
+                    if message not in merged_errors:
+                        merged_errors.append(message)
+                current_fact.errors = merged_errors
+                current_fact.status = FactStatus.INVALID
+            continue
         facts.append(
             MineralFact(
-                key=str(key),
+                key=normalized_key,
                 typed_value=typed_value,
                 value_type=infer_fact_value_type(typed_value),
                 source=FactSource.CALCULATED,
@@ -169,8 +185,18 @@ def build_moon_facts(
                 errors=errors,
             )
         )
+        fact_index[normalized_key] = len(facts) - 1
     for key in sorted(errors_by_field.keys()):
         if key in calculated_dict:
+            continue
+        if key in fact_index:
+            current_fact = facts[fact_index[key]]
+            merged_errors = list(current_fact.errors)
+            for message in errors_by_field.get(key, []):
+                if message not in merged_errors:
+                    merged_errors.append(message)
+            current_fact.errors = merged_errors
+            current_fact.status = FactStatus.INVALID
             continue
         facts.append(
             MineralFact(
@@ -183,6 +209,7 @@ def build_moon_facts(
                 errors=list(errors_by_field.get(key, [])),
             )
         )
+        fact_index[key] = len(facts) - 1
 
     return facts
 

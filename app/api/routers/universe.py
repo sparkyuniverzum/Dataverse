@@ -12,8 +12,8 @@ from app.api.runtime import get_service_container, resolve_branch_id_for_user, r
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
-from app.schemas import UniverseSnapshotResponse, UniverseTablesResponse
 from app.modules.auth.dependencies import get_current_user
+from app.schemas import UniverseSnapshotResponse, UniverseTablesResponse
 from app.services.universe_service import split_constellation_and_planet_name
 
 router = APIRouter(tags=["universe"])
@@ -50,8 +50,7 @@ async def universe_snapshot(
     )
 
     asteroid_snapshots = [
-        universe_asteroid_to_snapshot(asteroid, galaxy_id=target_galaxy_id)
-        for asteroid in active_asteroids
+        universe_asteroid_to_snapshot(asteroid, galaxy_id=target_galaxy_id) for asteroid in active_asteroids
     ]
     table_index: dict[UUID, tuple[UUID, str, str, str]] = {
         asteroid.id: (
@@ -109,7 +108,12 @@ async def universe_tables(
         item = dict(table)
         constellation_name = item.get("constellation_name")
         planet_name = item.get("planet_name")
-        if not (isinstance(constellation_name, str) and constellation_name.strip() and isinstance(planet_name, str) and planet_name.strip()):
+        if not (
+            isinstance(constellation_name, str)
+            and constellation_name.strip()
+            and isinstance(planet_name, str)
+            and planet_name.strip()
+        ):
             resolved_constellation, resolved_planet = split_constellation_and_planet_name(item.get("name"))
             item["constellation_name"] = resolved_constellation
             item["planet_name"] = resolved_planet

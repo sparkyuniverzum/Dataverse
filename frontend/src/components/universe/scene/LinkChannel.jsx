@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { Billboard, Line, Text } from "@react-three/drei";
 import * as THREE from "three";
 
+import { normalizePhase, resolveLinkPhaseVisual } from "./physicsSystem";
 import { clamp, curvePoints, samplePath, setBodyCursor } from "./sceneMath";
 
 const FALLBACK_LINK_PHYSICS = Object.freeze({
@@ -60,33 +61,6 @@ function resolveLinkColor(type) {
   return LINK_COLORS[key] || LINK_COLORS.DEFAULT;
 }
 
-function resolveStatusRank(status) {
-  const key = String(status || "GREEN").toUpperCase();
-  if (key === "RED") return 2;
-  if (key === "YELLOW") return 1;
-  return 0;
-}
-
-function resolveWorstStatus(...statuses) {
-  let worst = "GREEN";
-  let worstRank = 0;
-  statuses.forEach((status) => {
-    const rank = resolveStatusRank(status);
-    if (rank > worstRank) {
-      worstRank = rank;
-      worst = String(status || "GREEN").toUpperCase();
-    }
-  });
-  return worst;
-}
-
-function resolveStatusTint(status) {
-  const key = String(status || "GREEN").toUpperCase();
-  if (key === "RED") return "#ff5f86";
-  if (key === "YELLOW") return "#ffbe57";
-  return "#64d9ff";
-}
-
 function resolveLinkSemantic(link) {
   const key = String(link?.type || "RELATION").toUpperCase();
   const byType = LINK_SEMANTICS[key] || {
@@ -124,17 +98,43 @@ export function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, 
 
   const color = resolveLinkColor(link.type);
   const semantics = resolveLinkSemantic(link);
-  const endpointStatus = resolveWorstStatus(sourceNode?.v1?.status, targetNode?.v1?.status);
-  const v1Status = String(link?.v1?.status || endpointStatus);
-  const v1Quality = Number(link?.v1?.quality_score ?? (v1Status === "RED" ? 55 : v1Status === "YELLOW" ? 78 : 95));
+  const sourcePhase = normalizePhase(
+    link.source_phase || linkPhysics.sourcePhase || sourceNode?.runtimePlanetPhysics?.phase || sourceNode?.parentPhase
+  );
+  const targetPhase = normalizePhase(
+    link.target_phase || linkPhysics.targetPhase || targetNode?.runtimePlanetPhysics?.phase || targetNode?.parentPhase
+  );
+  const sourceCorrosionLevel = clamp(
+    Number(link.source_corrosion_level ?? linkPhysics.sourceCorrosionLevel ?? sourceNode?.physics?.corrosionLevel) || 0,
+    0,
+    1
+  );
+  const targetCorrosionLevel = clamp(
+    Number(link.target_corrosion_level ?? linkPhysics.targetCorrosionLevel ?? targetNode?.physics?.corrosionLevel) || 0,
+    0,
+    1
+  );
+  const phaseVisual = resolveLinkPhaseVisual({
+    sourcePhase,
+    targetPhase,
+    sourceCorrosionLevel,
+    targetCorrosionLevel,
+    flow,
+    stress,
+  });
+  const v1Status = phaseVisual.dominantPhase;
+  const v1Quality = Math.round((1 - Math.max(sourceCorrosionLevel, targetCorrosionLevel)) * 100);
   const baseColor = new THREE.Color(color);
-  const statusColor = new THREE.Color(resolveStatusTint(v1Status));
-  const mixedColor = baseColor.clone().lerp(statusColor, 0.34).getStyle();
-  const opacity = clamp((dimmed ? 0.14 : emphasized ? 0.94 : 0.74) * opacityFactor, 0.12, 0.98);
-  const lineWidth =
-    (dimmed ? 0.3 : emphasized ? 1.8 : v1Status === "RED" ? 1.55 : v1Status === "YELLOW" ? 1.25 : 1.05) * widthFactor;
-  const pulseColor = new THREE.Color(mixedColor).lerp(new THREE.Color("#ffffff"), 0.35).getStyle();
-  const speed = (dimmed ? 0.12 : emphasized ? 0.34 : 0.22) * speedFactor;
+  const phaseColor = new THREE.Color(phaseVisual.color);
+  const mixedColor = baseColor.clone().lerp(phaseColor, 0.52).getStyle();
+  const opacity = clamp(
+    (dimmed ? 0.14 : emphasized ? 0.94 : 0.74) * opacityFactor * phaseVisual.opacityMultiplier,
+    0.12,
+    0.98
+  );
+  const lineWidth = (dimmed ? 0.3 : emphasized ? 1.8 : 1.15) * widthFactor * phaseVisual.widthMultiplier;
+  const pulseColor = new THREE.Color(phaseVisual.pulseColor).lerp(new THREE.Color("#ffffff"), 0.18).getStyle();
+  const speed = (dimmed ? 0.12 : emphasized ? 0.34 : 0.22) * speedFactor * phaseVisual.speedMultiplier;
   const weight = Number(link.weight || 1);
   const sourceConstellation = String(link.source_constellation_name || sourceNode.entityName || "Unknown");
   const sourcePlanet = String(link.source_planet_name || sourceNode.planetName || sourceNode.label || "Unknown");
@@ -144,7 +144,7 @@ export function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, 
   const typeLabel = resolveBondTypeLabel(link.type);
   const directionLabel = semantics.directional ? "->" : "<->";
   const interactionRadius = clamp((emphasized ? 2.8 : 2.4) + (stress + flow) * 0.45, 2.2, 4.2);
-  const activeFlow = flow > 0.2 || stress > 0.24 || emphasized;
+  const activeFlow = flow > 0.2 || stress > 0.24 || emphasized || phaseVisual.severity >= 2;
   const trailCount = semantics.directional ? 6 : 4;
 
   const buildHoverPayload = (event) => ({
@@ -161,6 +161,8 @@ export function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, 
     description: semantics.description,
     v1Status,
     v1Quality,
+    sourcePhase,
+    targetPhase,
     physicsStress: stress,
     physicsFlow: flow,
     x: event.nativeEvent.clientX,
@@ -234,11 +236,11 @@ export function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, 
       {!dimmed && activeFlow ? (
         <>
           <mesh ref={pulseRef}>
-            <sphereGeometry args={[(emphasized ? 1.2 : 0.86) * pulseSizeFactor, 12, 12]} />
+            <sphereGeometry args={[(emphasized ? 1.2 : 0.86) * pulseSizeFactor * phaseVisual.pulseMultiplier, 12, 12]} />
             <meshBasicMaterial color={pulseColor} transparent opacity={0.95} />
           </mesh>
           <mesh ref={pulse2Ref}>
-            <sphereGeometry args={[0.56 * pulseSizeFactor, 10, 10]} />
+            <sphereGeometry args={[0.56 * pulseSizeFactor * phaseVisual.pulseMultiplier, 10, 10]} />
             <meshBasicMaterial color={pulseColor} transparent opacity={0.72} />
           </mesh>
           {Array.from({ length: trailCount }).map((_, idx) => (

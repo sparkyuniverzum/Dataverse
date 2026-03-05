@@ -6,7 +6,8 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select, text as sql_text
+from sqlalchemy import and_, select
+from sqlalchemy import text as sql_text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -112,7 +113,9 @@ class CosmosService:
             normalized_item["expression"] = str(normalized_item.get("expression") or "").strip()
             normalized_item["enabled"] = bool(normalized_item.get("enabled", True))
             normalized_item["trigger"] = str(normalized_item.get("trigger") or "on_commit").strip() or "on_commit"
-            normalized_item["on_error"] = str(normalized_item.get("on_error") or "mark_hologram").strip() or "mark_hologram"
+            normalized_item["on_error"] = (
+                str(normalized_item.get("on_error") or "mark_hologram").strip() or "mark_hologram"
+            )
             raw_depends_on = normalized_item.get("depends_on")
             normalized_item["depends_on"] = (
                 self._normalize_string_list([str(value) for value in raw_depends_on])
@@ -149,7 +152,9 @@ class CosmosService:
         return archetype
 
     @staticmethod
-    def _archetype_schema_template(archetype: str) -> tuple[list[str], dict[str, str], list[dict[str, Any]], list[dict[str, Any]]]:
+    def _archetype_schema_template(
+        archetype: str,
+    ) -> tuple[list[str], dict[str, str], list[dict[str, Any]], list[dict[str, Any]]]:
         if archetype == "catalog":
             return (
                 ["entity_id", "label", "state"],
@@ -193,7 +198,7 @@ class CosmosService:
     @staticmethod
     def _branch_name_lock_key(*, galaxy_id: UUID, normalized_name: str) -> int:
         digest = blake2b(
-            f"{galaxy_id}:{normalized_name}".encode("utf-8"),
+            f"{galaxy_id}:{normalized_name}".encode(),
             digest_size=8,
         ).digest()
         return int.from_bytes(digest, byteorder="big", signed=True)
@@ -322,11 +327,7 @@ class CosmosService:
     ) -> tuple[Branch, int]:
         galaxy = await self._resolve_user_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)
         branch = (
-            await session.execute(
-                select(Branch)
-                .where(Branch.id == branch_id)
-                .with_for_update()
-            )
+            await session.execute(select(Branch).where(Branch.id == branch_id).with_for_update())
         ).scalar_one_or_none()
         if branch is None or branch.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")

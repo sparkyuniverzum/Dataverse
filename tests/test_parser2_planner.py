@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -14,8 +14,8 @@ from app.services.parser2 import (
     NodeSelectorType,
     Parser2SemanticPlanner,
     SelectNodesIntent,
-    SetFormulaIntent,
     SemanticResolver,
+    SetFormulaIntent,
     UpsertNodeIntent,
 )
 

@@ -164,7 +164,18 @@ function nextIdempotencyKey(prefix) {
   return `${safePrefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, minimalShell = false }) {
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+export default function UniverseWorkspace({
+  galaxy,
+  branches = [],
+  onboarding = null,
+  onBackToGalaxies,
+  onLogout,
+  minimalShell = false,
+}) {
   const galaxyId = String(galaxy?.id || "");
 
   const {
@@ -175,6 +186,8 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     starRuntime,
     starDomains,
     starPolicy,
+    starPhysicsProfile,
+    starPlanetPhysicsByTableId,
     starPulseByEntity,
     starPulseLastEventSeq,
     setRuntimeError,
@@ -195,6 +208,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
   const [gridSearchQuery, setGridSearchQuery] = useState("");
   const [starControlPhase, setStarControlPhase] = useState(STAR_CONTROL_PHASE.IDLE);
   const [starProfileDraftKey, setStarProfileDraftKey] = useState("ORIGIN");
+  const [starPhysicalProfileDraftKey, setStarPhysicalProfileDraftKey] = useState("BALANCE");
   const [starControlError, setStarControlError] = useState("");
   const [parserTelemetry, setParserTelemetry] = useState(() => createParserTelemetrySnapshot());
   const [stageZeroFlow, setStageZeroFlow] = useState(STAGE_ZERO_FLOW.INTRO);
@@ -230,6 +244,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     setHoveredLink(null);
     setStarControlPhase(STAR_CONTROL_PHASE.IDLE);
     setStarProfileDraftKey("ORIGIN");
+    setStarPhysicalProfileDraftKey("BALANCE");
     setStarControlError("");
     setParserTelemetry(createParserTelemetrySnapshot());
     setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
@@ -252,10 +267,13 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     () => new Map((Array.isArray(tables) ? tables : []).map((table) => [String(table.table_id), table])),
     [tables]
   );
+  const starPolicyLocked = String(starPolicy?.lock_status || "").toLowerCase() === "locked";
   const hasPlanets = tables.length > 0;
   const stageZeroActive = !hasPlanets;
+  const stageZeroRequiresStarLock = stageZeroActive && !starPolicyLocked;
   const stageZeroBuilderOpen =
     stageZeroActive &&
+    !stageZeroRequiresStarLock &&
     (stageZeroFlow === STAGE_ZERO_FLOW.BLUEPRINT || stageZeroFlow === STAGE_ZERO_FLOW.BUILDING) &&
     !stageZeroCreating;
   const stageZeroDropMode = stageZeroBuilderOpen && stageZeroDragging;
@@ -282,15 +300,50 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       }
       return;
     }
+    if (stageZeroRequiresStarLock) {
+      setStageZeroDragging(false);
+      setStageZeroDropHover(false);
+      setStageZeroSetupOpen(false);
+      if (stageZeroFlow !== STAGE_ZERO_FLOW.INTRO) {
+        setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
+      }
+      return;
+    }
     if (stageZeroFlow === STAGE_ZERO_FLOW.COMPLETE) {
       setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
     }
-  }, [stageZeroActive, stageZeroFlow]);
+  }, [stageZeroActive, stageZeroFlow, stageZeroRequiresStarLock]);
 
   const asteroidById = useMemo(
     () => new Map((Array.isArray(snapshot.asteroids) ? snapshot.asteroids : []).map((item) => [String(item.id), item])),
     [snapshot.asteroids]
   );
+  const asteroidPhysicsById = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(snapshot.asteroids) ? snapshot.asteroids : []).forEach((item) => {
+      const id = String(item?.id || "").trim();
+      if (!id) return;
+      const physics = item?.physics && typeof item.physics === "object" ? item.physics : {};
+      map.set(id, physics);
+    });
+    return map;
+  }, [snapshot.asteroids]);
+  const tablePhysicsById = useMemo(() => {
+    const map = new Map();
+    Object.entries(starPlanetPhysicsByTableId || {}).forEach(([tableId, runtime]) => {
+      const visual = runtime?.visual && typeof runtime.visual === "object" ? runtime.visual : {};
+      const metrics = runtime?.metrics && typeof runtime.metrics === "object" ? runtime.metrics : {};
+      const sizeFactor = clamp(Number(visual.size_factor) || 1, 0.85, 2.4);
+      const stress = clamp(Number(metrics.stress) || 0, 0, 1);
+      const rows = Math.max(0, Number(metrics.rows) || 0);
+      const massFactor = clamp(1 + stress * 0.75 + Math.log10(rows + 1) * 0.12, 0.9, 2.4);
+      map.set(String(tableId), {
+        radiusFactor: sizeFactor,
+        massFactor,
+      });
+    });
+    return map;
+  }, [starPlanetPhysicsByTableId]);
   const domainMetricsByName = useMemo(() => {
     const map = new Map();
     (Array.isArray(starDomains) ? starDomains : []).forEach((domain) => {
@@ -306,8 +359,9 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         starRuntime,
         starDomains,
         starPolicy,
+        starPhysicsProfile,
       }),
-    [starDomains, starPolicy, starRuntime]
+    [starDomains, starPhysicsProfile, starPolicy, starRuntime]
   );
   const starCoreForCanvas = useMemo(
     () => ({
@@ -316,7 +370,6 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     }),
     [starCoreProfile, starPulseLastEventSeq]
   );
-  const starPolicyLocked = String(starPolicy?.lock_status || "").toLowerCase() === "locked";
   const starHeartOpen =
     starControlPhase === STAR_CONTROL_PHASE.STAR_HEART_DASHBOARD_OPEN ||
     starControlPhase === STAR_CONTROL_PHASE.APPLY_PROFILE ||
@@ -324,8 +377,10 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
 
   useEffect(() => {
     const policyProfileKey = String(starPolicy?.profile_key || starCoreProfile?.profile?.key || "ORIGIN").toUpperCase();
+    const policyPhysicalKey = String(starPhysicsProfile?.profile_key || starCoreProfile?.physicalProfile?.key || "BALANCE").toUpperCase();
     if (starPolicyLocked || starControlPhase === STAR_CONTROL_PHASE.IDLE) {
       setStarProfileDraftKey(policyProfileKey);
+      setStarPhysicalProfileDraftKey(policyPhysicalKey);
     }
     if (starPolicyLocked) {
       setStarControlPhase((prev) => {
@@ -333,7 +388,14 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         return STAR_CONTROL_PHASE.LOCKED;
       });
     }
-  }, [starControlPhase, starCoreProfile?.profile?.key, starPolicy?.profile_key, starPolicyLocked]);
+  }, [
+    starControlPhase,
+    starCoreProfile?.physicalProfile?.key,
+    starCoreProfile?.profile?.key,
+    starPhysicsProfile?.profile_key,
+    starPolicy?.profile_key,
+    starPolicyLocked,
+  ]);
 
   useEffect(() => {
     if (!selectedAsteroidId) return;
@@ -348,9 +410,11 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         tables,
         selectedTableId,
         asteroidById,
+        tablePhysicsById,
+        asteroidPhysicsById,
         previous: layoutRef.current,
       }),
-    [asteroidById, selectedTableId, tables]
+    [asteroidById, asteroidPhysicsById, selectedTableId, tablePhysicsById, tables]
   );
 
   useEffect(() => {
@@ -365,27 +429,73 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       layout.tableNodes.map((node) => {
         const runtimePulse = starPulseByEntity[String(node.id)] || null;
         const runtimeDomain = domainMetricsByName.get(String(node.entityName || "")) || null;
+        const runtimePlanetPhysics = starPlanetPhysicsByTableId[String(node.id)] || null;
         const resolved = resolveEntityLaws({
           kind: "planet",
           basePhysics: node.physics || {},
           domainMetric: runtimeDomain,
           pulse: runtimePulse,
         });
+        const metrics = runtimePlanetPhysics?.metrics && typeof runtimePlanetPhysics.metrics === "object" ? runtimePlanetPhysics.metrics : {};
+        const visual = runtimePlanetPhysics?.visual && typeof runtimePlanetPhysics.visual === "object" ? runtimePlanetPhysics.visual : {};
+        const health = clamp(Number(metrics.health) || 0, 0, 1);
+        const corrosion = clamp(Number(metrics.corrosion) || 0, 0, 1);
+        const backendPhysics = runtimePlanetPhysics
+          ? {
+              stress: clamp(Number(metrics.stress) || resolved.physics?.stress || 0, 0, 1),
+              radiusFactor: clamp(Number(visual.size_factor) || 1, 0.85, 2.4),
+              pulseFactor: clamp(Number(visual.pulse_rate) || resolved.physics?.pulseFactor || 1, 0.82, 2.4),
+              emissiveBoost: clamp(Number(visual.luminosity) || resolved.physics?.emissiveBoost || 0, 0, 1),
+              auraFactor: clamp(1 + (1 - health) * 0.5 + corrosion * 0.3, 0.9, 2.2),
+              alertPressure: clamp(corrosion * 0.7 + (1 - health) * 0.3, 0, 1),
+              corrosionLevel: clamp(Number(visual.corrosion_level) || corrosion, 0, 1),
+              crackIntensity: clamp(Number(visual.crack_intensity) || 0, 0, 1),
+              hue: clamp(Number(visual.hue) || 0, 0, 1),
+              saturation: clamp(Number(visual.saturation) || 0, 0, 1),
+            }
+          : {};
+        const backendStatus = runtimePlanetPhysics?.phase ? String(runtimePlanetPhysics.phase).toUpperCase() : null;
         return {
           ...node,
           position: layout.tablePositions.get(node.id) || [0, 0, 0],
           runtimePulse,
           runtimeDomain,
-          v1: resolved.v1,
-          physics: resolved.physics,
+          runtimePlanetPhysics,
+          v1: {
+            ...resolved.v1,
+            ...(backendStatus ? { status: backendStatus } : {}),
+            quality_score: runtimePlanetPhysics ? Math.round(health * 100) : resolved.v1?.quality_score || 100,
+          },
+          physics: {
+            ...resolved.physics,
+            ...backendPhysics,
+          },
         };
       }),
-    [domainMetricsByName, layout, starPulseByEntity]
+    [domainMetricsByName, layout, starPlanetPhysicsByTableId, starPulseByEntity]
   );
 
   const asteroidNodes = useMemo(
-    () =>
-      layout.asteroidNodes.map((node) => {
+    () => {
+      const selectedPlanetRuntime = selectedTableId ? starPlanetPhysicsByTableId[String(selectedTableId)] || null : null;
+      const selectedMetrics =
+        selectedPlanetRuntime?.metrics && typeof selectedPlanetRuntime.metrics === "object"
+          ? selectedPlanetRuntime.metrics
+          : {};
+      const selectedVisual =
+        selectedPlanetRuntime?.visual && typeof selectedPlanetRuntime.visual === "object"
+          ? selectedPlanetRuntime.visual
+          : {};
+      const parentPhase = selectedPlanetRuntime?.phase ? String(selectedPlanetRuntime.phase).toUpperCase() : null;
+      const parentCorrosion = clamp(
+        Number(selectedVisual.corrosion_level ?? selectedMetrics.corrosion ?? 0) || 0,
+        0,
+        1
+      );
+      const parentCrack = clamp(Number(selectedVisual.crack_intensity) || 0, 0, 1);
+      const parentHue = clamp(Number(selectedVisual.hue) || 0, 0, 1);
+      const parentSaturation = clamp(Number(selectedVisual.saturation) || 0, 0, 1);
+      return layout.asteroidNodes.map((node) => {
         const runtimePulse = starPulseByEntity[String(node.id)] || null;
         const runtimeDomain = domainMetricsByName.get(String(node.entityName || "")) || null;
         const resolved = resolveEntityLaws({
@@ -394,16 +504,28 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
           domainMetric: runtimeDomain,
           pulse: runtimePulse,
         });
+        const enrichedPhysics = {
+          ...resolved.physics,
+          corrosionLevel: parentCorrosion,
+          crackIntensity: clamp(parentCrack * 0.8 + (resolved.physics?.stress || 0) * 0.2, 0, 1),
+          hue: parentHue,
+          saturation: parentSaturation,
+        };
         return {
           ...node,
           position: layout.asteroidPositions.get(node.id) || [0, 0, 0],
           runtimePulse,
           runtimeDomain,
-          v1: resolved.v1,
-          physics: resolved.physics,
+          parentPhase,
+          v1: {
+            ...resolved.v1,
+            ...(parentPhase ? { status: parentPhase } : {}),
+          },
+          physics: enrichedPhysics,
         };
-      }),
-    [domainMetricsByName, layout, starPulseByEntity]
+      });
+    },
+    [domainMetricsByName, layout, selectedTableId, starPlanetPhysicsByTableId, starPulseByEntity]
   );
   const tableNodeById = useMemo(() => new Map(tableNodes.map((node) => [String(node.id), node])), [tableNodes]);
   const asteroidNodeById = useMemo(() => new Map(asteroidNodes.map((node) => [String(node.id), node])), [asteroidNodes]);
@@ -413,12 +535,26 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         const source = tableNodeById.get(String(link.source));
         const target = tableNodeById.get(String(link.target));
         const linkPulse = starPulseByEntity[String(link.id)] || null;
+        const sourcePhase = String(source?.runtimePlanetPhysics?.phase || source?.v1?.status || "").toUpperCase();
+        const targetPhase = String(target?.runtimePlanetPhysics?.phase || target?.v1?.status || "").toUpperCase();
+        const sourceCorrosionLevel = clamp(Number(source?.physics?.corrosionLevel) || 0, 0, 1);
+        const targetCorrosionLevel = clamp(Number(target?.physics?.corrosionLevel) || 0, 0, 1);
         return {
           ...link,
+          source_phase: sourcePhase,
+          target_phase: targetPhase,
+          source_corrosion_level: sourceCorrosionLevel,
+          target_corrosion_level: targetCorrosionLevel,
           runtimePulse: linkPulse,
           physics: resolveLinkLaws({
             kind: "table",
-            basePhysics: link.physics || {},
+            basePhysics: {
+              ...(link.physics || {}),
+              sourcePhase,
+              targetPhase,
+              sourceCorrosionLevel,
+              targetCorrosionLevel,
+            },
             sourceDomainMetric: source?.runtimeDomain || null,
             targetDomainMetric: target?.runtimeDomain || null,
             linkPulse,
@@ -430,17 +566,33 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
   const asteroidLinks = useMemo(
     () =>
       (layout.asteroidLinks || []).map((link) => {
+        const sourceNode = asteroidNodeById.get(String(link.source)) || null;
+        const targetNode = asteroidNodeById.get(String(link.target)) || null;
         const sourcePulse = starPulseByEntity[String(link.source)] || null;
         const targetPulse = starPulseByEntity[String(link.target)] || null;
         const linkPulse = starPulseByEntity[String(link.id)] || null;
+        const sourcePhase = String(sourceNode?.parentPhase || sourceNode?.v1?.status || "").toUpperCase();
+        const targetPhase = String(targetNode?.parentPhase || targetNode?.v1?.status || "").toUpperCase();
+        const sourceCorrosionLevel = clamp(Number(sourceNode?.physics?.corrosionLevel) || 0, 0, 1);
+        const targetCorrosionLevel = clamp(Number(targetNode?.physics?.corrosionLevel) || 0, 0, 1);
         return {
           ...link,
+          source_phase: sourcePhase,
+          target_phase: targetPhase,
+          source_corrosion_level: sourceCorrosionLevel,
+          target_corrosion_level: targetCorrosionLevel,
           runtimePulse: linkPulse,
           physics: resolveLinkLaws({
             kind: "moon",
-            basePhysics: link.physics || {},
-            sourceDomainMetric: asteroidNodeById.get(String(link.source))?.runtimeDomain || null,
-            targetDomainMetric: asteroidNodeById.get(String(link.target))?.runtimeDomain || null,
+            basePhysics: {
+              ...(link.physics || {}),
+              sourcePhase,
+              targetPhase,
+              sourceCorrosionLevel,
+              targetCorrosionLevel,
+            },
+            sourceDomainMetric: sourceNode?.runtimeDomain || null,
+            targetDomainMetric: targetNode?.runtimeDomain || null,
             sourcePulse,
             targetPulse,
             linkPulse,
@@ -483,7 +635,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
 
   const handleStageZeroDropPlanet = useCallback(
     async (dropPayload) => {
-      if (!galaxyId || stageZeroCreating || !stageZeroActive) return;
+      if (!galaxyId || stageZeroCreating || !stageZeroActive || stageZeroRequiresStarLock) return;
       const visualPosition = mapDropPointToPlanetPosition(dropPayload, dropPayload?.viewport);
       const suffix = Math.random().toString(36).slice(2, 6);
       const planetName = buildStageZeroPlanetName({ existingCount: tableNodes.length, suffix });
@@ -541,6 +693,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       setRuntimeError,
       stageZeroActive,
       stageZeroCreating,
+      stageZeroRequiresStarLock,
       tableNodes.length,
     ]
   );
@@ -613,6 +766,11 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
 
   const stageZeroAllSchemaStepsDone =
     stageZeroSchemaDraft.transactionName && stageZeroSchemaDraft.amount && stageZeroSchemaDraft.transactionType;
+  const stageZeroSchemaPreview = [
+    { key: "transactionName", label: "transaction_name", type: "text", done: stageZeroSchemaDraft.transactionName },
+    { key: "amount", label: "amount", type: "number", done: stageZeroSchemaDraft.amount },
+    { key: "transactionType", label: "transaction_type", type: "enum(INCOME|EXPENSE)", done: stageZeroSchemaDraft.transactionType },
+  ];
 
   const handleStageZeroSchemaStep = useCallback((key) => {
     if (!stageZeroPresetSelected) return;
@@ -631,18 +789,26 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       }
       const currentContract = await contractRead.json();
       const nextFieldTypes = {
-        ...(currentContract?.field_types && typeof currentContract.field_types === "object" ? currentContract.field_types : {}),
+        value: "string",
         transaction_name: "string",
         amount: "number",
         transaction_type: "string",
       };
+      const requiredFields = ["transaction_name", "amount", "transaction_type"];
       const nextPayload = {
         galaxy_id: galaxyId,
-        required_fields: Array.isArray(currentContract?.required_fields) ? currentContract.required_fields : [],
+        required_fields: requiredFields,
         field_types: nextFieldTypes,
-        unique_rules: Array.isArray(currentContract?.unique_rules) ? currentContract.unique_rules : [],
-        validators: Array.isArray(currentContract?.validators) ? currentContract.validators : [],
-        auto_semantics: Array.isArray(currentContract?.auto_semantics) ? currentContract.auto_semantics : [],
+        unique_rules: [],
+        validators: [],
+        auto_semantics: [],
+        schema_registry: {
+          required_fields: requiredFields,
+          field_types: nextFieldTypes,
+          unique_rules: [],
+          validators: [],
+          auto_semantics: [],
+        },
         formula_registry: Array.isArray(currentContract?.formula_registry) ? currentContract.formula_registry : [],
         physics_rulebook:
           currentContract?.physics_rulebook && typeof currentContract.physics_rulebook === "object"
@@ -1181,6 +1347,8 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           profile_key: starProfileDraftKey,
+          physical_profile_key: starPhysicalProfileDraftKey,
+          physical_profile_version: Math.max(1, Number(starPhysicsProfile?.profile_version || 1)),
           lock_after_apply: true,
         }),
       });
@@ -1205,6 +1373,8 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     galaxyId,
     refreshStarTelemetry,
     setRuntimeError,
+    starPhysicalProfileDraftKey,
+    starPhysicsProfile?.profile_version,
     starPolicyLocked,
     starProfileDraftKey,
   ]);
@@ -1267,7 +1437,108 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       />
       <StageZeroDropZone active={stageZeroDropMode || stageZeroCreating} />
 
-      {stageZeroActive && stageZeroFlow === STAGE_ZERO_FLOW.INTRO ? (
+      {stageZeroRequiresStarLock ? (
+        <section
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 60,
+            display: "grid",
+            placeItems: "center",
+            background: "radial-gradient(circle at 50% 50%, rgba(37, 27, 13, 0.28), rgba(2, 6, 14, 0.72))",
+            backdropFilter: "blur(2px)",
+          }}
+        >
+          <article
+            style={{
+              width: "min(680px, calc(100vw - 24px))",
+              borderRadius: 14,
+              border: "1px solid rgba(252, 205, 122, 0.38)",
+              background: "rgba(12, 10, 7, 0.92)",
+              color: "#ffeccf",
+              padding: 16,
+              display: "grid",
+              gap: 10,
+              boxShadow: "0 0 24px rgba(189, 126, 46, 0.22)",
+            }}
+          >
+            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>STAGE 0 / STAR CORE</div>
+            <div style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 800 }}>Nejdriv nastav zakony hvezdy</div>
+            <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.9, lineHeight: "var(--dv-lh-base)" }}>
+              Hvezda urcuje fyzikalni zakon cele galaxie. Dokud neni Star Core uzamceny, neni bezpecne zakladat prvni planetu.
+            </div>
+            <div
+              style={{
+                border: "1px solid rgba(242, 195, 114, 0.26)",
+                borderRadius: 10,
+                background: "rgba(22, 16, 10, 0.7)",
+                padding: "9px 10px",
+                display: "grid",
+                gap: 6,
+              }}
+            >
+              {[
+                {
+                  key: "no_hard_delete",
+                  label: "Zakaz tvrdeho mazani (soft-delete only)",
+                  impact: "Historie metrik zustane konzistentni i po odstraneni dat.",
+                  done: starPolicy?.no_hard_delete !== false,
+                },
+                {
+                  key: "occ",
+                  label: "OCC ochrana soubehu",
+                  impact: "Dva zapisy neprepisou stejny zaznam bez varovani.",
+                  done: starPolicy?.occ_enforced !== false,
+                },
+                {
+                  key: "idempotency",
+                  label: "Idempotence prikazu",
+                  impact: "Opakovany request nevytvori duplicitni data pri retry.",
+                  done: starPolicy?.idempotency_supported !== false,
+                },
+                {
+                  key: "physical_profile",
+                  label: "Fyzikalni profil planety",
+                  impact: "Urci, jak planety meni velikost, zar a degradaci pri zatezi.",
+                  done: Boolean(String(starPhysicsProfile?.profile_key || "").trim()),
+                },
+                { key: "lock", label: "Star Core lock status = locked", done: starPolicyLocked },
+              ].map((item) => (
+                <div key={item.key} style={{ display: "grid", gap: 3 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--dv-fs-xs)" }}>
+                    <input type="checkbox" checked={Boolean(item.done)} readOnly />
+                    <span>{item.label}</span>
+                  </label>
+                  {item.impact ? (
+                    <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72, paddingLeft: 24 }}>
+                      {item.impact}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleOpenStarHeartDashboard}
+                style={{
+                  border: "1px solid rgba(255, 205, 121, 0.52)",
+                  background: "linear-gradient(120deg, #ffb457, #ffd27a)",
+                  color: "#3f2200",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Otevrit Star Heart Dashboard
+              </button>
+            </div>
+          </article>
+        </section>
+      ) : null}
+
+      {stageZeroActive && !stageZeroRequiresStarLock && stageZeroFlow === STAGE_ZERO_FLOW.INTRO ? (
         <section
           style={{
             position: "fixed",
@@ -1477,75 +1748,94 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
                 </button>
               </div>
 
-              {stageZeroSchemaDraft.transactionName ? (
-                <div
+              <div
+                style={{
+                  border: "1px solid rgba(98, 188, 220, 0.24)",
+                  borderRadius: 10,
+                  background: "rgba(6, 17, 30, 0.7)",
+                  padding: "8px 9px",
+                  display: "grid",
+                  gap: 8,
+                  opacity: stageZeroSchemaDraft.transactionName ? 1 : 0.58,
+                }}
+              >
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                  Krok B: Pridat <strong>Castku</strong> (Cislo)
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleStageZeroSchemaStep("amount")}
+                  disabled={!stageZeroSchemaDraft.transactionName || stageZeroSchemaDraft.amount}
                   style={{
-                    border: "1px solid rgba(98, 188, 220, 0.24)",
-                    borderRadius: 10,
-                    background: "rgba(6, 17, 30, 0.7)",
-                    padding: "8px 9px",
-                    display: "grid",
-                    gap: 8,
+                    border: "1px solid rgba(114, 219, 252, 0.5)",
+                    background: stageZeroSchemaDraft.amount
+                      ? "rgba(25, 75, 58, 0.86)"
+                      : "linear-gradient(120deg, #21bbea, #44d8ff)",
+                    color: stageZeroSchemaDraft.amount ? "#d7ffe5" : "#072737",
+                    borderRadius: 9,
+                    padding: "7px 10px",
+                    fontWeight: 700,
+                    cursor: !stageZeroSchemaDraft.transactionName || stageZeroSchemaDraft.amount ? "default" : "pointer",
                   }}
                 >
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
-                    Krok B: Pridat <strong>Castku</strong> (Cislo)
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleStageZeroSchemaStep("amount")}
-                    disabled={stageZeroSchemaDraft.amount}
-                    style={{
-                      border: "1px solid rgba(114, 219, 252, 0.5)",
-                      background: stageZeroSchemaDraft.amount
-                        ? "rgba(25, 75, 58, 0.86)"
-                        : "linear-gradient(120deg, #21bbea, #44d8ff)",
-                      color: stageZeroSchemaDraft.amount ? "#d7ffe5" : "#072737",
-                      borderRadius: 9,
-                      padding: "7px 10px",
-                      fontWeight: 700,
-                      cursor: stageZeroSchemaDraft.amount ? "default" : "pointer",
-                    }}
-                  >
-                    {stageZeroSchemaDraft.amount ? "Pridano ✓" : "+ Castka"}
-                  </button>
-                </div>
-              ) : null}
+                  {stageZeroSchemaDraft.amount ? "Pridano ✓" : "+ Castka"}
+                </button>
+              </div>
 
-              {stageZeroSchemaDraft.amount ? (
-                <div
+              <div
+                style={{
+                  border: "1px solid rgba(98, 188, 220, 0.24)",
+                  borderRadius: 10,
+                  background: "rgba(6, 17, 30, 0.7)",
+                  padding: "8px 9px",
+                  display: "grid",
+                  gap: 8,
+                  opacity: stageZeroSchemaDraft.amount ? 1 : 0.58,
+                }}
+              >
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                  Krok C: Pridat <strong>Typ</strong> (Prijem/Vydej)
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleStageZeroSchemaStep("transactionType")}
+                  disabled={!stageZeroSchemaDraft.amount || stageZeroSchemaDraft.transactionType}
                   style={{
-                    border: "1px solid rgba(98, 188, 220, 0.24)",
-                    borderRadius: 10,
-                    background: "rgba(6, 17, 30, 0.7)",
-                    padding: "8px 9px",
-                    display: "grid",
-                    gap: 8,
+                    border: "1px solid rgba(114, 219, 252, 0.5)",
+                    background: stageZeroSchemaDraft.transactionType
+                      ? "rgba(25, 75, 58, 0.86)"
+                      : "linear-gradient(120deg, #21bbea, #44d8ff)",
+                    color: stageZeroSchemaDraft.transactionType ? "#d7ffe5" : "#072737",
+                    borderRadius: 9,
+                    padding: "7px 10px",
+                    fontWeight: 700,
+                    cursor: !stageZeroSchemaDraft.amount || stageZeroSchemaDraft.transactionType ? "default" : "pointer",
                   }}
                 >
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
-                    Krok C: Pridat <strong>Typ</strong> (Prijem/Vydej)
+                  {stageZeroSchemaDraft.transactionType ? "Pridano ✓" : "+ Typ"}
+                </button>
+              </div>
+
+              <div
+                style={{
+                  border: "1px solid rgba(95, 188, 220, 0.26)",
+                  borderRadius: 10,
+                  background: "rgba(7, 18, 32, 0.74)",
+                  padding: "8px 9px",
+                  display: "grid",
+                  gap: 6,
+                }}
+              >
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>Prubezny preview planety</div>
+                {stageZeroSchemaPreview.map((item) => (
+                  <div key={item.key} style={{ fontSize: "var(--dv-fs-xs)", opacity: item.done ? 0.96 : 0.58 }}>
+                    {item.done ? "✓" : "○"} {item.label} <span style={{ opacity: 0.74 }}>({item.type})</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleStageZeroSchemaStep("transactionType")}
-                    disabled={stageZeroSchemaDraft.transactionType}
-                    style={{
-                      border: "1px solid rgba(114, 219, 252, 0.5)",
-                      background: stageZeroSchemaDraft.transactionType
-                        ? "rgba(25, 75, 58, 0.86)"
-                        : "linear-gradient(120deg, #21bbea, #44d8ff)",
-                      color: stageZeroSchemaDraft.transactionType ? "#d7ffe5" : "#072737",
-                      borderRadius: 9,
-                      padding: "7px 10px",
-                      fontWeight: 700,
-                      cursor: stageZeroSchemaDraft.transactionType ? "default" : "pointer",
-                    }}
-                  >
-                    {stageZeroSchemaDraft.transactionType ? "Pridano ✓" : "+ Typ"}
-                  </button>
+                ))}
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
+                  Po zazehnuti jadra se vlozi 3 ukazkove mesice do gridu.
                 </div>
-              ) : null}
+              </div>
 
               {stageZeroAllSchemaStepsDone ? (
                 <div
@@ -1605,6 +1895,8 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
 
       <WorkspaceSidebar
         galaxy={galaxy}
+        branches={branches}
+        onboarding={onboarding}
         tableNodes={tableNodes}
         asteroidCount={snapshot.asteroids.length}
         bondCount={snapshot.bonds.length}
@@ -1632,14 +1924,17 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         phase={starControlPhase}
         starCoreProfile={starCoreProfile}
         starPolicy={starPolicy}
+        starPhysicsProfile={starPhysicsProfile}
         starRuntime={starRuntime}
         starDomains={starDomains}
         parserTelemetry={parserTelemetry}
         parserExecutionMode={parserExecutionMode}
         selectedProfileKey={starProfileDraftKey}
+        selectedPhysicalProfileKey={starPhysicalProfileDraftKey}
         applyBusy={starControlPhase === STAR_CONTROL_PHASE.APPLY_PROFILE}
         applyError={starControlError}
         onSelectProfile={setStarProfileDraftKey}
+        onSelectPhysicalProfile={setStarPhysicalProfileDraftKey}
         onApplyProfileLock={() => {
           void handleApplyStarProfileLock();
         }}

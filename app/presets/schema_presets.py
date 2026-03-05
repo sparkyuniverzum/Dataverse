@@ -51,9 +51,7 @@ SCHEMA_PRESETS: tuple[SchemaPresetDefinition, ...] = (
             {"fields": ["entity_id"]},
             {"fields": ["code"]},
         ),
-        validators=(
-            {"field": "status", "operator": "semantic", "value": {"mode": "enum"}},
-        ),
+        validators=({"field": "status", "operator": "semantic", "value": {"mode": "enum"}},),
         auto_semantics=(),
         formula_registry=(),
         physics_rulebook={"rules": [], "defaults": {}},
@@ -106,9 +104,7 @@ SCHEMA_PRESETS: tuple[SchemaPresetDefinition, ...] = (
             "reference": "string",
         },
         unique_rules=({"fields": ["tx_id"]},),
-        validators=(
-            {"field": "amount", "operator": ">", "value": 0},
-        ),
+        validators=({"field": "amount", "operator": ">", "value": 0},),
         auto_semantics=(),
         formula_registry=(
             {
@@ -169,9 +165,7 @@ SCHEMA_PRESETS: tuple[SchemaPresetDefinition, ...] = (
             "active": "boolean",
         },
         unique_rules=({"fields": ["link_id"]},),
-        validators=(
-            {"field": "weight", "operator": ">=", "value": 0},
-        ),
+        validators=({"field": "weight", "operator": ">=", "value": 0},),
         auto_semantics=(),
         formula_registry=(),
         physics_rulebook={"rules": [], "defaults": {}},
@@ -223,9 +217,7 @@ SCHEMA_PRESETS: tuple[SchemaPresetDefinition, ...] = (
             {"fields": ["item_id"]},
             {"fields": ["sku"]},
         ),
-        validators=(
-            {"field": "price", "operator": ">=", "value": 0},
-        ),
+        validators=({"field": "price", "operator": ">=", "value": 0},),
         auto_semantics=(),
         formula_registry=(),
         physics_rulebook={"rules": [], "defaults": {}},
@@ -283,9 +275,7 @@ SCHEMA_PRESETS: tuple[SchemaPresetDefinition, ...] = (
             {"fields": ["case_id"]},
             {"fields": ["case_no"]},
         ),
-        validators=(
-            {"field": "value", "operator": ">=", "value": 0},
-        ),
+        validators=({"field": "value", "operator": ">=", "value": 0},),
         auto_semantics=(),
         formula_registry=(),
         physics_rulebook={"rules": [], "defaults": {}},
@@ -484,9 +474,7 @@ SCHEMA_PRESETS: tuple[SchemaPresetDefinition, ...] = (
             {"fields": ["contact_id"]},
             {"fields": ["email"]},
         ),
-        validators=(
-            {"field": "status", "operator": "semantic", "value": {"mode": "enum"}},
-        ),
+        validators=({"field": "status", "operator": "semantic", "value": {"mode": "enum"}},),
         auto_semantics=(),
         formula_registry=(),
         physics_rulebook={"rules": [], "defaults": {}},
@@ -543,9 +531,7 @@ SCHEMA_PRESETS: tuple[SchemaPresetDefinition, ...] = (
             "reference_url": "string",
         },
         unique_rules=({"fields": ["event_id"]},),
-        validators=(
-            {"field": "capacity", "operator": ">=", "value": 0},
-        ),
+        validators=({"field": "capacity", "operator": ">=", "value": 0},),
         auto_semantics=(),
         formula_registry=(),
         physics_rulebook={"rules": [], "defaults": {}},
@@ -684,9 +670,7 @@ SCHEMA_PRESETS: tuple[SchemaPresetDefinition, ...] = (
             "related_entity": "string",
             "url": "string",
         },
-        unique_rules=(
-            {"fields": ["doc_id"]},
-        ),
+        unique_rules=({"fields": ["doc_id"]},),
         validators=(),
         auto_semantics=(),
         formula_registry=(),

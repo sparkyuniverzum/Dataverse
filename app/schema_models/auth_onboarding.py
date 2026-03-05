@@ -102,7 +102,7 @@ class OnboardingUpdateRequest(BaseModel):
     machine: OnboardingMachineUpdate | None = None
 
     @model_validator(mode="after")
-    def validate_action(self) -> "OnboardingUpdateRequest":
+    def validate_action(self) -> OnboardingUpdateRequest:
         if self.action == OnboardingAction.set_mode and self.mode is None:
             raise ValueError("`mode` is required when action='set_mode'")
         if self.action == OnboardingAction.sync_machine and self.machine is None:
