@@ -491,6 +491,110 @@ def test_parser_v2_legacy_guardian_command_uses_v1_semantics(auth_client: tuple[
     assert any(isinstance(rule, dict) and rule.get("action") == "pulse" for rule in guardians)
 
 
+def test_semantic_constitution_endpoint_by_endpoint_closure_v1(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+
+    relation_left = f"SemRelA-{uuid.uuid4().hex[:8]}"
+    relation_right = f"SemRelB-{uuid.uuid4().hex[:8]}"
+    relation_execute = client.post(
+        "/parser/execute",
+        json={"query": f"{relation_left} + {relation_right}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert relation_execute.status_code == 200, relation_execute.text
+    relation_body = relation_execute.json()
+    relation_link_task = next((task for task in relation_body.get("tasks", []) if task.get("action") == "LINK"), None)
+    assert relation_link_task is not None
+    assert str(relation_link_task.get("params", {}).get("type") or "").upper() == "RELATION"
+
+    type_left = f"SemTypeA-{uuid.uuid4().hex[:8]}"
+    type_right = f"SemTypeB-{uuid.uuid4().hex[:8]}"
+    type_execute = client.post(
+        "/parser/execute",
+        json={"query": f"{type_left} : {type_right}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert type_execute.status_code == 200, type_execute.text
+    type_body = type_execute.json()
+    type_link_task = next((task for task in type_body.get("tasks", []) if task.get("action") == "LINK"), None)
+    assert type_link_task is not None
+    assert str(type_link_task.get("params", {}).get("type") or "").upper() == "TYPE"
+    type_bond = next((bond for bond in type_body.get("bonds", []) if str(bond.get("type") or "").upper() == "TYPE"), None)
+    assert type_bond is not None
+    type_bond_id = type_bond["id"]
+
+    guardian_label = f"SemGuardian-{uuid.uuid4().hex[:8]}"
+    seeded_guardian = client.post(
+        "/asteroids/ingest",
+        json={"value": guardian_label, "metadata": {"score": 10}, "galaxy_id": galaxy_id},
+    )
+    assert seeded_guardian.status_code == 200, seeded_guardian.text
+    guardian_id = seeded_guardian.json()["id"]
+
+    guardian_execute = client.post(
+        "/parser/execute",
+        json={
+            "query": f"Hlídej : {guardian_label}.score > 5 -> pulse",
+            "parser_version": "v2",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert guardian_execute.status_code == 200, guardian_execute.text
+    guardian_body = guardian_execute.json()
+    assert any(task.get("action") == "ADD_GUARDIAN" for task in guardian_body.get("tasks", []))
+
+    delete_label = f"SemDelete-{uuid.uuid4().hex[:8]}"
+    seeded_delete = client.post("/asteroids/ingest", json={"value": delete_label, "galaxy_id": galaxy_id})
+    assert seeded_delete.status_code == 200, seeded_delete.text
+    delete_id = seeded_delete.json()["id"]
+    delete_execute = client.post(
+        "/parser/execute",
+        json={"query": f"Delete : {delete_label}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert delete_execute.status_code == 200, delete_execute.text
+    delete_body = delete_execute.json()
+    assert any(task.get("action") == "DELETE" for task in delete_body.get("tasks", []))
+    assert delete_id in delete_body.get("extinguished_asteroid_ids", [])
+
+    extinguish_bond = client.patch(f"/bonds/{type_bond_id}/extinguish", params={"galaxy_id": galaxy_id})
+    assert extinguish_bond.status_code == 200, extinguish_bond.text
+    assert extinguish_bond.json()["id"] == type_bond_id
+    assert extinguish_bond.json()["is_deleted"] is True
+
+    extinguish_asteroid = client.patch(f"/asteroids/{guardian_id}/extinguish", params={"galaxy_id": galaxy_id})
+    assert extinguish_asteroid.status_code == 200, extinguish_asteroid.text
+    assert extinguish_asteroid.json()["id"] == guardian_id
+    assert extinguish_asteroid.json()["is_deleted"] is True
+
+    empty_planet_name = f"SemPlanet > Empty-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": empty_planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"sem-planet-create-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    table_id = created_planet.json()["table_id"]
+    extinguish_planet = client.patch(f"/planets/{table_id}/extinguish", params={"galaxy_id": galaxy_id})
+    assert extinguish_planet.status_code == 200, extinguish_planet.text
+    assert extinguish_planet.json()["table_id"] == table_id
+    assert extinguish_planet.json()["extinguished"] is True
+
+    normalized_branch_name = "  Sprint Alpha "
+    first_branch = client.post("/branches", json={"name": normalized_branch_name, "galaxy_id": galaxy_id})
+    assert first_branch.status_code == 201, first_branch.text
+    second_branch = client.post("/branches", json={"name": "SPRINT ALPHA", "galaxy_id": galaxy_id})
+    assert second_branch.status_code == 409, second_branch.text
+    assert "already exists" in str(second_branch.json().get("detail", "")).lower()
+
+    extinguish_galaxy = client.patch(f"/galaxies/{galaxy_id}/extinguish")
+    assert extinguish_galaxy.status_code == 200, extinguish_galaxy.text
+    assert extinguish_galaxy.json()["id"] == galaxy_id
+    assert extinguish_galaxy.json()["deleted_at"] is not None
+
+
 def test_task_executor_rolls_back_on_failed_link(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     token = f"rollback-probe-{uuid.uuid4()}"

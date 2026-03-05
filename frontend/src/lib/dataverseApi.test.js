@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   apiErrorFromResponse,
   bondSemanticsFromType,
+  buildAsteroidExtinguishUrl,
+  buildBondExtinguishUrl,
   buildOccConflictMessage,
+  buildGalaxyExtinguishUrl,
   buildGalaxyEventsStreamUrl,
   buildStarCoreDomainMetricsUrl,
+  buildPlanetExtinguishUrl,
   buildStarCorePhysicsProfileUrl,
   buildStarCorePlanetPhysicsUrl,
   buildStarCorePolicyLockUrl,
@@ -20,6 +24,11 @@ import {
   buildParserPayload,
   buildTableContractUrl,
   buildTaskBatchPayload,
+  buildMoonCreateUrl,
+  buildMoonDetailUrl,
+  buildMoonExtinguishUrl,
+  buildMoonListUrl,
+  buildMoonMutateUrl,
   buildSnapshotExportUrl,
   buildSnapshotUrl,
   buildTablesExportUrl,
@@ -227,6 +236,50 @@ describe("io urls", () => {
 
     const onboardingUrl = buildGalaxyOnboardingUrl("http://127.0.0.1:8000", "g-42");
     expect(onboardingUrl).toBe("http://127.0.0.1:8000/galaxies/g-42/onboarding");
+  });
+
+  it("builds first-class moon CRUD URLs", () => {
+    const moonList = buildMoonListUrl("http://127.0.0.1:8000", {
+      galaxyId: "g-5",
+      planetId: "table-1",
+      branchId: "br-2",
+    });
+    expect(moonList).toBe("http://127.0.0.1:8000/moons?galaxy_id=g-5&planet_id=table-1&branch_id=br-2");
+
+    const moonDetail = buildMoonDetailUrl("http://127.0.0.1:8000", "moon-7", {
+      galaxyId: "g-5",
+      branchId: "br-2",
+    });
+    expect(moonDetail).toBe("http://127.0.0.1:8000/moons/moon-7?galaxy_id=g-5&branch_id=br-2");
+
+    expect(buildMoonCreateUrl("http://127.0.0.1:8000")).toBe("http://127.0.0.1:8000/moons");
+    expect(buildMoonMutateUrl("http://127.0.0.1:8000", "moon-7")).toBe("http://127.0.0.1:8000/moons/moon-7/mutate");
+    expect(buildMoonExtinguishUrl("http://127.0.0.1:8000", "moon-7")).toBe(
+      "http://127.0.0.1:8000/moons/moon-7/extinguish"
+    );
+  });
+
+  it("builds soft-delete extinguish URLs for protected entity groups", () => {
+    const asteroidUrl = buildAsteroidExtinguishUrl("http://127.0.0.1:8000", "a-1", {
+      galaxyId: "g-5",
+      expectedEventSeq: 7,
+    });
+    expect(asteroidUrl).toBe("http://127.0.0.1:8000/asteroids/a-1/extinguish?galaxy_id=g-5&expected_event_seq=7");
+
+    const bondUrl = buildBondExtinguishUrl("http://127.0.0.1:8000", "b-1", {
+      galaxyId: "g-5",
+      expectedEventSeq: 2,
+    });
+    expect(bondUrl).toBe("http://127.0.0.1:8000/bonds/b-1/extinguish?galaxy_id=g-5&expected_event_seq=2");
+
+    const planetUrl = buildPlanetExtinguishUrl("http://127.0.0.1:8000", "table-1", {
+      galaxyId: "g-5",
+      branchId: "br-3",
+    });
+    expect(planetUrl).toBe("http://127.0.0.1:8000/planets/table-1/extinguish?galaxy_id=g-5&branch_id=br-3");
+
+    const galaxyUrl = buildGalaxyExtinguishUrl("http://127.0.0.1:8000", "g-5");
+    expect(galaxyUrl).toBe("http://127.0.0.1:8000/galaxies/g-5/extinguish");
   });
 });
 

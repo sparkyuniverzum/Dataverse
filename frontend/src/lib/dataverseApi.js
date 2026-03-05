@@ -252,6 +252,80 @@ export function buildGalaxyMoonsUrl(apiBase, galaxyId, asOfIso = null, branchId 
   return url.toString();
 }
 
+export function buildMoonListUrl(apiBase, { galaxyId = null, planetId = null, branchId = null } = {}) {
+  const url = new URL(`${apiBase}/moons`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  if (planetId) {
+    url.searchParams.set("planet_id", String(planetId));
+  }
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  return url.toString();
+}
+
+export function buildMoonDetailUrl(apiBase, moonId, { galaxyId = null, branchId = null } = {}) {
+  const url = new URL(`${apiBase}/moons/${moonId}`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  return url.toString();
+}
+
+export function buildMoonCreateUrl(apiBase) {
+  return `${apiBase}/moons`;
+}
+
+export function buildMoonMutateUrl(apiBase, moonId) {
+  return `${apiBase}/moons/${moonId}/mutate`;
+}
+
+export function buildMoonExtinguishUrl(apiBase, moonId) {
+  return `${apiBase}/moons/${moonId}/extinguish`;
+}
+
+export function buildAsteroidExtinguishUrl(apiBase, asteroidId, { galaxyId = null, expectedEventSeq = null } = {}) {
+  const url = new URL(`${apiBase}/asteroids/${asteroidId}/extinguish`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
+    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  }
+  return url.toString();
+}
+
+export function buildBondExtinguishUrl(apiBase, bondId, { galaxyId = null, expectedEventSeq = null } = {}) {
+  const url = new URL(`${apiBase}/bonds/${bondId}/extinguish`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
+    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  }
+  return url.toString();
+}
+
+export function buildPlanetExtinguishUrl(apiBase, tableId, { galaxyId = null, branchId = null } = {}) {
+  const url = new URL(`${apiBase}/planets/${tableId}/extinguish`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  return url.toString();
+}
+
+export function buildGalaxyExtinguishUrl(apiBase, galaxyId) {
+  return `${apiBase}/galaxies/${galaxyId}/extinguish`;
+}
+
 export function buildGalaxyBondsUrl(apiBase, galaxyId, asOfIso = null, branchId = null) {
   const url = new URL(`${apiBase}/galaxies/${galaxyId}/bonds`);
   if (asOfIso) {

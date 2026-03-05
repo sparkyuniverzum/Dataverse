@@ -293,6 +293,121 @@ class StarCoreService:
             "coefficients": coefficients,
         }
 
+    async def migrate_physics_profile(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        from_version: int,
+        to_version: int,
+        reason: str,
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        row = (
+            await session.execute(
+                select(StarCorePolicyRM)
+                .where(
+                    StarCorePolicyRM.user_id == user_id,
+                    StarCorePolicyRM.galaxy_id == galaxy_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "STAR_CORE_POLICY_NOT_INITIALIZED",
+                    "message": "Star Core policy is not initialized for this galaxy.",
+                    "context": "migrate_star_physics_profile",
+                    "galaxy_id": str(galaxy_id),
+                },
+            )
+
+        lock_status = str(row.lock_status or "draft").strip().lower() or "draft"
+        if lock_status != "locked":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "STAR_CORE_POLICY_NOT_LOCKED",
+                    "message": "Star Core policy must be locked before physics migration.",
+                    "context": "migrate_star_physics_profile",
+                    "galaxy_id": str(galaxy_id),
+                    "lock_status": lock_status,
+                },
+            )
+
+        current_version = max(1, int(getattr(row, "physical_profile_version", 1) or 1))
+        expected_from_version = max(1, int(from_version))
+        target_to_version = max(1, int(to_version))
+        if expected_from_version != current_version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "STAR_CORE_PROFILE_VERSION_MISMATCH",
+                    "message": "Current physical profile version does not match from_version.",
+                    "context": "migrate_star_physics_profile",
+                    "galaxy_id": str(galaxy_id),
+                    "current_version": current_version,
+                    "from_version": expected_from_version,
+                },
+            )
+        if target_to_version <= expected_from_version:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "STAR_CORE_INVALID_MIGRATION_TARGET",
+                    "message": "to_version must be greater than from_version.",
+                    "context": "migrate_star_physics_profile",
+                    "galaxy_id": str(galaxy_id),
+                    "from_version": expected_from_version,
+                    "to_version": target_to_version,
+                },
+            )
+
+        safe_reason = str(reason or "").strip()
+        if not safe_reason:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "STAR_CORE_MIGRATION_REASON_REQUIRED",
+                    "message": "Migration reason is required.",
+                    "context": "migrate_star_physics_profile",
+                    "galaxy_id": str(galaxy_id),
+                },
+            )
+
+        runtime_preview = await self.get_planet_physics_runtime(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=None,
+            after_event_seq=None,
+            limit=1000,
+        )
+        impacted = len(runtime_preview.get("items") or [])
+
+        if not dry_run:
+            now = datetime.now(UTC)
+            row.physical_profile_version = target_to_version
+            row.updated_at = now
+            row.policy_version = max(1, int(row.policy_version or 1)) + 1
+            await session.flush()
+
+        return {
+            "galaxy_id": galaxy_id,
+            "profile_key": self._normalize_physical_profile_key(getattr(row, "physical_profile_key", "BALANCE")),
+            "from_version": expected_from_version,
+            "to_version": target_to_version,
+            "reason": safe_reason,
+            "dry_run": bool(dry_run),
+            "applied": not bool(dry_run),
+            "lock_status": lock_status,
+            "impacted_planets": impacted,
+            "estimated_runtime_items": impacted,
+        }
+
     async def get_planet_physics_runtime(
         self,
         session: AsyncSession,

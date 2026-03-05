@@ -1,6 +1,6 @@
 # Star Physics Laws Contract v2
 
-Status: draft (not frozen)  
+Status: frozen for MVP gate  
 Date: 2026-03-05  
 Depends on: `docs/contracts/api-v1.md`, `docs/star-contract-audit.md`
 
@@ -257,7 +257,7 @@ FE is allowed to interpolate between snapshots for smooth animation only.
 
 After initial lock:
 - no `PATCH` direct edits on constitution or physical coefficients.
-- migration API only (future):
+- migration API only:
   - `POST /galaxies/{galaxy_id}/star-core/physics/profile/migrate`
   - payload includes `from_version`, `to_version`, `reason`, `dry_run`.
 

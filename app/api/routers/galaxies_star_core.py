@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import (
     star_core_domain_metrics_to_public,
+    star_core_physics_migration_to_public,
     star_core_physics_profile_to_public,
     star_core_planet_physics_to_public,
     star_core_policy_to_public,
@@ -20,6 +21,8 @@ from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
     StarCoreDomainMetricsResponse,
+    StarCorePhysicsProfileMigrateRequest,
+    StarCorePhysicsProfileMigrateResponse,
     StarCorePhysicsProfilePublic,
     StarCorePlanetPhysicsResponse,
     StarCorePolicyPublic,
@@ -129,6 +132,38 @@ async def star_core_physics_profile(
         galaxy_id=target_galaxy_id,
     )
     return star_core_physics_profile_to_public(profile)
+
+
+@router.post(
+    "/galaxies/{galaxy_id}/star-core/physics/profile/migrate",
+    response_model=StarCorePhysicsProfileMigrateResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def star_core_physics_profile_migrate(
+    galaxy_id: UUID,
+    payload: StarCorePhysicsProfileMigrateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> StarCorePhysicsProfileMigrateResponse:
+    target_galaxy_id, _ = await _resolve_scope(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=galaxy_id,
+    )
+    async with transactional_context(session):
+        migration = await services.star_core_service.migrate_physics_profile(
+            session=session,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            from_version=payload.from_version,
+            to_version=payload.to_version,
+            reason=payload.reason,
+            dry_run=payload.dry_run,
+        )
+    await commit_if_active(session)
+    return star_core_physics_migration_to_public(migration)
 
 
 @router.get(

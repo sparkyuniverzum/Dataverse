@@ -48,11 +48,17 @@ jobs:
       - name: Star contract baseline parity (backend)
         run: pytest -q tests/test_star_contract_baseline.py
 
+      - name: API v1 OpenAPI freeze gate (backend)
+        run: pytest -q tests/test_api_v1_openapi_freeze.py
+
       - name: Galaxy workspace contract baseline parity (backend)
         run: pytest -q tests/test_galaxy_workspace_contract_baseline.py
 
       - name: Moon contract baseline parity (backend)
         run: pytest -q tests/test_moon_contract_baseline.py
+
+      - name: Moon contract freeze gate (backend)
+        run: pytest -q tests/test_moon_contract_freeze_gate.py
 
       - name: Civilization contract baseline parity (backend)
         run: pytest -q tests/test_civilization_contract_baseline.py
@@ -79,6 +85,14 @@ jobs:
       - name: Release gate: star lock -> first planet -> grid convergence
         run: |
           pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_grid_convergence"
+
+      - name: Semantic constitution endpoint closure (backend)
+        run: |
+          pytest -q tests/test_api_integration.py -k "semantic_constitution_endpoint_by_endpoint_closure_v1"
+
+      - name: Star integration freeze gates (backend)
+        run: |
+          pytest -q tests/test_star_core_integration_freeze.py
 
       - name: Parser2 release gate integration tests
         run: |
@@ -107,6 +121,24 @@ jobs:
 
       - name: Star contract baseline parity (frontend)
         run: npm test -- --run src/components/universe/starContract.test.js
+
+      - name: Semantic constitution freeze gate (frontend)
+        run: npm test -- --run src/lib/semanticConstitutionContract.test.js src/lib/builderParserCommand.test.js src/lib/dataverseApi.test.js
+
+      - name: API v1 OpenAPI freeze gate (frontend)
+        run: npm test -- --run src/lib/apiV1Contract.test.js src/lib/dataverseApi.test.js
+
+      - name: Table contract freeze gate (frontend)
+        run: npm test -- --run src/lib/tableContract.test.js src/components/universe/workspaceContract.test.js src/components/universe/workspaceFormatters.test.js
+
+      - name: Parser v1/v2 freeze gate (frontend)
+        run: npm test -- --run src/lib/parserContract.test.js src/lib/builderParserCommand.test.js src/lib/parserExecutionMode.test.js src/lib/dataverseApi.test.js
+
+      - name: Projection convergence gate (frontend)
+        run: npm test -- --run src/components/universe/projectionConvergenceGate.test.js src/components/universe/runtimeSyncUtils.test.js src/lib/hierarchy_layout.test.js
+
+      - name: Moon contract freeze gate (frontend)
+        run: npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js
 
       - name: Frontend build
         run: npm run build

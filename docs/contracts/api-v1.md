@@ -216,7 +216,24 @@ Date: 2026-02-28 (updated 2026-03-05 for planets + grid sync contract)
 - Contract for FE:
   - stream is convergence trigger, not direct renderer state source
   - on `update`, FE refreshes projection sources (`/universe/snapshot` + `/universe/tables`)
-  - after reconnect, FE resumes by `last_event_seq` and performs full projection refresh on sequence uncertainty
+- after reconnect, FE resumes by `last_event_seq` and performs full projection refresh on sequence uncertainty
+
+## Star core physics migration (v2 additive)
+### `POST /galaxies/{galaxy_id}/star-core/physics/profile/migrate`
+- Auth required.
+- Request:
+  - `{ "from_version": int>=1, "to_version": int>=1, "reason": string(1..240), "dry_run"?: bool }`
+- Behavior:
+  - migration is allowed only when Star Core policy is already locked
+  - `from_version` must match current locked physical profile version
+  - `to_version` must be greater than `from_version`
+  - `dry_run=true` returns impact summary without mutation
+  - `dry_run=false` applies profile version migration in-place (version bump only)
+- Response `200`:
+  - `{ galaxy_id, profile_key, from_version, to_version, reason, dry_run, applied, lock_status, impacted_planets, estimated_runtime_items }`
+- Errors:
+  - `409` policy not initialized/not locked/version mismatch
+  - `422` invalid migration payload
 
 ## IO (CSV import/export, Phase 1)
 ### `POST /io/imports`

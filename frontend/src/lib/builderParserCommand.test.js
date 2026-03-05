@@ -6,6 +6,7 @@ import {
   buildExtinguishMoonCommand,
   buildIngestMoonCommand,
   buildLinkMoonsCommand,
+  buildTypeMoonsCommand,
   toParserOperand,
 } from "./builderParserCommand";
 
@@ -28,6 +29,15 @@ describe("builder parser commands", () => {
         targetId: "f3193ff1-8223-4ad4-bf01-f914fe318cf1",
       })
     ).toBe("5c76f0ac-6e49-4d66-af64-e279f8ff8a71 + f3193ff1-8223-4ad4-bf01-f914fe318cf1");
+  });
+
+  it("builds type command", () => {
+    expect(
+      buildTypeMoonsCommand({
+        sourceLabel: "A",
+        targetLabel: "B",
+      })
+    ).toBe("A : B");
   });
 
   it("builds extinguish command", () => {
@@ -63,5 +73,15 @@ describe("builder parser commands", () => {
 
   it("returns empty command for unknown action", () => {
     expect(buildBuilderParserCommand({ type: "UNKNOWN_ACTION" })).toBe("");
+  });
+
+  it("supports TYPE_MOONS action", () => {
+    expect(
+      buildBuilderParserCommand({
+        type: "TYPE_MOONS",
+        sourceLabel: "A",
+        targetLabel: "B",
+      })
+    ).toBe("A : B");
   });
 });
