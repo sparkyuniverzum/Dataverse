@@ -289,6 +289,43 @@ export function buildMoonExtinguishUrl(apiBase, moonId) {
   return `${apiBase}/moons/${moonId}/extinguish`;
 }
 
+export function buildCivilizationListUrl(apiBase, { galaxyId = null, planetId = null, branchId = null } = {}) {
+  const url = new URL(`${apiBase}/civilizations`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  if (planetId) {
+    url.searchParams.set("planet_id", String(planetId));
+  }
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  return url.toString();
+}
+
+export function buildCivilizationDetailUrl(apiBase, civilizationId, { galaxyId = null, branchId = null } = {}) {
+  const url = new URL(`${apiBase}/civilizations/${civilizationId}`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  return url.toString();
+}
+
+export function buildCivilizationCreateUrl(apiBase) {
+  return `${apiBase}/civilizations`;
+}
+
+export function buildCivilizationMutateUrl(apiBase, civilizationId) {
+  return `${apiBase}/civilizations/${civilizationId}/mutate`;
+}
+
+export function buildCivilizationExtinguishUrl(apiBase, civilizationId) {
+  return `${apiBase}/civilizations/${civilizationId}/extinguish`;
+}
+
 export function buildAsteroidExtinguishUrl(apiBase, asteroidId, { galaxyId = null, expectedEventSeq = null } = {}) {
   const url = new URL(`${apiBase}/asteroids/${asteroidId}/extinguish`);
   if (galaxyId) {

@@ -179,7 +179,7 @@ export default function QuickGridOverlay({
         <input
           value={createValue}
           onChange={(event) => setCreateValue(event.target.value)}
-          placeholder="Nova hodnota mesice..."
+          placeholder="Nova hodnota civilizace..."
           style={inputStyle}
           disabled={busy}
         />
@@ -194,7 +194,7 @@ export default function QuickGridOverlay({
             }
           }}
         >
-          {pendingCreate ? "Pridavam..." : "Pridat mesic"}
+          {pendingCreate ? "Pridavam..." : "Pridat civilizaci"}
         </button>
       </div>
 
@@ -213,7 +213,7 @@ export default function QuickGridOverlay({
         <input
           value={editValue}
           onChange={(event) => setEditValue(event.target.value)}
-          placeholder={selectedRow ? "Upravit hodnotu vybraneho mesice..." : "Vyber mesic v tabulce..."}
+          placeholder={selectedRow ? "Upravit hodnotu vybrane civilizace..." : "Vyber civilizaci v tabulce..."}
           style={inputStyle}
           disabled={busy || !selectedRow}
         />
@@ -261,7 +261,7 @@ export default function QuickGridOverlay({
         <input
           value={metadataValue}
           onChange={(event) => setMetadataValue(event.target.value)}
-          placeholder={selectedRow ? "Hodnota (prázdné = odebrat)" : "Vyber mesic v tabulce..."}
+          placeholder={selectedRow ? "Hodnota (prázdné = odebrat)" : "Vyber civilizaci v tabulce..."}
           style={inputStyle}
           disabled={busy || !selectedRow}
         />
@@ -316,7 +316,7 @@ export default function QuickGridOverlay({
                     minWidth: column === "value" ? 240 : 170,
                   }}
                 >
-                  {column === "value" ? "mesic" : column}
+                  {column === "value" ? "civilizace" : column}
                 </th>
               ))}
             </tr>

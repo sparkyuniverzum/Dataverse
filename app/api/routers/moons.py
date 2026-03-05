@@ -127,6 +127,25 @@ async def list_moons(
     return MoonListResponse(items=items)
 
 
+@router.get("/civilizations", response_model=MoonListResponse, status_code=status.HTTP_200_OK)
+async def list_civilizations(
+    galaxy_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    planet_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> MoonListResponse:
+    return await list_moons(
+        galaxy_id=galaxy_id,
+        branch_id=branch_id,
+        planet_id=planet_id,
+        session=session,
+        current_user=current_user,
+        services=services,
+    )
+
+
 @router.get("/moons/{moon_id}", response_model=MoonRowContract, status_code=status.HTTP_200_OK)
 async def get_moon(
     moon_id: UUID,
@@ -150,6 +169,25 @@ async def get_moon(
         galaxy_id=target_galaxy_id,
         branch_id=target_branch_id,
         moon_id=moon_id,
+    )
+
+
+@router.get("/civilizations/{civilization_id}", response_model=MoonRowContract, status_code=status.HTTP_200_OK)
+async def get_civilization(
+    civilization_id: UUID,
+    galaxy_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> MoonRowContract:
+    return await get_moon(
+        moon_id=civilization_id,
+        galaxy_id=galaxy_id,
+        branch_id=branch_id,
+        session=session,
+        current_user=current_user,
+        services=services,
     )
 
 
@@ -213,6 +251,21 @@ async def create_moon(
         resolved_scope=(target_galaxy_id, target_branch_id),
     )
     return _moon_row_from_asteroid_response(created, galaxy_id=target_galaxy_id)
+
+
+@router.post("/civilizations", response_model=MoonRowContract, status_code=status.HTTP_201_CREATED)
+async def create_civilization(
+    payload: MoonCreateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> MoonRowContract:
+    return await create_moon(
+        payload=payload,
+        session=session,
+        current_user=current_user,
+        services=services,
+    )
 
 
 @router.patch("/moons/{moon_id}/mutate", response_model=MoonRowContract, status_code=status.HTTP_200_OK)
@@ -291,6 +344,23 @@ async def mutate_moon(
     return _moon_row_from_asteroid_response(mutated, galaxy_id=target_galaxy_id)
 
 
+@router.patch("/civilizations/{civilization_id}/mutate", response_model=MoonRowContract, status_code=status.HTTP_200_OK)
+async def mutate_civilization(
+    civilization_id: UUID,
+    payload: MoonMutateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> MoonRowContract:
+    return await mutate_moon(
+        moon_id=civilization_id,
+        payload=payload,
+        session=session,
+        current_user=current_user,
+        services=services,
+    )
+
+
 @router.patch("/moons/{moon_id}/extinguish", response_model=MoonExtinguishResponse, status_code=status.HTTP_200_OK)
 async def extinguish_moon(
     moon_id: UUID,
@@ -361,4 +431,31 @@ async def extinguish_moon(
         empty_response_detail="Moon not found",
         empty_response_status=status.HTTP_404_NOT_FOUND,
         resolved_scope=(target_galaxy_id, target_branch_id),
+    )
+
+
+@router.patch(
+    "/civilizations/{civilization_id}/extinguish",
+    response_model=MoonExtinguishResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def extinguish_civilization(
+    civilization_id: UUID,
+    galaxy_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    expected_event_seq: int | None = Query(default=None, ge=0),
+    idempotency_key: str | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> MoonExtinguishResponse:
+    return await extinguish_moon(
+        moon_id=civilization_id,
+        galaxy_id=galaxy_id,
+        branch_id=branch_id,
+        expected_event_seq=expected_event_seq,
+        idempotency_key=idempotency_key,
+        session=session,
+        current_user=current_user,
+        services=services,
     )

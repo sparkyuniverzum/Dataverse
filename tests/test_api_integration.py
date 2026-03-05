@@ -3044,6 +3044,91 @@ def test_moon_first_class_crud_endpoints(auth_client: tuple[httpx.Client, str]) 
     assert missing_after_delete.status_code == 404, missing_after_delete.text
 
 
+def test_civilization_first_class_alias_endpoints(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"CivilizationAlias > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"civilization-alias-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    created = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "Civilization Alias Seed",
+            "minerals": {
+                "entity_id": f"civilization-{uuid.uuid4().hex[:8]}",
+                "label": "Civilization Alias Seed",
+                "state": "active",
+            },
+            "idempotency_key": f"civilization-alias-create-{uuid.uuid4()}",
+        },
+    )
+    assert created.status_code == 201, created.text
+    created_body = created.json()
+    moon_id = created_body["moon_id"]
+    event_seq = int(created_body.get("current_event_seq") or 0)
+    assert event_seq >= 1
+
+    listed = client.get("/civilizations", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
+    assert listed.status_code == 200, listed.text
+    listed_items = listed.json().get("items", [])
+    listed_row = next((item for item in listed_items if item.get("moon_id") == moon_id), None)
+    assert listed_row is not None
+
+    # Backward-compatible alias parity: `/moons` must expose the same row.
+    listed_moons = client.get("/moons", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
+    assert listed_moons.status_code == 200, listed_moons.text
+    listed_moons_items = listed_moons.json().get("items", [])
+    listed_moons_row = next((item for item in listed_moons_items if item.get("moon_id") == moon_id), None)
+    assert listed_moons_row is not None
+
+    mutated = client.patch(
+        f"/civilizations/{moon_id}/mutate",
+        json={
+            "galaxy_id": galaxy_id,
+            "minerals": {"state": "archived"},
+            "expected_event_seq": event_seq,
+            "idempotency_key": f"civilization-alias-mutate-{uuid.uuid4()}",
+        },
+    )
+    assert mutated.status_code == 200, mutated.text
+    facts_by_key = {item["key"]: item for item in mutated.json().get("facts", [])}
+    assert facts_by_key["state"]["typed_value"] == "archived"
+    mutated_seq = int(mutated.json().get("current_event_seq") or 0)
+    assert mutated_seq > event_seq
+
+    detail_via_moons = client.get(f"/moons/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert detail_via_moons.status_code == 200, detail_via_moons.text
+    detail_facts = {item["key"]: item for item in detail_via_moons.json().get("facts", [])}
+    assert detail_facts["state"]["typed_value"] == "archived"
+
+    extinguished = client.patch(
+        f"/civilizations/{moon_id}/extinguish",
+        params={
+            "galaxy_id": galaxy_id,
+            "expected_event_seq": mutated_seq,
+            "idempotency_key": f"civilization-alias-extinguish-{uuid.uuid4()}",
+        },
+    )
+    assert extinguished.status_code == 200, extinguished.text
+    assert extinguished.json()["moon_id"] == moon_id
+    assert extinguished.json()["is_deleted"] is True
+
+    missing_after_delete = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert missing_after_delete.status_code == 404, missing_after_delete.text
+
+
 def test_civilization_contract_gate_create_mutate_extinguish_and_converge(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     planet_name = f"Civilization > Gate-{uuid.uuid4().hex[:8]}"

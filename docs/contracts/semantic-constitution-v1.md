@@ -12,9 +12,10 @@ Tento dokument sjednocuje doménový jazyk mezi parserem, API, event-store, read
 | Galaxy | Galaxie (Sovereignty) | Nejvyšší tenant kontejner a bezpečnostní hranice. |
 | Constellation | Souhvězdí (Context) | Tematický kontext/oblast (např. HR, Vývoj). |
 | Planet | Planeta (Contract) | Typová a validační definice tabulky (`table_id`, table contract). |
-| Moon | Měsíc (Instance) | Konkrétní datový bod/řádek (asteroid). |
-| Mineral | Nerost (Attribute) | Atribut (field) a jeho hodnota uvnitř instance. |
-| Bond | Vazba | Relace mezi instancemi (`RELATION`, `TYPE`, ...). |
+| Moon | Měsíc (Capability) | Rozšiřující schopnost planety (dictionary/validation/formula/bridge). |
+| Civilization | Civilizace (Instance) | Konkrétní datový bod/řádek na planetě (runtime row). |
+| Mineral | Nerost (Attribute) | Atribut (field) a jeho hodnota uvnitř civilizace. |
+| Bond | Vazba | Relace mezi civilizacemi (`RELATION`, `TYPE`, ...). |
 | Chronicle | Kronika | Neměnný event log (event store). |
 | Branch | Větev (staging scénář) | Izolovaná časová větev nad main timeline. |
 
@@ -22,12 +23,12 @@ Tento dokument sjednocuje doménový jazyk mezi parserem, API, event-store, read
 
 ### `:` Příslušnost / definice
 - Význam: "patří do třídy / typu".
-- Canonical shape: `Moon : Planet`.
+- Canonical shape: `Civilization : Planet`.
 - Efekt: `INGEST(left)`, `INGEST(right)`, `LINK(type="TYPE")`.
 
 ### `+` Relace / propojení
 - Význam: "má vztah k / spolupracuje s".
-- Canonical shape: `MoonA + MoonB [+ MoonC ...]`.
+- Canonical shape: `CivilizationA + CivilizationB [+ CivilizationC ...]`.
 - Efekt: `INGEST` pro operand(y) + sekvenční `LINK(type="RELATION")`.
 - Zákon: `RELATION` je nedirektivní (`A+B == B+A`).
 
@@ -38,7 +39,7 @@ Tento dokument sjednocuje doménový jazyk mezi parserem, API, event-store, read
 
 ### `:=` (nebo `=`) Hodnota atributu
 - Význam: "nastav atribut/hodnotu".
-- Doporučený tvar Parser 2.0: `Moon.field := value`.
+- Doporučený tvar Parser 2.0: `Civilization.field := value`.
 - Důvod: zabrání nejednoznačnosti s `->`.
 
 ### `-` Zhasnutí (extinguish)
@@ -87,6 +88,9 @@ Když pro tabulku existuje contract, každý efektivní write ho musí validovat
 - `+`, `:`, `DELETE/EXTINGUISH`, `SET_FORMULA`, `ADD_GUARDIAN`.
 - `RELATION` canonical semantics.
 - Branch izolace + promote replay.
+- Přechodový runtime alias:
+  - současné řádkové endpointy `/moons*` jsou kompatibilitní surface pro civilization lifecycle,
+  - kanonický cíl je oddělení: `Moon capability != Civilization row`.
 
 - Vyhrazené pro Parser 2.0:
 - Přímý atributový zápis přes `:=` (nebo ekvivalent).

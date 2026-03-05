@@ -54,6 +54,11 @@
       ]
     },
     "civilization_endpoints": [
+      "GET /civilizations",
+      "GET /civilizations/{civilization_id}",
+      "POST /civilizations",
+      "PATCH /civilizations/{civilization_id}/mutate",
+      "PATCH /civilizations/{civilization_id}/extinguish",
       "POST /asteroids/ingest",
       "PATCH /asteroids/{asteroid_id}/mutate",
       "PATCH /asteroids/{asteroid_id}/extinguish",
@@ -65,6 +70,8 @@
     ],
     "contract_doc_markers": [
       "## 3. Lifecycle API surface",
+      "GET /civilizations",
+      "POST /civilizations",
       "POST /asteroids/ingest",
       "PATCH /asteroids/{asteroid_id}/mutate",
       "PATCH /asteroids/{asteroid_id}/extinguish",

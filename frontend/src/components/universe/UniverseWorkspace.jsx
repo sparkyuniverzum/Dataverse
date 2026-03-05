@@ -1083,7 +1083,7 @@ export default function UniverseWorkspace({
           }),
         });
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Mesic se nepodarilo vytvorit: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo vytvorit: ${response.status}`);
         }
         const payload = await response.json().catch(() => ({}));
         const asteroidId = payload?.moon_id ? String(payload.moon_id) : "";
@@ -1114,7 +1114,7 @@ export default function UniverseWorkspace({
           });
           parserTelemetryRecorded = true;
         }
-        setRuntimeError(createError?.message || "Mesic se nepodarilo vytvorit.");
+        setRuntimeError(createError?.message || "Civilizaci se nepodarilo vytvorit.");
         return false;
       } finally {
         setPendingCreate(false);
@@ -1159,15 +1159,15 @@ export default function UniverseWorkspace({
           }),
         });
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Mesic se nepodarilo upravit: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo upravit: ${response.status}`);
         }
         await refreshProjection({ silent: true });
       } catch (updateError) {
         if (isOccConflictError(updateError)) {
-          setRuntimeError(buildOccConflictMessage(updateError, "uprava mesice"));
+          setRuntimeError(buildOccConflictMessage(updateError, "uprava civilizace"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(updateError?.message || "Mesic se nepodarilo upravit.");
+          setRuntimeError(updateError?.message || "Civilizaci se nepodarilo upravit.");
         }
       } finally {
         setPendingRowOps((prev) => {
@@ -1233,7 +1233,7 @@ export default function UniverseWorkspace({
           method: "PATCH",
         });
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Mesic se nepodarilo zhasnout: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo zhasnout: ${response.status}`);
         }
         if (parserAttempted) {
           trackParserAttempt({
@@ -1262,10 +1262,10 @@ export default function UniverseWorkspace({
           parserTelemetryRecorded = true;
         }
         if (isOccConflictError(deleteError)) {
-          setRuntimeError(buildOccConflictMessage(deleteError, "zhasnuti mesice"));
+          setRuntimeError(buildOccConflictMessage(deleteError, "zhasnuti civilizace"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(deleteError?.message || "Mesic se nepodarilo zhasnout.");
+          setRuntimeError(deleteError?.message || "Civilizaci se nepodarilo zhasnout.");
         }
       } finally {
         setPendingRowOps((prev) => {
@@ -1690,7 +1690,7 @@ export default function UniverseWorkspace({
         >
           <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>SETUP PANEL</div>
           <div style={{ fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-base)" }}>
-            Vyborne. <strong>{stageZeroPlanetName || "Planeta"}</strong> slouzi jako kontejner pro mesice (data). Aby v ni
+            Vyborne. <strong>{stageZeroPlanetName || "Planeta"}</strong> slouzi jako kontejner pro civilizaci (radky dat). Aby v ni
             nebyl chaos, nastavime zakladni schema krok za krokem.
           </div>
           {!stageZeroPresetSelected ? (
@@ -1868,7 +1868,7 @@ export default function UniverseWorkspace({
                   </div>
                 ))}
                 <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
-                  Po zazehnuti jadra se vlozi 3 ukazkove mesice do gridu.
+                  Po zazehnuti jadra se vlozi 3 ukazkove civilizacni radky do gridu.
                 </div>
               </div>
 

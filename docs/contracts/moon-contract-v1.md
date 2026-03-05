@@ -56,12 +56,19 @@ Runtime enforcement:
 - `PATCH /asteroids/{asteroid_id}/mutate`
 - parser/task execution writes (`/parser/execute`, `/tasks/execute-batch`)
 
-First-class Moon CRUD (planet-scoped API):
+Transitional runtime alias (row lifecycle, backward compatibility):
 - `GET /moons`
 - `GET /moons/{moon_id}`
 - `POST /moons`
 - `PATCH /moons/{moon_id}/mutate`
 - `PATCH /moons/{moon_id}/extinguish`
+
+Canonical row API (implemented, naming-aligned):
+- `GET /civilizations`
+- `GET /civilizations/{civilization_id}`
+- `POST /civilizations`
+- `PATCH /civilizations/{civilization_id}/mutate`
+- `PATCH /civilizations/{civilization_id}/extinguish`
 
 ## 6. Invariants
 
@@ -73,7 +80,7 @@ First-class Moon CRUD (planet-scoped API):
 ## 7. Known MVP gap
 
 Dedicated Moon capability entity (`moon_capabilities`) CRUD is still contract-driven (through table contracts).
-Row-level Moon CRUD is available through first-class `/moons` endpoints.
+Row-level runtime CRUD is available on canonical `/civilizations*` with transitional `/moons*` alias for compatibility.
 
 ## 8. DoD for this contract
 
