@@ -111,5 +111,8 @@ jobs:
       - name: Star contract baseline parity (frontend)
         run: npm test -- --run src/components/universe/starContract.test.js
 
+      - name: Moon contract freeze gate (frontend)
+        run: npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js
+
       - name: Frontend build
         run: npm run build

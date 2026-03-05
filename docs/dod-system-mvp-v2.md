@@ -133,6 +133,7 @@ Each moon type must be demonstrated in at least one integration flow.
 - `PYTHONPATH=. pytest -q tests/test_parser2_spec_contract.py tests/test_parser_service.py -k "contract"`
 - `PYTHONPATH=. pytest -q tests/test_schemas_table_contract.py`
 - `cd frontend && npm test -- --run src/components/universe/starContract.test.js src/components/universe/scene/physicsSystem.test.js`
+- `cd frontend && npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js`
 
 ### 9.2 Integration gates
 

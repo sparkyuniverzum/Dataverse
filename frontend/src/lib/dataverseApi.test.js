@@ -20,6 +20,11 @@ import {
   buildParserPayload,
   buildTableContractUrl,
   buildTaskBatchPayload,
+  buildMoonCreateUrl,
+  buildMoonDetailUrl,
+  buildMoonExtinguishUrl,
+  buildMoonListUrl,
+  buildMoonMutateUrl,
   buildSnapshotExportUrl,
   buildSnapshotUrl,
   buildTablesExportUrl,
@@ -227,6 +232,27 @@ describe("io urls", () => {
 
     const onboardingUrl = buildGalaxyOnboardingUrl("http://127.0.0.1:8000", "g-42");
     expect(onboardingUrl).toBe("http://127.0.0.1:8000/galaxies/g-42/onboarding");
+  });
+
+  it("builds first-class moon CRUD URLs", () => {
+    const moonList = buildMoonListUrl("http://127.0.0.1:8000", {
+      galaxyId: "g-5",
+      planetId: "table-1",
+      branchId: "br-2",
+    });
+    expect(moonList).toBe("http://127.0.0.1:8000/moons?galaxy_id=g-5&planet_id=table-1&branch_id=br-2");
+
+    const moonDetail = buildMoonDetailUrl("http://127.0.0.1:8000", "moon-7", {
+      galaxyId: "g-5",
+      branchId: "br-2",
+    });
+    expect(moonDetail).toBe("http://127.0.0.1:8000/moons/moon-7?galaxy_id=g-5&branch_id=br-2");
+
+    expect(buildMoonCreateUrl("http://127.0.0.1:8000")).toBe("http://127.0.0.1:8000/moons");
+    expect(buildMoonMutateUrl("http://127.0.0.1:8000", "moon-7")).toBe("http://127.0.0.1:8000/moons/moon-7/mutate");
+    expect(buildMoonExtinguishUrl("http://127.0.0.1:8000", "moon-7")).toBe(
+      "http://127.0.0.1:8000/moons/moon-7/extinguish"
+    );
   });
 });
 

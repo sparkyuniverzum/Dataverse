@@ -15,19 +15,28 @@ Close remaining contract gaps for MVP sign-off with repeatable BE/FE test gates.
 
 2. Existing contract baselines:
 - `PYTHONPATH=. pytest -q tests/test_star_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_galaxy_workspace_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_moon_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_moon_contract_freeze_gate.py`
+- `PYTHONPATH=. pytest -q tests/test_civilization_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_mineral_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_semantic_constitution_contract.py`
 - `PYTHONPATH=. pytest -q tests/test_parser2_spec_contract.py tests/test_parser_service.py -k "contract"`
 - `PYTHONPATH=. pytest -q tests/test_schemas_table_contract.py`
 
-3. Star physics endpoint closure:
-- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "star_core_mvp_endpoints_return_policy_runtime_and_pulse or star_core_planet_physics_endpoint_returns_runtime_shape"`
+3. Integration closure (minimum):
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "star_core_endpoint_by_endpoint_closure_v2 or moon_first_class_crud_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or release_gate_star_lock_first_planet_grid_convergence"`
 
 ## 3. FE gates
 
 1. Star contract and physics render gates:
 - `cd frontend && npm test -- --run src/components/universe/starContract.test.js src/components/universe/scene/physicsSystem.test.js`
 
-2. Workspace data-shape gates (civilization/mineral/grid):
+2. Workspace and scope data-shape gates:
 - `cd frontend && npm test -- --run src/lib/dataverseApi.test.js src/lib/workspaceScopeContract.test.js src/components/universe/workspaceFormatters.test.js src/components/universe/workspaceContract.test.js`
+
+3. Moon first-class contract freeze gate:
+- `cd frontend && npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js`
 
 ## 4. Unified smoke gate
 

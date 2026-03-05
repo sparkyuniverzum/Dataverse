@@ -28,7 +28,9 @@ Základní jednotka systému je **Nerost/Fakt**.
   - `/universe/snapshot` vrací u asteroidů i canonical `facts`.
 
 - Frontend:
-  - `frontend/src/lib/universe_contract.js`:
-    - `buildMoonFacts(...)`
-    - `toMoonRowContract(...)`
-    - konstanty typů/zdrojů/stavů faktu.
+  - `frontend/src/components/universe/workspaceContract.js`:
+    - frozen FE usage pro `moon_summary` a `mineral_fact` payloady.
+  - `frontend/src/lib/moonContract.js`:
+    - frozen FE usage pro first-class Moon CRUD kontrakt (`/moons`).
+  - `frontend/src/lib/dataverseApi.js`:
+    - URL buildery pro moon CRUD endpointy a workspace snapshot flow.

@@ -21,7 +21,7 @@ Legend:
 | Star baseline v1 | `docs/star-contract-baseline-v1.json` | DONE | DONE (`tests/test_star_contract_baseline.py`) | PARTIAL | DONE (`starContract.test.js`) | integration asserts can be broader |
 | Star physics laws v2 | `docs/contracts/star-physics-laws-v2.md` | PARTIAL | DONE (baseline v2 schema parity) | DONE (`test_api_integration.py::test_star_core_endpoint_by_endpoint_closure_v2`) | DONE (`starContract.test.js`, `physicsSystem.test.js`) | keep endpoint closure test synced with response-model changes |
 | Star physics baseline v2 | `docs/star-physics-contract-baseline-v2.json` | DONE | DONE (`tests/test_star_contract_baseline.py`) | PARTIAL | DONE (`starContract.test.js`) | performance/profile migration gate missing |
-| Moon capability v1 | `docs/contracts/moon-contract-v1.md` | PARTIAL | DONE (`tests/test_moon_contract_baseline.py`, `tests/test_moon_contracts.py`, `tests/test_moon_contract_freeze_gate.py`) | DONE (`test_api_integration.py::test_moon_first_class_crud_endpoints`) | PARTIAL | FE still lacks dedicated Moon contract freeze gate |
+| Moon capability v1 | `docs/contracts/moon-contract-v1.md` | DONE | DONE (`tests/test_moon_contract_baseline.py`, `tests/test_moon_contracts.py`, `tests/test_moon_contract_freeze_gate.py`) | DONE (`test_api_integration.py::test_moon_first_class_crud_endpoints`) | DONE (`src/lib/moonContract.test.js`, `src/lib/dataverseApi.test.js`) | keep FE baseline sync with `docs/moon-contract-baseline-v1.json` |
 | Civilization v1 | `docs/contracts/civilization-contract-v1.md` | DONE | DONE (`tests/test_civilization_contract_baseline.py`) | DONE (`test_api_integration.py::test_civilization_contract_gate_create_mutate_extinguish_and_converge`) | DONE (`workspaceContract.test.js`) | keep baseline synced with lifecycle endpoint evolution |
 | Mineral v1 | `docs/contracts/mineral-contract-v1.md` | DONE | DONE (`tests/test_mineral_contract_baseline.py`) | DONE (`test_api_integration.py::test_mineral_contract_gate_typing_validation_and_facts_projection`) | DONE (`workspaceContract.test.js`) | keep enum/fact baseline synced with schema evolution |
 
@@ -29,10 +29,9 @@ Legend:
 
 1. Add FE freeze checks beyond Star:
 - semantic constitution FE parity (operator/law assumptions rendered in UI behavior)
-- moon first-class CRUD FE contract parity
 
 ## 3. Current MVP blocker view
 
 - `BLOCKER`: none for continuing implementation (core contracts exist).
 - `SIGN-OFF BLOCKERS` before MVP freeze:
-1. missing FE freeze tests for non-star contracts (including semantic constitution parity and moon CRUD parity).
+1. missing FE freeze test for semantic constitution parity.
