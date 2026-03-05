@@ -1,6 +1,6 @@
 # Moon Capability Contract v1
 
-Status: draft (MVP baseline)  
+Status: frozen (MVP sign-off)  
 Date: 2026-03-05  
 Depends on: `docs/contracts/table-contract-v1.md`, `docs/contracts/api-v1.md`
 
@@ -78,5 +78,9 @@ Row-level Moon CRUD is available through first-class `/moons` endpoints.
 ## 8. DoD for this contract
 
 1. Each Moon class is represented by at least one active contract scenario.
+
+## 9. Closure evidence
+
+1. `pytest -q tests/test_api_integration.py -k moon_first_class_crud_endpoints`
 2. Contract update immediately impacts validation/projection paths.
 3. Integration tests cover at least one flow per Moon class.

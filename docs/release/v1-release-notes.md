@@ -27,3 +27,11 @@ Release SHA: `89f4f17`
 - Hard delete remains forbidden by design and DB triggers.
 - Event log remains the single write source of truth.
 - Read projections remain deterministic for live and branch timelines.
+
+## MVP closure addendum (2026-03-05)
+- Star physics migration path implemented and gated:
+  - `POST /galaxies/{galaxy_id}/star-core/physics/profile/migrate` (dry-run + apply).
+- FE projection replay convergence gate added:
+  - `src/components/universe/projectionConvergenceGate.test.js`.
+- Contract matrix closure confirmed:
+  - `docs/contracts/contract-gap-diff-v2.md` has all tracked rows in `DONE`.

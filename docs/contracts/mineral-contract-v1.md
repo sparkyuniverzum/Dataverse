@@ -1,6 +1,6 @@
 # Mineral Contract v1
 
-Status: draft (MVP baseline)  
+Status: frozen (MVP sign-off)  
 Date: 2026-03-05  
 Depends on: `docs/contracts/table-contract-v1.md`, `docs/contracts/civilization-contract-v1.md`, `docs/contracts/moon-contract-v1.md`
 
@@ -63,3 +63,7 @@ Circular formula dependencies are surfaced as invalid mineral facts (`#CIRC!` + 
 2. Formula and circular error states are visible in read-model facts.
 3. Integration tests cover valid/invalid mineral writes and projection output.
 4. FE grid receives stable mineral typing fields for rendering.
+
+## 8. Closure evidence
+
+1. `pytest -q tests/test_api_integration.py -k mineral_contract_gate_typing_validation_and_facts_projection`
