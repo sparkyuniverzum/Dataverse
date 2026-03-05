@@ -54,6 +54,9 @@ jobs:
       - name: Moon contract baseline parity (backend)
         run: pytest -q tests/test_moon_contract_baseline.py
 
+      - name: Moon contract freeze gate (backend)
+        run: pytest -q tests/test_moon_contract_freeze_gate.py
+
       - name: Civilization contract baseline parity (backend)
         run: pytest -q tests/test_civilization_contract_baseline.py
 

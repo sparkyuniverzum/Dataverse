@@ -126,6 +126,7 @@ Each moon type must be demonstrated in at least one integration flow.
 - `PYTHONPATH=. pytest -q tests/test_star_contract_baseline.py`
 - `PYTHONPATH=. pytest -q tests/test_galaxy_workspace_contract_baseline.py`
 - `PYTHONPATH=. pytest -q tests/test_moon_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_moon_contract_freeze_gate.py`
 - `PYTHONPATH=. pytest -q tests/test_civilization_contract_baseline.py`
 - `PYTHONPATH=. pytest -q tests/test_mineral_contract_baseline.py`
 - `PYTHONPATH=. pytest -q tests/test_semantic_constitution_contract.py`
