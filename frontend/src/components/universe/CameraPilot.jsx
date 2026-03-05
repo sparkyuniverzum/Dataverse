@@ -47,6 +47,7 @@ export default function CameraPilot({
   selectedAsteroidNode,
   selectedTableId,
   selectedAsteroidId,
+  focusOffset = [0, 0, 0],
   starDiveActive = false,
   focusKey,
 }) {
@@ -79,8 +80,15 @@ export default function CameraPilot({
       };
     }
     if (selectedTableNode) {
+      const offsetX = Number(focusOffset?.[0] || 0);
+      const offsetY = Number(focusOffset?.[1] || 0);
+      const offsetZ = Number(focusOffset?.[2] || 0);
       return {
-        center: selectedTableNode.position,
+        center: [
+          Number(selectedTableNode.position?.[0] || 0) + offsetX,
+          Number(selectedTableNode.position?.[1] || 0) + offsetY,
+          Number(selectedTableNode.position?.[2] || 0) + offsetZ,
+        ],
         distance: 180 + selectedTableNode.radius * 4.8,
       };
     }
@@ -88,7 +96,7 @@ export default function CameraPilot({
       center: fallback.center,
       distance: fallback.radius * 2.8,
     };
-  }, [fallback, selectedAsteroidNode, selectedTableNode, starDiveActive, unresolvedSelection]);
+  }, [fallback, focusOffset, selectedAsteroidNode, selectedTableNode, starDiveActive, unresolvedSelection]);
 
   const targetPos = useMemo(() => {
     if (!target) return null;

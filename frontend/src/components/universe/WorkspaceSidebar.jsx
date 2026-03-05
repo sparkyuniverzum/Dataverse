@@ -121,12 +121,17 @@ export default function WorkspaceSidebar({
           value={selectedTableId}
           onChange={(event) => onSelectTable(String(event.target.value || ""))}
           style={selectStyle}
+          disabled={!tableNodes.length}
         >
-          {tableNodes.map((node) => (
-            <option key={node.id} value={node.id}>
-              {node.entityName} &gt; {node.label}
-            </option>
-          ))}
+          {tableNodes.length ? (
+            tableNodes.map((node) => (
+              <option key={node.id} value={node.id}>
+                {node.entityName} &gt; {node.label}
+              </option>
+            ))
+          ) : (
+            <option value="">Zatim bez planet</option>
+          )}
         </select>
       </label>
 
