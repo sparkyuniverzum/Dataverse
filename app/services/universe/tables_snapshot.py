@@ -26,6 +26,18 @@ def _bond_attr(bond: ProjectedBond | dict[str, Any], key: str) -> Any:
     return getattr(bond, key, None)
 
 
+def _normalize_visual_position(value: Any) -> tuple[float, float, float] | None:
+    if not isinstance(value, Mapping):
+        return None
+    try:
+        x = float(value.get("x", 0.0))
+        y = float(value.get("y", 0.0))
+        z = float(value.get("z", 0.0))
+    except (TypeError, ValueError):
+        return None
+    return (x, y, z)
+
+
 def build_tables_snapshot(
     service: UniverseService,
     *,
@@ -101,6 +113,7 @@ def build_tables_snapshot(
                 for item in (raw_formula_fields if isinstance(raw_formula_fields, list) else [])
                 if str(item).strip()
             }
+            visual_position = _normalize_visual_position(hint.get("planet_visual_position"))
             table_buckets[table_id] = {
                 "table_id": table_id,
                 "galaxy_id": galaxy_id,
@@ -109,6 +122,7 @@ def build_tables_snapshot(
                 "contract_version": int(hint.get("contract_version") or 0) or None,
                 "schema_fields": schema_fields,
                 "formula_fields": formula_fields,
+                "visual_position": visual_position,
                 "members": [],
                 "internal_bonds": [],
                 "external_bonds": [],
@@ -127,6 +141,7 @@ def build_tables_snapshot(
                 "contract_version": None,
                 "schema_fields": set(),
                 "formula_fields": set(),
+                "visual_position": None,
                 "members": [],
                 "internal_bonds": [],
                 "external_bonds": [],
@@ -207,8 +222,14 @@ def build_tables_snapshot(
         members = sorted(table["members"], key=_created_sort)
         schema_fields = sorted(table["schema_fields"])
         formula_fields = sorted(table["formula_fields"])
-        mode = "ring" if (len(members) > 5 or len(schema_fields) > 3) else "belt"
-        center = service._sector_center(index, total)
+        default_mode = "ring" if (len(members) > 5 or len(schema_fields) > 3) else "belt"
+        manual_center = table.get("visual_position")
+        if isinstance(manual_center, tuple) and len(manual_center) == 3:
+            center = manual_center
+            mode = "manual"
+        else:
+            center = service._sector_center(index, total)
+            mode = default_mode
         size = max(260.0, min(460.0, 260.0 + math.sqrt(max(len(members), 1)) * 48.0 + (80.0 if mode == "ring" else 20.0)))
         constellation_name, planet_name = split_constellation_and_planet_name(table["name"])
 

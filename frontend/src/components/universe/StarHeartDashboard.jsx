@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { STAR_CORE_PROFILES } from "./lawResolver";
+import { STAR_CORE_PROFILES, STAR_PHYSICAL_PROFILES } from "./lawResolver";
 
 const ANIMATION_MS = 260;
 
@@ -77,14 +77,17 @@ export default function StarHeartDashboard({
   phase,
   starCoreProfile,
   starPolicy,
+  starPhysicsProfile,
   starRuntime,
   starDomains,
   parserTelemetry,
   parserExecutionMode,
   selectedProfileKey,
+  selectedPhysicalProfileKey,
   applyBusy = false,
   applyError = "",
   onSelectProfile,
+  onSelectPhysicalProfile,
   onApplyProfileLock,
   onClose,
 }) {
@@ -113,7 +116,11 @@ export default function StarHeartDashboard({
     : "0.00";
   const eventsCount = Number.isFinite(Number(starRuntime?.events_count)) ? Number(starRuntime.events_count) : 0;
   const activeProfileKey = String(selectedProfileKey || starCoreProfile?.profile?.key || "ORIGIN").toUpperCase();
+  const activePhysicalProfileKey = String(
+    selectedPhysicalProfileKey || starPhysicsProfile?.profile_key || starCoreProfile?.physicalProfile?.key || "BALANCE"
+  ).toUpperCase();
   const profileCards = Object.values(STAR_CORE_PROFILES);
+  const physicalProfileCards = Object.values(STAR_PHYSICAL_PROFILES);
   const topDomains = (Array.isArray(starDomains) ? starDomains : []).slice(0, 5);
   const statusLabel = isLocked ? "Uzamceno" : phase === "apply_profile" ? "Aplikuji profil..." : "Pripraveno";
   const parserAttempts = Number.isFinite(Number(parserTelemetry?.attempts)) ? Number(parserTelemetry.attempts) : 0;
@@ -122,6 +129,15 @@ export default function StarHeartDashboard({
   const fallbackFailed = Number.isFinite(Number(parserTelemetry?.fallback_failed)) ? Number(parserTelemetry.fallback_failed) : 0;
   const parserSuccessRate = parserAttempts > 0 ? Math.round((parserSuccess / parserAttempts) * 100) : 0;
   const fallbackRate = parserAttempts > 0 ? Math.round((fallbackUsed / parserAttempts) * 100) : 0;
+  const physicalProfileVersion = Number.isFinite(Number(starPhysicsProfile?.profile_version))
+    ? Number(starPhysicsProfile.profile_version)
+    : Number.isFinite(Number(starCoreProfile?.physicalProfileVersion))
+      ? Number(starCoreProfile.physicalProfileVersion)
+      : 1;
+  const physicalProfileLockStatus = String(starPhysicsProfile?.lock_status || lockStatus).toLowerCase();
+  const coefficients = starPhysicsProfile?.coefficients && typeof starPhysicsProfile.coefficients === "object"
+    ? starPhysicsProfile.coefficients
+    : {};
   const parserModeLabel = (value) => (value ? "Parser-only" : "Parser + Fallback");
   const laws = [
     {
@@ -179,7 +195,8 @@ export default function StarHeartDashboard({
             </div>
             <div style={{ fontSize: "clamp(18px, 3vw, 26px)", fontWeight: 800 }}>Ridici dashboard fyzikalnich zakonu galaxie</div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
-              Profil <strong>{profileLabel}</strong> | preset <strong>{lawPreset}</strong> | lock <strong>{lockStatus}</strong>
+              Profil <strong>{profileLabel}</strong> | preset <strong>{lawPreset}</strong> | fyzika{" "}
+              <strong>{activePhysicalProfileKey}</strong> v{physicalProfileVersion} | lock <strong>{lockStatus}</strong>
             </div>
           </div>
           <button type="button" onClick={onClose} style={ghostButtonStyle}>
@@ -213,6 +230,9 @@ export default function StarHeartDashboard({
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
               Topologie: <strong>{String(starCoreProfile?.topologyMode || "single_star_per_galaxy")}</strong> | Rezim:{" "}
               <strong>{String(starCoreProfile?.profileMode || "auto")}</strong>
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
+              Fyzikalni lock: <strong>{physicalProfileLockStatus}</strong> | Verze: <strong>{physicalProfileVersion}</strong>
             </div>
           </article>
 
@@ -265,6 +285,44 @@ export default function StarHeartDashboard({
                 </button>
               );
             })}
+          </div>
+          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78, marginTop: 6 }}>
+            FYZIKALNI PROFILY PLANET
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
+            {physicalProfileCards.map((profile) => {
+              const selected = activePhysicalProfileKey === profile.key;
+              return (
+                <button
+                  key={profile.key}
+                  type="button"
+                  disabled={isLocked || applyBusy}
+                  onClick={() => onSelectPhysicalProfile?.(profile.key)}
+                  style={{
+                    border: selected ? "1px solid rgba(255, 216, 145, 0.72)" : "1px solid rgba(197, 174, 124, 0.24)",
+                    background: selected
+                      ? `linear-gradient(145deg, ${profile.primaryColor}25, ${profile.secondaryColor}16)`
+                      : "rgba(18, 14, 9, 0.74)",
+                    borderRadius: 10,
+                    padding: "8px 9px",
+                    color: "#ffeccf",
+                    textAlign: "left",
+                    cursor: isLocked ? "not-allowed" : "pointer",
+                    opacity: isLocked && !selected ? 0.66 : 1,
+                  }}
+                >
+                  <div style={{ fontSize: "var(--dv-fs-xs)", fontWeight: 700 }}>{profile.label}</div>
+                  <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>{profile.description}</div>
+                  <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.68 }}>{profile.focus}</div>
+                  <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.64 }}>{profile.coefficientsHint}</div>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
+            Koeficienty: a={Number(coefficients?.a || 0).toFixed(2)} b={Number(coefficients?.b || 0).toFixed(2)} c=
+            {Number(coefficients?.c || 0).toFixed(2)} d={Number(coefficients?.d || 0).toFixed(2)} e=
+            {Number(coefficients?.e || 0).toFixed(2)} f={Number(coefficients?.f || 0).toFixed(2)}
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
             <button

@@ -381,6 +381,16 @@ class UniverseService:
             table_name = str(defaults.get("table_name") or "").strip()
             if not table_name:
                 continue
+            raw_visual_position = defaults.get("planet_visual_position")
+            visual_position: dict[str, float] | None = None
+            if isinstance(raw_visual_position, dict):
+                try:
+                    x = float(raw_visual_position.get("x", 0.0))
+                    y = float(raw_visual_position.get("y", 0.0))
+                    z = float(raw_visual_position.get("z", 0.0))
+                    visual_position = {"x": x, "y": y, "z": z}
+                except (TypeError, ValueError):
+                    visual_position = None
             formula_fields: list[str] = []
             for formula in formula_registry:
                 if not isinstance(formula, dict):
@@ -394,5 +404,6 @@ class UniverseService:
                 "formula_fields": formula_fields,
                 "planet_archetype": str(defaults.get("planet_archetype") or "").strip() or None,
                 "contract_version": int(contract.version or 1),
+                "planet_visual_position": visual_position,
             }
         return hints

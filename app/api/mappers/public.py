@@ -18,6 +18,11 @@ from app.schemas import (
     PlanetSummaryPublic,
     StarCoreDomainMetricPublic,
     StarCoreDomainMetricsResponse,
+    StarCorePlanetPhysicsItemPublic,
+    StarCorePlanetPhysicsMetricsPublic,
+    StarCorePlanetPhysicsResponse,
+    StarCorePlanetPhysicsVisualPublic,
+    StarCorePhysicsProfilePublic,
     StarCorePolicyPublic,
     StarCorePulseEventPublic,
     StarCorePulseResponse,
@@ -157,6 +162,68 @@ def star_core_domain_metrics_to_public(item: Mapping[str, Any]) -> StarCoreDomai
         total_events_count=int(item.get("total_events_count") or 0),
         domains=domains,
         updated_at=item["updated_at"],
+    )
+
+
+def star_core_physics_profile_to_public(item: Mapping[str, Any]) -> StarCorePhysicsProfilePublic:
+    coefficients_raw = item.get("coefficients")
+    coefficients = (
+        {
+            str(key): float(value)
+            for key, value in coefficients_raw.items()
+            if str(key).strip()
+        }
+        if isinstance(coefficients_raw, Mapping)
+        else {}
+    )
+    return StarCorePhysicsProfilePublic(
+        galaxy_id=item["galaxy_id"],
+        profile_key=str(item.get("profile_key") or "BALANCE").upper(),
+        profile_version=max(1, int(item.get("profile_version") or 1)),
+        lock_status=str(item.get("lock_status") or "draft").lower(),
+        locked_at=item.get("locked_at"),
+        coefficients=coefficients,
+    )
+
+
+def star_core_planet_physics_to_public(item: Mapping[str, Any]) -> StarCorePlanetPhysicsResponse:
+    rows: list[StarCorePlanetPhysicsItemPublic] = []
+    for raw in item.get("items") or []:
+        if not isinstance(raw, Mapping):
+            continue
+        metrics_raw = raw.get("metrics") if isinstance(raw.get("metrics"), Mapping) else {}
+        visual_raw = raw.get("visual") if isinstance(raw.get("visual"), Mapping) else {}
+        table_id = raw.get("table_id")
+        if table_id is None:
+            continue
+        rows.append(
+            StarCorePlanetPhysicsItemPublic(
+                table_id=table_id,
+                phase=str(raw.get("phase") or "CALM"),
+                metrics=StarCorePlanetPhysicsMetricsPublic(
+                    activity=float(metrics_raw.get("activity") or 0.0),
+                    stress=float(metrics_raw.get("stress") or 0.0),
+                    health=float(metrics_raw.get("health") or 1.0),
+                    inactivity=float(metrics_raw.get("inactivity") or 0.0),
+                    corrosion=float(metrics_raw.get("corrosion") or 0.0),
+                    rows=max(0, int(metrics_raw.get("rows") or 0)),
+                ),
+                visual=StarCorePlanetPhysicsVisualPublic(
+                    size_factor=float(visual_raw.get("size_factor") or 1.0),
+                    luminosity=float(visual_raw.get("luminosity") or 0.0),
+                    pulse_rate=float(visual_raw.get("pulse_rate") or 0.0),
+                    hue=float(visual_raw.get("hue") or 0.0),
+                    saturation=float(visual_raw.get("saturation") or 0.0),
+                    corrosion_level=float(visual_raw.get("corrosion_level") or 0.0),
+                    crack_intensity=float(visual_raw.get("crack_intensity") or 0.0),
+                ),
+                source_event_seq=max(0, int(raw.get("source_event_seq") or 0)),
+                engine_version=str(raw.get("engine_version") or "star-physics-v2-preview"),
+            )
+        )
+    return StarCorePlanetPhysicsResponse(
+        as_of_event_seq=max(0, int(item.get("as_of_event_seq") or 0)),
+        items=rows,
     )
 
 

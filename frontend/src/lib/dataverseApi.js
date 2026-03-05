@@ -287,6 +287,28 @@ export function buildStarCorePolicyLockUrl(apiBase, galaxyId) {
   return `${apiBase}/galaxies/${galaxyId}/star-core/policy/lock`;
 }
 
+export function buildStarCorePhysicsProfileUrl(apiBase, galaxyId) {
+  return `${apiBase}/galaxies/${galaxyId}/star-core/physics/profile`;
+}
+
+export function buildStarCorePlanetPhysicsUrl(
+  apiBase,
+  galaxyId,
+  { branchId = null, afterEventSeq = null, limit = 200 } = {}
+) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/star-core/physics/planets`);
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  if (Number.isFinite(afterEventSeq) && Number(afterEventSeq) >= 0) {
+    url.searchParams.set("after_event_seq", String(Math.floor(Number(afterEventSeq))));
+  }
+  if (Number.isFinite(limit)) {
+    url.searchParams.set("limit", String(Math.max(1, Math.min(1000, Math.floor(Number(limit))))));
+  }
+  return url.toString();
+}
+
 export function buildStarCorePulseUrl(apiBase, galaxyId, { branchId = null, afterEventSeq = null, limit = 64 } = {}) {
   const url = new URL(`${apiBase}/galaxies/${galaxyId}/star-core/pulse`);
   if (branchId) {

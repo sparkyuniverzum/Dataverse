@@ -73,6 +73,8 @@ class StarCorePolicyRM(Base):
     )
     profile_key: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'ORIGIN'"))
     law_preset: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'balanced'"))
+    physical_profile_key: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'BALANCE'"))
+    physical_profile_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
     no_hard_delete: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"), default=True)
     deletion_mode: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'soft_delete'"))
     soft_delete_flag_field: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'is_deleted'"))

@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import (
     star_core_domain_metrics_to_public,
+    star_core_planet_physics_to_public,
+    star_core_physics_profile_to_public,
     star_core_policy_to_public,
     star_core_pulse_to_public,
     star_core_runtime_to_public,
@@ -18,6 +20,8 @@ from app.db import get_session
 from app.models import User
 from app.schemas import (
     StarCoreDomainMetricsResponse,
+    StarCorePlanetPhysicsResponse,
+    StarCorePhysicsProfilePublic,
     StarCoreProfileApplyRequest,
     StarCorePolicyPublic,
     StarCorePulseResponse,
@@ -91,10 +95,69 @@ async def star_core_policy_lock(
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
             profile_key=payload.profile_key,
+            physical_profile_key=payload.physical_profile_key,
+            physical_profile_version=payload.physical_profile_version,
             lock_after_apply=payload.lock_after_apply,
         )
     await commit_if_active(session)
     return star_core_policy_to_public(policy)
+
+
+@router.get(
+    "/galaxies/{galaxy_id}/star-core/physics/profile",
+    response_model=StarCorePhysicsProfilePublic,
+    status_code=status.HTTP_200_OK,
+)
+async def star_core_physics_profile(
+    galaxy_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> StarCorePhysicsProfilePublic:
+    target_galaxy_id, _ = await _resolve_scope(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=galaxy_id,
+    )
+    profile = await services.star_core_service.get_physics_profile(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+    )
+    return star_core_physics_profile_to_public(profile)
+
+
+@router.get(
+    "/galaxies/{galaxy_id}/star-core/physics/planets",
+    response_model=StarCorePlanetPhysicsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def star_core_planet_physics(
+    galaxy_id: UUID,
+    branch_id: UUID | None = Query(default=None),
+    after_event_seq: int | None = Query(default=None, ge=0),
+    limit: int = Query(default=200, ge=1, le=1000),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> StarCorePlanetPhysicsResponse:
+    target_galaxy_id, target_branch_id = await _resolve_scope(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=galaxy_id,
+        branch_id=branch_id,
+    )
+    runtime = await services.star_core_service.get_planet_physics_runtime(
+        session=session,
+        user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+        branch_id=target_branch_id,
+        after_event_seq=after_event_seq,
+        limit=limit,
+    )
+    return star_core_planet_physics_to_public(runtime)
 
 
 @router.get("/galaxies/{galaxy_id}/star-core/runtime", response_model=StarCoreRuntimePublic, status_code=status.HTTP_200_OK)

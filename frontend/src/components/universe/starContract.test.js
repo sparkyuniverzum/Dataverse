@@ -16,6 +16,8 @@ import {
   getStarContractClassificationReport,
   getStarContractUsageDiff,
   normalizeStarDomains,
+  normalizeStarPhysicsProfile,
+  normalizeStarPlanetPhysicsPayload,
   normalizeStarPolicy,
   normalizeStarPulsePayload,
   normalizeStarRuntime,
@@ -63,6 +65,40 @@ describe("starContract normalization", () => {
     expect(pulse.events[0].entity_id).toBe("a-1");
     expect(pulse.events[0].intensity).toBe(1.5);
     expect(pulse.events[0].visual_hint).toBe("orbital_pulse");
+  });
+
+  it("normalizes star physics profile and per-planet runtime payload", () => {
+    const profile = normalizeStarPhysicsProfile({
+      profile_key: "forge",
+      profile_version: "2",
+      lock_status: "LOCKED",
+      coefficients: { a: "0.1", b: 0.22 },
+    });
+    expect(profile.profile_key).toBe("FORGE");
+    expect(profile.profile_version).toBe(2);
+    expect(profile.lock_status).toBe("locked");
+    expect(profile.coefficients.a).toBe(0.1);
+    expect(profile.coefficients.b).toBe(0.22);
+
+    const runtime = normalizeStarPlanetPhysicsPayload({
+      as_of_event_seq: "9",
+      items: [
+        {
+          table_id: "table-1",
+          phase: "active",
+          metrics: { activity: 2, stress: -1, health: 0.8, rows: 11 },
+          visual: { size_factor: 2.8, luminosity: 1.9, pulse_rate: 3.7 },
+          source_event_seq: "7",
+        },
+      ],
+    });
+    expect(runtime.as_of_event_seq).toBe(9);
+    expect(runtime.items).toHaveLength(1);
+    expect(runtime.items[0].phase).toBe("ACTIVE");
+    expect(runtime.items[0].metrics.activity).toBe(1);
+    expect(runtime.items[0].metrics.stress).toBe(0);
+    expect(runtime.items[0].visual.size_factor).toBe(2.8);
+    expect(runtime.items[0].visual.luminosity).toBe(1);
   });
 });
 

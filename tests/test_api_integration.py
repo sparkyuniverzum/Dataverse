@@ -1106,9 +1106,23 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
     assert policy_body["deletion_mode"] == "soft_delete"
     assert policy_body["lock_status"] in {"draft", "locked"}
 
+    physics_before = client.get(f"/galaxies/{galaxy_id}/star-core/physics/profile")
+    assert physics_before.status_code == 200, physics_before.text
+    physics_before_body = physics_before.json()
+    assert physics_before_body["profile_key"] == "BALANCE"
+    assert physics_before_body["profile_version"] == 1
+    assert physics_before_body["lock_status"] in {"draft", "locked"}
+    assert isinstance(physics_before_body["coefficients"], dict)
+    assert "a" in physics_before_body["coefficients"]
+
     lock = client.post(
         f"/galaxies/{galaxy_id}/star-core/policy/lock",
-        json={"profile_key": "SENTINEL", "lock_after_apply": True},
+        json={
+            "profile_key": "SENTINEL",
+            "lock_after_apply": True,
+            "physical_profile_key": "FORGE",
+            "physical_profile_version": 2,
+        },
     )
     assert lock.status_code == 200, lock.text
     lock_body = lock.json()
@@ -1123,6 +1137,15 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
     assert lock_body["profile_key"] == "SENTINEL"
     assert lock_body["lock_status"] == "locked"
     assert lock_body["can_edit_core_laws"] is False
+
+    physics_after = client.get(f"/galaxies/{galaxy_id}/star-core/physics/profile")
+    assert physics_after.status_code == 200, physics_after.text
+    physics_after_body = physics_after.json()
+    assert physics_after_body["profile_key"] == "FORGE"
+    assert physics_after_body["profile_version"] == 2
+    assert physics_after_body["lock_status"] == "locked"
+    assert isinstance(physics_after_body["coefficients"], dict)
+    assert physics_after_body["coefficients"]["a"] > 0
 
     second_lock = client.post(
         f"/galaxies/{galaxy_id}/star-core/policy/lock",
