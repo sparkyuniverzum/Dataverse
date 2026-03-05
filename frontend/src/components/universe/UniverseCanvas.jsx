@@ -31,7 +31,10 @@ export default function UniverseCanvas({
   starDiveActive = false,
   selectedTableId,
   selectedAsteroidId,
+  cameraFocusOffset = [0, 0, 0],
   linkDraft,
+  builderDropActive = false,
+  builderDropHover = false,
   hideMouseGuide = false,
   onSelectStar,
   onOpenStarControlCenter,
@@ -43,6 +46,8 @@ export default function UniverseCanvas({
   onLinkMove,
   onLinkComplete,
   onLinkCancel,
+  onPlanetDrop,
+  onPlanetDropHoverChange,
   onHoverLink,
   onLeaveLink,
   onSelectLink,
@@ -153,8 +158,43 @@ export default function UniverseCanvas({
     return String(value);
   };
 
+  const handlePlanetDragOver = (event) => {
+    if (!builderDropActive) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    onPlanetDropHoverChange?.(true);
+  };
+
+  const handlePlanetDragLeave = (event) => {
+    if (!builderDropActive) return;
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+    onPlanetDropHoverChange?.(false);
+  };
+
+  const handlePlanetDrop = (event) => {
+    if (!builderDropActive) return;
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    onPlanetDropHoverChange?.(false);
+    onPlanetDrop?.({
+      x: event.clientX,
+      y: event.clientY,
+      viewport: {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+    });
+  };
+
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div
+      style={{ position: "relative", width: "100%", height: "100%" }}
+      onDragOver={handlePlanetDragOver}
+      onDragLeave={handlePlanetDragLeave}
+      onDrop={handlePlanetDrop}
+    >
       <Canvas
         camera={{
           position: cameraState.position,
@@ -336,10 +376,26 @@ export default function UniverseCanvas({
           selectedAsteroidNode={selectedAsteroidNode}
           selectedTableId={selectedTableId}
           selectedAsteroidId={selectedAsteroidId}
+          focusOffset={cameraFocusOffset}
           starDiveActive={starDiveActive}
           focusKey={`${level}:${selectedTableId || "-"}:${selectedAsteroidId || "-"}:${starDiveActive ? "star" : "space"}`}
         />
       </Canvas>
+      {builderDropActive ? (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            border: builderDropHover ? "2px solid rgba(125, 226, 255, 0.7)" : "2px dashed rgba(125, 226, 255, 0.36)",
+            boxShadow: builderDropHover ? "inset 0 0 48px rgba(89, 209, 255, 0.22)" : "inset 0 0 24px rgba(89, 209, 255, 0.1)",
+            background:
+              "repeating-linear-gradient(0deg, rgba(64, 177, 220, 0.06), rgba(64, 177, 220, 0.06) 1px, transparent 1px, transparent 28px), repeating-linear-gradient(90deg, rgba(64, 177, 220, 0.06), rgba(64, 177, 220, 0.06) 1px, transparent 1px, transparent 28px)",
+            opacity: builderDropHover ? 1 : 0.72,
+            transition: "opacity 160ms ease, border-color 180ms ease, box-shadow 180ms ease",
+          }}
+        />
+      ) : null}
       {!hideMouseGuide ? <MouseGuideOverlay level={level} hoveredNode={hoveredNode} /> : null}
     </div>
   );
