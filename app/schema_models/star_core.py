@@ -28,6 +28,26 @@ class StarCoreProfileApplyRequest(BaseModel):
     physical_profile_version: int = Field(default=1, ge=1)
 
 
+class StarCorePhysicsProfileMigrateRequest(BaseModel):
+    from_version: int = Field(ge=1)
+    to_version: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=240)
+    dry_run: bool = True
+
+
+class StarCorePhysicsProfileMigrateResponse(BaseModel):
+    galaxy_id: uuid.UUID
+    profile_key: str
+    from_version: int
+    to_version: int
+    reason: str
+    dry_run: bool = True
+    applied: bool = False
+    lock_status: str = "locked"
+    impacted_planets: int = 0
+    estimated_runtime_items: int = 0
+
+
 class StarCoreRuntimePublic(BaseModel):
     as_of_event_seq: int
     events_count: int

@@ -3,6 +3,8 @@ from pathlib import Path
 
 from app.schema_models.star_core import (
     StarCoreDomainMetricPublic,
+    StarCorePhysicsProfileMigrateRequest,
+    StarCorePhysicsProfileMigrateResponse,
     StarCorePhysicsProfilePublic,
     StarCorePlanetPhysicsItemPublic,
     StarCoreProfileApplyRequest,
@@ -45,5 +47,7 @@ def test_star_physics_contract_baseline_matches_backend_schema_models():
     source = baseline["source_of_truth"]
 
     assert _model_fields(StarCoreProfileApplyRequest) == source["lock_request"]["be_fields"]
+    assert _model_fields(StarCorePhysicsProfileMigrateRequest) == source["migrate_request"]["be_fields"]
+    assert _model_fields(StarCorePhysicsProfileMigrateResponse) == source["migrate_response"]["be_fields"]
     assert _model_fields(StarCorePhysicsProfilePublic) == source["physics_profile"]["be_fields"]
     assert _model_fields(StarCorePlanetPhysicsItemPublic) == source["planet_physics_item"]["be_fields"]

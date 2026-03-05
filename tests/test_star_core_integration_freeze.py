@@ -152,7 +152,7 @@ def test_star_physics_profile_migration_and_limit_guard_gate(auth_client: tuple[
     assert before.status_code == 200, before.text
     before_body = before.json()
 
-    migrate = client.post(
+    migrate_dry_run = client.post(
         f"/galaxies/{galaxy_id}/star-core/physics/profile/migrate",
         json={
             "from_version": 3,
@@ -161,13 +161,41 @@ def test_star_physics_profile_migration_and_limit_guard_gate(auth_client: tuple[
             "dry_run": True,
         },
     )
-    # Contract v2 currently documents migrate as future API only.
-    assert migrate.status_code in {404, 405}, migrate.text
+    assert migrate_dry_run.status_code == 200, migrate_dry_run.text
+    migrate_dry_run_body = migrate_dry_run.json()
+    assert migrate_dry_run_body["dry_run"] is True
+    assert migrate_dry_run_body["applied"] is False
+    assert migrate_dry_run_body["from_version"] == 3
+    assert migrate_dry_run_body["to_version"] == 4
+    assert migrate_dry_run_body["profile_key"] == "ARCHIVE"
+    assert migrate_dry_run_body["lock_status"] == "locked"
+    assert isinstance(migrate_dry_run_body["impacted_planets"], int)
 
     after = client.get(f"/galaxies/{galaxy_id}/star-core/physics/profile")
     assert after.status_code == 200, after.text
     after_body = after.json()
     assert after_body == before_body
+
+    migrate_apply = client.post(
+        f"/galaxies/{galaxy_id}/star-core/physics/profile/migrate",
+        json={
+            "from_version": 3,
+            "to_version": 4,
+            "reason": "gate-apply",
+            "dry_run": False,
+        },
+    )
+    assert migrate_apply.status_code == 200, migrate_apply.text
+    migrate_apply_body = migrate_apply.json()
+    assert migrate_apply_body["dry_run"] is False
+    assert migrate_apply_body["applied"] is True
+    assert migrate_apply_body["from_version"] == 3
+    assert migrate_apply_body["to_version"] == 4
+
+    migrated = client.get(f"/galaxies/{galaxy_id}/star-core/physics/profile")
+    assert migrated.status_code == 200, migrated.text
+    migrated_body = migrated.json()
+    assert migrated_body["profile_version"] == 4
 
     pulse_limited = client.get(f"/galaxies/{galaxy_id}/star-core/pulse", params={"limit": 1})
     assert pulse_limited.status_code == 200, pulse_limited.text

@@ -134,6 +134,9 @@ jobs:
       - name: Parser v1/v2 freeze gate (frontend)
         run: npm test -- --run src/lib/parserContract.test.js src/lib/builderParserCommand.test.js src/lib/parserExecutionMode.test.js src/lib/dataverseApi.test.js
 
+      - name: Projection convergence gate (frontend)
+        run: npm test -- --run src/components/universe/projectionConvergenceGate.test.js src/components/universe/runtimeSyncUtils.test.js src/lib/hierarchy_layout.test.js
+
       - name: Moon contract freeze gate (frontend)
         run: npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js
 

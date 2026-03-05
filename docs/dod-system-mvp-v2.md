@@ -140,6 +140,7 @@ Each moon type must be demonstrated in at least one integration flow.
 - `cd frontend && npm test -- --run src/lib/parserContract.test.js src/lib/builderParserCommand.test.js src/lib/parserExecutionMode.test.js src/lib/dataverseApi.test.js`
 - `cd frontend && npm test -- --run src/lib/semanticConstitutionContract.test.js src/lib/builderParserCommand.test.js src/lib/dataverseApi.test.js`
 - `cd frontend && npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js`
+- `cd frontend && npm test -- --run src/components/universe/projectionConvergenceGate.test.js src/components/universe/runtimeSyncUtils.test.js src/lib/hierarchy_layout.test.js`
 
 ### 9.2 Integration gates
 

@@ -10,6 +10,28 @@
         "physical_profile_version"
       ]
     },
+    "migrate_request": {
+      "be_fields": [
+        "from_version",
+        "to_version",
+        "reason",
+        "dry_run"
+      ]
+    },
+    "migrate_response": {
+      "be_fields": [
+        "galaxy_id",
+        "profile_key",
+        "from_version",
+        "to_version",
+        "reason",
+        "dry_run",
+        "applied",
+        "lock_status",
+        "impacted_planets",
+        "estimated_runtime_items"
+      ]
+    },
     "physics_profile": {
       "be_fields": [
         "galaxy_id",
@@ -58,4 +80,3 @@
     }
   }
 }
-

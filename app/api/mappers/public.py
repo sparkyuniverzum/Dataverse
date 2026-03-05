@@ -18,6 +18,7 @@ from app.schemas import (
     PlanetSummaryPublic,
     StarCoreDomainMetricPublic,
     StarCoreDomainMetricsResponse,
+    StarCorePhysicsProfileMigrateResponse,
     StarCorePhysicsProfilePublic,
     StarCorePlanetPhysicsItemPublic,
     StarCorePlanetPhysicsMetricsPublic,
@@ -179,6 +180,21 @@ def star_core_physics_profile_to_public(item: Mapping[str, Any]) -> StarCorePhys
         lock_status=str(item.get("lock_status") or "draft").lower(),
         locked_at=item.get("locked_at"),
         coefficients=coefficients,
+    )
+
+
+def star_core_physics_migration_to_public(item: Mapping[str, Any]) -> StarCorePhysicsProfileMigrateResponse:
+    return StarCorePhysicsProfileMigrateResponse(
+        galaxy_id=item["galaxy_id"],
+        profile_key=str(item.get("profile_key") or "BALANCE").upper(),
+        from_version=max(1, int(item.get("from_version") or 1)),
+        to_version=max(1, int(item.get("to_version") or 1)),
+        reason=str(item.get("reason") or "").strip() or "migration",
+        dry_run=bool(item.get("dry_run", True)),
+        applied=bool(item.get("applied", False)),
+        lock_status=str(item.get("lock_status") or "locked").lower(),
+        impacted_planets=max(0, int(item.get("impacted_planets") or 0)),
+        estimated_runtime_items=max(0, int(item.get("estimated_runtime_items") or 0)),
     )
 
 

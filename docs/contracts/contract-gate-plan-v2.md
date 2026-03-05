@@ -52,6 +52,9 @@ Close remaining contract gaps for MVP sign-off with repeatable BE/FE test gates.
 7. Moon first-class contract freeze gate:
 - `cd frontend && npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js`
 
+8. Projection + stream replay convergence gate:
+- `cd frontend && npm test -- --run src/components/universe/projectionConvergenceGate.test.js src/components/universe/runtimeSyncUtils.test.js src/lib/hierarchy_layout.test.js`
+
 ## 4. Unified smoke gate
 
 1. Run BE gates from section 2.

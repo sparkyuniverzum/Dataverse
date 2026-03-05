@@ -56,6 +56,7 @@
       "POST /branches/{branch_id}/promote",
       "POST /contracts/{table_id}",
       "POST /galaxies",
+      "POST /galaxies/{galaxy_id}/star-core/physics/profile/migrate",
       "POST /galaxies/{galaxy_id}/star-core/policy/lock",
       "POST /io/imports",
       "POST /moons",
@@ -67,6 +68,6 @@
     "required_security_schemes": [
       "OAuth2PasswordBearer"
     ],
-    "schema_sha256": "9c3b9e117d7a9b278f16e0b4253779a33b68db8b7a50008a7f4074cc7658f79f"
+    "schema_sha256": "41593c652c21115cf1ce7318920549e04d9da19a87075eb240ec82a4cfe53ab5"
   }
 }
