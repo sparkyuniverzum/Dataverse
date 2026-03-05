@@ -1227,6 +1227,57 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
         assert "hot_event_types" not in domain
 
 
+def test_star_core_planet_physics_endpoint_returns_runtime_shape(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    execute = client.post(
+        "/parser/execute",
+        json={
+            "query": (
+                f"PhyA-{uuid.uuid4()} (table: Physics > Prime, amount: 11) + "
+                f"PhyB-{uuid.uuid4()} (table: Physics > Prime, amount: 13)"
+            ),
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert execute.status_code == 200, execute.text
+
+    runtime = client.get(
+        f"/galaxies/{galaxy_id}/star-core/physics/planets",
+        params={"limit": 128},
+    )
+    assert runtime.status_code == 200, runtime.text
+    body = runtime.json()
+    assert isinstance(body.get("as_of_event_seq"), int)
+    assert body["as_of_event_seq"] >= 1
+    assert isinstance(body.get("items"), list)
+    assert body["items"], "Expected at least one planet runtime physics item"
+
+    item = body["items"][0]
+    assert "table_id" in item
+    assert item["phase"] in {"ACTIVE", "OVERLOADED", "DORMANT", "CORRODING", "CRITICAL", "CALM"}
+    assert isinstance(item.get("source_event_seq"), int)
+    assert isinstance(item.get("engine_version"), str)
+
+    metrics = item.get("metrics")
+    assert isinstance(metrics, dict)
+    for key in ("activity", "stress", "health", "inactivity", "corrosion"):
+        assert isinstance(metrics.get(key), float)
+    assert isinstance(metrics.get("rows"), int)
+
+    visual = item.get("visual")
+    assert isinstance(visual, dict)
+    for key in ("size_factor", "luminosity", "pulse_rate", "hue", "saturation", "corrosion_level", "crack_intensity"):
+        assert isinstance(visual.get(key), float)
+
+    after_seq = client.get(
+        f"/galaxies/{galaxy_id}/star-core/physics/planets",
+        params={"after_event_seq": body["as_of_event_seq"], "limit": 128},
+    )
+    assert after_seq.status_code == 200, after_seq.text
+    after_body = after_seq.json()
+    assert isinstance(after_body.get("items"), list)
+
+
 def test_constellation_layer_v1_endpoint_returns_l2_group_metrics(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     execute = client.post(

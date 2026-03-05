@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE, apiFetch } from "../lib/dataverseApi";
+import { normalizeGalaxyList, normalizeGalaxyPublic } from "../lib/workspaceScopeContract";
 import { useUniverseStore } from "../store/useUniverseStore";
 
 const SELECTED_GALAXY_STORAGE_KEY = "dataverse_selected_galaxy_id";
@@ -77,7 +78,7 @@ export function useGalaxyGate({ isAuthenticated, userEmail, setDefaultGalaxy }) 
         throw new Error(await parseApiError(response, `Galaxies failed: ${response.status}`));
       }
       const body = await response.json();
-      const live = Array.isArray(body) ? body.filter((item) => !item?.deleted_at) : [];
+      const live = normalizeGalaxyList(body).filter((item) => !item?.deleted_at);
       setGalaxies(live);
 
       const hasSelected = selectedGalaxyId && live.some((item) => String(item.id) === String(selectedGalaxyId));
@@ -122,7 +123,11 @@ export function useGalaxyGate({ isAuthenticated, userEmail, setDefaultGalaxy }) 
         if (!response.ok) {
           throw new Error(await parseApiError(response, `Create galaxy failed: ${response.status}`));
         }
-        const created = await response.json();
+        const createdRaw = await response.json();
+        const created = normalizeGalaxyPublic(createdRaw);
+        if (!created?.id) {
+          throw new Error("Create galaxy failed: invalid payload");
+        }
         setDefaultGalaxy((prev) => prev || created);
         await loadGalaxies();
         return created;

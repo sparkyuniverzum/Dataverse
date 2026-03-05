@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE, configureApiAuth } from "../lib/dataverseApi";
+import { normalizeGalaxyPublic } from "../lib/workspaceScopeContract";
 
 const LEGACY_ACCESS_TOKEN_KEY = "dataverse_auth_token";
 const ACCESS_TOKEN_KEY = "dataverse_auth_access_token";
@@ -203,7 +204,7 @@ export function AuthProvider({ children }) {
 
       persistTokens(nextAccessToken, nextRefreshToken);
       setUser(body.user || null);
-      setDefaultGalaxy(body.default_galaxy || null);
+      setDefaultGalaxy(normalizeGalaxyPublic(body.default_galaxy) || null);
       return body;
     },
     [persistTokens]
