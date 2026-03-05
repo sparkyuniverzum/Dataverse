@@ -118,4 +118,25 @@ describe("projection convergence gate", () => {
     expect(report.reason).toBe("projection_grid_layout_diverged");
     expect(report.selected_member_vs_grid.missing).toContain("a-2");
   });
+
+  it("keeps convergence across first moon lifecycle create -> mutate -> extinguish", () => {
+    const afterCreate = makeProjection({
+      members: ["moon-1"],
+      asteroids: [{ id: "moon-1", value: "Lifecycle Moon", metadata: { entity_id: "moon-1", state: "active" } }],
+    });
+    const afterMutate = makeProjection({
+      members: ["moon-1"],
+      asteroids: [{ id: "moon-1", value: "Lifecycle Moon", metadata: { entity_id: "moon-1", state: "archived" } }],
+    });
+    const afterExtinguish = makeProjection({
+      members: [],
+      asteroids: [],
+    });
+
+    [afterCreate, afterMutate, afterExtinguish].forEach((projection) => {
+      const report = evaluateProjectionConvergence(projection);
+      expect(report.ok).toBe(true);
+      expect(report.reason).toBe("ok");
+    });
+  });
 });

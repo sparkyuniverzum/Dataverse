@@ -69,6 +69,9 @@ jobs:
       - name: Semantic constitution contract gate (backend)
         run: pytest -q tests/test_semantic_constitution_contract.py
 
+      - name: Planet Builder MVP contract gate (backend)
+        run: pytest -q tests/test_planet_builder_mvp_contract.py
+
       - name: Parser2 spec contract tests
         run: |
           pytest -q tests/test_parser2_spec_contract.py tests/test_parser2_lexer.py tests/test_parser2_ast.py tests/test_parser2_planner.py tests/test_parser2_resolver.py
@@ -84,7 +87,7 @@ jobs:
 
       - name: Release gate: star lock -> first planet -> grid convergence
         run: |
-          pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_grid_convergence"
+          pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_grid_convergence or release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence"
 
       - name: Semantic constitution endpoint closure (backend)
         run: |
@@ -135,7 +138,7 @@ jobs:
         run: npm test -- --run src/lib/parserContract.test.js src/lib/builderParserCommand.test.js src/lib/parserExecutionMode.test.js src/lib/dataverseApi.test.js
 
       - name: Projection convergence gate (frontend)
-        run: npm test -- --run src/components/universe/projectionConvergenceGate.test.js src/components/universe/runtimeSyncUtils.test.js src/lib/hierarchy_layout.test.js
+        run: npm test -- --run src/components/universe/projectionConvergenceGate.test.js src/components/universe/moonWriteDefaults.test.js src/components/universe/workspaceUiPersistence.test.js src/components/universe/runtimeSyncUtils.test.js src/lib/hierarchy_layout.test.js
 
       - name: Moon contract freeze gate (frontend)
         run: npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js

@@ -3278,6 +3278,126 @@ def test_release_gate_star_lock_first_planet_grid_convergence(auth_client: tuple
     assert member_ids == snapshot_ids
 
 
+def test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
+    client, galaxy_id = auth_client
+
+    lock = client.post(
+        f"/galaxies/{galaxy_id}/star-core/policy/lock",
+        json={
+            "profile_key": "SENTINEL",
+            "lock_after_apply": True,
+            "physical_profile_key": "BALANCE",
+            "physical_profile_version": 1,
+        },
+    )
+    assert lock.status_code == 200, lock.text
+    lock_body = lock.json()
+    assert lock_body["lock_status"] == "locked"
+    assert lock_body["can_edit_core_laws"] is False
+
+    planet_name = f"Core > Lifecycle-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"release-gate-lifecycle-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    table_id = created_planet.json()["table_id"]
+
+    created_moon = client.post(
+        "/moons",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": table_id,
+            "label": "Lifecycle Moon",
+            "minerals": {
+                "entity_id": f"moon-{uuid.uuid4().hex[:8]}",
+                "label": "Lifecycle Moon",
+                "state": "active",
+            },
+            "idempotency_key": f"release-gate-lifecycle-moon-create-{uuid.uuid4()}",
+        },
+    )
+    assert created_moon.status_code == 201, created_moon.text
+    created_moon_body = created_moon.json()
+    moon_id = created_moon_body["moon_id"]
+    current_event_seq = int(created_moon_body.get("current_event_seq") or 0)
+    assert current_event_seq >= 1
+
+    snapshot_after_create = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_after_create.status_code == 200, snapshot_after_create.text
+    snapshot_rows_after_create = [
+        row for row in snapshot_after_create.json().get("asteroids", []) if row.get("table_id") == table_id
+    ]
+    snapshot_ids_after_create = {row.get("id") for row in snapshot_rows_after_create}
+    assert moon_id in snapshot_ids_after_create
+
+    tables_after_create = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert tables_after_create.status_code == 200, tables_after_create.text
+    table_row_after_create = next(
+        (row for row in tables_after_create.json().get("tables", []) if row.get("table_id") == table_id),
+        None,
+    )
+    assert table_row_after_create is not None
+    table_member_ids_after_create = {item.get("id") for item in table_row_after_create.get("members", [])}
+    assert moon_id in table_member_ids_after_create
+    assert table_member_ids_after_create == snapshot_ids_after_create
+
+    mutated_moon = client.patch(
+        f"/moons/{moon_id}/mutate",
+        json={
+            "galaxy_id": galaxy_id,
+            "minerals": {"state": "archived"},
+            "expected_event_seq": current_event_seq,
+            "idempotency_key": f"release-gate-lifecycle-moon-mutate-{uuid.uuid4()}",
+        },
+    )
+    assert mutated_moon.status_code == 200, mutated_moon.text
+    mutated_body = mutated_moon.json()
+    facts_by_key = {fact["key"]: fact for fact in mutated_body.get("facts", [])}
+    assert facts_by_key["state"]["typed_value"] == "archived"
+    next_event_seq = int(mutated_body.get("current_event_seq") or 0)
+    assert next_event_seq > current_event_seq
+
+    extinguished = client.patch(
+        f"/moons/{moon_id}/extinguish",
+        params={
+            "galaxy_id": galaxy_id,
+            "expected_event_seq": next_event_seq,
+            "idempotency_key": f"release-gate-lifecycle-moon-extinguish-{uuid.uuid4()}",
+        },
+    )
+    assert extinguished.status_code == 200, extinguished.text
+    assert extinguished.json()["moon_id"] == moon_id
+    assert extinguished.json()["is_deleted"] is True
+
+    snapshot_after_extinguish = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_after_extinguish.status_code == 200, snapshot_after_extinguish.text
+    snapshot_rows_after_extinguish = [
+        row for row in snapshot_after_extinguish.json().get("asteroids", []) if row.get("table_id") == table_id
+    ]
+    snapshot_ids_after_extinguish = {row.get("id") for row in snapshot_rows_after_extinguish}
+    assert moon_id not in snapshot_ids_after_extinguish
+
+    tables_after_extinguish = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert tables_after_extinguish.status_code == 200, tables_after_extinguish.text
+    table_row_after_extinguish = next(
+        (row for row in tables_after_extinguish.json().get("tables", []) if row.get("table_id") == table_id),
+        None,
+    )
+    assert table_row_after_extinguish is not None
+    table_member_ids_after_extinguish = {item.get("id") for item in table_row_after_extinguish.get("members", [])}
+    assert moon_id not in table_member_ids_after_extinguish
+    assert table_member_ids_after_extinguish == snapshot_ids_after_extinguish
+
+
 def test_planet_stage0_two_planets_validate_star_laws(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     catalog_name = f"Law > Catalog-{uuid.uuid4().hex[:8]}"

@@ -23,11 +23,12 @@ Close remaining contract gaps for MVP sign-off with repeatable BE/FE test gates.
 - `PYTHONPATH=. pytest -q tests/test_civilization_contract_baseline.py`
 - `PYTHONPATH=. pytest -q tests/test_mineral_contract_baseline.py`
 - `PYTHONPATH=. pytest -q tests/test_semantic_constitution_contract.py`
+- `PYTHONPATH=. pytest -q tests/test_planet_builder_mvp_contract.py`
 - `PYTHONPATH=. pytest -q tests/test_parser2_spec_contract.py tests/test_parser_service.py -k "contract"`
 - `PYTHONPATH=. pytest -q tests/test_schemas_table_contract.py`
 
 3. Integration closure (minimum):
-- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "star_core_endpoint_by_endpoint_closure_v2 or moon_first_class_crud_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or release_gate_star_lock_first_planet_grid_convergence or semantic_constitution_endpoint_by_endpoint_closure_v1"`
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "star_core_endpoint_by_endpoint_closure_v2 or moon_first_class_crud_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or release_gate_star_lock_first_planet_grid_convergence or release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence or semantic_constitution_endpoint_by_endpoint_closure_v1"`
 - `PYTHONPATH=. pytest -q tests/test_star_core_integration_freeze.py`
 
 ## 3. FE gates

@@ -32,12 +32,13 @@ PYTHONPATH=. "$PYTEST_BIN" -q tests/test_moon_contract_freeze_gate.py
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_civilization_contract_baseline.py
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_mineral_contract_baseline.py
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_semantic_constitution_contract.py
+PYTHONPATH=. "$PYTEST_BIN" -q tests/test_planet_builder_mvp_contract.py
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_parser2_spec_contract.py tests/test_parser_service.py -k "contract"
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_schemas_table_contract.py
 
 echo
 echo "[star-contract-gate] backend integration closure gates"
-PYTHONPATH=. "$PYTEST_BIN" -q tests/test_api_integration.py -k "star_core_endpoint_by_endpoint_closure_v2 or moon_first_class_crud_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or release_gate_star_lock_first_planet_grid_convergence or semantic_constitution_endpoint_by_endpoint_closure_v1 or auth_session_lifecycle_login_refresh_logout_and_me"
+PYTHONPATH=. "$PYTEST_BIN" -q tests/test_api_integration.py -k "star_core_endpoint_by_endpoint_closure_v2 or moon_first_class_crud_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or release_gate_star_lock_first_planet_grid_convergence or release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence or semantic_constitution_endpoint_by_endpoint_closure_v1 or auth_session_lifecycle_login_refresh_logout_and_me"
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_star_core_integration_freeze.py
 
 echo
@@ -54,6 +55,8 @@ npm --prefix frontend test -- --run \
   src/components/universe/workspaceContract.test.js \
   src/components/universe/workspaceFormatters.test.js \
   src/components/universe/projectionConvergenceGate.test.js \
+  src/components/universe/moonWriteDefaults.test.js \
+  src/components/universe/workspaceUiPersistence.test.js \
   src/components/universe/runtimeSyncUtils.test.js \
   src/lib/hierarchy_layout.test.js \
   src/lib/builderParserCommand.test.js \

@@ -20,7 +20,7 @@ MVP sign-off was closed on 2026-03-05 after all defined gate groups were impleme
 - star physics migration gate (`/star-core/physics/profile/migrate`).
 
 Evidence (latest closure run set):
-- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "auth_session_lifecycle_login_refresh_logout_and_me or moon_first_class_crud_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or star_core_endpoint_by_endpoint_closure_v2 or release_gate_star_lock_first_planet_grid_convergence or semantic_constitution_endpoint_by_endpoint_closure_v1"`
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "auth_session_lifecycle_login_refresh_logout_and_me or moon_first_class_crud_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or star_core_endpoint_by_endpoint_closure_v2 or release_gate_star_lock_first_planet_grid_convergence or release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence or semantic_constitution_endpoint_by_endpoint_closure_v1"`
 - `PYTHONPATH=. pytest -q tests/test_star_core_integration_freeze.py`
 - `make contract-gate`
 
@@ -132,6 +132,7 @@ Each moon type must be demonstrated in at least one integration flow.
 15. `docs/contracts/mineral-contract-v1.md`
 16. `docs/mineral-contract-baseline-v1.json`
 17. `docs/contracts/contract-gap-diff-v2.md` (authoritative gap matrix for sign-off readiness)
+18. `docs/contracts/planet-builder-mvp-v2.md`
 
 ## 9. Test gate (MVP sign-off commands)
 
@@ -145,6 +146,7 @@ Each moon type must be demonstrated in at least one integration flow.
 - `PYTHONPATH=. pytest -q tests/test_civilization_contract_baseline.py`
 - `PYTHONPATH=. pytest -q tests/test_mineral_contract_baseline.py`
 - `PYTHONPATH=. pytest -q tests/test_semantic_constitution_contract.py`
+- `PYTHONPATH=. pytest -q tests/test_planet_builder_mvp_contract.py`
 - `PYTHONPATH=. pytest -q tests/test_parser2_spec_contract.py tests/test_parser_service.py -k "contract"`
 - `PYTHONPATH=. pytest -q tests/test_schemas_table_contract.py`
 - `cd frontend && npm test -- --run src/components/universe/starContract.test.js src/components/universe/scene/physicsSystem.test.js`
@@ -162,7 +164,7 @@ Each moon type must be demonstrated in at least one integration flow.
 - `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "moon_first_class_crud_endpoints"`
 - `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "civilization_contract_gate_create_mutate_extinguish_and_converge"`
 - `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "mineral_contract_gate_typing_validation_and_facts_projection"`
-- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_grid_convergence"`
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_grid_convergence or release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence"`
 - `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "semantic_constitution_endpoint_by_endpoint_closure_v1"`
 - `PYTHONPATH=. pytest -q tests/test_task_executor_service_stage2.py`
 

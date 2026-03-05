@@ -5,9 +5,13 @@ import {
   API_BASE,
   apiErrorFromResponse,
   apiFetch,
+  buildMoonCreateUrl,
+  buildMoonExtinguishUrl,
+  buildMoonMutateUrl,
   buildOccConflictMessage,
   buildParserPayload,
   buildStarCorePolicyLockUrl,
+  buildTableContractUrl,
   isOccConflictError,
 } from "../../lib/dataverseApi";
 import {
@@ -27,6 +31,8 @@ import UniverseCanvas from "./UniverseCanvas";
 import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
 import WorkspaceSidebar from "./WorkspaceSidebar";
 import { buildStageZeroPlanetName, mapDropPointToPlanetPosition } from "./stageZeroUtils";
+import { buildMoonCreateMinerals } from "./moonWriteDefaults";
+import { readWorkspaceUiState, writeWorkspaceUiState } from "./workspaceUiPersistence";
 import {
   collectGridColumns,
   normalizeText,
@@ -224,6 +230,7 @@ export default function UniverseWorkspace({
     transactionType: false,
   });
   const [stageZeroCommitBusy, setStageZeroCommitBusy] = useState(false);
+  const [workspaceUiHydrated, setWorkspaceUiHydrated] = useState(false);
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const workspaceRef = useRef(null);
@@ -234,11 +241,12 @@ export default function UniverseWorkspace({
   );
 
   useEffect(() => {
+    const persistedUiState = readWorkspaceUiState(galaxyId);
     setPendingCreate(false);
     setPendingRowOps({});
-    setSelectedTableId("");
+    setSelectedTableId(String(persistedUiState.selectedTableId || ""));
     setSelectedAsteroidId("");
-    setQuickGridOpen(false);
+    setQuickGridOpen(Boolean(persistedUiState.quickGridOpen));
     setGridSearchQuery("");
     setLinkDraft(null);
     setHoveredLink(null);
@@ -260,8 +268,17 @@ export default function UniverseWorkspace({
       transactionType: false,
     });
     setStageZeroCommitBusy(false);
+    setWorkspaceUiHydrated(true);
     layoutRef.current = { tablePositions: new Map(), asteroidPositions: new Map() };
   }, [galaxyId]);
+
+  useEffect(() => {
+    if (!workspaceUiHydrated) return;
+    writeWorkspaceUiState(galaxyId, {
+      selectedTableId,
+      quickGridOpen,
+    });
+  }, [galaxyId, quickGridOpen, selectedTableId, workspaceUiHydrated]);
 
   const tableById = useMemo(
     () => new Map((Array.isArray(tables) ? tables : []).map((table) => [String(table.table_id), table])),
@@ -300,6 +317,9 @@ export default function UniverseWorkspace({
       }
       return;
     }
+    if (quickGridOpen) {
+      setQuickGridOpen(false);
+    }
     if (stageZeroRequiresStarLock) {
       setStageZeroDragging(false);
       setStageZeroDropHover(false);
@@ -312,7 +332,7 @@ export default function UniverseWorkspace({
     if (stageZeroFlow === STAGE_ZERO_FLOW.COMPLETE) {
       setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
     }
-  }, [stageZeroActive, stageZeroFlow, stageZeroRequiresStarLock]);
+  }, [quickGridOpen, stageZeroActive, stageZeroFlow, stageZeroRequiresStarLock]);
 
   const asteroidById = useMemo(
     () => new Map((Array.isArray(snapshot.asteroids) ? snapshot.asteroids : []).map((item) => [String(item.id), item])),
@@ -777,17 +797,26 @@ export default function UniverseWorkspace({
     setStageZeroSchemaDraft((prev) => ({ ...prev, [key]: true }));
   }, [stageZeroPresetSelected]);
 
+  const loadTableContract = useCallback(
+    async (tableId) => {
+      const targetTableId = String(tableId || "").trim();
+      if (!galaxyId || !targetTableId) return null;
+      const contractRead = await apiFetch(buildTableContractUrl(API_BASE, targetTableId, galaxyId));
+      if (!contractRead.ok) {
+        throw await apiErrorFromResponse(contractRead, `Kontrakt planety nelze nacist: ${contractRead.status}`);
+      }
+      return contractRead.json();
+    },
+    [galaxyId]
+  );
+
   const handleStageZeroCommitPreset = useCallback(async () => {
     if (!galaxyId || !selectedTableId || !selectedTable || !stageZeroAllSchemaStepsDone || stageZeroCommitBusy) return;
     setStageZeroCommitBusy(true);
     setBusy(true);
     clearRuntimeError();
     try {
-      const contractRead = await apiFetch(`${API_BASE}/contracts/${selectedTableId}?galaxy_id=${galaxyId}`);
-      if (!contractRead.ok) {
-        throw await apiErrorFromResponse(contractRead, `Kontrakt planety nelze nacist: ${contractRead.status}`);
-      }
-      const currentContract = await contractRead.json();
+      const currentContract = await loadTableContract(selectedTableId);
       const nextFieldTypes = {
         value: "string",
         transaction_name: "string",
@@ -824,24 +853,25 @@ export default function UniverseWorkspace({
         throw await apiErrorFromResponse(contractWrite, `Schema se nepodarilo ulozit: ${contractWrite.status}`);
       }
 
-      const tableName = String(selectedTable?.name || selectedTable?.table_name || stageZeroPlanetName || "").trim();
       const rows = [
         { name: "Salary", amount: 48000, type: "INCOME" },
         { name: "Rent", amount: -17000, type: "EXPENSE" },
         { name: "Groceries", amount: -4200, type: "EXPENSE" },
       ];
       for (const row of rows) {
-        const ingest = await apiFetch(`${API_BASE}/asteroids/ingest`, {
+        const minerals = {
+          ...buildMoonCreateMinerals({ label: row.name, contract: nextPayload }),
+          transaction_name: row.name,
+          amount: row.amount,
+          transaction_type: row.type,
+        };
+        const ingest = await apiFetch(buildMoonCreateUrl(API_BASE), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            value: row.name,
-            metadata: {
-              table: tableName,
-              transaction_name: row.name,
-              amount: row.amount,
-              transaction_type: row.type,
-            },
+            label: row.name,
+            minerals,
+            planet_id: selectedTableId,
             galaxy_id: galaxyId,
             idempotency_key: nextIdempotencyKey("stage0-seed"),
           }),
@@ -863,13 +893,13 @@ export default function UniverseWorkspace({
   }, [
     clearRuntimeError,
     galaxyId,
+    loadTableContract,
     refreshProjection,
     selectedTable,
     selectedTableId,
     setRuntimeError,
     stageZeroAllSchemaStepsDone,
     stageZeroCommitBusy,
-    stageZeroPlanetName,
   ]);
 
   const executeParserCommand = useCallback(
@@ -1036,14 +1066,18 @@ export default function UniverseWorkspace({
         }
 
         fallbackAttempted = true;
-        const response = await apiFetch(`${API_BASE}/asteroids/ingest`, {
+        const tableContract = await loadTableContract(selectedTableId);
+        const minerals = buildMoonCreateMinerals({
+          label: trimmed,
+          contract: tableContract,
+        });
+        const response = await apiFetch(buildMoonCreateUrl(API_BASE), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            value: trimmed,
-            metadata: {
-              table_id: selectedTableId,
-            },
+            label: trimmed,
+            minerals,
+            planet_id: selectedTableId,
             galaxy_id: galaxyId,
             idempotency_key: nextIdempotencyKey("ingest"),
           }),
@@ -1052,7 +1086,7 @@ export default function UniverseWorkspace({
           throw await apiErrorFromResponse(response, `Mesic se nepodarilo vytvorit: ${response.status}`);
         }
         const payload = await response.json().catch(() => ({}));
-        const asteroidId = payload?.id ? String(payload.id) : "";
+        const asteroidId = payload?.moon_id ? String(payload.moon_id) : "";
         if (parserAttempted) {
           trackParserAttempt({
             action: "INGEST",
@@ -1091,6 +1125,7 @@ export default function UniverseWorkspace({
       clearRuntimeError,
       executeParserCommand,
       galaxyId,
+      loadTableContract,
       parserExecutionMode,
       refreshProjection,
       selectedTable,
@@ -1113,11 +1148,11 @@ export default function UniverseWorkspace({
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "mutate" }));
       clearRuntimeError();
       try {
-        const response = await apiFetch(`${API_BASE}/asteroids/${targetId}/mutate`, {
+        const response = await apiFetch(buildMoonMutateUrl(API_BASE, targetId), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            value,
+            label: value,
             galaxy_id: galaxyId,
             idempotency_key: nextIdempotencyKey("mutate"),
             ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
@@ -1187,7 +1222,7 @@ export default function UniverseWorkspace({
         }
 
         fallbackAttempted = true;
-        const url = new URL(`${API_BASE}/asteroids/${targetId}/extinguish`);
+        const url = new URL(buildMoonExtinguishUrl(API_BASE, targetId));
         url.searchParams.set("galaxy_id", galaxyId);
         url.searchParams.set("idempotency_key", nextIdempotencyKey("extinguish"));
         if (expectedEventSeq !== null) {
@@ -1270,11 +1305,11 @@ export default function UniverseWorkspace({
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "metadata" }));
       clearRuntimeError();
       try {
-        const response = await apiFetch(`${API_BASE}/asteroids/${targetId}/mutate`, {
+        const response = await apiFetch(buildMoonMutateUrl(API_BASE, targetId), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            metadata: nextMetadata,
+            minerals: nextMetadata,
             galaxy_id: galaxyId,
             idempotency_key: nextIdempotencyKey("metadata"),
             ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
