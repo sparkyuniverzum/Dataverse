@@ -7,6 +7,7 @@ import {
   buildGalaxyEventsStreamUrl,
   buildSnapshotUrl,
   buildStarCoreDomainMetricsUrl,
+  buildStarCorePolicyUrl,
   buildStarCorePulseUrl,
   buildStarCoreRuntimeUrl,
   buildTablesUrl,
@@ -25,6 +26,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
   const [error, setError] = useState("");
   const [starRuntime, setStarRuntime] = useState(null);
   const [starDomains, setStarDomains] = useState([]);
+  const [starPolicy, setStarPolicy] = useState(null);
   const [starPulseByEntity, setStarPulseByEntity] = useState({});
   const [starPulseLastEventSeq, setStarPulseLastEventSeq] = useState(0);
 
@@ -131,22 +133,25 @@ export function useUniverseRuntimeSync({ galaxyId }) {
       const scopeGalaxyId = galaxyId;
       const task = (async () => {
         try {
-          const [runtimeResponse, domainsResponse] = await Promise.all([
+          const [runtimeResponse, domainsResponse, policyResponse] = await Promise.all([
             apiFetch(buildStarCoreRuntimeUrl(API_BASE, scopeGalaxyId, { windowEvents: 120 })),
             apiFetch(buildStarCoreDomainMetricsUrl(API_BASE, scopeGalaxyId, { windowEvents: 240 })),
+            apiFetch(buildStarCorePolicyUrl(API_BASE, scopeGalaxyId)),
           ]);
-          if (!runtimeResponse.ok || !domainsResponse.ok) {
+          if (!runtimeResponse.ok || !domainsResponse.ok || !policyResponse.ok) {
             return;
           }
-          const [runtimeBody, domainsBody] = await Promise.all([
+          const [runtimeBody, domainsBody, policyBody] = await Promise.all([
             runtimeResponse.json().catch(() => null),
             domainsResponse.json().catch(() => null),
+            policyResponse.json().catch(() => null),
           ]);
           if (activeGalaxyRef.current !== scopeGalaxyId) {
             return;
           }
           setStarRuntime(runtimeBody && typeof runtimeBody === "object" ? runtimeBody : null);
           setStarDomains(Array.isArray(domainsBody?.domains) ? domainsBody.domains : []);
+          setStarPolicy(policyBody && typeof policyBody === "object" ? policyBody : null);
         } catch {
           // Telemetry is non-blocking for core workspace operations.
         }
@@ -238,6 +243,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
     setTables([]);
     setStarRuntime(null);
     setStarDomains([]);
+    setStarPolicy(null);
     setStarPulseByEntity({});
     setStarPulseLastEventSeq(0);
 
@@ -347,6 +353,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
     error,
     starRuntime,
     starDomains,
+    starPolicy,
     starPulseByEntity,
     starPulseLastEventSeq,
     setRuntimeError: setError,

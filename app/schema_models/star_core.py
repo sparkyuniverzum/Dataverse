@@ -10,6 +10,10 @@ from pydantic import BaseModel, Field
 class StarCorePolicyPublic(BaseModel):
     user_id: uuid.UUID
     galaxy_id: uuid.UUID
+    profile_key: str = "ORIGIN"
+    law_preset: str = "balanced"
+    profile_mode: str = "auto"
+    topology_mode: str = "single_star_per_galaxy"
     no_hard_delete: bool = True
     deletion_mode: str = "soft_delete"
     soft_delete_flag_field: str = "is_deleted"
@@ -18,7 +22,17 @@ class StarCorePolicyPublic(BaseModel):
     occ_enforced: bool = True
     idempotency_supported: bool = True
     branch_scope_supported: bool = True
+    lock_status: str = "draft"
+    policy_version: int = 1
+    locked_at: datetime | None = None
+    locked_by: uuid.UUID | None = None
+    can_edit_core_laws: bool = True
     generated_at: datetime
+
+
+class StarCoreProfileApplyRequest(BaseModel):
+    profile_key: str = Field(default="ORIGIN", min_length=2, max_length=32)
+    lock_after_apply: bool = True
 
 
 class StarCoreRuntimePublic(BaseModel):

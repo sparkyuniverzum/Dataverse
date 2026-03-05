@@ -1099,6 +1099,24 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
     assert policy_body["deletion_mode"] == "soft_delete"
     assert policy_body["soft_delete_flag_field"] == "is_deleted"
     assert policy_body["soft_delete_timestamp_field"] == "deleted_at"
+    assert policy_body["lock_status"] in {"draft", "locked"}
+
+    lock = client.post(
+        f"/galaxies/{galaxy_id}/star-core/policy/lock",
+        json={"profile_key": "SENTINEL", "lock_after_apply": True},
+    )
+    assert lock.status_code == 200, lock.text
+    lock_body = lock.json()
+    assert lock_body["galaxy_id"] == galaxy_id
+    assert lock_body["profile_key"] == "SENTINEL"
+    assert lock_body["lock_status"] == "locked"
+    assert lock_body["can_edit_core_laws"] is False
+
+    second_lock = client.post(
+        f"/galaxies/{galaxy_id}/star-core/policy/lock",
+        json={"profile_key": "ARCHIVE", "lock_after_apply": True},
+    )
+    assert second_lock.status_code == 409, second_lock.text
 
     runtime = client.get(f"/galaxies/{galaxy_id}/star-core/runtime", params={"window_events": 64})
     assert runtime.status_code == 200, runtime.text

@@ -5,12 +5,15 @@ import {
   apiErrorFromResponse,
   apiFetch,
   buildOccConflictMessage,
+  buildStarCorePolicyLockUrl,
   isOccConflictError,
 } from "../../lib/dataverseApi";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import LinkHoverTooltip from "./LinkHoverTooltip";
+import { resolveEntityLaws, resolveLinkLaws, resolveStarCoreProfile } from "./lawResolver";
 import QuickGridOverlay from "./QuickGridOverlay";
 import { mergeMetadataValue } from "./rowWriteUtils";
+import StarHeartDashboard from "./StarHeartDashboard";
 import UniverseCanvas from "./UniverseCanvas";
 import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
 import WorkspaceSidebar from "./WorkspaceSidebar";
@@ -28,9 +31,13 @@ const DEFAULT_CAMERA_STATE = {
   maxDistance: 1800,
 };
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
+const STAR_CONTROL_PHASE = Object.freeze({
+  IDLE: "idle",
+  STAR_FOCUSED: "star_focused",
+  STAR_HEART_DASHBOARD_OPEN: "star_heart_dashboard_open",
+  APPLY_PROFILE: "apply_profile",
+  LOCKED: "locked",
+});
 
 function nextIdempotencyKey(prefix) {
   const safePrefix = String(prefix || "ui").trim() || "ui";
@@ -50,11 +57,13 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     error,
     starRuntime,
     starDomains,
+    starPolicy,
     starPulseByEntity,
     starPulseLastEventSeq,
     setRuntimeError,
     clearRuntimeError,
     refreshProjection,
+    refreshStarTelemetry,
   } = useUniverseRuntimeSync({ galaxyId });
 
   const [busy, setBusy] = useState(false);
@@ -67,6 +76,9 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
 
   const [quickGridOpen, setQuickGridOpen] = useState(false);
   const [gridSearchQuery, setGridSearchQuery] = useState("");
+  const [starControlPhase, setStarControlPhase] = useState(STAR_CONTROL_PHASE.IDLE);
+  const [starProfileDraftKey, setStarProfileDraftKey] = useState("ORIGIN");
+  const [starControlError, setStarControlError] = useState("");
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
 
@@ -79,6 +91,9 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     setGridSearchQuery("");
     setLinkDraft(null);
     setHoveredLink(null);
+    setStarControlPhase(STAR_CONTROL_PHASE.IDLE);
+    setStarProfileDraftKey("ORIGIN");
+    setStarControlError("");
     layoutRef.current = { tablePositions: new Map(), asteroidPositions: new Map() };
   }, [galaxyId]);
 
@@ -113,6 +128,40 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     });
     return map;
   }, [starDomains]);
+  const starCoreProfile = useMemo(
+    () =>
+      resolveStarCoreProfile({
+        starRuntime,
+        starDomains,
+        starPolicy,
+      }),
+    [starDomains, starPolicy, starRuntime]
+  );
+  const starCoreForCanvas = useMemo(
+    () => ({
+      ...starCoreProfile,
+      lastEventSeq: Number.isFinite(Number(starPulseLastEventSeq)) ? Number(starPulseLastEventSeq) : 0,
+    }),
+    [starCoreProfile, starPulseLastEventSeq]
+  );
+  const starPolicyLocked = String(starPolicy?.lock_status || "").toLowerCase() === "locked";
+  const starHeartOpen =
+    starControlPhase === STAR_CONTROL_PHASE.STAR_HEART_DASHBOARD_OPEN ||
+    starControlPhase === STAR_CONTROL_PHASE.APPLY_PROFILE ||
+    starControlPhase === STAR_CONTROL_PHASE.LOCKED;
+
+  useEffect(() => {
+    const policyProfileKey = String(starPolicy?.profile_key || starCoreProfile?.profile?.key || "ORIGIN").toUpperCase();
+    if (starPolicyLocked || starControlPhase === STAR_CONTROL_PHASE.IDLE) {
+      setStarProfileDraftKey(policyProfileKey);
+    }
+    if (starPolicyLocked) {
+      setStarControlPhase((prev) => {
+        if (prev === STAR_CONTROL_PHASE.IDLE) return prev;
+        return STAR_CONTROL_PHASE.LOCKED;
+      });
+    }
+  }, [starControlPhase, starCoreProfile?.profile?.key, starPolicy?.profile_key, starPolicyLocked]);
 
   useEffect(() => {
     if (!selectedAsteroidId) return;
@@ -141,74 +190,47 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
 
   const tableNodes = useMemo(
     () =>
-      layout.tableNodes.map((node) => ({
-        ...node,
-        position: layout.tablePositions.get(node.id) || [0, 0, 0],
-        runtimePulse: starPulseByEntity[String(node.id)] || null,
-        runtimeDomain: domainMetricsByName.get(String(node.entityName || "")) || null,
-        v1: {
-          status: String((domainMetricsByName.get(String(node.entityName || "")) || {}).status || "GREEN"),
-          quality_score: Number((domainMetricsByName.get(String(node.entityName || "")) || {}).quality_score ?? 100),
-        },
-        physics: {
-          ...(node.physics || {}),
-          stress: clamp(
-            Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.42,
-            0,
-            1
-          ),
-          pulseFactor: clamp(
-            1 +
-              Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.85 +
-              Number((starPulseByEntity[String(node.id)] || {}).intensity || 0) * 0.45,
-            0.9,
-            2.35
-          ),
-          emissiveBoost: clamp(
-            Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.58 +
-              Number((starPulseByEntity[String(node.id)] || {}).intensity || 0) * 0.36,
-            0,
-            1
-          ),
-        },
-      })),
+      layout.tableNodes.map((node) => {
+        const runtimePulse = starPulseByEntity[String(node.id)] || null;
+        const runtimeDomain = domainMetricsByName.get(String(node.entityName || "")) || null;
+        const resolved = resolveEntityLaws({
+          kind: "planet",
+          basePhysics: node.physics || {},
+          domainMetric: runtimeDomain,
+          pulse: runtimePulse,
+        });
+        return {
+          ...node,
+          position: layout.tablePositions.get(node.id) || [0, 0, 0],
+          runtimePulse,
+          runtimeDomain,
+          v1: resolved.v1,
+          physics: resolved.physics,
+        };
+      }),
     [domainMetricsByName, layout, starPulseByEntity]
   );
 
   const asteroidNodes = useMemo(
     () =>
-      layout.asteroidNodes.map((node) => ({
-        ...node,
-        position: layout.asteroidPositions.get(node.id) || [0, 0, 0],
-        runtimePulse: starPulseByEntity[String(node.id)] || null,
-        runtimeDomain: domainMetricsByName.get(String(node.entityName || "")) || null,
-        v1: {
-          status: String((domainMetricsByName.get(String(node.entityName || "")) || {}).status || "GREEN"),
-          quality_score: Number((domainMetricsByName.get(String(node.entityName || "")) || {}).quality_score ?? 100),
-        },
-        physics: {
-          ...(node.physics || {}),
-          stress: clamp(
-            Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.36 +
-              Number((starPulseByEntity[String(node.id)] || {}).intensity || 0) * 0.32,
-            0,
-            1
-          ),
-          pulseFactor: clamp(
-            1 +
-              Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.66 +
-              Number((starPulseByEntity[String(node.id)] || {}).intensity || 0) * 0.72,
-            0.9,
-            2.35
-          ),
-          emissiveBoost: clamp(
-            Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.42 +
-              Number((starPulseByEntity[String(node.id)] || {}).intensity || 0) * 0.56,
-            0,
-            1
-          ),
-        },
-      })),
+      layout.asteroidNodes.map((node) => {
+        const runtimePulse = starPulseByEntity[String(node.id)] || null;
+        const runtimeDomain = domainMetricsByName.get(String(node.entityName || "")) || null;
+        const resolved = resolveEntityLaws({
+          kind: "moon",
+          basePhysics: node.physics || {},
+          domainMetric: runtimeDomain,
+          pulse: runtimePulse,
+        });
+        return {
+          ...node,
+          position: layout.asteroidPositions.get(node.id) || [0, 0, 0],
+          runtimePulse,
+          runtimeDomain,
+          v1: resolved.v1,
+          physics: resolved.physics,
+        };
+      }),
     [domainMetricsByName, layout, starPulseByEntity]
   );
   const tableNodeById = useMemo(() => new Map(tableNodes.map((node) => [String(node.id), node])), [tableNodes]);
@@ -218,21 +240,17 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       (layout.tableLinks || []).map((link) => {
         const source = tableNodeById.get(String(link.source));
         const target = tableNodeById.get(String(link.target));
-        const sourceActivity = Number(source?.runtimeDomain?.activity_intensity || 0);
-        const targetActivity = Number(target?.runtimeDomain?.activity_intensity || 0);
         const linkPulse = starPulseByEntity[String(link.id)] || null;
-        const flow = clamp(Math.max(sourceActivity, targetActivity) * 0.9 + Number(linkPulse?.intensity || 0) * 0.6, 0, 1);
         return {
           ...link,
           runtimePulse: linkPulse,
-          physics: {
-            ...(link.physics || {}),
-            flow,
-            speedFactor: 1 + flow * 0.7,
-            widthFactor: 1 + flow * 0.34,
-            pulseSizeFactor: 1 + flow * 0.42,
-            opacityFactor: 1 + flow * 0.12,
-          },
+          physics: resolveLinkLaws({
+            kind: "table",
+            basePhysics: link.physics || {},
+            sourceDomainMetric: source?.runtimeDomain || null,
+            targetDomainMetric: target?.runtimeDomain || null,
+            linkPulse,
+          }),
         };
       }),
     [layout.tableLinks, starPulseByEntity, tableNodeById]
@@ -243,27 +261,18 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         const sourcePulse = starPulseByEntity[String(link.source)] || null;
         const targetPulse = starPulseByEntity[String(link.target)] || null;
         const linkPulse = starPulseByEntity[String(link.id)] || null;
-        const sourceActivity = Number(asteroidNodeById.get(String(link.source))?.runtimeDomain?.activity_intensity || 0);
-        const targetActivity = Number(asteroidNodeById.get(String(link.target))?.runtimeDomain?.activity_intensity || 0);
-        const flow = clamp(
-          Math.max(sourceActivity, targetActivity) * 0.72 +
-            Number(sourcePulse?.intensity || 0) * 0.32 +
-            Number(targetPulse?.intensity || 0) * 0.32 +
-            Number(linkPulse?.intensity || 0) * 0.46,
-          0,
-          1
-        );
         return {
           ...link,
           runtimePulse: linkPulse,
-          physics: {
-            ...(link.physics || {}),
-            flow,
-            speedFactor: 1 + flow * 1.05,
-            widthFactor: 1 + flow * 0.48,
-            pulseSizeFactor: 1 + flow * 0.7,
-            opacityFactor: 1 + flow * 0.16,
-          },
+          physics: resolveLinkLaws({
+            kind: "moon",
+            basePhysics: link.physics || {},
+            sourceDomainMetric: asteroidNodeById.get(String(link.source))?.runtimeDomain || null,
+            targetDomainMetric: asteroidNodeById.get(String(link.target))?.runtimeDomain || null,
+            sourcePulse,
+            targetPulse,
+            linkPulse,
+          }),
         };
       }),
     [asteroidNodeById, layout.asteroidLinks, starPulseByEntity]
@@ -539,6 +548,76 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     [asteroidById, clearRuntimeError, galaxyId, refreshProjection, setRuntimeError]
   );
 
+  const handleStarSelect = useCallback(() => {
+    if (starPolicyLocked) {
+      setStarControlPhase(STAR_CONTROL_PHASE.LOCKED);
+      setStarControlError("");
+      return;
+    }
+    setStarControlError("");
+    setStarControlPhase((prev) => {
+      if (prev === STAR_CONTROL_PHASE.IDLE) return STAR_CONTROL_PHASE.STAR_FOCUSED;
+      if (prev === STAR_CONTROL_PHASE.STAR_FOCUSED) return STAR_CONTROL_PHASE.STAR_HEART_DASHBOARD_OPEN;
+      return prev;
+    });
+  }, [starPolicyLocked]);
+
+  const handleOpenStarHeartDashboard = useCallback(() => {
+    setStarControlError("");
+    setStarControlPhase(starPolicyLocked ? STAR_CONTROL_PHASE.LOCKED : STAR_CONTROL_PHASE.STAR_HEART_DASHBOARD_OPEN);
+  }, [starPolicyLocked]);
+
+  const handleCloseStarHeartDashboard = useCallback(() => {
+    setStarControlPhase(STAR_CONTROL_PHASE.IDLE);
+  }, []);
+
+  const handleClearStarFocus = useCallback(() => {
+    setStarControlPhase((prev) => (prev === STAR_CONTROL_PHASE.STAR_FOCUSED ? STAR_CONTROL_PHASE.IDLE : prev));
+  }, []);
+
+  const handleApplyStarProfileLock = useCallback(async () => {
+    if (!galaxyId) return;
+    if (starPolicyLocked) {
+      setStarControlPhase(STAR_CONTROL_PHASE.LOCKED);
+      return;
+    }
+    setStarControlError("");
+    setStarControlPhase(STAR_CONTROL_PHASE.APPLY_PROFILE);
+    clearRuntimeError();
+    try {
+      const response = await apiFetch(buildStarCorePolicyLockUrl(API_BASE, galaxyId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile_key: starProfileDraftKey,
+          lock_after_apply: true,
+        }),
+      });
+      if (!response.ok) {
+        throw await apiErrorFromResponse(response, `Star Core lock selhal: ${response.status}`);
+      }
+      await response.json().catch(() => null);
+      await refreshStarTelemetry({ force: true });
+      setStarControlPhase(STAR_CONTROL_PHASE.LOCKED);
+    } catch (applyError) {
+      if (isOccConflictError(applyError)) {
+        setRuntimeError(buildOccConflictMessage(applyError, "lock star core"));
+      } else {
+        const message = applyError?.message || "Star Core profil se nepodarilo uzamknout.";
+        setStarControlError(message);
+      }
+      await refreshStarTelemetry({ force: true });
+      setStarControlPhase(starPolicyLocked ? STAR_CONTROL_PHASE.LOCKED : STAR_CONTROL_PHASE.STAR_HEART_DASHBOARD_OPEN);
+    }
+  }, [
+    clearRuntimeError,
+    galaxyId,
+    refreshStarTelemetry,
+    setRuntimeError,
+    starPolicyLocked,
+    starProfileDraftKey,
+  ]);
+
   const selectedTableLabel = selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "";
 
   return (
@@ -550,10 +629,17 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         tableLinks={tableLinks}
         asteroidLinks={asteroidLinks}
         cameraState={DEFAULT_CAMERA_STATE}
+        starCore={starCoreForCanvas}
+        starFocused={starControlPhase === STAR_CONTROL_PHASE.STAR_FOCUSED}
+        starControlOpen={starHeartOpen}
+        starDiveActive={starHeartOpen}
         selectedTableId={selectedTableId}
         selectedAsteroidId={selectedAsteroidId}
         linkDraft={linkDraft}
         hideMouseGuide={minimalShell}
+        onSelectStar={handleStarSelect}
+        onOpenStarControlCenter={handleOpenStarHeartDashboard}
+        onClearStarFocus={handleClearStarFocus}
         onSelectTable={(tableId) => {
           setSelectedTableId(String(tableId || ""));
           setSelectedAsteroidId("");
@@ -587,9 +673,6 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         loading={loading}
         busy={busy}
         error={error}
-        starRuntime={starRuntime}
-        starDomains={starDomains}
-        starPulseLastEventSeq={starPulseLastEventSeq}
         selectedTableId={selectedTableId}
         selectedTableLabel={selectedTableLabel}
         selectedAsteroidLabel={selectedAsteroidLabel}
@@ -601,8 +684,26 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         onRefresh={() => {
           void refreshProjection();
         }}
+        onOpenStarHeart={handleOpenStarHeartDashboard}
         onBackToGalaxies={onBackToGalaxies}
         onLogout={onLogout}
+      />
+
+      <StarHeartDashboard
+        open={starHeartOpen}
+        phase={starControlPhase}
+        starCoreProfile={starCoreProfile}
+        starPolicy={starPolicy}
+        starRuntime={starRuntime}
+        starDomains={starDomains}
+        selectedProfileKey={starProfileDraftKey}
+        applyBusy={starControlPhase === STAR_CONTROL_PHASE.APPLY_PROFILE}
+        applyError={starControlError}
+        onSelectProfile={setStarProfileDraftKey}
+        onApplyProfileLock={() => {
+          void handleApplyStarProfileLock();
+        }}
+        onClose={handleCloseStarHeartDashboard}
       />
 
       <QuickGridOverlay

@@ -11,6 +11,7 @@ import {
   ConstellationHalo,
   LinkChannel,
   MouseGuideOverlay,
+  SourceCoreStar,
   TableNode,
   buildConstellationClusters,
   curvePoints,
@@ -24,10 +25,17 @@ export default function UniverseCanvas({
   tableLinks,
   asteroidLinks,
   cameraState,
+  starCore,
+  starFocused = false,
+  starControlOpen = false,
+  starDiveActive = false,
   selectedTableId,
   selectedAsteroidId,
   linkDraft,
   hideMouseGuide = false,
+  onSelectStar,
+  onOpenStarControlCenter,
+  onClearStarFocus,
   onSelectTable,
   onSelectAsteroid,
   onOpenContext,
@@ -163,6 +171,9 @@ export default function UniverseCanvas({
         }}
         onPointerMissed={() => {
           releaseDragState();
+          if (typeof onClearStarFocus === "function") {
+            onClearStarFocus();
+          }
           setBodyCursor("auto");
         }}
       >
@@ -174,6 +185,13 @@ export default function UniverseCanvas({
         <directionalLight position={[-220, -120, -180]} intensity={0.38} color="#6fa5ff" />
 
         <Stars radius={2200} depth={900} count={8200} factor={8} saturation={0} fade speed={0.1} />
+        <SourceCoreStar
+          starCore={starCore}
+          isFocused={starFocused}
+          isControlCenterOpen={starControlOpen}
+          onSelectStar={onSelectStar}
+          onOpenControlCenter={onOpenStarControlCenter}
+        />
         <CommandMeteors enabled />
         {level < 3
           ? constellationClusters.map((cluster) => (
@@ -318,7 +336,8 @@ export default function UniverseCanvas({
           selectedAsteroidNode={selectedAsteroidNode}
           selectedTableId={selectedTableId}
           selectedAsteroidId={selectedAsteroidId}
-          focusKey={`${level}:${selectedTableId || "-"}:${selectedAsteroidId || "-"}`}
+          starDiveActive={starDiveActive}
+          focusKey={`${level}:${selectedTableId || "-"}:${selectedAsteroidId || "-"}:${starDiveActive ? "star" : "space"}`}
         />
       </Canvas>
       {!hideMouseGuide ? <MouseGuideOverlay level={level} hoveredNode={hoveredNode} /> : null}

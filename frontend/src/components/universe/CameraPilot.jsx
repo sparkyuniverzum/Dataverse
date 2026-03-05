@@ -47,15 +47,17 @@ export default function CameraPilot({
   selectedAsteroidNode,
   selectedTableId,
   selectedAsteroidId,
+  starDiveActive = false,
   focusKey,
 }) {
   const { camera } = useThree();
   const lastFocusKeyRef = useRef("");
   const flightTimeRef = useRef(0);
   const unresolvedSelection =
-    (Boolean(selectedAsteroidId) && !selectedAsteroidNode) ||
-    (!selectedAsteroidId && Boolean(selectedTableId) && !selectedTableNode);
-  const hasExplicitFocusTarget = Boolean(selectedAsteroidNode || selectedTableNode);
+    !starDiveActive &&
+    ((Boolean(selectedAsteroidId) && !selectedAsteroidNode) ||
+      (!selectedAsteroidId && Boolean(selectedTableId) && !selectedTableNode));
+  const hasExplicitFocusTarget = Boolean(starDiveActive || selectedAsteroidNode || selectedTableNode);
 
   const fallback = useMemo(() => {
     const tablePositions = tableNodes.map((node) => node.position);
@@ -64,6 +66,12 @@ export default function CameraPilot({
 
   const target = useMemo(() => {
     if (unresolvedSelection) return null;
+    if (starDiveActive) {
+      return {
+        center: [0, 0, 0],
+        distance: 20,
+      };
+    }
     if (selectedAsteroidNode) {
       return {
         center: selectedAsteroidNode.position,
@@ -80,7 +88,7 @@ export default function CameraPilot({
       center: fallback.center,
       distance: fallback.radius * 2.8,
     };
-  }, [fallback, selectedAsteroidNode, selectedTableNode, unresolvedSelection]);
+  }, [fallback, selectedAsteroidNode, selectedTableNode, starDiveActive, unresolvedSelection]);
 
   const targetPos = useMemo(() => {
     if (!target) return null;
@@ -114,8 +122,13 @@ export default function CameraPilot({
 
     if (!inFlight) {
       if (controlsRef.current) {
-        controlsRef.current.minDistance = Math.max(8, target.distance * 0.22, cameraState.minDistance || 8);
-        controlsRef.current.maxDistance = Math.max(320, target.distance * 7, cameraState.maxDistance || 320);
+        if (starDiveActive) {
+          controlsRef.current.minDistance = 4;
+          controlsRef.current.maxDistance = 96;
+        } else {
+          controlsRef.current.minDistance = Math.max(8, target.distance * 0.22, cameraState.minDistance || 8);
+          controlsRef.current.maxDistance = Math.max(320, target.distance * 7, cameraState.maxDistance || 320);
+        }
       }
       return;
     }
@@ -124,8 +137,13 @@ export default function CameraPilot({
 
     if (controlsRef.current) {
       dampVec3(controlsRef.current.target, targetLook, 5.0, delta);
-      controlsRef.current.minDistance = Math.max(8, target.distance * 0.22, cameraState.minDistance || 8);
-      controlsRef.current.maxDistance = Math.max(320, target.distance * 7, cameraState.maxDistance || 320);
+      if (starDiveActive) {
+        controlsRef.current.minDistance = 4;
+        controlsRef.current.maxDistance = 96;
+      } else {
+        controlsRef.current.minDistance = Math.max(8, target.distance * 0.22, cameraState.minDistance || 8);
+        controlsRef.current.maxDistance = Math.max(320, target.distance * 7, cameraState.maxDistance || 320);
+      }
       controlsRef.current.update();
     }
 

@@ -90,9 +90,14 @@ def galaxy_activity_to_public(item) -> GalaxyActivityPublic:
 
 
 def star_core_policy_to_public(item: Mapping[str, Any]) -> StarCorePolicyPublic:
+    lock_status = str(item.get("lock_status") or "draft").lower()
     return StarCorePolicyPublic(
         user_id=item["user_id"],
         galaxy_id=item["galaxy_id"],
+        profile_key=str(item.get("profile_key") or "ORIGIN").upper(),
+        law_preset=str(item.get("law_preset") or "balanced"),
+        profile_mode=str(item.get("profile_mode") or ("locked" if lock_status == "locked" else "auto")),
+        topology_mode=str(item.get("topology_mode") or "single_star_per_galaxy"),
         no_hard_delete=bool(item.get("no_hard_delete", True)),
         deletion_mode=str(item.get("deletion_mode") or "soft_delete"),
         soft_delete_flag_field=str(item.get("soft_delete_flag_field") or "is_deleted"),
@@ -101,6 +106,11 @@ def star_core_policy_to_public(item: Mapping[str, Any]) -> StarCorePolicyPublic:
         occ_enforced=bool(item.get("occ_enforced", True)),
         idempotency_supported=bool(item.get("idempotency_supported", True)),
         branch_scope_supported=bool(item.get("branch_scope_supported", True)),
+        lock_status=lock_status,
+        policy_version=max(1, int(item.get("policy_version") or 1)),
+        locked_at=item.get("locked_at"),
+        locked_by=item.get("locked_by"),
+        can_edit_core_laws=bool(item.get("can_edit_core_laws", lock_status != "locked")),
         generated_at=item["generated_at"],
     )
 

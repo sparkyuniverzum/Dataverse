@@ -5,14 +5,24 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import StarCorePolicyRM
 from app.services.constellation_dashboard_service import ConstellationDashboardService
 from app.services.event_store_service import EventStoreService
 from app.services.universe_service import UniverseService
 
 
 class StarCoreService:
+    _PROFILE_PRESETS: dict[str, str] = {
+        "ORIGIN": "balanced",
+        "FLUX": "high_throughput",
+        "SENTINEL": "integrity_first",
+        "ARCHIVE": "low_activity",
+    }
+
     def __init__(
         self,
         *,
@@ -26,25 +36,163 @@ class StarCoreService:
             universe_service=self.universe_service
         )
 
+    @classmethod
+    def _normalize_profile_key(cls, profile_key: str | None) -> str:
+        candidate = str(profile_key or "ORIGIN").strip().upper()
+        return candidate if candidate in cls._PROFILE_PRESETS else "ORIGIN"
+
+    @classmethod
+    def _law_preset_for_profile(cls, profile_key: str) -> str:
+        return cls._PROFILE_PRESETS.get(profile_key, cls._PROFILE_PRESETS["ORIGIN"])
+
+    @classmethod
+    def _serialize_policy_row(
+        cls,
+        *,
+        row: StarCorePolicyRM | None,
+        user_id: UUID,
+        galaxy_id: UUID,
+    ) -> dict[str, Any]:
+        if row is None:
+            profile_key = "ORIGIN"
+            law_preset = cls._law_preset_for_profile(profile_key)
+            return {
+                "user_id": user_id,
+                "galaxy_id": galaxy_id,
+                "profile_key": profile_key,
+                "law_preset": law_preset,
+                "profile_mode": "auto",
+                "topology_mode": "single_star_per_galaxy",
+                "no_hard_delete": True,
+                "deletion_mode": "soft_delete",
+                "soft_delete_flag_field": "is_deleted",
+                "soft_delete_timestamp_field": "deleted_at",
+                "event_sourcing_enabled": True,
+                "occ_enforced": True,
+                "idempotency_supported": True,
+                "branch_scope_supported": True,
+                "lock_status": "draft",
+                "policy_version": 1,
+                "locked_at": None,
+                "locked_by": None,
+                "can_edit_core_laws": True,
+                "generated_at": datetime.now(UTC),
+            }
+
+        lock_status = str(row.lock_status or "draft").strip().lower() or "draft"
+        profile_key = cls._normalize_profile_key(row.profile_key)
+        law_preset = str(row.law_preset or cls._law_preset_for_profile(profile_key)).strip() or cls._law_preset_for_profile(
+            profile_key
+        )
+        generated_at = row.updated_at if row.updated_at is not None else datetime.now(UTC)
+        return {
+            "user_id": row.user_id,
+            "galaxy_id": row.galaxy_id,
+            "profile_key": profile_key,
+            "law_preset": law_preset,
+            "profile_mode": "locked" if lock_status == "locked" else "auto",
+            "topology_mode": "single_star_per_galaxy",
+            "no_hard_delete": bool(row.no_hard_delete),
+            "deletion_mode": str(row.deletion_mode or "soft_delete"),
+            "soft_delete_flag_field": str(row.soft_delete_flag_field or "is_deleted"),
+            "soft_delete_timestamp_field": str(row.soft_delete_timestamp_field or "deleted_at"),
+            "event_sourcing_enabled": bool(row.event_sourcing_enabled),
+            "occ_enforced": bool(row.occ_enforced),
+            "idempotency_supported": bool(row.idempotency_supported),
+            "branch_scope_supported": bool(row.branch_scope_supported),
+            "lock_status": lock_status,
+            "policy_version": max(1, int(row.policy_version or 1)),
+            "locked_at": row.locked_at,
+            "locked_by": row.locked_by,
+            "can_edit_core_laws": lock_status != "locked",
+            "generated_at": generated_at,
+        }
+
     async def get_policy(
         self,
+        session: AsyncSession,
         *,
         user_id: UUID,
         galaxy_id: UUID,
     ) -> dict[str, Any]:
-        return {
-            "user_id": user_id,
-            "galaxy_id": galaxy_id,
-            "no_hard_delete": True,
-            "deletion_mode": "soft_delete",
-            "soft_delete_flag_field": "is_deleted",
-            "soft_delete_timestamp_field": "deleted_at",
-            "event_sourcing_enabled": True,
-            "occ_enforced": True,
-            "idempotency_supported": True,
-            "branch_scope_supported": True,
-            "generated_at": datetime.now(UTC),
-        }
+        row = (
+            await session.execute(
+                select(StarCorePolicyRM).where(
+                    StarCorePolicyRM.user_id == user_id,
+                    StarCorePolicyRM.galaxy_id == galaxy_id,
+                )
+            )
+        ).scalar_one_or_none()
+        return self._serialize_policy_row(row=row, user_id=user_id, galaxy_id=galaxy_id)
+
+    async def apply_profile_and_lock(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        profile_key: str,
+        lock_after_apply: bool = True,
+    ) -> dict[str, Any]:
+        created_new = False
+        row = (
+            await session.execute(
+                select(StarCorePolicyRM)
+                .where(
+                    StarCorePolicyRM.user_id == user_id,
+                    StarCorePolicyRM.galaxy_id == galaxy_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            created_new = True
+            row = StarCorePolicyRM(
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+            )
+            session.add(row)
+            await session.flush()
+
+        current_lock_status = str(row.lock_status or "draft").strip().lower()
+        if current_lock_status == "locked":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "STAR_CORE_POLICY_LOCKED",
+                    "message": "Star Core policy is locked and cannot be edited directly.",
+                    "context": "apply_star_core_profile",
+                    "galaxy_id": str(galaxy_id),
+                    "lock_status": "locked",
+                },
+            )
+
+        normalized_profile_key = self._normalize_profile_key(profile_key)
+        now = datetime.now(UTC)
+        profile_changed = str(row.profile_key or "").upper() != normalized_profile_key
+        lock_changed = lock_after_apply and current_lock_status != "locked"
+
+        row.profile_key = normalized_profile_key
+        row.law_preset = self._law_preset_for_profile(normalized_profile_key)
+        row.updated_at = now
+        if lock_after_apply:
+            row.lock_status = "locked"
+            row.locked_at = now
+            row.locked_by = user_id
+        else:
+            row.lock_status = "draft"
+            row.locked_at = None
+            row.locked_by = None
+
+        if created_new:
+            row.policy_version = 1
+        elif profile_changed or lock_changed:
+            row.policy_version = max(1, int(row.policy_version or 1)) + 1
+        elif not row.policy_version:
+            row.policy_version = 1
+
+        await session.flush()
+        return self._serialize_policy_row(row=row, user_id=user_id, galaxy_id=galaxy_id)
 
     async def get_runtime(
         self,

@@ -279,6 +279,14 @@ export function buildStarCoreRuntimeUrl(apiBase, galaxyId, { branchId = null, wi
   return url.toString();
 }
 
+export function buildStarCorePolicyUrl(apiBase, galaxyId) {
+  return `${apiBase}/galaxies/${galaxyId}/star-core/policy`;
+}
+
+export function buildStarCorePolicyLockUrl(apiBase, galaxyId) {
+  return `${apiBase}/galaxies/${galaxyId}/star-core/policy/lock`;
+}
+
 export function buildStarCorePulseUrl(apiBase, galaxyId, { branchId = null, afterEventSeq = null, limit = 64 } = {}) {
   const url = new URL(`${apiBase}/galaxies/${galaxyId}/star-core/pulse`);
   if (branchId) {

@@ -58,6 +58,52 @@ class Galaxy(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class StarCorePolicyRM(Base):
+    __tablename__ = "star_core_policies"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        primary_key=True,
+    )
+    galaxy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("galaxies.id"),
+        primary_key=True,
+    )
+    profile_key: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'ORIGIN'"))
+    law_preset: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'balanced'"))
+    no_hard_delete: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"), default=True)
+    deletion_mode: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'soft_delete'"))
+    soft_delete_flag_field: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'is_deleted'"))
+    soft_delete_timestamp_field: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'deleted_at'"))
+    event_sourcing_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"), default=True)
+    occ_enforced: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"), default=True)
+    idempotency_supported: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"), default=True)
+    branch_scope_supported: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"), default=True)
+    lock_status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'draft'"))
+    policy_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    locked_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+
 class OnboardingProgress(Base):
     __tablename__ = "onboarding_progress"
 

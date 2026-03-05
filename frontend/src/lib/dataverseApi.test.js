@@ -6,6 +6,8 @@ import {
   buildOccConflictMessage,
   buildGalaxyEventsStreamUrl,
   buildStarCoreDomainMetricsUrl,
+  buildStarCorePolicyLockUrl,
+  buildStarCorePolicyUrl,
   buildStarCorePulseUrl,
   buildStarCoreRuntimeUrl,
   buildImportJobErrorsUrl,
@@ -131,6 +133,12 @@ describe("star core urls", () => {
     });
     expect(domainsUrl).toContain("/galaxies/g-42/star-core/metrics/domains");
     expect(domainsUrl).toContain("window_events=300");
+
+    const policyUrl = buildStarCorePolicyUrl("http://127.0.0.1:8000", "g-42");
+    expect(policyUrl).toBe("http://127.0.0.1:8000/galaxies/g-42/star-core/policy");
+
+    const lockUrl = buildStarCorePolicyLockUrl("http://127.0.0.1:8000", "g-42");
+    expect(lockUrl).toBe("http://127.0.0.1:8000/galaxies/g-42/star-core/policy/lock");
   });
 });
 

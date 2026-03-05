@@ -11,12 +11,14 @@ from app.api.mappers.public import (
     star_core_pulse_to_public,
     star_core_runtime_to_public,
 )
+from app.api.runtime import commit_if_active, transactional_context
 from app.api.runtime import get_service_container
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
 from app.schemas import (
     StarCoreDomainMetricsResponse,
+    StarCoreProfileApplyRequest,
     StarCorePolicyPublic,
     StarCorePulseResponse,
     StarCoreRuntimePublic,
@@ -62,9 +64,36 @@ async def star_core_policy(
         galaxy_id=galaxy_id,
     )
     policy = await services.star_core_service.get_policy(
+        session=session,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
     )
+    return star_core_policy_to_public(policy)
+
+
+@router.post("/galaxies/{galaxy_id}/star-core/policy/lock", response_model=StarCorePolicyPublic, status_code=status.HTTP_200_OK)
+async def star_core_policy_lock(
+    galaxy_id: UUID,
+    payload: StarCoreProfileApplyRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> StarCorePolicyPublic:
+    target_galaxy_id, _ = await _resolve_scope(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=galaxy_id,
+    )
+    async with transactional_context(session):
+        policy = await services.star_core_service.apply_profile_and_lock(
+            session=session,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            profile_key=payload.profile_key,
+            lock_after_apply=payload.lock_after_apply,
+        )
+    await commit_if_active(session)
     return star_core_policy_to_public(policy)
 
 
