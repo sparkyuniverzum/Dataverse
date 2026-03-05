@@ -15,6 +15,7 @@ Close remaining contract gaps for MVP sign-off with repeatable BE/FE test gates.
 
 2. Existing contract baselines:
 - `PYTHONPATH=. pytest -q tests/test_star_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_api_v1_openapi_freeze.py`
 - `PYTHONPATH=. pytest -q tests/test_galaxy_workspace_contract_baseline.py`
 - `PYTHONPATH=. pytest -q tests/test_moon_contract_baseline.py`
 - `PYTHONPATH=. pytest -q tests/test_moon_contract_freeze_gate.py`
@@ -26,19 +27,29 @@ Close remaining contract gaps for MVP sign-off with repeatable BE/FE test gates.
 
 3. Integration closure (minimum):
 - `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "star_core_endpoint_by_endpoint_closure_v2 or moon_first_class_crud_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or release_gate_star_lock_first_planet_grid_convergence or semantic_constitution_endpoint_by_endpoint_closure_v1"`
+- `PYTHONPATH=. pytest -q tests/test_star_core_integration_freeze.py`
 
 ## 3. FE gates
 
 1. Star contract and physics render gates:
 - `cd frontend && npm test -- --run src/components/universe/starContract.test.js src/components/universe/scene/physicsSystem.test.js`
 
-2. Semantic constitution FE freeze gate:
+2. API v1 OpenAPI FE freeze gate:
+- `cd frontend && npm test -- --run src/lib/apiV1Contract.test.js src/lib/dataverseApi.test.js`
+
+3. Table contract FE freeze gate:
+- `cd frontend && npm test -- --run src/lib/tableContract.test.js src/components/universe/workspaceContract.test.js src/components/universe/workspaceFormatters.test.js`
+
+4. Parser v1/v2 FE freeze gate:
+- `cd frontend && npm test -- --run src/lib/parserContract.test.js src/lib/builderParserCommand.test.js src/lib/parserExecutionMode.test.js src/lib/dataverseApi.test.js`
+
+5. Semantic constitution FE freeze gate:
 - `cd frontend && npm test -- --run src/lib/semanticConstitutionContract.test.js src/lib/builderParserCommand.test.js src/lib/dataverseApi.test.js`
 
-3. Workspace and scope data-shape gates:
+6. Workspace and scope data-shape gates:
 - `cd frontend && npm test -- --run src/lib/dataverseApi.test.js src/lib/workspaceScopeContract.test.js src/components/universe/workspaceFormatters.test.js src/components/universe/workspaceContract.test.js`
 
-4. Moon first-class contract freeze gate:
+7. Moon first-class contract freeze gate:
 - `cd frontend && npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js`
 
 ## 4. Unified smoke gate
