@@ -5,6 +5,9 @@ import {
   bondSemanticsFromType,
   buildOccConflictMessage,
   buildGalaxyEventsStreamUrl,
+  buildStarCoreDomainMetricsUrl,
+  buildStarCorePulseUrl,
+  buildStarCoreRuntimeUrl,
   buildImportJobErrorsUrl,
   buildImportJobUrl,
   buildImportRunUrl,
@@ -102,6 +105,32 @@ describe("events stream url", () => {
     expect(url).toContain("last_event_seq=19");
     expect(url).toContain("poll_ms=900");
     expect(url).toContain("heartbeat_sec=12");
+  });
+});
+
+describe("star core urls", () => {
+  it("builds runtime, pulse and domain metrics urls", () => {
+    const runtimeUrl = buildStarCoreRuntimeUrl("http://127.0.0.1:8000", "g-42", {
+      branchId: "br-9",
+      windowEvents: 90,
+    });
+    expect(runtimeUrl).toContain("/galaxies/g-42/star-core/runtime");
+    expect(runtimeUrl).toContain("branch_id=br-9");
+    expect(runtimeUrl).toContain("window_events=90");
+
+    const pulseUrl = buildStarCorePulseUrl("http://127.0.0.1:8000", "g-42", {
+      afterEventSeq: 123,
+      limit: 48,
+    });
+    expect(pulseUrl).toContain("/galaxies/g-42/star-core/pulse");
+    expect(pulseUrl).toContain("after_event_seq=123");
+    expect(pulseUrl).toContain("limit=48");
+
+    const domainsUrl = buildStarCoreDomainMetricsUrl("http://127.0.0.1:8000", "g-42", {
+      windowEvents: 300,
+    });
+    expect(domainsUrl).toContain("/galaxies/g-42/star-core/metrics/domains");
+    expect(domainsUrl).toContain("window_events=300");
   });
 });
 

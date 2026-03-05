@@ -16,6 +16,12 @@ from app.schemas import (
     ImportJobPublic,
     MoonSummaryPublic,
     PlanetSummaryPublic,
+    StarCoreDomainMetricPublic,
+    StarCoreDomainMetricsResponse,
+    StarCorePolicyPublic,
+    StarCorePulseEventPublic,
+    StarCorePulseResponse,
+    StarCoreRuntimePublic,
     TableContractPublic,
     UserPublic,
 )
@@ -80,6 +86,96 @@ def galaxy_activity_to_public(item) -> GalaxyActivityPublic:
         payload=item.payload if isinstance(item.payload, dict) else {},
         happened_at=item.happened_at,
         created_at=item.created_at,
+    )
+
+
+def star_core_policy_to_public(item: Mapping[str, Any]) -> StarCorePolicyPublic:
+    return StarCorePolicyPublic(
+        user_id=item["user_id"],
+        galaxy_id=item["galaxy_id"],
+        no_hard_delete=bool(item.get("no_hard_delete", True)),
+        deletion_mode=str(item.get("deletion_mode") or "soft_delete"),
+        soft_delete_flag_field=str(item.get("soft_delete_flag_field") or "is_deleted"),
+        soft_delete_timestamp_field=str(item.get("soft_delete_timestamp_field") or "deleted_at"),
+        event_sourcing_enabled=bool(item.get("event_sourcing_enabled", True)),
+        occ_enforced=bool(item.get("occ_enforced", True)),
+        idempotency_supported=bool(item.get("idempotency_supported", True)),
+        branch_scope_supported=bool(item.get("branch_scope_supported", True)),
+        generated_at=item["generated_at"],
+    )
+
+
+def star_core_runtime_to_public(item: Mapping[str, Any]) -> StarCoreRuntimePublic:
+    return StarCoreRuntimePublic(
+        user_id=item["user_id"],
+        galaxy_id=item["galaxy_id"],
+        branch_id=item.get("branch_id"),
+        as_of_event_seq=int(item.get("as_of_event_seq") or 0),
+        sampled_window_size=int(item.get("sampled_window_size") or 0),
+        sampled_since=item.get("sampled_since"),
+        sampled_until=item.get("sampled_until"),
+        events_count=int(item.get("events_count") or 0),
+        writes_per_minute=float(item.get("writes_per_minute") or 0.0),
+        hot_event_types=[str(value) for value in (item.get("hot_event_types") or [])],
+        hot_entities_count=int(item.get("hot_entities_count") or 0),
+        updated_at=item["updated_at"],
+    )
+
+
+def star_core_pulse_to_public(item: Mapping[str, Any]) -> StarCorePulseResponse:
+    events = [
+        StarCorePulseEventPublic(
+            event_seq=int(event.get("event_seq") or 0),
+            event_type=str(event.get("event_type") or ""),
+            entity_id=event["entity_id"],
+            timestamp=event["timestamp"],
+            visual_hint=str(event.get("visual_hint") or "orbital_pulse"),
+            intensity=float(event.get("intensity") or 0.0),
+            payload=event.get("payload") if isinstance(event.get("payload"), dict) else {},
+        )
+        for event in (item.get("events") or [])
+        if isinstance(event, dict) and event.get("entity_id") is not None and event.get("timestamp") is not None
+    ]
+    return StarCorePulseResponse(
+        galaxy_id=item["galaxy_id"],
+        branch_id=item.get("branch_id"),
+        last_event_seq=int(item.get("last_event_seq") or 0),
+        sampled_count=int(item.get("sampled_count") or len(events)),
+        event_types=[str(value) for value in (item.get("event_types") or [])],
+        events=events,
+    )
+
+
+def star_core_domain_metrics_to_public(item: Mapping[str, Any]) -> StarCoreDomainMetricsResponse:
+    domains = [
+        StarCoreDomainMetricPublic(
+            domain_name=str(domain.get("domain_name") or "Uncategorized"),
+            planets_count=int(domain.get("planets_count") or 0),
+            moons_count=int(domain.get("moons_count") or 0),
+            internal_bonds_count=int(domain.get("internal_bonds_count") or 0),
+            external_bonds_count=int(domain.get("external_bonds_count") or 0),
+            guardian_rules_count=int(domain.get("guardian_rules_count") or 0),
+            alerted_moons_count=int(domain.get("alerted_moons_count") or 0),
+            circular_fields_count=int(domain.get("circular_fields_count") or 0),
+            quality_score=int(domain.get("quality_score") or 0),
+            status=str(domain.get("status") or "GREEN"),
+            events_count=int(domain.get("events_count") or 0),
+            writes_per_minute=float(domain.get("writes_per_minute") or 0.0),
+            hot_event_types=[str(value) for value in (domain.get("hot_event_types") or [])],
+            activity_intensity=float(domain.get("activity_intensity") or 0.0),
+        )
+        for domain in (item.get("domains") or [])
+        if isinstance(domain, Mapping)
+    ]
+    return StarCoreDomainMetricsResponse(
+        galaxy_id=item["galaxy_id"],
+        branch_id=item.get("branch_id"),
+        sampled_window_size=int(item.get("sampled_window_size") or 0),
+        sampled_since=item.get("sampled_since"),
+        sampled_until=item.get("sampled_until"),
+        total_events_count=int(item.get("total_events_count") or 0),
+        domains=domains,
+        updated_at=item["updated_at"],
     )
 
 

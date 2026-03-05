@@ -12,4 +12,5 @@ from app.schema_models.execution import *  # noqa: F401,F403
 from app.schema_models.io_models import *  # noqa: F401,F403
 from app.schema_models.planetary import *  # noqa: F401,F403
 from app.schema_models.presets import *  # noqa: F401,F403
+from app.schema_models.star_core import *  # noqa: F401,F403
 from app.schema_models.universe import *  # noqa: F401,F403

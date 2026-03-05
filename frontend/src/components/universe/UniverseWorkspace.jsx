@@ -28,6 +28,10 @@ const DEFAULT_CAMERA_STATE = {
   maxDistance: 1800,
 };
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function nextIdempotencyKey(prefix) {
   const safePrefix = String(prefix || "ui").trim() || "ui";
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -44,6 +48,10 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     tables,
     loading,
     error,
+    starRuntime,
+    starDomains,
+    starPulseByEntity,
+    starPulseLastEventSeq,
     setRuntimeError,
     clearRuntimeError,
     refreshProjection,
@@ -96,6 +104,15 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     () => new Map((Array.isArray(snapshot.asteroids) ? snapshot.asteroids : []).map((item) => [String(item.id), item])),
     [snapshot.asteroids]
   );
+  const domainMetricsByName = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(starDomains) ? starDomains : []).forEach((domain) => {
+      const name = String(domain?.domain_name || "").trim();
+      if (!name) return;
+      map.set(name, domain);
+    });
+    return map;
+  }, [starDomains]);
 
   useEffect(() => {
     if (!selectedAsteroidId) return;
@@ -127,8 +144,35 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       layout.tableNodes.map((node) => ({
         ...node,
         position: layout.tablePositions.get(node.id) || [0, 0, 0],
+        runtimePulse: starPulseByEntity[String(node.id)] || null,
+        runtimeDomain: domainMetricsByName.get(String(node.entityName || "")) || null,
+        v1: {
+          status: String((domainMetricsByName.get(String(node.entityName || "")) || {}).status || "GREEN"),
+          quality_score: Number((domainMetricsByName.get(String(node.entityName || "")) || {}).quality_score ?? 100),
+        },
+        physics: {
+          ...(node.physics || {}),
+          stress: clamp(
+            Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.42,
+            0,
+            1
+          ),
+          pulseFactor: clamp(
+            1 +
+              Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.85 +
+              Number((starPulseByEntity[String(node.id)] || {}).intensity || 0) * 0.45,
+            0.9,
+            2.35
+          ),
+          emissiveBoost: clamp(
+            Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.58 +
+              Number((starPulseByEntity[String(node.id)] || {}).intensity || 0) * 0.36,
+            0,
+            1
+          ),
+        },
       })),
-    [layout]
+    [domainMetricsByName, layout, starPulseByEntity]
   );
 
   const asteroidNodes = useMemo(
@@ -136,8 +180,93 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       layout.asteroidNodes.map((node) => ({
         ...node,
         position: layout.asteroidPositions.get(node.id) || [0, 0, 0],
+        runtimePulse: starPulseByEntity[String(node.id)] || null,
+        runtimeDomain: domainMetricsByName.get(String(node.entityName || "")) || null,
+        v1: {
+          status: String((domainMetricsByName.get(String(node.entityName || "")) || {}).status || "GREEN"),
+          quality_score: Number((domainMetricsByName.get(String(node.entityName || "")) || {}).quality_score ?? 100),
+        },
+        physics: {
+          ...(node.physics || {}),
+          stress: clamp(
+            Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.36 +
+              Number((starPulseByEntity[String(node.id)] || {}).intensity || 0) * 0.32,
+            0,
+            1
+          ),
+          pulseFactor: clamp(
+            1 +
+              Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.66 +
+              Number((starPulseByEntity[String(node.id)] || {}).intensity || 0) * 0.72,
+            0.9,
+            2.35
+          ),
+          emissiveBoost: clamp(
+            Number((domainMetricsByName.get(String(node.entityName || "")) || {}).activity_intensity || 0) * 0.42 +
+              Number((starPulseByEntity[String(node.id)] || {}).intensity || 0) * 0.56,
+            0,
+            1
+          ),
+        },
       })),
-    [layout]
+    [domainMetricsByName, layout, starPulseByEntity]
+  );
+  const tableNodeById = useMemo(() => new Map(tableNodes.map((node) => [String(node.id), node])), [tableNodes]);
+  const asteroidNodeById = useMemo(() => new Map(asteroidNodes.map((node) => [String(node.id), node])), [asteroidNodes]);
+  const tableLinks = useMemo(
+    () =>
+      (layout.tableLinks || []).map((link) => {
+        const source = tableNodeById.get(String(link.source));
+        const target = tableNodeById.get(String(link.target));
+        const sourceActivity = Number(source?.runtimeDomain?.activity_intensity || 0);
+        const targetActivity = Number(target?.runtimeDomain?.activity_intensity || 0);
+        const linkPulse = starPulseByEntity[String(link.id)] || null;
+        const flow = clamp(Math.max(sourceActivity, targetActivity) * 0.9 + Number(linkPulse?.intensity || 0) * 0.6, 0, 1);
+        return {
+          ...link,
+          runtimePulse: linkPulse,
+          physics: {
+            ...(link.physics || {}),
+            flow,
+            speedFactor: 1 + flow * 0.7,
+            widthFactor: 1 + flow * 0.34,
+            pulseSizeFactor: 1 + flow * 0.42,
+            opacityFactor: 1 + flow * 0.12,
+          },
+        };
+      }),
+    [layout.tableLinks, starPulseByEntity, tableNodeById]
+  );
+  const asteroidLinks = useMemo(
+    () =>
+      (layout.asteroidLinks || []).map((link) => {
+        const sourcePulse = starPulseByEntity[String(link.source)] || null;
+        const targetPulse = starPulseByEntity[String(link.target)] || null;
+        const linkPulse = starPulseByEntity[String(link.id)] || null;
+        const sourceActivity = Number(asteroidNodeById.get(String(link.source))?.runtimeDomain?.activity_intensity || 0);
+        const targetActivity = Number(asteroidNodeById.get(String(link.target))?.runtimeDomain?.activity_intensity || 0);
+        const flow = clamp(
+          Math.max(sourceActivity, targetActivity) * 0.72 +
+            Number(sourcePulse?.intensity || 0) * 0.32 +
+            Number(targetPulse?.intensity || 0) * 0.32 +
+            Number(linkPulse?.intensity || 0) * 0.46,
+          0,
+          1
+        );
+        return {
+          ...link,
+          runtimePulse: linkPulse,
+          physics: {
+            ...(link.physics || {}),
+            flow,
+            speedFactor: 1 + flow * 1.05,
+            widthFactor: 1 + flow * 0.48,
+            pulseSizeFactor: 1 + flow * 0.7,
+            opacityFactor: 1 + flow * 0.16,
+          },
+        };
+      }),
+    [asteroidNodeById, layout.asteroidLinks, starPulseByEntity]
   );
 
   const selectedTable = useMemo(
@@ -418,8 +547,8 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         level={level}
         tableNodes={tableNodes}
         asteroidNodes={asteroidNodes}
-        tableLinks={layout.tableLinks || []}
-        asteroidLinks={layout.asteroidLinks || []}
+        tableLinks={tableLinks}
+        asteroidLinks={asteroidLinks}
         cameraState={DEFAULT_CAMERA_STATE}
         selectedTableId={selectedTableId}
         selectedAsteroidId={selectedAsteroidId}
@@ -458,6 +587,9 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         loading={loading}
         busy={busy}
         error={error}
+        starRuntime={starRuntime}
+        starDomains={starDomains}
+        starPulseLastEventSeq={starPulseLastEventSeq}
         selectedTableId={selectedTableId}
         selectedTableLabel={selectedTableLabel}
         selectedAsteroidLabel={selectedAsteroidLabel}

@@ -20,6 +20,7 @@ from app.services.parser_service import ParserService
 from app.services.planet_dashboard_service import PlanetDashboardService
 from app.services.preset_bundle_service import PresetBundleService
 from app.services.schema_preset_service import SchemaPresetService
+from app.services.star_core_service import StarCoreService
 from app.services.task_executor_service import TaskExecutorService
 from app.services.universe_service import UniverseService
 
@@ -44,6 +45,7 @@ class ServiceContainer:
     onboarding_service: OnboardingService
     schema_preset_service: SchemaPresetService
     preset_bundle_service: PresetBundleService
+    star_core_service: StarCoreService
 
 
 _SERVICE_SINGLETON: ServiceContainer | None = None
@@ -108,6 +110,11 @@ def create_services() -> ServiceContainer:
         onboarding_service=onboarding_service,
         schema_preset_service=schema_preset_service,
         preset_bundle_service=preset_bundle_service,
+        star_core_service=StarCoreService(
+            event_store=event_store,
+            universe_service=universe_service,
+            constellation_dashboard_service=constellation_dashboard_service,
+        ),
     )
 
 

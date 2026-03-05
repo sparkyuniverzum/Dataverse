@@ -70,6 +70,9 @@ export default function WorkspaceSidebar({
   loading,
   busy,
   error,
+  starRuntime,
+  starDomains,
+  starPulseLastEventSeq,
   selectedTableId,
   selectedTableLabel,
   selectedAsteroidLabel,
@@ -79,6 +82,9 @@ export default function WorkspaceSidebar({
   onBackToGalaxies,
   onLogout,
 }) {
+  const topDomains = (Array.isArray(starDomains) ? starDomains : []).slice(0, 3);
+  const hotEventTypes = Array.isArray(starRuntime?.hot_event_types) ? starRuntime.hot_event_types.slice(0, 3) : [];
+
   return (
     <aside
       style={{
@@ -106,8 +112,82 @@ export default function WorkspaceSidebar({
         <span style={hudBadgeStyle}>Planety {tableNodes.length}</span>
         <span style={hudBadgeStyle}>Mesice {asteroidCount}</span>
         <span style={hudBadgeStyle}>Vazby {bondCount}</span>
+        <span style={hudBadgeStyle}>Star seq {Number.isFinite(Number(starPulseLastEventSeq)) ? Number(starPulseLastEventSeq) : 0}</span>
         {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam...</span> : null}
         {busy ? <span style={{ ...hudBadgeStyle, color: "#ffd59c" }}>Ukladam...</span> : null}
+      </div>
+
+      <div
+        style={{
+          border: "1px solid rgba(84, 194, 238, 0.2)",
+          background: "rgba(3, 12, 24, 0.8)",
+          borderRadius: 10,
+          padding: "8px 9px",
+          display: "grid",
+          gap: 6,
+        }}
+      >
+        <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>
+          SOURCE CORE
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <span style={hudBadgeStyle}>
+            Write/min{" "}
+            <strong>
+              {Number.isFinite(Number(starRuntime?.writes_per_minute))
+                ? Number(starRuntime.writes_per_minute).toFixed(2)
+                : "0.00"}
+            </strong>
+          </span>
+          <span style={hudBadgeStyle}>Events {Number.isFinite(Number(starRuntime?.events_count)) ? Number(starRuntime.events_count) : 0}</span>
+          <span style={hudBadgeStyle}>Entity hot {Number.isFinite(Number(starRuntime?.hot_entities_count)) ? Number(starRuntime.hot_entities_count) : 0}</span>
+        </div>
+        {hotEventTypes.length ? (
+          <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.86 }}>
+            Typy: <strong>{hotEventTypes.join(" · ")}</strong>
+          </div>
+        ) : null}
+        {topDomains.length ? (
+          <div style={{ display: "grid", gap: 4 }}>
+            {topDomains.map((domain) => {
+              const name = String(domain?.domain_name || "Uncategorized");
+              const status = String(domain?.status || "GREEN").toUpperCase();
+              const intensity = Math.max(0, Math.min(1, Number(domain?.activity_intensity || 0)));
+              const eventCount = Number.isFinite(Number(domain?.events_count)) ? Number(domain.events_count) : 0;
+              return (
+                <div key={name} style={{ fontSize: "var(--dv-fs-2xs)", display: "grid", gap: 2 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <span>
+                      {name} · <strong>{eventCount}</strong>
+                    </span>
+                    <span style={{ color: status === "RED" ? "#ff8ead" : status === "YELLOW" ? "#ffd48d" : "#92f1c9" }}>{status}</span>
+                  </div>
+                  <div
+                    style={{
+                      height: 4,
+                      borderRadius: 999,
+                      background: "rgba(99, 170, 208, 0.24)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${Math.round(intensity * 100)}%`,
+                        height: "100%",
+                        background:
+                          status === "RED"
+                            ? "linear-gradient(90deg, #ff7f96, #ff5778)"
+                            : status === "YELLOW"
+                              ? "linear-gradient(90deg, #ffca7b, #ffab51)"
+                              : "linear-gradient(90deg, #67dbff, #83ffce)",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       <label style={{ display: "grid", gap: 4 }}>

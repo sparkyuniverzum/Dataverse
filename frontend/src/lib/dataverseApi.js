@@ -268,6 +268,42 @@ export function buildGalaxyEventsStreamUrl(apiBase, galaxyId, { branchId = null,
   return url.toString();
 }
 
+export function buildStarCoreRuntimeUrl(apiBase, galaxyId, { branchId = null, windowEvents = 120 } = {}) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/star-core/runtime`);
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  if (Number.isFinite(windowEvents)) {
+    url.searchParams.set("window_events", String(Math.max(16, Math.min(256, Math.floor(Number(windowEvents))))));
+  }
+  return url.toString();
+}
+
+export function buildStarCorePulseUrl(apiBase, galaxyId, { branchId = null, afterEventSeq = null, limit = 64 } = {}) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/star-core/pulse`);
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  if (Number.isFinite(afterEventSeq) && Number(afterEventSeq) >= 0) {
+    url.searchParams.set("after_event_seq", String(Math.floor(Number(afterEventSeq))));
+  }
+  if (Number.isFinite(limit)) {
+    url.searchParams.set("limit", String(Math.max(1, Math.min(256, Math.floor(Number(limit))))));
+  }
+  return url.toString();
+}
+
+export function buildStarCoreDomainMetricsUrl(apiBase, galaxyId, { branchId = null, windowEvents = 240 } = {}) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/star-core/metrics/domains`);
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  if (Number.isFinite(windowEvents)) {
+    url.searchParams.set("window_events", String(Math.max(32, Math.min(512, Math.floor(Number(windowEvents))))));
+  }
+  return url.toString();
+}
+
 export function buildImportRunUrl(apiBase) {
   return `${apiBase}/io/imports`;
 }
