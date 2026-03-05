@@ -22,7 +22,7 @@ class UniverseAsteroidSnapshot(BaseModel):
     circular_fields_count: int = 0
     active_alerts: list[str] = Field(default_factory=list)
     physics: dict[str, Any] = Field(default_factory=dict)
-    facts: list["MineralFact"] = Field(default_factory=list)
+    facts: list[MineralFact] = Field(default_factory=list)
     created_at: datetime
     current_event_seq: int = 0
 

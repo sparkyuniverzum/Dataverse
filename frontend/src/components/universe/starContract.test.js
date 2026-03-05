@@ -7,6 +7,10 @@ import {
   STAR_DOMAIN_BE_FIELDS,
   STAR_DOMAIN_FE_USED_FIELDS,
   STAR_FIELD_CLASS,
+  STAR_PHYSICS_PROFILE_BE_FIELDS,
+  STAR_PHYSICS_PROFILE_FE_USED_FIELDS,
+  STAR_PLANET_PHYSICS_ITEM_BE_FIELDS,
+  STAR_PLANET_PHYSICS_ITEM_FE_USED_FIELDS,
   STAR_POLICY_BE_FIELDS,
   STAR_POLICY_FE_USED_FIELDS,
   STAR_PULSE_EVENT_BE_FIELDS,
@@ -14,6 +18,7 @@ import {
   STAR_RUNTIME_BE_FIELDS,
   STAR_RUNTIME_FE_USED_FIELDS,
   getStarContractClassificationReport,
+  getStarPhysicsContractUsageDiff,
   getStarContractUsageDiff,
   normalizeStarDomains,
   normalizeStarPhysicsProfile,
@@ -140,5 +145,16 @@ describe("starContract BE->FE usage diff", () => {
     expect(baseline.classification.classes).toEqual(STAR_FIELD_CLASS);
     expect(baseline.classification.by_section).toEqual(STAR_CONTRACT_FIELD_CLASSIFICATION);
     expect(baseline.classification.report).toEqual(getStarContractClassificationReport());
+  });
+
+  it("matches frozen star physics baseline v2", () => {
+    const baselinePath = fileURLToPath(new URL("../../../../docs/star-physics-contract-baseline-v2.json", import.meta.url));
+    const baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
+    expect(baseline.version).toBe("v2");
+    expect(baseline.source_of_truth.physics_profile.be_fields).toEqual(STAR_PHYSICS_PROFILE_BE_FIELDS);
+    expect(baseline.source_of_truth.physics_profile.fe_used_fields).toEqual(STAR_PHYSICS_PROFILE_FE_USED_FIELDS);
+    expect(baseline.source_of_truth.planet_physics_item.be_fields).toEqual(STAR_PLANET_PHYSICS_ITEM_BE_FIELDS);
+    expect(baseline.source_of_truth.planet_physics_item.fe_used_fields).toEqual(STAR_PLANET_PHYSICS_ITEM_FE_USED_FIELDS);
+    expect(baseline.diff).toEqual(getStarPhysicsContractUsageDiff());
   });
 });

@@ -10,8 +10,8 @@ from app.api.runtime import commit_if_active, get_service_container, transaction
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
-from app.schemas import BranchCreateRequest, BranchPromoteResponse, BranchPublic
 from app.modules.auth.dependencies import get_current_user
+from app.schemas import BranchCreateRequest, BranchPromoteResponse, BranchPublic
 
 router = APIRouter(tags=["branches"])
 

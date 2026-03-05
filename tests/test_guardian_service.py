@@ -1,6 +1,6 @@
-from pathlib import Path
 import sys
 import uuid
+from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 

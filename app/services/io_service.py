@@ -12,7 +12,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -396,7 +396,9 @@ class ImportExportService:
         stream = io.StringIO(decoded)
         reader = csv.DictReader(stream)
         if not reader.fieldnames:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="CSV must include a header row")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="CSV must include a header row"
+            )
 
         total_rows = 0
         processed_rows = 0

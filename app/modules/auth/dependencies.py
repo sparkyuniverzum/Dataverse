@@ -13,7 +13,6 @@ from app.modules.auth.errors import invalid_token_error, missing_session_error
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.security import TokenClaims, decode_token_safe, utc_now
 
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-import json
 from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, cast, func, literal, or_, select, text as sql_text
+from sqlalchemy import and_, cast, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -290,7 +290,10 @@ class TaskExecutorService:
             if not isinstance(item, dict):
                 continue
             embedded_rule = item.get("rule")
-            if isinstance(embedded_rule, dict) and str(item.get("kind") or "").strip().lower() in {"auto_semantic", "auto_semantics"}:
+            if isinstance(embedded_rule, dict) and str(item.get("kind") or "").strip().lower() in {
+                "auto_semantic",
+                "auto_semantics",
+            }:
                 extracted.append(embedded_rule)
                 continue
             kind = str(item.get("kind") or "").strip().lower()
@@ -360,7 +363,9 @@ class TaskExecutorService:
                 target_table_name = self._semantic_rule_target_table_name(rule)
                 if not target_table_name:
                     continue
-                if self._normalize_semantic_token(target_table_name) == self._normalize_semantic_token(before_table_name):
+                if self._normalize_semantic_token(target_table_name) == self._normalize_semantic_token(
+                    before_table_name
+                ):
                     continue
 
                 metadata_patch = {}
@@ -767,17 +772,21 @@ class TaskExecutorService:
             return None
 
         row = (
-            await session.execute(
-                select(Atom).where(
-                    and_(
-                        Atom.user_id == user_id,
-                        Atom.galaxy_id == galaxy_id,
-                        Atom.is_deleted.is_(False),
-                        Atom.value == cast(literal(value_json), JSONB),
+            (
+                await session.execute(
+                    select(Atom).where(
+                        and_(
+                            Atom.user_id == user_id,
+                            Atom.galaxy_id == galaxy_id,
+                            Atom.is_deleted.is_(False),
+                            Atom.value == cast(literal(value_json), JSONB),
+                        )
                     )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if row is None:
             return None
 
@@ -1085,8 +1094,10 @@ class TaskExecutorService:
 
         result = TaskExecutionResult()
         transaction_ctx = (
-            session.begin_nested() if session.in_transaction() else session.begin()
-        ) if manage_transaction else _no_transaction()
+            (session.begin_nested() if session.in_transaction() else session.begin())
+            if manage_transaction
+            else _no_transaction()
+        )
         async with transaction_ctx:
             context = _TaskExecutionContext(
                 session=session,

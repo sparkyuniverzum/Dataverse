@@ -18,11 +18,7 @@ async def handle_formula_guardian_select_family(
 ) -> bool:
     action = task.action.upper()
     if action == "SELECT":
-        target = (
-            task.params.get("target_asteroid")
-            or task.params.get("target_planet")
-            or task.params.get("target")
-        )
+        target = task.params.get("target_asteroid") or task.params.get("target_planet") or task.params.get("target")
         if not target:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

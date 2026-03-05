@@ -71,7 +71,7 @@ class ParserService:
         candidate = value.strip()
         if not candidate:
             return ""
-        normalized = candidate.replace("\u00A0", "").replace(" ", "").replace(",", ".")
+        normalized = candidate.replace("\u00a0", "").replace(" ", "").replace(",", ".")
         try:
             float_value = float(normalized)
         except ValueError:
@@ -334,7 +334,9 @@ class ParserService:
         parsed_parts = [(value, metadata) for value, metadata in parsed_parts if value]
 
         if len(parsed_parts) < 2:
-            return ParseResult(tasks=[], errors=[f"Invalid expression: expected at least two operands for '{operator}'."])
+            return ParseResult(
+                tasks=[], errors=[f"Invalid expression: expected at least two operands for '{operator}'."]
+            )
         relation_type = self.relation_operators[operator]
         return ParseResult(tasks=self._build_link_tasks(parsed_parts, relation_type=relation_type), errors=[])
 

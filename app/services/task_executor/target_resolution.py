@@ -71,9 +71,7 @@ class TargetResolver:
 
         lowered = normalized.lower()
         exact_matches = [
-            asteroid
-            for asteroid in asteroids
-            if cls.value_to_text(asteroid.value).strip().lower() == lowered
+            asteroid for asteroid in asteroids if cls.value_to_text(asteroid.value).strip().lower() == lowered
         ]
         if len(exact_matches) == 1:
             return exact_matches[0]
@@ -83,11 +81,7 @@ class TargetResolver:
                 detail=f"Ambiguous target '{target}' (multiple exact matches)",
             )
 
-        contains_matches = [
-            asteroid
-            for asteroid in asteroids
-            if lowered in cls.value_to_text(asteroid.value).lower()
-        ]
+        contains_matches = [asteroid for asteroid in asteroids if lowered in cls.value_to_text(asteroid.value).lower()]
         if len(contains_matches) == 1:
             return contains_matches[0]
         if len(contains_matches) > 1:

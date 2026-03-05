@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_, select, text as sql_text
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy import text as sql_text
 
 from app.models import Bond
 from app.services.bond_semantics import normalize_bond_type
@@ -84,11 +85,7 @@ async def handle_link_and_bond_mutation_family(
                 if str(bond.type or "").upper() == bond_type
                 and (
                     (bond.source_id == source_uuid and bond.target_id == target_uuid)
-                    or (
-                        is_relation
-                        and bond.source_id == target_uuid
-                        and bond.target_id == source_uuid
-                    )
+                    or (is_relation and bond.source_id == target_uuid and bond.target_id == source_uuid)
                 )
             ),
             None,
@@ -136,13 +133,7 @@ async def handle_link_and_bond_mutation_family(
                 Bond.target_id == target_uuid,
             )
 
-        persisted_bond = (
-            await ctx.session.execute(
-                select(Bond).where(
-                    bond_match_predicate
-                )
-            )
-        ).scalar_one_or_none()
+        persisted_bond = (await ctx.session.execute(select(Bond).where(bond_match_predicate))).scalar_one_or_none()
         if persisted_bond is not None:
             persisted_seq = await self._current_entity_event_seq(
                 session=ctx.session,
@@ -254,11 +245,7 @@ async def handle_link_and_bond_mutation_family(
                 and normalize_bond_type(candidate.type) == next_type
                 and (
                     (candidate.source_id == source_uuid and candidate.target_id == target_uuid)
-                    or (
-                        next_is_relation
-                        and candidate.source_id == target_uuid
-                        and candidate.target_id == source_uuid
-                    )
+                    or (next_is_relation and candidate.source_id == target_uuid and candidate.target_id == source_uuid)
                 )
             ),
             None,

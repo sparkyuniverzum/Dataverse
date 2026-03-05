@@ -4,7 +4,8 @@ from hashlib import blake2b
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select, text as sql_text
+from sqlalchemy import func, select
+from sqlalchemy import text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Event
@@ -21,7 +22,7 @@ class OccGuards:
         bond_type: str,
     ) -> int:
         digest = blake2b(
-            f"{user_id}:{galaxy_id}:{source_id}:{target_id}:{bond_type}".encode("utf-8"),
+            f"{user_id}:{galaxy_id}:{source_id}:{target_id}:{bond_type}".encode(),
             digest_size=8,
         ).digest()
         return int.from_bytes(digest, byteorder="big", signed=True)
@@ -35,7 +36,7 @@ class OccGuards:
     ) -> int:
         branch_scope = str(branch_id) if branch_id is not None else "main"
         digest = blake2b(
-            f"occ:{user_id}:{galaxy_id}:{branch_scope}".encode("utf-8"),
+            f"occ:{user_id}:{galaxy_id}:{branch_scope}".encode(),
             digest_size=8,
         ).digest()
         return int.from_bytes(digest, byteorder="big", signed=True)

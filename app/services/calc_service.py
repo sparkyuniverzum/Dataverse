@@ -4,7 +4,6 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-
 _FORMULA_RE = re.compile(r"^=\s*(SUM|AVG|MIN|MAX|COUNT)\s*\(\s*([^)]+)\s*\)\s*$", re.IGNORECASE)
 
 
@@ -30,7 +29,7 @@ def _to_number(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
-        cleaned = value.strip().replace("\u00A0", "").replace(" ", "").replace(",", ".")
+        cleaned = value.strip().replace("\u00a0", "").replace(" ", "").replace(",", ".")
         if not cleaned:
             return None
         try:

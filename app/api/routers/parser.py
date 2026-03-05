@@ -15,8 +15,8 @@ from app.api.runtime import (
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
-from app.schemas import ParseCommandRequest, ParseCommandResponse
 from app.modules.auth.dependencies import get_current_user
+from app.schemas import ParseCommandRequest, ParseCommandResponse
 from app.services.parser2 import Parser2SemanticPlanner, SnapshotSemanticResolver, parser_v2_fallback_to_v1_enabled
 from app.services.parser_service import AtomicTask
 

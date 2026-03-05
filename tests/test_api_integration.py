@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 import os
-from threading import Barrier
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from threading import Barrier
 
 import httpx
 import pytest
@@ -509,7 +509,9 @@ def test_snapshot_as_of_returns_historical_state(auth_client: tuple[httpx.Client
     created_at = _parse_iso_datetime(atom_a_body["created_at"])
     before_creation = (created_at - timedelta(milliseconds=1)).isoformat()
 
-    snapshot_before_creation = client.get("/universe/snapshot", params={"as_of": before_creation, "galaxy_id": galaxy_id})
+    snapshot_before_creation = client.get(
+        "/universe/snapshot", params={"as_of": before_creation, "galaxy_id": galaxy_id}
+    )
     assert snapshot_before_creation.status_code == 200
     before_creation_ids = {atom["id"] for atom in snapshot_before_creation.json()["asteroids"]}
     assert atom_a_id not in before_creation_ids
@@ -543,7 +545,9 @@ def test_snapshot_as_of_returns_historical_state(auth_client: tuple[httpx.Client
     assert bond_id not in after_delete_bond_ids
 
 
-def test_parser_metadata_parentheses_are_persisted_and_visible_in_snapshot(auth_client: tuple[httpx.Client, str]) -> None:
+def test_parser_metadata_parentheses_are_persisted_and_visible_in_snapshot(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
     client, galaxy_id = auth_client
     company = f"Firma-{uuid.uuid4()}"
     product = f"Produkt-{uuid.uuid4()}"
@@ -637,7 +641,9 @@ def test_set_formula_command_is_calculated_in_snapshot_output(auth_client: tuple
     item_b = f"PolozkaB-{uuid.uuid4()}"
 
     project_resp = client.post("/asteroids/ingest", json={"value": project, "galaxy_id": galaxy_id})
-    a_resp = client.post("/asteroids/ingest", json={"value": item_a, "metadata": {"cena": "120"}, "galaxy_id": galaxy_id})
+    a_resp = client.post(
+        "/asteroids/ingest", json={"value": item_a, "metadata": {"cena": "120"}, "galaxy_id": galaxy_id}
+    )
     b_resp = client.post("/asteroids/ingest", json={"value": item_b, "metadata": {"cena": 30}, "galaxy_id": galaxy_id})
     assert project_resp.status_code == 200, project_resp.text
     assert a_resp.status_code == 200, a_resp.text
@@ -929,6 +935,7 @@ def test_link_occ_rejects_stale_expected_source_seq(auth_client: tuple[httpx.Cli
     detail = _assert_occ_conflict(stale_link, expected_event_seq=source_seq)
     assert "source" in detail["context"].lower()
 
+
 def test_guardian_command_is_idempotent_for_same_rule(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     project = f"GuardianProjekt-{uuid.uuid4()}"
@@ -1017,7 +1024,11 @@ def test_snapshot_v1_contract_contains_table_projection_fields(auth_client: tupl
     asteroid = body["asteroids"][0]
     assert "table_id" in asteroid
     assert "table_name" in asteroid
-    assert "constellation_name" in asteroid and isinstance(asteroid["constellation_name"], str) and asteroid["constellation_name"]
+    assert (
+        "constellation_name" in asteroid
+        and isinstance(asteroid["constellation_name"], str)
+        and asteroid["constellation_name"]
+    )
     assert "planet_name" in asteroid and isinstance(asteroid["planet_name"], str) and asteroid["planet_name"]
     assert "metadata" in asteroid
     assert "calculated_values" in asteroid
@@ -1182,7 +1193,13 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
     assert "entity_id" in first_event
     assert "timestamp" not in first_event
     assert "payload" not in first_event
-    assert first_event["visual_hint"] in {"source_shockwave", "fade_to_singularity", "bridge_flux", "surface_pulse", "orbital_pulse"}
+    assert first_event["visual_hint"] in {
+        "source_shockwave",
+        "fade_to_singularity",
+        "bridge_flux",
+        "surface_pulse",
+        "orbital_pulse",
+    }
     assert isinstance(first_event["intensity"], float)
 
     domains = client.get(f"/galaxies/{galaxy_id}/star-core/metrics/domains", params={"window_events": 64})
@@ -1381,7 +1398,11 @@ def test_tables_v1_contract_contains_sector_and_bond_buckets(auth_client: tuple[
         assert "table_id" in table
         assert "galaxy_id" in table
         assert "name" in table
-        assert "constellation_name" in table and isinstance(table["constellation_name"], str) and table["constellation_name"]
+        assert (
+            "constellation_name" in table
+            and isinstance(table["constellation_name"], str)
+            and table["constellation_name"]
+        )
         assert "planet_name" in table and isinstance(table["planet_name"], str) and table["planet_name"]
         assert "schema_fields" in table and isinstance(table["schema_fields"], list)
         assert "formula_fields" in table and isinstance(table["formula_fields"], list)
@@ -1488,7 +1509,9 @@ def test_csv_import_lenient_mode_persists_valid_rows_and_exposes_errors(auth_cli
 def test_csv_export_snapshot_returns_csv(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     label = f"CSV-Export-{uuid.uuid4()}"
-    created = client.post("/asteroids/ingest", json={"value": label, "metadata": {"kategorie": "Test"}, "galaxy_id": galaxy_id})
+    created = client.post(
+        "/asteroids/ingest", json={"value": label, "metadata": {"kategorie": "Test"}, "galaxy_id": galaxy_id}
+    )
     assert created.status_code == 200, created.text
 
     exported = client.get("/io/exports/snapshot", params={"format": "csv", "galaxy_id": galaxy_id})
@@ -1815,7 +1838,11 @@ def test_csv_import_contract_violation_strict_mode_stops_processing(auth_client:
 
     seeded = client.post(
         "/asteroids/ingest",
-        json={"value": f"SeedStrict-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": 10, "sku": "S-001"}, "galaxy_id": galaxy_id},
+        json={
+            "value": f"SeedStrict-{uuid.uuid4()}",
+            "metadata": {"table": table_name, "cena": 10, "sku": "S-001"},
+            "galaxy_id": galaxy_id,
+        },
     )
     assert seeded.status_code == 200, seeded.text
     seeded_id = seeded.json()["id"]
@@ -1837,11 +1864,7 @@ def test_csv_import_contract_violation_strict_mode_stops_processing(auth_client:
     )
     assert contract.status_code == 201, contract.text
 
-    csv_payload = (
-        "value,table,cena,sku\n"
-        f"{invalid_label},{table_name},abc,S-010\n"
-        f"{valid_label},{table_name},45,S-011\n"
-    )
+    csv_payload = f"value,table,cena,sku\n{invalid_label},{table_name},abc,S-010\n{valid_label},{table_name},45,S-011\n"
     imported = client.post(
         "/io/imports",
         data={"mode": "commit", "strict": "true", "galaxy_id": galaxy_id},
@@ -1915,7 +1938,13 @@ def test_table_contract_versioning_returns_latest(auth_client: tuple[httpx.Clien
                 }
             ],
             "physics_rulebook": {
-                "rules": [{"id": "risk-red", "when": [{"field": "cena", "op": ">", "value": 1000}], "effects": {"color": "#ff6b8a"}}],
+                "rules": [
+                    {
+                        "id": "risk-red",
+                        "when": [{"field": "cena", "op": ">", "value": 1000}],
+                        "effects": {"color": "#ff6b8a"},
+                    }
+                ],
                 "defaults": {"color": "#92ffd8", "radius": 1.2},
             },
         },
@@ -1943,7 +1972,11 @@ def test_table_contract_is_enforced_for_ingest_and_mutate(auth_client: tuple[htt
 
     seeded = client.post(
         "/asteroids/ingest",
-        json={"value": f"Seed-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": 10, "sku": "S-001"}, "galaxy_id": galaxy_id},
+        json={
+            "value": f"Seed-{uuid.uuid4()}",
+            "metadata": {"table": table_name, "cena": 10, "sku": "S-001"},
+            "galaxy_id": galaxy_id,
+        },
     )
     assert seeded.status_code == 200, seeded.text
     seeded_id = seeded.json()["id"]
@@ -1968,21 +2001,33 @@ def test_table_contract_is_enforced_for_ingest_and_mutate(auth_client: tuple[htt
 
     missing_required = client.post(
         "/asteroids/ingest",
-        json={"value": f"Missing-{uuid.uuid4()}", "metadata": {"table": table_name, "sku": "S-002"}, "galaxy_id": galaxy_id},
+        json={
+            "value": f"Missing-{uuid.uuid4()}",
+            "metadata": {"table": table_name, "sku": "S-002"},
+            "galaxy_id": galaxy_id,
+        },
     )
     assert missing_required.status_code == 422, missing_required.text
     assert "required field 'cena'" in missing_required.text
 
     invalid_type = client.post(
         "/asteroids/ingest",
-        json={"value": f"Type-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": "abc", "sku": "S-003"}, "galaxy_id": galaxy_id},
+        json={
+            "value": f"Type-{uuid.uuid4()}",
+            "metadata": {"table": table_name, "cena": "abc", "sku": "S-003"},
+            "galaxy_id": galaxy_id,
+        },
     )
     assert invalid_type.status_code == 422, invalid_type.text
     assert "must be 'number'" in invalid_type.text
 
     unique_violation = client.post(
         "/asteroids/ingest",
-        json={"value": f"Unique-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": 20, "sku": "S-001"}, "galaxy_id": galaxy_id},
+        json={
+            "value": f"Unique-{uuid.uuid4()}",
+            "metadata": {"table": table_name, "cena": 20, "sku": "S-001"},
+            "galaxy_id": galaxy_id,
+        },
     )
     assert unique_violation.status_code == 422, unique_violation.text
     assert "unique rule" in unique_violation.text
@@ -2002,7 +2047,11 @@ def test_table_contract_semantic_validator_is_non_blocking(auth_client: tuple[ht
 
     seeded = client.post(
         "/asteroids/ingest",
-        json={"value": seed_label, "metadata": {"table": table_name, "cena": 42, "owner": "init"}, "galaxy_id": galaxy_id},
+        json={
+            "value": seed_label,
+            "metadata": {"table": table_name, "cena": 42, "owner": "init"},
+            "galaxy_id": galaxy_id,
+        },
     )
     assert seeded.status_code == 200, seeded.text
     seeded_id = seeded.json()["id"]
@@ -2029,7 +2078,11 @@ def test_table_contract_semantic_validator_is_non_blocking(auth_client: tuple[ht
 
     ingested = client.post(
         "/asteroids/ingest",
-        json={"value": f"SemanticOk-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": 77, "owner": "Team-A"}, "galaxy_id": galaxy_id},
+        json={
+            "value": f"SemanticOk-{uuid.uuid4()}",
+            "metadata": {"table": table_name, "cena": 77, "owner": "Team-A"},
+            "galaxy_id": galaxy_id,
+        },
     )
     assert ingested.status_code == 200, ingested.text
 
@@ -2055,7 +2108,11 @@ def test_csv_import_contract_violation_is_reported_per_row(auth_client: tuple[ht
 
     seeded = client.post(
         "/asteroids/ingest",
-        json={"value": f"SeedImport-{uuid.uuid4()}", "metadata": {"table": table_name, "cena": 10, "sku": "I-001"}, "galaxy_id": galaxy_id},
+        json={
+            "value": f"SeedImport-{uuid.uuid4()}",
+            "metadata": {"table": table_name, "cena": 10, "sku": "I-001"},
+            "galaxy_id": galaxy_id,
+        },
     )
     assert seeded.status_code == 200, seeded.text
     seeded_id = seeded.json()["id"]
@@ -2077,11 +2134,7 @@ def test_csv_import_contract_violation_is_reported_per_row(auth_client: tuple[ht
     )
     assert contract.status_code == 201, contract.text
 
-    csv_payload = (
-        "value,table,cena,sku\n"
-        f"{invalid_label},{table_name},abc,I-010\n"
-        f"{valid_label},{table_name},45,I-011\n"
-    )
+    csv_payload = f"value,table,cena,sku\n{invalid_label},{table_name},abc,I-010\n{valid_label},{table_name},45,I-011\n"
     imported = client.post(
         "/io/imports",
         data={"mode": "commit", "strict": "false", "galaxy_id": galaxy_id},
@@ -2169,11 +2222,7 @@ def test_link_type_alias_formula_is_normalized_to_flow(auth_client: tuple[httpx.
 
     snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
     assert snapshot.status_code == 200, snapshot.text
-    matched = [
-        bond
-        for bond in snapshot.json()["bonds"]
-        if bond.get("id") == body["id"]
-    ]
+    matched = [bond for bond in snapshot.json()["bonds"] if bond.get("id") == body["id"]]
     assert len(matched) == 1
     assert matched[0]["type"] == "FLOW"
     assert matched[0]["directional"] is True
@@ -2262,11 +2311,7 @@ def test_bond_mutate_replaces_type_and_preserves_single_active_edge(auth_client:
     snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
     assert snapshot.status_code == 200, snapshot.text
     bonds = snapshot.json()["bonds"]
-    active = [
-        bond
-        for bond in bonds
-        if {bond.get("source_id"), bond.get("target_id")} == {source_id, target_id}
-    ]
+    active = [bond for bond in bonds if {bond.get("source_id"), bond.get("target_id")} == {source_id, target_id}]
     assert len(active) == 1
     assert active[0]["id"] == mutated_body["id"]
     assert active[0]["type"] == "TYPE"
@@ -2388,7 +2433,6 @@ def test_task_batch_commit_persists_changes_atomically(auth_client: tuple[httpx.
     after = _snapshot_asteroid(client, galaxy_id=galaxy_id, asteroid_id=asteroid_id)
     assert after.get("metadata", {}).get("batch_field") == "committed"
     assert int(after["current_event_seq"]) > base_seq
-
 
 
 def test_apply_bundle_preset_preview_and_commit(auth_client: tuple[httpx.Client, str]) -> None:
@@ -2542,11 +2586,19 @@ def test_planet_stage0_two_planets_validate_star_laws(auth_client: tuple[httpx.C
 
     catalog_moon = client.post(
         "/asteroids/ingest",
-        json={"value": f"Moon-Catalog-{uuid.uuid4().hex[:6]}", "metadata": {"table": catalog_name}, "galaxy_id": galaxy_id},
+        json={
+            "value": f"Moon-Catalog-{uuid.uuid4().hex[:6]}",
+            "metadata": {"table": catalog_name},
+            "galaxy_id": galaxy_id,
+        },
     )
     stream_moon = client.post(
         "/asteroids/ingest",
-        json={"value": f"Moon-Stream-{uuid.uuid4().hex[:6]}", "metadata": {"table": stream_name}, "galaxy_id": galaxy_id},
+        json={
+            "value": f"Moon-Stream-{uuid.uuid4().hex[:6]}",
+            "metadata": {"table": stream_name},
+            "galaxy_id": galaxy_id,
+        },
     )
     assert catalog_moon.status_code == 200, catalog_moon.text
     assert stream_moon.status_code == 200, stream_moon.text

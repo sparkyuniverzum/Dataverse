@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -16,9 +16,7 @@ from app.services.parser2 import (
 )
 
 _SPEC_PATH = Path(__file__).resolve().parents[1] / "docs/contracts/parser-v2-spec.md"
-_CASE_RE = re.compile(
-    r"^\s*(?P<idx>\d+)\.\s+`(?P<input>[^`]*)`(?:\s+\([^)]*\))?\s+->\s+`(?P<expected>[^`]*)`\s*$"
-)
+_CASE_RE = re.compile(r"^\s*(?P<idx>\d+)\.\s+`(?P<input>[^`]*)`(?:\s+\([^)]*\))?\s+->\s+`(?P<expected>[^`]*)`\s*$")
 _CANONICAL_PREFIXES = ("ENTITY(", "TYPE(", "REL(", "EXT(", "ASSIGN(", "FLOW(", "GROUP(")
 _ERROR_PREFIXES = ("PARSE_", "LEX_")
 

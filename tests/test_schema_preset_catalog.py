@@ -13,7 +13,6 @@ def test_schema_preset_catalog_has_expected_core_set() -> None:
     assert "metrics_timeseries" in keys
 
 
-
 def test_schema_preset_detail_contains_contract_and_seed_rows() -> None:
     preset = get_schema_preset("transactions")
     assert preset is not None

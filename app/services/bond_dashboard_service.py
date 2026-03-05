@@ -7,7 +7,13 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.bond_semantics import bond_semantics
-from app.services.universe_service import DEFAULT_GALAXY_ID, UniverseService, derive_table_id, derive_table_name, split_constellation_and_planet_name
+from app.services.universe_service import (
+    DEFAULT_GALAXY_ID,
+    UniverseService,
+    derive_table_id,
+    derive_table_name,
+    split_constellation_and_planet_name,
+)
 
 
 class BondDashboardService:
@@ -66,7 +72,11 @@ class BondDashboardService:
                 if isinstance(table_name, str) and table_name.strip()
                 else derive_table_name(value=value, metadata=metadata_dict)
             )
-            resolved_table_id = table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=resolved_table_name)
+            resolved_table_id = (
+                table_id
+                if isinstance(table_id, UUID)
+                else derive_table_id(galaxy_id=galaxy_id, table_name=resolved_table_name)
+            )
 
             resolved_constellation = str(constellation_name).strip() if isinstance(constellation_name, str) else ""
             resolved_planet = str(planet_name).strip() if isinstance(planet_name, str) else ""

@@ -73,7 +73,11 @@ class MoonDashboardService:
                 if isinstance(table_name, str) and str(table_name).strip()
                 else derive_table_name(value=value, metadata=metadata_dict)
             )
-            resolved_table_id = table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=resolved_table_name)
+            resolved_table_id = (
+                table_id
+                if isinstance(table_id, UUID)
+                else derive_table_id(galaxy_id=galaxy_id, table_name=resolved_table_name)
+            )
 
             resolved_constellation = str(constellation_name).strip() if isinstance(constellation_name, str) else ""
             resolved_planet = str(planet_name).strip() if isinstance(planet_name, str) else ""
@@ -83,9 +87,15 @@ class MoonDashboardService:
                 resolved_planet = resolved_planet or fallback_planet
 
             guardians = metadata_dict.get("_guardians")
-            guardian_rules_count = len([rule for rule in guardians if isinstance(rule, dict)]) if isinstance(guardians, list) else 0
+            guardian_rules_count = (
+                len([rule for rule in guardians if isinstance(rule, dict)]) if isinstance(guardians, list) else 0
+            )
             metadata_fields_count = len(
-                [key for key in metadata_dict.keys() if str(key) not in {"table", "table_id", "table_name", "_guardians"}]
+                [
+                    key
+                    for key in metadata_dict.keys()
+                    if str(key) not in {"table", "table_id", "table_name", "_guardians"}
+                ]
             )
             calculated_fields_count = len(calculated_values_dict)
             circular_fields_count = sum(1 for value in calculated_values_dict.values() if value == "#CIRC!")
@@ -118,6 +128,11 @@ class MoonDashboardService:
                 }
             )
 
-        rows.sort(key=lambda item: (str(item["constellation_name"]).lower(), str(item["planet_name"]).lower(), str(item["label"]).lower()))
+        rows.sort(
+            key=lambda item: (
+                str(item["constellation_name"]).lower(),
+                str(item["planet_name"]).lower(),
+                str(item["label"]).lower(),
+            )
+        )
         return rows
-

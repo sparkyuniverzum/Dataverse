@@ -49,7 +49,8 @@ async def handle_ingest_update_family(
             (
                 asteroid
                 for asteroid in ctx.asteroids_by_id.values()
-                if asteroid.value == value and not asteroid.is_deleted
+                if asteroid.value == value
+                and not asteroid.is_deleted
                 and self._projected_table_id_for_value(
                     galaxy_id=ctx.galaxy_id,
                     value=asteroid.value,
@@ -83,7 +84,8 @@ async def handle_ingest_update_family(
                         (
                             asteroid
                             for asteroid in ctx.asteroids_by_id.values()
-                            if asteroid.value == value and not asteroid.is_deleted
+                            if asteroid.value == value
+                            and not asteroid.is_deleted
                             and self._projected_table_id_for_value(
                                 galaxy_id=ctx.galaxy_id,
                                 value=asteroid.value,
@@ -321,9 +323,7 @@ async def handle_ingest_update_family(
 
         if asteroid.metadata != next_metadata:
             metadata_update = {
-                key: value
-                for key, value in next_metadata.items()
-                if asteroid.metadata.get(key) != value
+                key: value for key, value in next_metadata.items() if asteroid.metadata.get(key) != value
             }
             if metadata_update:
                 metadata_event = await ctx.append_and_project_event(

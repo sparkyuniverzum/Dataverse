@@ -7,10 +7,10 @@ Create Date: 2026-03-02 20:30:00
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20260302_0011"
@@ -29,7 +29,12 @@ def upgrade() -> None:
         sa.Column("endpoint", sa.Text(), nullable=False),
         sa.Column("idempotency_key", sa.Text(), nullable=False),
         sa.Column("request_hash", sa.Text(), nullable=False),
-        sa.Column("response_payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.Column(
+            "response_payload",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
         sa.Column("status_code", sa.Integer(), nullable=False, server_default=sa.text("200")),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_idempotency_records_user_id_users"),

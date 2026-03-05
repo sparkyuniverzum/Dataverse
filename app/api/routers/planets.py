@@ -39,8 +39,12 @@ def _planet_from_table(*, table_payload: dict, contract: TableContract | None) -
     table_name = str(table_payload.get("name") or "Uncategorized")
     constellation_name, planet_name = split_constellation_and_planet_name(table_name)
     members = table_payload.get("members") if isinstance(table_payload.get("members"), list) else []
-    internal_bonds = table_payload.get("internal_bonds") if isinstance(table_payload.get("internal_bonds"), list) else []
-    external_bonds = table_payload.get("external_bonds") if isinstance(table_payload.get("external_bonds"), list) else []
+    internal_bonds = (
+        table_payload.get("internal_bonds") if isinstance(table_payload.get("internal_bonds"), list) else []
+    )
+    external_bonds = (
+        table_payload.get("external_bonds") if isinstance(table_payload.get("external_bonds"), list) else []
+    )
     archetype = _coerce_archetype(table_payload.get("archetype"))
     contract_version_raw = table_payload.get("contract_version")
     contract_version = int(contract_version_raw) if isinstance(contract_version_raw, int) else None
@@ -58,7 +62,8 @@ def _planet_from_table(*, table_payload: dict, contract: TableContract | None) -
         formula_fields=[str(item) for item in (table_payload.get("formula_fields") or [])],
         internal_bonds_count=len(internal_bonds),
         external_bonds_count=len(external_bonds),
-        sector=table_payload.get("sector") or {"center": [0.0, 0.0, 0.0], "size": 260.0, "mode": "belt", "grid_plate": True},
+        sector=table_payload.get("sector")
+        or {"center": [0.0, 0.0, 0.0], "size": 260.0, "mode": "belt", "grid_plate": True},
         is_empty=len(members) == 0,
         contract=table_contract_to_public(contract) if contract is not None else None,
     )
@@ -244,7 +249,9 @@ async def create_planet(
                 detail="Planet created but cannot be resolved in universe tables snapshot.",
             )
 
-        constellation_name, planet_name = split_constellation_and_planet_name(str(table_payload.get("name") or table_name))
+        constellation_name, planet_name = split_constellation_and_planet_name(
+            str(table_payload.get("name") or table_name)
+        )
         table_public = UniverseTableSnapshot.model_validate(table_payload)
         return PlanetCreateResponse(
             table_id=table_id,
@@ -309,8 +316,12 @@ async def extinguish_planet(
         table_name = str(table_id)
         if table_payload is not None:
             members = table_payload.get("members") if isinstance(table_payload.get("members"), list) else []
-            internal_bonds = table_payload.get("internal_bonds") if isinstance(table_payload.get("internal_bonds"), list) else []
-            external_bonds = table_payload.get("external_bonds") if isinstance(table_payload.get("external_bonds"), list) else []
+            internal_bonds = (
+                table_payload.get("internal_bonds") if isinstance(table_payload.get("internal_bonds"), list) else []
+            )
+            external_bonds = (
+                table_payload.get("external_bonds") if isinstance(table_payload.get("external_bonds"), list) else []
+            )
             table_name = str(table_payload.get("name") or table_name)
             if members or internal_bonds or external_bonds:
                 raise HTTPException(
@@ -360,4 +371,3 @@ async def extinguish_planet(
         empty_response_detail="Planet extinguish failed",
         resolved_scope=resolved_scope,
     )
-

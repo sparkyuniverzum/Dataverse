@@ -11,8 +11,8 @@ from app.api.runtime import get_service_container, run_scoped_idempotent
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
-from app.schemas import AsteroidIngestRequest, AsteroidMutateRequest, AsteroidResponse
 from app.modules.auth.dependencies import get_current_user
+from app.schemas import AsteroidIngestRequest, AsteroidMutateRequest, AsteroidResponse
 from app.services.parser_service import AtomicTask
 
 router = APIRouter(tags=["asteroids"])
@@ -140,7 +140,9 @@ async def mutate_asteroid(
         )
         if not execution.asteroids:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asteroid not found")
-        mutated = next((asteroid for asteroid in execution.asteroids if asteroid.id == asteroid_id), execution.asteroids[0])
+        mutated = next(
+            (asteroid for asteroid in execution.asteroids if asteroid.id == asteroid_id), execution.asteroids[0]
+        )
         return asteroid_to_response(mutated)
 
     return await run_scoped_idempotent(

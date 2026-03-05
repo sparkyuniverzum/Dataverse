@@ -11,8 +11,8 @@ from app.api.runtime import get_service_container, run_scoped_idempotent
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
-from app.schemas import BondCreateRequest, BondMutateRequest, BondResponse
 from app.modules.auth.dependencies import get_current_user
+from app.schemas import BondCreateRequest, BondMutateRequest, BondResponse
 from app.services.parser_service import AtomicTask
 
 router = APIRouter(tags=["bonds"])
@@ -96,9 +96,7 @@ async def mutate_bond(
                 "bond_id": str(bond_id),
                 "type": payload.type,
                 **(
-                    {"expected_event_seq": payload.expected_event_seq}
-                    if payload.expected_event_seq is not None
-                    else {}
+                    {"expected_event_seq": payload.expected_event_seq} if payload.expected_event_seq is not None else {}
                 ),
             },
         )

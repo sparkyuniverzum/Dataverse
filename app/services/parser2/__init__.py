@@ -1,5 +1,10 @@
-from app.services.parser2.lexer import Parser2Lexer
+from app.services.parser2.bridge import (
+    BridgeIssue,
+    BridgeResult,
+    Parser2ExecutorBridge,
+)
 from app.services.parser2.intents import (
+    PARSER2_INTENT_VERSION,
     AddGuardianIntent,
     AssignAttributeIntent,
     BulkIntent,
@@ -11,11 +16,11 @@ from app.services.parser2.intents import (
     LinkType,
     NodeSelector,
     NodeSelectorType,
-    PARSER2_INTENT_VERSION,
     SelectNodesIntent,
     SetFormulaIntent,
     UpsertNodeIntent,
 )
+from app.services.parser2.lexer import Parser2Lexer
 from app.services.parser2.models import (
     AssignNode,
     EntityNode,
@@ -41,11 +46,6 @@ from app.services.parser2.planner import (
 )
 from app.services.parser2.resolver import SnapshotSemanticResolver
 from app.services.parser2.runtime_flags import parser_v2_fallback_to_v1_enabled
-from app.services.parser2.bridge import (
-    BridgeIssue,
-    BridgeResult,
-    Parser2ExecutorBridge,
-)
 
 __all__ = [
     "AssignNode",

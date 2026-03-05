@@ -7,27 +7,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import (
     star_core_domain_metrics_to_public,
-    star_core_planet_physics_to_public,
     star_core_physics_profile_to_public,
+    star_core_planet_physics_to_public,
     star_core_policy_to_public,
     star_core_pulse_to_public,
     star_core_runtime_to_public,
 )
-from app.api.runtime import commit_if_active, transactional_context
-from app.api.runtime import get_service_container
+from app.api.runtime import commit_if_active, get_service_container, transactional_context
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
+from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
     StarCoreDomainMetricsResponse,
-    StarCorePlanetPhysicsResponse,
     StarCorePhysicsProfilePublic,
-    StarCoreProfileApplyRequest,
+    StarCorePlanetPhysicsResponse,
     StarCorePolicyPublic,
+    StarCoreProfileApplyRequest,
     StarCorePulseResponse,
     StarCoreRuntimePublic,
 )
-from app.modules.auth.dependencies import get_current_user
 
 router = APIRouter(tags=["galaxies"])
 
@@ -54,7 +53,9 @@ async def _resolve_scope(
     return target_galaxy.id, target_branch_id
 
 
-@router.get("/galaxies/{galaxy_id}/star-core/policy", response_model=StarCorePolicyPublic, status_code=status.HTTP_200_OK)
+@router.get(
+    "/galaxies/{galaxy_id}/star-core/policy", response_model=StarCorePolicyPublic, status_code=status.HTTP_200_OK
+)
 async def star_core_policy(
     galaxy_id: UUID,
     session: AsyncSession = Depends(get_session),
@@ -75,7 +76,9 @@ async def star_core_policy(
     return star_core_policy_to_public(policy)
 
 
-@router.post("/galaxies/{galaxy_id}/star-core/policy/lock", response_model=StarCorePolicyPublic, status_code=status.HTTP_200_OK)
+@router.post(
+    "/galaxies/{galaxy_id}/star-core/policy/lock", response_model=StarCorePolicyPublic, status_code=status.HTTP_200_OK
+)
 async def star_core_policy_lock(
     galaxy_id: UUID,
     payload: StarCoreProfileApplyRequest,
@@ -160,7 +163,9 @@ async def star_core_planet_physics(
     return star_core_planet_physics_to_public(runtime)
 
 
-@router.get("/galaxies/{galaxy_id}/star-core/runtime", response_model=StarCoreRuntimePublic, status_code=status.HTTP_200_OK)
+@router.get(
+    "/galaxies/{galaxy_id}/star-core/runtime", response_model=StarCoreRuntimePublic, status_code=status.HTTP_200_OK
+)
 async def star_core_runtime(
     galaxy_id: UUID,
     branch_id: UUID | None = Query(default=None),
@@ -186,7 +191,9 @@ async def star_core_runtime(
     return star_core_runtime_to_public(runtime)
 
 
-@router.get("/galaxies/{galaxy_id}/star-core/pulse", response_model=StarCorePulseResponse, status_code=status.HTTP_200_OK)
+@router.get(
+    "/galaxies/{galaxy_id}/star-core/pulse", response_model=StarCorePulseResponse, status_code=status.HTTP_200_OK
+)
 async def star_core_pulse(
     galaxy_id: UUID,
     branch_id: UUID | None = Query(default=None),

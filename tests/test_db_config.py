@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -23,10 +23,7 @@ def test_resolve_database_url_builds_from_postgres_env(monkeypatch) -> None:
     monkeypatch.setenv("POSTGRES_HOST", "127.0.0.1")
     monkeypatch.setenv("POSTGRES_PORT", "5544")
 
-    assert (
-        resolve_database_url()
-        == "postgresql+asyncpg://dev_user:p%40ss+word@127.0.0.1:5544/dataverse_dev"
-    )
+    assert resolve_database_url() == "postgresql+asyncpg://dev_user:p%40ss+word@127.0.0.1:5544/dataverse_dev"
 
 
 def test_resolve_database_url_falls_back_to_default(monkeypatch) -> None:

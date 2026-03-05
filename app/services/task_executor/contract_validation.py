@@ -28,7 +28,7 @@ class TableContractValidator:
         if isinstance(value, (int, float)):
             return float(value)
         if isinstance(value, str):
-            normalized = value.strip().replace("\u00A0", "").replace(" ", "").replace(",", ".")
+            normalized = value.strip().replace("\u00a0", "").replace(" ", "").replace(",", ".")
             if not normalized:
                 return None
             try:

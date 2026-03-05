@@ -9,7 +9,6 @@ from fastapi import HTTPException, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-
 MAX_BCRYPT_PASSWORD_BYTES = 72
 DEFAULT_DEV_SECRET = "dataverse-dev-insecure-change-me"
 JWT_SECRET_KEY = os.getenv("DATAVERSE_JWT_SECRET", DEFAULT_DEV_SECRET)

@@ -120,7 +120,9 @@ def test_update_public_advances_when_requirements_are_met() -> None:
 
 def test_update_public_blocks_stage_one_advance_until_machine_complete() -> None:
     progress = _progress(stage_key="galaxy_bootstrap")
-    progress.notes = {"machine": {"step": "calculations", "intro_ack": True, "planet_dropped": True, "schema_confirmed": True}}
+    progress.notes = {
+        "machine": {"step": "calculations", "intro_ack": True, "planet_dropped": True, "schema_confirmed": True}
+    }
     metrics = OnboardingMetricsPublic(
         planets_count=2,
         moons_count=8,

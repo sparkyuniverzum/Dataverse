@@ -4,7 +4,8 @@ import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 
 import { clamp, createRng, hashText, setBodyCursor } from "./sceneMath";
-import { resolveMoonV1Style, resolvePlanetV1Style, signatureColorFromSeed } from "./sceneStyling";
+import { phaseFromLegacyStatus, resolveMoonPhaseVisual, resolvePlanetPhaseVisual } from "./physicsSystem";
+import { resolvePlanetV1Style, signatureColorFromSeed } from "./sceneStyling";
 
 const FALLBACK_NODE_PHYSICS = Object.freeze({
   quality: 1,
@@ -143,13 +144,28 @@ export function TableNode({
   );
   const targetScaleRef = useRef(selected ? 1.16 : 1);
   const v1Style = resolvePlanetV1Style(node.v1);
-  const hasV1 = Boolean(node.v1);
   const physics = node.physics || FALLBACK_NODE_PHYSICS;
   const stress = clamp(Number(physics?.stress) || 0, 0, 1);
   const spinFactor = clamp(Number(physics?.spinFactor) || 1, 0.82, 2.1);
   const emissiveBoost = clamp(Number(physics?.emissiveBoost) || 0, 0, 0.9);
   const auraFactor = clamp(Number(physics?.auraFactor) || 1, 0.9, 2.2);
   const alertPressure = clamp(Number(physics?.alertPressure) || 0, 0, 1);
+  const corrosionLevel = clamp(Number(physics?.corrosionLevel) || 0, 0, 1);
+  const crackIntensity = clamp(Number(physics?.crackIntensity) || 0, 0, 1);
+  const hue = clamp(Number(physics?.hue) || 0.58, 0, 1);
+  const saturation = clamp(Number(physics?.saturation) || 0.66, 0, 1);
+  const phase = String(node.runtimePlanetPhysics?.phase || phaseFromLegacyStatus(node.v1?.status || "CALM")).toUpperCase();
+  const phaseVisual = useMemo(
+    () =>
+      resolvePlanetPhaseVisual({
+        phase,
+        corrosionLevel,
+        crackIntensity,
+        hue,
+        saturation,
+      }),
+    [corrosionLevel, crackIntensity, hue, phase, saturation]
+  );
   const signatureColor = useMemo(
     () => signatureColorFromSeed(`${node.id}|${node.entityName || node.label}`).getStyle(),
     [node.entityName, node.id, node.label]
@@ -161,23 +177,33 @@ export function TableNode({
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
-    targetScaleRef.current = selected ? 1.16 + stress * 0.04 : 1 + stress * 0.06;
+    const pulseMultiplier = phaseVisual.pulseMultiplier;
+    targetScaleRef.current =
+      (selected ? 1.16 + stress * 0.05 : 1 + stress * 0.08) * (1 + (pulseMultiplier - 1) * 0.05);
     const nextScale = THREE.MathUtils.damp(groupRef.current.scale.x, targetScaleRef.current, 7, delta);
     groupRef.current.scale.set(nextScale, nextScale, nextScale);
-    groupRef.current.rotation.y += delta * visual.spinSpeed * spinFactor;
+    groupRef.current.rotation.y += delta * visual.spinSpeed * spinFactor * phaseVisual.spinMultiplier;
+    if (phaseVisual.phase === "CRITICAL") {
+      const jitter = Math.sin(performance.now() * 0.015 + previewPhase) * 0.03;
+      groupRef.current.rotation.x = jitter;
+      groupRef.current.rotation.z = -jitter * 0.6;
+    } else {
+      groupRef.current.rotation.x = THREE.MathUtils.damp(groupRef.current.rotation.x, 0, 8, delta);
+      groupRef.current.rotation.z = THREE.MathUtils.damp(groupRef.current.rotation.z, 0, 8, delta);
+    }
     if (previewRef.current) {
-      previewRef.current.rotation.y += delta * (0.24 + stress * 0.18);
+      previewRef.current.rotation.y += delta * (0.2 + stress * 0.16) * phaseVisual.pulseMultiplier;
       previewRef.current.rotation.x = Math.sin(performance.now() * 0.00012 + previewPhase) * 0.07;
     }
   });
 
   const coreMaterial = (
     <meshStandardMaterial
-      color={selected ? "#f4fbff" : visual.coreColor}
-      emissive={selected ? "#b3eaff" : v1Style.emissive}
-      emissiveIntensity={selected ? 1.25 : 0.62 + emissiveBoost}
-      roughness={0.28}
-      metalness={0.52}
+      color={selected ? "#f4fbff" : phaseVisual.tint}
+      emissive={selected ? "#b3eaff" : phaseVisual.emissive}
+      emissiveIntensity={selected ? 1.25 : 0.58 + emissiveBoost + phaseVisual.pulseMultiplier * 0.08}
+      roughness={phaseVisual.roughness}
+      metalness={phaseVisual.metalness}
       transparent
       opacity={0.95}
     />
@@ -224,9 +250,9 @@ export function TableNode({
             <mesh key={idx} rotation={[Math.PI / 2 + visual.ringTilt * (idx + 1), idx * 0.2, idx * 0.34]}>
               <torusGeometry args={[node.radius * factor, node.radius * (0.05 + idx * 0.012), 14, 100]} />
               <meshStandardMaterial
-                color={visual.rimColor}
-                emissive={selected ? visual.rimColor : v1Style.rim}
-                emissiveIntensity={selected ? 0.98 : 0.58 + emissiveBoost * 0.72}
+                color={selected ? visual.rimColor : phaseVisual.rim}
+                emissive={selected ? visual.rimColor : phaseVisual.rim}
+                emissiveIntensity={selected ? 0.98 : 0.52 + emissiveBoost * 0.72 + phaseVisual.pulseMultiplier * 0.06}
                 transparent
                 opacity={0.64 - idx * 0.12}
               />
@@ -248,9 +274,32 @@ export function TableNode({
         <mesh>
           <sphereGeometry args={[node.radius * 1.2, 22, 22]} />
           <meshBasicMaterial
-            color={selected ? visual.glowColor : v1Style.emissive}
+            color={selected ? visual.glowColor : phaseVisual.aura}
             transparent
-            opacity={selected ? 0.18 : clamp(v1Style.auraOpacity * auraFactor, 0.11, 0.42)}
+            opacity={
+              selected
+                ? 0.18
+                : clamp(v1Style.auraOpacity * auraFactor + (phaseVisual.pulseMultiplier - 1) * 0.05, 0.11, 0.5)
+            }
+            depthWrite={false}
+          />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[node.radius * 1.03, 18, 18]} />
+          <meshBasicMaterial
+            color={phaseVisual.corrosionOverlayColor}
+            transparent
+            opacity={phaseVisual.corrosionOverlayOpacity}
+            depthWrite={false}
+          />
+        </mesh>
+        <mesh>
+          <icosahedronGeometry args={[node.radius * 1.01, 2]} />
+          <meshBasicMaterial
+            color={phaseVisual.crackColor}
+            wireframe
+            transparent
+            opacity={phaseVisual.crackOpacity}
             depthWrite={false}
           />
         </mesh>
@@ -303,13 +352,13 @@ export function TableNode({
         </Text>
       </Billboard>
       <Billboard position={[0, node.radius + 2.8, 0]}>
-        <Text fontSize={2.4} color={hasV1 ? v1Style.tint : "#aee9ff"} anchorX="center" anchorY="middle" maxWidth={76}>
+        <Text fontSize={2.4} color={phaseVisual.label} anchorX="center" anchorY="middle" maxWidth={76}>
           {`${node.entityName || node.label} • ${node.memberCount || 0} mesicu kolem`}
         </Text>
       </Billboard>
       <Billboard position={[0, node.radius + 0.6, 0]}>
-        <Text fontSize={1.85} color="#8ccce0" anchorX="center" anchorY="middle" maxWidth={76}>
-          {hasV1 ? `Klikni pro otevreni • V1 ${node.v1.status}` : `Klikni pro otevreni • ${visual.archetypeLabel}`}
+        <Text fontSize={1.85} color={phaseVisual.label} anchorX="center" anchorY="middle" maxWidth={76}>
+          {`Klikni pro otevreni • ${phaseVisual.phase}`}
         </Text>
       </Billboard>
     </group>
@@ -327,18 +376,32 @@ export function AsteroidNode({
   onLeaveNode,
 }) {
   const groupRef = useRef(null);
-  const v1Style = resolveMoonV1Style(node.v1);
-  const hasV1 = Boolean(node.v1);
   const physics = node.physics || FALLBACK_NODE_PHYSICS;
   const stress = clamp(Number(physics?.stress) || 0, 0, 1);
   const pulseFactor = clamp(Number(physics?.pulseFactor) || 1, 0.9, 2.35);
   const emissiveBoost = clamp(Number(physics?.emissiveBoost) || 0, 0, 0.95);
   const auraFactor = clamp(Number(physics?.auraFactor) || 1, 0.9, 2.2);
+  const corrosionLevel = clamp(Number(physics?.corrosionLevel) || 0, 0, 1);
+  const crackIntensity = clamp(Number(physics?.crackIntensity) || 0, 0, 1);
+  const hue = clamp(Number(physics?.hue) || 0.56, 0, 1);
+  const saturation = clamp(Number(physics?.saturation) || 0.62, 0, 1);
+  const phaseName = String(node.parentPhase || phaseFromLegacyStatus(node.v1?.status || "CALM")).toUpperCase();
+  const phaseVisual = useMemo(
+    () =>
+      resolveMoonPhaseVisual({
+        phase: phaseName,
+        corrosionLevel,
+        crackIntensity,
+        hue,
+        saturation,
+      }),
+    [corrosionLevel, crackIntensity, hue, phaseName, saturation]
+  );
   const phase = useMemo(() => ((hashText(node.id) % 360) / 180) * Math.PI, [node.id]);
 
   useFrame((state, delta) => {
     if (!groupRef.current) return;
-    const wave = Math.sin(state.clock.elapsedTime * (0.9 + pulseFactor * 0.64) + phase);
+    const wave = Math.sin(state.clock.elapsedTime * (0.9 + pulseFactor * 0.64) * phaseVisual.pulseMultiplier + phase);
     const targetScale = (selected ? 1.08 : 1) + wave * 0.028 * (0.3 + stress * 0.7);
     const nextScale = THREE.MathUtils.damp(groupRef.current.scale.x, targetScale, 7, delta);
     groupRef.current.scale.set(nextScale, nextScale, nextScale);
@@ -349,11 +412,11 @@ export function AsteroidNode({
       <mesh>
         <icosahedronGeometry args={[node.radius, 1]} />
         <meshStandardMaterial
-          color={selected ? "#ffc27b" : v1Style.color}
-          emissive={selected ? "#ff8d42" : v1Style.emissive}
-          emissiveIntensity={selected ? 1.25 : 0.7 + emissiveBoost}
-          roughness={0.35}
-          metalness={0.2}
+          color={selected ? "#ffc27b" : phaseVisual.tint}
+          emissive={selected ? "#ff8d42" : phaseVisual.emissive}
+          emissiveIntensity={selected ? 1.25 : 0.64 + emissiveBoost + phaseVisual.pulseMultiplier * 0.08}
+          roughness={phaseVisual.roughness}
+          metalness={phaseVisual.metalness}
           transparent
           opacity={0.96}
         />
@@ -383,9 +446,21 @@ export function AsteroidNode({
       <mesh>
         <sphereGeometry args={[node.radius * (1.45 + stress * 0.2), 20, 20]} />
         <meshBasicMaterial
-          color={v1Style.aura}
+          color={phaseVisual.aura}
           transparent
-          opacity={selected ? 0.2 : clamp(0.12 * auraFactor, 0.1, 0.4)}
+          opacity={
+            selected ? 0.2 : clamp(0.12 * auraFactor + phaseVisual.corrosionOverlayOpacity * 0.2, 0.1, 0.45)
+          }
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh>
+        <icosahedronGeometry args={[node.radius * 1.02, 1]} />
+        <meshBasicMaterial
+          color={phaseVisual.crackColor}
+          wireframe
+          transparent
+          opacity={phaseVisual.crackOpacity}
           depthWrite={false}
         />
       </mesh>
@@ -395,8 +470,8 @@ export function AsteroidNode({
         </Text>
       </Billboard>
       <Billboard position={[0, node.radius + 1.8, 0]}>
-        <Text fontSize={2.05} color="#96dfff" anchorX="center" anchorY="middle" maxWidth={56}>
-          {hasV1 ? `Mesic • ${node.v1.status}` : "Mesic"}
+        <Text fontSize={2.05} color={phaseVisual.label} anchorX="center" anchorY="middle" maxWidth={56}>
+          {`Mesic • ${phaseVisual.phase}`}
         </Text>
       </Billboard>
     </group>

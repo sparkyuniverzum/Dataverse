@@ -6,7 +6,6 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
-
 PARSER2_INTENT_VERSION = "2.0"
 
 

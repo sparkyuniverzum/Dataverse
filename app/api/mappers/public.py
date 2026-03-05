@@ -18,11 +18,11 @@ from app.schemas import (
     PlanetSummaryPublic,
     StarCoreDomainMetricPublic,
     StarCoreDomainMetricsResponse,
+    StarCorePhysicsProfilePublic,
     StarCorePlanetPhysicsItemPublic,
     StarCorePlanetPhysicsMetricsPublic,
     StarCorePlanetPhysicsResponse,
     StarCorePlanetPhysicsVisualPublic,
-    StarCorePhysicsProfilePublic,
     StarCorePolicyPublic,
     StarCorePulseEventPublic,
     StarCorePulseResponse,
@@ -168,11 +168,7 @@ def star_core_domain_metrics_to_public(item: Mapping[str, Any]) -> StarCoreDomai
 def star_core_physics_profile_to_public(item: Mapping[str, Any]) -> StarCorePhysicsProfilePublic:
     coefficients_raw = item.get("coefficients")
     coefficients = (
-        {
-            str(key): float(value)
-            for key, value in coefficients_raw.items()
-            if str(key).strip()
-        }
+        {str(key): float(value) for key, value in coefficients_raw.items() if str(key).strip()}
         if isinstance(coefficients_raw, Mapping)
         else {}
     )
@@ -335,11 +331,17 @@ def table_contract_to_public(contract: TableContract) -> TableContractPublic:
     normalized_validators = [item for item in validators if isinstance(item, dict)]
     normalized_formula_registry = [item for item in formula_registry if isinstance(item, dict)]
     raw_physics_rules = physics_rulebook.get("rules") if isinstance(physics_rulebook, dict) else []
-    normalized_physics_rules = [item for item in raw_physics_rules if isinstance(item, dict)] if isinstance(raw_physics_rules, list) else []
+    normalized_physics_rules = (
+        [item for item in raw_physics_rules if isinstance(item, dict)] if isinstance(raw_physics_rules, list) else []
+    )
     raw_physics_defaults = physics_rulebook.get("defaults") if isinstance(physics_rulebook, dict) else {}
     normalized_physics_defaults = raw_physics_defaults if isinstance(raw_physics_defaults, dict) else {}
-    raw_auto_semantics = normalized_physics_defaults.get("auto_semantics") if isinstance(normalized_physics_defaults, dict) else []
-    normalized_auto_semantics = [item for item in raw_auto_semantics if isinstance(item, dict)] if isinstance(raw_auto_semantics, list) else []
+    raw_auto_semantics = (
+        normalized_physics_defaults.get("auto_semantics") if isinstance(normalized_physics_defaults, dict) else []
+    )
+    normalized_auto_semantics = (
+        [item for item in raw_auto_semantics if isinstance(item, dict)] if isinstance(raw_auto_semantics, list) else []
+    )
     return TableContractPublic(
         id=contract.id,
         galaxy_id=contract.galaxy_id,

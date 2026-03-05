@@ -38,7 +38,7 @@ class PlanetCreateRequest(BaseModel):
     branch_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def normalize_payload(self) -> "PlanetCreateRequest":
+    def normalize_payload(self) -> PlanetCreateRequest:
         self.name = str(self.name or "").strip()
         schema_preset_key = str(self.schema_preset_key or "").strip()
         self.schema_preset_key = schema_preset_key or None

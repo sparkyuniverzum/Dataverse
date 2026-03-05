@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -9,7 +9,12 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import TableContract
-from app.presets.schema_presets import SchemaPresetDefinition, SchemaPresetSeedRow, get_schema_preset, list_schema_presets
+from app.presets.schema_presets import (
+    SchemaPresetDefinition,
+    SchemaPresetSeedRow,
+    get_schema_preset,
+    list_schema_presets,
+)
 from app.services.cosmos_service import CosmosService
 from app.services.parser_service import AtomicTask
 from app.services.task_executor_service import TaskExecutionResult, TaskExecutorService
@@ -195,7 +200,9 @@ class SchemaPresetService:
             if existing_contract is not None and isinstance(existing_contract.physics_rulebook, dict)
             else {}
         )
-        existing_defaults = existing_rulebook.get("defaults") if isinstance(existing_rulebook.get("defaults"), dict) else {}
+        existing_defaults = (
+            existing_rulebook.get("defaults") if isinstance(existing_rulebook.get("defaults"), dict) else {}
+        )
         existing_rules = existing_rulebook.get("rules") if isinstance(existing_rulebook.get("rules"), list) else []
 
         merged_field_types = dict(existing_field_types)
@@ -243,7 +250,10 @@ class SchemaPresetService:
         merged_validators = self._dedupe_dict_list(existing_validators + preset_validators)
         merged_auto_semantics = self._dedupe_dict_list(preset_auto_semantics)
         merged_formula_registry = self._dedupe_formula_registry(existing_formula_registry + preset_formula_registry)
-        merged_rules = self._dedupe_dict_list([item for item in existing_rules if isinstance(item, dict)] + [item for item in preset_rules if isinstance(item, dict)])
+        merged_rules = self._dedupe_dict_list(
+            [item for item in existing_rules if isinstance(item, dict)]
+            + [item for item in preset_rules if isinstance(item, dict)]
+        )
 
         if conflict_strategy == "overwrite":
             merged_defaults = {**existing_defaults, **preset_defaults}

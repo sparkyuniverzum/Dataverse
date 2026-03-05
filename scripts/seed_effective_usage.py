@@ -2,20 +2,19 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-import os
 from typing import Any
 from uuid import UUID
 
+from app.services.auth_service import AuthService
 from sqlalchemy import and_, select
 
 from app.db import AsyncSessionLocal
 from app.models import Atom, Galaxy, User
-from app.services.auth_service import AuthService
 from app.services.parser_service import AtomicTask
 from app.services.task_executor_service import TaskExecutorService
-
 
 SEED_GALAXY_NAME = "Axiom Effective Usage"
 SEED_USER_EMAIL = "seed@dataverse.local"
@@ -79,7 +78,8 @@ async def resolve_target_user_and_galaxy() -> tuple[UUID, UUID]:
         if target_email:
             user = (
                 await session.execute(
-                    select(User).where(
+                    select(User)
+                    .where(
                         and_(
                             User.deleted_at.is_(None),
                             User.is_active.is_(True),

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from datetime import UTC, datetime
-import math
 from typing import Any
 from uuid import UUID
 
@@ -100,7 +100,9 @@ class StarCoreService:
         return max(min_value, min(max_value, float(value)))
 
     @staticmethod
-    def _phase_from_metrics(*, activity: float, stress: float, health: float, inactivity: float, corrosion: float) -> str:
+    def _phase_from_metrics(
+        *, activity: float, stress: float, health: float, inactivity: float, corrosion: float
+    ) -> str:
         if health <= 0.25 or (stress >= 0.85 and corrosion >= 0.65):
             return "CRITICAL"
         if corrosion >= 0.60:
@@ -141,13 +143,15 @@ class StarCoreService:
 
         lock_status = str(row.lock_status or "draft").strip().lower() or "draft"
         profile_key = cls._normalize_profile_key(row.profile_key)
-        law_preset = str(row.law_preset or cls._law_preset_for_profile(profile_key)).strip() or cls._law_preset_for_profile(
-            profile_key
-        )
+        law_preset = str(
+            row.law_preset or cls._law_preset_for_profile(profile_key)
+        ).strip() or cls._law_preset_for_profile(profile_key)
         return {
             "profile_key": profile_key,
             "law_preset": law_preset,
-            "physical_profile_key": cls._normalize_physical_profile_key(getattr(row, "physical_profile_key", "BALANCE")),
+            "physical_profile_key": cls._normalize_physical_profile_key(
+                getattr(row, "physical_profile_key", "BALANCE")
+            ),
             "physical_profile_version": max(1, int(getattr(row, "physical_profile_version", 1) or 1)),
             "profile_mode": "locked" if lock_status == "locked" else "auto",
             "no_hard_delete": bool(row.no_hard_delete),
@@ -227,8 +231,12 @@ class StarCoreService:
         normalized_physical_profile_version = max(1, int(physical_profile_version or 1))
         now = datetime.now(UTC)
         profile_changed = str(row.profile_key or "").upper() != normalized_profile_key
-        physical_changed = str(getattr(row, "physical_profile_key", "BALANCE") or "").upper() != normalized_physical_profile_key
-        physical_version_changed = max(1, int(getattr(row, "physical_profile_version", 1) or 1)) != normalized_physical_profile_version
+        physical_changed = (
+            str(getattr(row, "physical_profile_key", "BALANCE") or "").upper() != normalized_physical_profile_key
+        )
+        physical_version_changed = (
+            max(1, int(getattr(row, "physical_profile_version", 1) or 1)) != normalized_physical_profile_version
+        )
         lock_changed = lock_after_apply and current_lock_status != "locked"
 
         row.profile_key = normalized_profile_key
@@ -273,7 +281,9 @@ class StarCoreService:
         lock_status = str(getattr(row, "lock_status", "draft") or "draft").strip().lower() or "draft"
         profile_key = self._normalize_physical_profile_key(getattr(row, "physical_profile_key", "BALANCE"))
         profile_version = max(1, int(getattr(row, "physical_profile_version", 1) or 1))
-        coefficients = dict(self._PHYSICAL_PROFILE_COEFFICIENTS.get(profile_key, self._PHYSICAL_PROFILE_COEFFICIENTS["BALANCE"]))
+        coefficients = dict(
+            self._PHYSICAL_PROFILE_COEFFICIENTS.get(profile_key, self._PHYSICAL_PROFILE_COEFFICIENTS["BALANCE"])
+        )
         return {
             "galaxy_id": galaxy_id,
             "profile_key": profile_key,
@@ -368,11 +378,7 @@ class StarCoreService:
             .scalars()
             .all()
         )
-        physics_by_asteroid_id = {
-            row.entity_id: row
-            for row in physics_rows
-            if isinstance(row.entity_id, UUID)
-        }
+        physics_by_asteroid_id = {row.entity_id: row for row in physics_rows if isinstance(row.entity_id, UUID)}
 
         items: list[dict[str, Any]] = []
         for table_id, members in table_member_ids.items():
@@ -405,7 +411,9 @@ class StarCoreService:
 
             inactivity = self._clamp(1.0 - activity, 0.0, 1.0)
             health = self._clamp(1.0 - (stress * 0.65 + corrosion * 0.35), 0.0, 1.0)
-            size_factor = self._clamp(1.0 + a * math.log10(max(1, rows_count) + 1) + b * activity - c * corrosion, 0.85, 2.4)
+            size_factor = self._clamp(
+                1.0 + a * math.log10(max(1, rows_count) + 1) + b * activity - c * corrosion, 0.85, 2.4
+            )
             luminosity = self._clamp(l0 + d * activity + e * stress - f * corrosion, 0.0, 1.0)
             pulse_rate = self._clamp(p0 + g * activity + h * stress, 0.1, 2.5)
             hue = self._clamp(0.01 + health * 0.33 - corrosion * 0.08, 0.0, 1.0)
@@ -539,7 +547,9 @@ class StarCoreService:
 
         serialized: list[dict[str, Any]] = []
         for item in events:
-            visual_hint, intensity = self._derive_visual_hint(event_type=str(item.event_type or ""), payload=item.payload)
+            visual_hint, intensity = self._derive_visual_hint(
+                event_type=str(item.event_type or ""), payload=item.payload
+            )
             serialized.append(
                 {
                     "event_seq": int(item.event_seq),
@@ -649,7 +659,9 @@ class StarCoreService:
                 "status": str(item.get("status") or "GREEN"),
             }
 
-        domains = sorted(set(baseline_by_domain.keys()) | set(domain_event_counts.keys()), key=lambda value: value.lower())
+        domains = sorted(
+            set(baseline_by_domain.keys()) | set(domain_event_counts.keys()), key=lambda value: value.lower()
+        )
         rows: list[dict[str, Any]] = []
         for domain_name in domains:
             baseline = baseline_by_domain.get(

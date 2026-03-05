@@ -52,6 +52,24 @@ export const STAR_PLANET_PHYSICS_ITEM_BE_FIELDS = Object.freeze([
   "engine_version",
 ]);
 
+export const STAR_PHYSICS_PROFILE_FE_USED_FIELDS = Object.freeze([
+  "galaxy_id",
+  "profile_key",
+  "profile_version",
+  "lock_status",
+  "locked_at",
+  "coefficients",
+]);
+
+export const STAR_PLANET_PHYSICS_ITEM_FE_USED_FIELDS = Object.freeze([
+  "table_id",
+  "phase",
+  "metrics",
+  "visual",
+  "source_event_seq",
+  "engine_version",
+]);
+
 // This list intentionally tracks fields directly consumed by FE logic.
 export const STAR_POLICY_FE_USED_FIELDS = Object.freeze([
   "profile_key",
@@ -322,6 +340,13 @@ export function getStarContractUsageDiff() {
     runtime: diff(STAR_RUNTIME_BE_FIELDS, STAR_RUNTIME_FE_USED_FIELDS),
     domains: diff(STAR_DOMAIN_BE_FIELDS, STAR_DOMAIN_FE_USED_FIELDS),
     pulse_event: diff(STAR_PULSE_EVENT_BE_FIELDS, STAR_PULSE_FE_USED_FIELDS),
+  };
+}
+
+export function getStarPhysicsContractUsageDiff() {
+  return {
+    physics_profile: diff(STAR_PHYSICS_PROFILE_BE_FIELDS, STAR_PHYSICS_PROFILE_FE_USED_FIELDS),
+    planet_physics_item: diff(STAR_PLANET_PHYSICS_ITEM_BE_FIELDS, STAR_PLANET_PHYSICS_ITEM_FE_USED_FIELDS),
   };
 }
 

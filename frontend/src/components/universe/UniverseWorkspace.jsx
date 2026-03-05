@@ -469,8 +469,26 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
   );
 
   const asteroidNodes = useMemo(
-    () =>
-      layout.asteroidNodes.map((node) => {
+    () => {
+      const selectedPlanetRuntime = selectedTableId ? starPlanetPhysicsByTableId[String(selectedTableId)] || null : null;
+      const selectedMetrics =
+        selectedPlanetRuntime?.metrics && typeof selectedPlanetRuntime.metrics === "object"
+          ? selectedPlanetRuntime.metrics
+          : {};
+      const selectedVisual =
+        selectedPlanetRuntime?.visual && typeof selectedPlanetRuntime.visual === "object"
+          ? selectedPlanetRuntime.visual
+          : {};
+      const parentPhase = selectedPlanetRuntime?.phase ? String(selectedPlanetRuntime.phase).toUpperCase() : null;
+      const parentCorrosion = clamp(
+        Number(selectedVisual.corrosion_level ?? selectedMetrics.corrosion ?? 0) || 0,
+        0,
+        1
+      );
+      const parentCrack = clamp(Number(selectedVisual.crack_intensity) || 0, 0, 1);
+      const parentHue = clamp(Number(selectedVisual.hue) || 0, 0, 1);
+      const parentSaturation = clamp(Number(selectedVisual.saturation) || 0, 0, 1);
+      return layout.asteroidNodes.map((node) => {
         const runtimePulse = starPulseByEntity[String(node.id)] || null;
         const runtimeDomain = domainMetricsByName.get(String(node.entityName || "")) || null;
         const resolved = resolveEntityLaws({
@@ -479,16 +497,28 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
           domainMetric: runtimeDomain,
           pulse: runtimePulse,
         });
+        const enrichedPhysics = {
+          ...resolved.physics,
+          corrosionLevel: parentCorrosion,
+          crackIntensity: clamp(parentCrack * 0.8 + (resolved.physics?.stress || 0) * 0.2, 0, 1),
+          hue: parentHue,
+          saturation: parentSaturation,
+        };
         return {
           ...node,
           position: layout.asteroidPositions.get(node.id) || [0, 0, 0],
           runtimePulse,
           runtimeDomain,
-          v1: resolved.v1,
-          physics: resolved.physics,
+          parentPhase,
+          v1: {
+            ...resolved.v1,
+            ...(parentPhase ? { status: parentPhase } : {}),
+          },
+          physics: enrichedPhysics,
         };
-      }),
-    [domainMetricsByName, layout, starPulseByEntity]
+      });
+    },
+    [domainMetricsByName, layout, selectedTableId, starPlanetPhysicsByTableId, starPulseByEntity]
   );
   const tableNodeById = useMemo(() => new Map(tableNodes.map((node) => [String(node.id), node])), [tableNodes]);
   const asteroidNodeById = useMemo(() => new Map(asteroidNodes.map((node) => [String(node.id), node])), [asteroidNodes]);
@@ -498,12 +528,26 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         const source = tableNodeById.get(String(link.source));
         const target = tableNodeById.get(String(link.target));
         const linkPulse = starPulseByEntity[String(link.id)] || null;
+        const sourcePhase = String(source?.runtimePlanetPhysics?.phase || source?.v1?.status || "").toUpperCase();
+        const targetPhase = String(target?.runtimePlanetPhysics?.phase || target?.v1?.status || "").toUpperCase();
+        const sourceCorrosionLevel = clamp(Number(source?.physics?.corrosionLevel) || 0, 0, 1);
+        const targetCorrosionLevel = clamp(Number(target?.physics?.corrosionLevel) || 0, 0, 1);
         return {
           ...link,
+          source_phase: sourcePhase,
+          target_phase: targetPhase,
+          source_corrosion_level: sourceCorrosionLevel,
+          target_corrosion_level: targetCorrosionLevel,
           runtimePulse: linkPulse,
           physics: resolveLinkLaws({
             kind: "table",
-            basePhysics: link.physics || {},
+            basePhysics: {
+              ...(link.physics || {}),
+              sourcePhase,
+              targetPhase,
+              sourceCorrosionLevel,
+              targetCorrosionLevel,
+            },
             sourceDomainMetric: source?.runtimeDomain || null,
             targetDomainMetric: target?.runtimeDomain || null,
             linkPulse,
@@ -515,17 +559,33 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
   const asteroidLinks = useMemo(
     () =>
       (layout.asteroidLinks || []).map((link) => {
+        const sourceNode = asteroidNodeById.get(String(link.source)) || null;
+        const targetNode = asteroidNodeById.get(String(link.target)) || null;
         const sourcePulse = starPulseByEntity[String(link.source)] || null;
         const targetPulse = starPulseByEntity[String(link.target)] || null;
         const linkPulse = starPulseByEntity[String(link.id)] || null;
+        const sourcePhase = String(sourceNode?.parentPhase || sourceNode?.v1?.status || "").toUpperCase();
+        const targetPhase = String(targetNode?.parentPhase || targetNode?.v1?.status || "").toUpperCase();
+        const sourceCorrosionLevel = clamp(Number(sourceNode?.physics?.corrosionLevel) || 0, 0, 1);
+        const targetCorrosionLevel = clamp(Number(targetNode?.physics?.corrosionLevel) || 0, 0, 1);
         return {
           ...link,
+          source_phase: sourcePhase,
+          target_phase: targetPhase,
+          source_corrosion_level: sourceCorrosionLevel,
+          target_corrosion_level: targetCorrosionLevel,
           runtimePulse: linkPulse,
           physics: resolveLinkLaws({
             kind: "moon",
-            basePhysics: link.physics || {},
-            sourceDomainMetric: asteroidNodeById.get(String(link.source))?.runtimeDomain || null,
-            targetDomainMetric: asteroidNodeById.get(String(link.target))?.runtimeDomain || null,
+            basePhysics: {
+              ...(link.physics || {}),
+              sourcePhase,
+              targetPhase,
+              sourceCorrosionLevel,
+              targetCorrosionLevel,
+            },
+            sourceDomainMetric: sourceNode?.runtimeDomain || null,
+            targetDomainMetric: targetNode?.runtimeDomain || null,
             sourcePulse,
             targetPulse,
             linkPulse,

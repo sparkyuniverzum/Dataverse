@@ -2,7 +2,19 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Identity, Index, Integer, Text, func, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Identity,
+    Index,
+    Integer,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -79,10 +91,16 @@ class StarCorePolicyRM(Base):
     deletion_mode: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'soft_delete'"))
     soft_delete_flag_field: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'is_deleted'"))
     soft_delete_timestamp_field: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'deleted_at'"))
-    event_sourcing_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"), default=True)
+    event_sourcing_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("TRUE"), default=True
+    )
     occ_enforced: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"), default=True)
-    idempotency_supported: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"), default=True)
-    branch_scope_supported: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"), default=True)
+    idempotency_supported: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("TRUE"), default=True
+    )
+    branch_scope_supported: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("TRUE"), default=True
+    )
     lock_status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'draft'"))
     policy_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
@@ -594,9 +612,7 @@ class IdempotencyRecord(Base):
 
 class TableContract(Base):
     __tablename__ = "table_contracts"
-    __table_args__ = (
-        CheckConstraint("version > 0", name="table_contracts_version_positive_chk"),
-    )
+    __table_args__ = (CheckConstraint("version > 0", name="table_contracts_version_positive_chk"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

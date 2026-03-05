@@ -61,7 +61,9 @@ def build_tables_snapshot(
                 else derive_table_name(value=asteroid.get("value"), metadata=metadata_dict)
             )
             table_id = asteroid.get("table_id")
-            table_uuid = table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
+            table_uuid = (
+                table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
+            )
             asteroid_rows.append(
                 {
                     "id": asteroid_id,
@@ -230,7 +232,9 @@ def build_tables_snapshot(
         else:
             center = service._sector_center(index, total)
             mode = default_mode
-        size = max(260.0, min(460.0, 260.0 + math.sqrt(max(len(members), 1)) * 48.0 + (80.0 if mode == "ring" else 20.0)))
+        size = max(
+            260.0, min(460.0, 260.0 + math.sqrt(max(len(members), 1)) * 48.0 + (80.0 if mode == "ring" else 20.0))
+        )
         constellation_name, planet_name = split_constellation_and_planet_name(table["name"])
 
         table_rows.append(
@@ -246,7 +250,9 @@ def build_tables_snapshot(
                 "formula_fields": formula_fields,
                 "members": members,
                 "internal_bonds": sorted(table["internal_bonds"], key=lambda item: str(item["id"])),
-                "external_bonds": sorted(table["external_bonds"], key=lambda item: (str(item["peer_table_id"]), str(item["id"]))),
+                "external_bonds": sorted(
+                    table["external_bonds"], key=lambda item: (str(item["peer_table_id"]), str(item["id"]))
+                ),
                 "sector": {
                     "center": [center[0], center[1], center[2]],
                     "size": size,

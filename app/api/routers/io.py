@@ -18,8 +18,8 @@ from app.api.runtime import (
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
-from app.schemas import ImportErrorsResponse, ImportJobPublic, ImportModeSchema, ImportRunResponse
 from app.modules.auth.dependencies import get_current_user
+from app.schemas import ImportErrorsResponse, ImportJobPublic, ImportModeSchema, ImportRunResponse
 from app.services.io_service import ImportMode
 
 router = APIRouter(tags=["io"])
@@ -109,7 +109,9 @@ async def export_snapshot_csv(
     services: ServiceContainer = Depends(get_service_container),
 ) -> StreamingResponse:
     if format.lower() != "csv":
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Phase 1 export supports CSV only")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Phase 1 export supports CSV only"
+        )
     target_galaxy_id = await resolve_galaxy_id_for_user(
         session=session,
         user=current_user,
@@ -147,7 +149,9 @@ async def export_tables_csv(
     services: ServiceContainer = Depends(get_service_container),
 ) -> StreamingResponse:
     if format.lower() != "csv":
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Phase 1 export supports CSV only")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Phase 1 export supports CSV only"
+        )
     target_galaxy_id = await resolve_galaxy_id_for_user(
         session=session,
         user=current_user,

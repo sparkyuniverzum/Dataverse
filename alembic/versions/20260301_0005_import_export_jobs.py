@@ -7,10 +7,10 @@ Create Date: 2026-03-01 00:30:00
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20260301_0005"
@@ -32,7 +32,9 @@ def upgrade() -> None:
         sa.Column("total_rows", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("processed_rows", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("errors_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
-        sa.Column("summary", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.Column(
+            "summary", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
