@@ -133,6 +133,7 @@ Each moon type must be demonstrated in at least one integration flow.
 - `PYTHONPATH=. pytest -q tests/test_parser2_spec_contract.py tests/test_parser_service.py -k "contract"`
 - `PYTHONPATH=. pytest -q tests/test_schemas_table_contract.py`
 - `cd frontend && npm test -- --run src/components/universe/starContract.test.js src/components/universe/scene/physicsSystem.test.js`
+- `cd frontend && npm test -- --run src/lib/semanticConstitutionContract.test.js src/lib/builderParserCommand.test.js src/lib/dataverseApi.test.js`
 - `cd frontend && npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js`
 
 ### 9.2 Integration gates
@@ -142,6 +143,7 @@ Each moon type must be demonstrated in at least one integration flow.
 - `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "civilization_contract_gate_create_mutate_extinguish_and_converge"`
 - `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "mineral_contract_gate_typing_validation_and_facts_projection"`
 - `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_grid_convergence"`
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "semantic_constitution_endpoint_by_endpoint_closure_v1"`
 - `PYTHONPATH=. pytest -q tests/test_task_executor_service_stage2.py`
 
 ### 9.3 Build gate

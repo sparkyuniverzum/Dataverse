@@ -22,6 +22,13 @@ export function buildLinkMoonsCommand({ sourceId, targetId, sourceLabel = "", ta
   return `${left} + ${right}`;
 }
 
+export function buildTypeMoonsCommand({ sourceId, targetId, sourceLabel = "", targetLabel = "" } = {}) {
+  const left = toParserOperand(sourceId || sourceLabel);
+  const right = toParserOperand(targetId || targetLabel);
+  if (!left || !right) return "";
+  return `${left} : ${right}`;
+}
+
 export function buildExtinguishMoonCommand({ asteroidId, asteroidLabel = "" } = {}) {
   const operand = toParserOperand(asteroidId || asteroidLabel);
   if (!operand) return "";
@@ -63,6 +70,7 @@ export function buildIngestMoonCommand({ value, tableName, metadata = {} } = {})
 export function buildBuilderParserCommand(action) {
   const kind = String(action?.type || "").trim().toUpperCase();
   if (kind === "LINK_MOONS") return buildLinkMoonsCommand(action);
+  if (kind === "TYPE_MOONS") return buildTypeMoonsCommand(action);
   if (kind === "EXTINGUISH_MOON") return buildExtinguishMoonCommand(action);
   if (kind === "INGEST_MOON") return buildIngestMoonCommand(action);
   return "";

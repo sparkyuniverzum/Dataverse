@@ -83,6 +83,10 @@ jobs:
         run: |
           pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_grid_convergence"
 
+      - name: Semantic constitution endpoint closure (backend)
+        run: |
+          pytest -q tests/test_api_integration.py -k "semantic_constitution_endpoint_by_endpoint_closure_v1"
+
       - name: Parser2 release gate integration tests
         run: |
           pytest -q tests/test_api_integration.py -k "parser_v2_contract_gate or parser_v2_legacy_ or parser_v2_resolves_existing_names_to_ids_without_ingest or parser_v2_returns_bridge_error_for_mixed_id_and_name_selectors"
@@ -110,6 +114,9 @@ jobs:
 
       - name: Star contract baseline parity (frontend)
         run: npm test -- --run src/components/universe/starContract.test.js
+
+      - name: Semantic constitution freeze gate (frontend)
+        run: npm test -- --run src/lib/semanticConstitutionContract.test.js src/lib/builderParserCommand.test.js src/lib/dataverseApi.test.js
 
       - name: Moon contract freeze gate (frontend)
         run: npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js

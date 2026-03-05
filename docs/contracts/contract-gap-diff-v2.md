@@ -16,7 +16,7 @@ Legend:
 | Parser v1 | `docs/contracts/parser-v1.md` | DONE | DONE (`tests/test_parser_service.py`) | DONE | PARTIAL | FE parser behavior gate is indirect |
 | Parser v2 spec | `docs/contracts/parser-v2-spec.md` | DONE | DONE (`tests/test_parser2_spec_contract.py`) | DONE | PARTIAL | no FE AST/spec freeze test |
 | Table contract v1 | `docs/contracts/table-contract-v1.md` | DONE | DONE (`tests/test_schemas_table_contract.py`) | DONE | PARTIAL | FE has no explicit table-contract freeze test |
-| Semantic constitution v1 | `docs/contracts/semantic-constitution-v1.md` | PARTIAL | DONE (`tests/test_semantic_constitution_contract.py`) | PARTIAL (behavioral coverage is parser/service level, no full FE parity gate) | MISSING | add FE parity gate consuming constitution operator/law guarantees |
+| Semantic constitution v1 | `docs/contracts/semantic-constitution-v1.md` | DONE | DONE (`tests/test_semantic_constitution_contract.py`) | DONE (`test_api_integration.py::test_semantic_constitution_endpoint_by_endpoint_closure_v1`) | DONE (`src/lib/semanticConstitutionContract.test.js`, `src/lib/builderParserCommand.test.js`, `src/lib/dataverseApi.test.js`) | keep baseline examples synced with parser/operator evolution |
 | Galaxy workspace v1 | `docs/contracts/galaxy-workspace-contract-v1.md` | DONE | DONE (`tests/test_galaxy_workspace_contract_baseline.py`, `tests/test_galaxy_scope_service.py`) | DONE (`test_api_integration.py` foreign access + branch promote paths) | DONE (`workspaceScopeContract.test.js`) | keep baseline + FE field inventory in sync with contract updates |
 | Star baseline v1 | `docs/star-contract-baseline-v1.json` | DONE | DONE (`tests/test_star_contract_baseline.py`) | PARTIAL | DONE (`starContract.test.js`) | integration asserts can be broader |
 | Star physics laws v2 | `docs/contracts/star-physics-laws-v2.md` | PARTIAL | DONE (baseline v2 schema parity) | DONE (`test_api_integration.py::test_star_core_endpoint_by_endpoint_closure_v2`) | DONE (`starContract.test.js`, `physicsSystem.test.js`) | keep endpoint closure test synced with response-model changes |
@@ -28,10 +28,10 @@ Legend:
 ## 2. Missing automated gates (priority order)
 
 1. Add FE freeze checks beyond Star:
-- semantic constitution FE parity (operator/law assumptions rendered in UI behavior)
+- none (semantic constitution + moon freeze gates are now covered)
 
 ## 3. Current MVP blocker view
 
 - `BLOCKER`: none for continuing implementation (core contracts exist).
 - `SIGN-OFF BLOCKERS` before MVP freeze:
-1. missing FE freeze test for semantic constitution parity.
+1. none at contract gate layer (remaining partial items are quality/depth improvements, not missing gates).

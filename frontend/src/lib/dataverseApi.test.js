@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   apiErrorFromResponse,
   bondSemanticsFromType,
+  buildAsteroidExtinguishUrl,
+  buildBondExtinguishUrl,
   buildOccConflictMessage,
+  buildGalaxyExtinguishUrl,
   buildGalaxyEventsStreamUrl,
   buildStarCoreDomainMetricsUrl,
+  buildPlanetExtinguishUrl,
   buildStarCorePhysicsProfileUrl,
   buildStarCorePlanetPhysicsUrl,
   buildStarCorePolicyLockUrl,
@@ -253,6 +257,29 @@ describe("io urls", () => {
     expect(buildMoonExtinguishUrl("http://127.0.0.1:8000", "moon-7")).toBe(
       "http://127.0.0.1:8000/moons/moon-7/extinguish"
     );
+  });
+
+  it("builds soft-delete extinguish URLs for protected entity groups", () => {
+    const asteroidUrl = buildAsteroidExtinguishUrl("http://127.0.0.1:8000", "a-1", {
+      galaxyId: "g-5",
+      expectedEventSeq: 7,
+    });
+    expect(asteroidUrl).toBe("http://127.0.0.1:8000/asteroids/a-1/extinguish?galaxy_id=g-5&expected_event_seq=7");
+
+    const bondUrl = buildBondExtinguishUrl("http://127.0.0.1:8000", "b-1", {
+      galaxyId: "g-5",
+      expectedEventSeq: 2,
+    });
+    expect(bondUrl).toBe("http://127.0.0.1:8000/bonds/b-1/extinguish?galaxy_id=g-5&expected_event_seq=2");
+
+    const planetUrl = buildPlanetExtinguishUrl("http://127.0.0.1:8000", "table-1", {
+      galaxyId: "g-5",
+      branchId: "br-3",
+    });
+    expect(planetUrl).toBe("http://127.0.0.1:8000/planets/table-1/extinguish?galaxy_id=g-5&branch_id=br-3");
+
+    const galaxyUrl = buildGalaxyExtinguishUrl("http://127.0.0.1:8000", "g-5");
+    expect(galaxyUrl).toBe("http://127.0.0.1:8000/galaxies/g-5/extinguish");
   });
 });
 
