@@ -16,37 +16,23 @@ Legend:
 | Parser v1 | `docs/contracts/parser-v1.md` | DONE | DONE (`tests/test_parser_service.py`) | DONE | PARTIAL | FE parser behavior gate is indirect |
 | Parser v2 spec | `docs/contracts/parser-v2-spec.md` | DONE | DONE (`tests/test_parser2_spec_contract.py`) | DONE | PARTIAL | no FE AST/spec freeze test |
 | Table contract v1 | `docs/contracts/table-contract-v1.md` | DONE | DONE (`tests/test_schemas_table_contract.py`) | DONE | PARTIAL | FE has no explicit table-contract freeze test |
-| Semantic constitution v1 | `docs/contracts/semantic-constitution-v1.md` | PARTIAL | MISSING (direct doc gate) | PARTIAL (behavioral only) | MISSING | add explicit constitution gate test |
-| Galaxy workspace v1 | `docs/contracts/galaxy-workspace-contract-v1.md` | PARTIAL | PARTIAL (`tests/test_galaxy_scope_service.py`) | PARTIAL (`test_api_integration.py` foreign access paths) | PARTIAL (`useGalaxyGate`) | no dedicated contract freeze test |
+| Semantic constitution v1 | `docs/contracts/semantic-constitution-v1.md` | PARTIAL | DONE (`tests/test_semantic_constitution_contract.py`) | PARTIAL (behavioral coverage is parser/service level, no full FE parity gate) | MISSING | add FE parity gate consuming constitution operator/law guarantees |
+| Galaxy workspace v1 | `docs/contracts/galaxy-workspace-contract-v1.md` | DONE | DONE (`tests/test_galaxy_workspace_contract_baseline.py`, `tests/test_galaxy_scope_service.py`) | DONE (`test_api_integration.py` foreign access + branch promote paths) | DONE (`workspaceScopeContract.test.js`) | keep baseline + FE field inventory in sync with contract updates |
 | Star baseline v1 | `docs/star-contract-baseline-v1.json` | DONE | DONE (`tests/test_star_contract_baseline.py`) | PARTIAL | DONE (`starContract.test.js`) | integration asserts can be broader |
-| Star physics laws v2 | `docs/contracts/star-physics-laws-v2.md` | PARTIAL | DONE (baseline v2 schema parity) | PARTIAL (`star_core` integration slices) | DONE (`starContract.test.js`, `physicsSystem.test.js`) | endpoint-by-endpoint integration sweep missing |
+| Star physics laws v2 | `docs/contracts/star-physics-laws-v2.md` | PARTIAL | DONE (baseline v2 schema parity) | DONE (`test_api_integration.py::test_star_core_endpoint_by_endpoint_closure_v2`) | DONE (`starContract.test.js`, `physicsSystem.test.js`) | keep endpoint closure test synced with response-model changes |
 | Star physics baseline v2 | `docs/star-physics-contract-baseline-v2.json` | DONE | DONE (`tests/test_star_contract_baseline.py`) | PARTIAL | DONE (`starContract.test.js`) | performance/profile migration gate missing |
-| Moon capability v1 | `docs/contracts/moon-contract-v1.md` | PARTIAL | PARTIAL (`tests/test_moon_contracts.py`) | PARTIAL (moon flows in `test_api_integration.py`) | PARTIAL | no dedicated Moon contract freeze gate |
-| Civilization v1 | `docs/contracts/civilization-contract-v1.md` | PARTIAL | PARTIAL (asteroid/OCC behavior tests) | PARTIAL | PARTIAL | dedicated civilization contract gate missing |
-| Mineral v1 | `docs/contracts/mineral-contract-v1.md` | PARTIAL | PARTIAL (table validation + calc tests) | PARTIAL | PARTIAL | dedicated mineral fact/type gate missing |
+| Moon capability v1 | `docs/contracts/moon-contract-v1.md` | PARTIAL | DONE (`tests/test_moon_contract_baseline.py`, `tests/test_moon_contracts.py`) | DONE (`test_api_integration.py::test_moon_first_class_crud_endpoints`) | PARTIAL | FE still lacks dedicated Moon contract freeze gate |
+| Civilization v1 | `docs/contracts/civilization-contract-v1.md` | DONE | DONE (`tests/test_civilization_contract_baseline.py`) | DONE (`test_api_integration.py::test_civilization_contract_gate_create_mutate_extinguish_and_converge`) | DONE (`workspaceContract.test.js`) | keep baseline synced with lifecycle endpoint evolution |
+| Mineral v1 | `docs/contracts/mineral-contract-v1.md` | DONE | DONE (`tests/test_mineral_contract_baseline.py`) | DONE (`test_api_integration.py::test_mineral_contract_gate_typing_validation_and_facts_projection`) | DONE (`workspaceContract.test.js`) | keep enum/fact baseline synced with schema evolution |
 
 ## 2. Missing automated gates (priority order)
 
-1. Add dedicated contract freeze tests for:
-- `galaxy-workspace-contract-v1.md`
-- `moon-contract-v1.md`
-- `civilization-contract-v1.md`
-- `mineral-contract-v1.md`
-- `semantic-constitution-v1.md`
-
-2. Add endpoint closure integration gate for star physics v2:
-- lock with physical profile payload
-- profile read endpoint
-- planet runtime endpoint
-
-3. Add FE freeze checks beyond Star:
-- table contract fields consumed by grid/workspace
-- civilization/mineral fact payload shape consumed by grid panels
+1. Add FE freeze checks beyond Star:
+- semantic constitution FE parity (operator/law assumptions rendered in UI behavior)
+- moon first-class CRUD FE contract parity
 
 ## 3. Current MVP blocker view
 
 - `BLOCKER`: none for continuing implementation (core contracts exist).
 - `SIGN-OFF BLOCKERS` before MVP freeze:
-1. missing dedicated gates for new contracts (Galaxy/Moon/Civilization/Mineral/Semantic Constitution),
-2. missing full star-physics-v2 integration closure,
-3. missing FE freeze tests for non-star contracts.
+1. missing FE freeze tests for non-star contracts (including semantic constitution parity and moon CRUD parity).

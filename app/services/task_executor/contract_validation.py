@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -37,6 +38,20 @@ class TableContractValidator:
                 return None
         return None
 
+    @staticmethod
+    def _coerce_datetime(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            candidate = value.strip()
+            if not candidate:
+                return None
+            try:
+                return datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        return None
+
     @classmethod
     def _matches_expected_type(cls, expected: str, value: Any) -> bool:
         expected_type = str(expected).strip().lower()
@@ -53,6 +68,8 @@ class TableContractValidator:
             if isinstance(value, str):
                 return value.strip().lower() in {"true", "false", "1", "0", "yes", "no"}
             return False
+        if expected_type in {"datetime", "timestamp", "timestamptz", "date"}:
+            return cls._coerce_datetime(value) is not None
         if expected_type in {"object", "dict", "map"}:
             return isinstance(value, dict)
         if expected_type in {"array", "list"}:

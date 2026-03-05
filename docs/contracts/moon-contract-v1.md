@@ -56,6 +56,13 @@ Runtime enforcement:
 - `PATCH /asteroids/{asteroid_id}/mutate`
 - parser/task execution writes (`/parser/execute`, `/tasks/execute-batch`)
 
+First-class Moon CRUD (planet-scoped API):
+- `GET /moons`
+- `GET /moons/{moon_id}`
+- `POST /moons`
+- `PATCH /moons/{moon_id}/mutate`
+- `PATCH /moons/{moon_id}/extinguish`
+
 ## 6. Invariants
 
 1. Moon capability cannot bypass Star constitution laws.
@@ -65,12 +72,11 @@ Runtime enforcement:
 
 ## 7. Known MVP gap
 
-Dedicated Moon CRUD endpoints do not exist yet.
-Moon capability lifecycle is currently contract-driven (indirect), not object-entity CRUD.
+Dedicated Moon capability entity (`moon_capabilities`) CRUD is still contract-driven (through table contracts).
+Row-level Moon CRUD is available through first-class `/moons` endpoints.
 
 ## 8. DoD for this contract
 
 1. Each Moon class is represented by at least one active contract scenario.
 2. Contract update immediately impacts validation/projection paths.
 3. Integration tests cover at least one flow per Moon class.
-

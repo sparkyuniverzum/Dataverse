@@ -31,6 +31,8 @@ def test_contract_closure_docs_exist_with_required_sections() -> None:
             "Validation Moon",
             "Formula Moon",
             "Bridge Moon",
+            "GET /moons",
+            "PATCH /moons/{moon_id}/mutate",
         ],
         "docs/contracts/civilization-contract-v1.md": [
             "## 3. Lifecycle API surface",

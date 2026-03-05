@@ -112,22 +112,34 @@ Each moon type must be demonstrated in at least one integration flow.
 8. `docs/contracts/star-physics-laws-v2.md`
 9. `docs/star-physics-contract-baseline-v2.json`
 10. `docs/contracts/moon-contract-v1.md`
-11. `docs/contracts/civilization-contract-v1.md`
-12. `docs/contracts/mineral-contract-v1.md`
-13. `docs/contracts/contract-gap-diff-v2.md` (authoritative gap matrix for sign-off readiness)
+11. `docs/moon-contract-baseline-v1.json`
+12. `docs/contracts/civilization-contract-v1.md`
+13. `docs/civilization-contract-baseline-v1.json`
+14. `docs/contracts/mineral-contract-v1.md`
+15. `docs/mineral-contract-baseline-v1.json`
+16. `docs/contracts/contract-gap-diff-v2.md` (authoritative gap matrix for sign-off readiness)
 
 ## 9. Test gate (MVP sign-off commands)
 
 ### 9.1 Contract gates
 
 - `PYTHONPATH=. pytest -q tests/test_star_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_galaxy_workspace_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_moon_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_civilization_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_mineral_contract_baseline.py`
+- `PYTHONPATH=. pytest -q tests/test_semantic_constitution_contract.py`
 - `PYTHONPATH=. pytest -q tests/test_parser2_spec_contract.py tests/test_parser_service.py -k "contract"`
 - `PYTHONPATH=. pytest -q tests/test_schemas_table_contract.py`
 - `cd frontend && npm test -- --run src/components/universe/starContract.test.js src/components/universe/scene/physicsSystem.test.js`
 
 ### 9.2 Integration gates
 
-- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "star_core or table_contract or snapshot_v1_contract_contains_table_projection_fields or tables_v1_contract_contains_sector_and_bond_buckets"`
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "star_core_endpoint_by_endpoint_closure_v2 or star_core or table_contract or snapshot_v1_contract_contains_table_projection_fields or tables_v1_contract_contains_sector_and_bond_buckets"`
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "moon_first_class_crud_endpoints"`
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "civilization_contract_gate_create_mutate_extinguish_and_converge"`
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "mineral_contract_gate_typing_validation_and_facts_projection"`
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_grid_convergence"`
 - `PYTHONPATH=. pytest -q tests/test_task_executor_service_stage2.py`
 
 ### 9.3 Build gate

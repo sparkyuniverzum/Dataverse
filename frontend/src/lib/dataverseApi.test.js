@@ -15,6 +15,8 @@ import {
   buildImportJobErrorsUrl,
   buildImportJobUrl,
   buildImportRunUrl,
+  buildBranchesUrl,
+  buildGalaxyOnboardingUrl,
   buildParserPayload,
   buildTableContractUrl,
   buildTaskBatchPayload,
@@ -214,6 +216,17 @@ describe("io urls", () => {
 
     const plain = buildTableContractUrl("http://127.0.0.1:8000", "table-2");
     expect(plain).toBe("http://127.0.0.1:8000/contracts/table-2");
+  });
+
+  it("builds branches and onboarding URLs", () => {
+    const scopedBranches = buildBranchesUrl("http://127.0.0.1:8000", "g-42");
+    expect(scopedBranches).toBe("http://127.0.0.1:8000/branches?galaxy_id=g-42");
+
+    const plainBranches = buildBranchesUrl("http://127.0.0.1:8000");
+    expect(plainBranches).toBe("http://127.0.0.1:8000/branches");
+
+    const onboardingUrl = buildGalaxyOnboardingUrl("http://127.0.0.1:8000", "g-42");
+    expect(onboardingUrl).toBe("http://127.0.0.1:8000/galaxies/g-42/onboarding");
   });
 });
 

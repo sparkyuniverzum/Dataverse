@@ -48,6 +48,21 @@ jobs:
       - name: Star contract baseline parity (backend)
         run: pytest -q tests/test_star_contract_baseline.py
 
+      - name: Galaxy workspace contract baseline parity (backend)
+        run: pytest -q tests/test_galaxy_workspace_contract_baseline.py
+
+      - name: Moon contract baseline parity (backend)
+        run: pytest -q tests/test_moon_contract_baseline.py
+
+      - name: Civilization contract baseline parity (backend)
+        run: pytest -q tests/test_civilization_contract_baseline.py
+
+      - name: Mineral contract baseline parity (backend)
+        run: pytest -q tests/test_mineral_contract_baseline.py
+
+      - name: Semantic constitution contract gate (backend)
+        run: pytest -q tests/test_semantic_constitution_contract.py
+
       - name: Parser2 spec contract tests
         run: |
           pytest -q tests/test_parser2_spec_contract.py tests/test_parser2_lexer.py tests/test_parser2_ast.py tests/test_parser2_planner.py tests/test_parser2_resolver.py
@@ -59,7 +74,11 @@ jobs:
 
       - name: Backend integration smoke
         run: |
-          pytest -q tests/test_api_integration.py -k "snapshot_v1_contract or tables_v1_contract or task_executor_rolls_back_on_failed_link or execute_tasks_rollback_after_partial_write or guardian_command_is_idempotent_for_same_rule or mutate_asteroid_occ_parallel_writes_allow_single_winner or link_parallel_same_relation_returns_single_bond or bond_mutate_replaces_type_and_preserves_single_active_edge or bond_extinguish_soft_deletes_link"
+          pytest -q tests/test_api_integration.py -k "auth_session_lifecycle_login_refresh_logout_and_me or moon_first_class_crud_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or star_core_endpoint_by_endpoint_closure_v2 or snapshot_v1_contract or tables_v1_contract or task_executor_rolls_back_on_failed_link or execute_tasks_rollback_after_partial_write or guardian_command_is_idempotent_for_same_rule or mutate_asteroid_occ_parallel_writes_allow_single_winner or link_parallel_same_relation_returns_single_bond or bond_mutate_replaces_type_and_preserves_single_active_edge or bond_extinguish_soft_deletes_link"
+
+      - name: Release gate: star lock -> first planet -> grid convergence
+        run: |
+          pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_grid_convergence"
 
       - name: Parser2 release gate integration tests
         run: |

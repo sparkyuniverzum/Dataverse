@@ -407,6 +407,8 @@ export default function GalaxySelector3D({
   user,
   galaxies,
   selectedGalaxyId,
+  branchesByGalaxyId = {},
+  onboardingByGalaxyId = {},
   newGalaxyName,
   loading,
   busy,
@@ -414,6 +416,8 @@ export default function GalaxySelector3D({
   onSelect,
   onCreate,
   onNameChange,
+  onLoadBranches,
+  onLoadOnboarding,
   onRefresh,
   onLogout,
 }) {
@@ -440,6 +444,14 @@ export default function GalaxySelector3D({
     [hoveredGalaxyId, galaxies]
   );
   const noGalaxiesYet = galaxies.length === 0;
+  const candidateBranches = useMemo(
+    () => (candidateGalaxyId ? branchesByGalaxyId[String(candidateGalaxyId)] || [] : []),
+    [branchesByGalaxyId, candidateGalaxyId]
+  );
+  const candidateOnboarding = useMemo(
+    () => (candidateGalaxyId ? onboardingByGalaxyId[String(candidateGalaxyId)] || null : null),
+    [candidateGalaxyId, onboardingByGalaxyId]
+  );
 
   useEffect(() => {
     if (!noGalaxiesYet) return;
@@ -456,6 +468,16 @@ export default function GalaxySelector3D({
     if (!noGalaxiesYet || !firstRunNameInputRef.current) return;
     firstRunNameInputRef.current.focus();
   }, [noGalaxiesYet]);
+
+  useEffect(() => {
+    if (!candidateGalaxyId) return;
+    if (typeof onLoadBranches === "function") {
+      void onLoadBranches(candidateGalaxyId);
+    }
+    if (typeof onLoadOnboarding === "function") {
+      void onLoadOnboarding(candidateGalaxyId);
+    }
+  }, [candidateGalaxyId, onLoadBranches, onLoadOnboarding]);
 
   const canCreate = !busy && Boolean(String(newGalaxyName || "").trim());
 
@@ -638,6 +660,31 @@ export default function GalaxySelector3D({
         <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.8 }}>
           {noGalaxiesYet ? "Nejdriv vytvor galaxii. Potom funguje klik=vyber, dvojklik=vstup." : "Tip: dvojklik na galaxii = okamzity vstup."}
         </div>
+
+        {selectedGalaxy ? (
+          <div
+            style={{
+              border: "1px solid rgba(101, 191, 223, 0.28)",
+              background: "rgba(7, 18, 32, 0.56)",
+              borderRadius: 10,
+              padding: "8px 9px",
+              display: "grid",
+              gap: 4,
+              fontSize: "var(--dv-fs-xs)",
+            }}
+          >
+            <div>
+              Branches: <strong>{candidateBranches.length}</strong>
+            </div>
+            <div>
+              Onboarding stage: <strong>{String(candidateOnboarding?.current_stage_key || "n/a")}</strong>
+            </div>
+            <div>
+              Rezim: <strong>{String(candidateOnboarding?.mode || "n/a")}</strong> | Can advance:{" "}
+              <strong>{candidateOnboarding?.can_advance ? "ano" : "ne"}</strong>
+            </div>
+          </div>
+        ) : null}
 
         {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{error}</div> : null}
         </aside>

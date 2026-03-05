@@ -168,7 +168,14 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, minimalShell = false }) {
+export default function UniverseWorkspace({
+  galaxy,
+  branches = [],
+  onboarding = null,
+  onBackToGalaxies,
+  onLogout,
+  minimalShell = false,
+}) {
   const galaxyId = String(galaxy?.id || "");
 
   const {
@@ -1888,6 +1895,8 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
 
       <WorkspaceSidebar
         galaxy={galaxy}
+        branches={branches}
+        onboarding={onboarding}
         tableNodes={tableNodes}
         asteroidCount={snapshot.asteroids.length}
         bondCount={snapshot.bonds.length}

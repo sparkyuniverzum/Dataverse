@@ -22,6 +22,10 @@ export default function App() {
     selectedGalaxy,
     selectedGalaxyId,
     galaxies,
+    branches,
+    onboarding,
+    branchesByGalaxyId,
+    onboardingByGalaxyId,
     loading: galaxyLoading,
     busy: galaxyBusy,
     error: galaxyError,
@@ -30,6 +34,8 @@ export default function App() {
     loadGalaxies,
     createAndEnterGalaxy,
     enterGalaxy,
+    loadBranchesForGalaxy,
+    loadOnboardingForGalaxy,
     backToGalaxyGate,
   } = galaxyGate;
 
@@ -86,6 +92,8 @@ export default function App() {
         user={user}
         galaxies={galaxies}
         selectedGalaxyId={selectedGalaxyId}
+        branchesByGalaxyId={branchesByGalaxyId}
+        onboardingByGalaxyId={onboardingByGalaxyId}
         newGalaxyName={newGalaxyName}
         loading={galaxyLoading}
         busy={galaxyBusy}
@@ -93,6 +101,8 @@ export default function App() {
         onSelect={enterGalaxy}
         onCreate={createAndEnterGalaxy}
         onNameChange={setNewGalaxyName}
+        onLoadBranches={loadBranchesForGalaxy}
+        onLoadOnboarding={loadOnboardingForGalaxy}
         onRefresh={loadGalaxies}
         onLogout={logout}
       />
@@ -102,6 +112,8 @@ export default function App() {
   return (
     <WorkspaceShell
       galaxy={selectedGalaxy}
+      branches={branches}
+      onboarding={onboarding}
       onBackToGalaxies={backToGalaxyGate}
       onLogout={logout}
     />

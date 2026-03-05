@@ -218,6 +218,18 @@ export function buildTableContractUrl(apiBase, tableId, galaxyId = null) {
   return url.toString();
 }
 
+export function buildBranchesUrl(apiBase, galaxyId = null) {
+  const url = new URL(`${apiBase}/branches`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  return url.toString();
+}
+
+export function buildGalaxyOnboardingUrl(apiBase, galaxyId) {
+  return `${apiBase}/galaxies/${galaxyId}/onboarding`;
+}
+
 export function buildGalaxyPlanetsUrl(apiBase, galaxyId, asOfIso = null, branchId = null) {
   const url = new URL(`${apiBase}/galaxies/${galaxyId}/planets`);
   if (asOfIso) {

@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { API_BASE, apiFetch } from "../lib/dataverseApi";
-import { normalizeGalaxyList, normalizeGalaxyPublic } from "../lib/workspaceScopeContract";
+import { API_BASE, apiFetch, buildBranchesUrl, buildGalaxyOnboardingUrl } from "../lib/dataverseApi";
+import {
+  normalizeBranchList,
+  normalizeGalaxyList,
+  normalizeGalaxyPublic,
+  normalizeOnboardingPublic,
+} from "../lib/workspaceScopeContract";
 import { useUniverseStore } from "../store/useUniverseStore";
 
 const SELECTED_GALAXY_STORAGE_KEY = "dataverse_selected_galaxy_id";
@@ -27,6 +32,8 @@ export function useGalaxyGate({ isAuthenticated, userEmail, setDefaultGalaxy }) 
   const [error, setError] = useState("");
   const [newGalaxyName, setNewGalaxyName] = useState("");
   const [hasLoadedGalaxies, setHasLoadedGalaxies] = useState(false);
+  const [branchesByGalaxyId, setBranchesByGalaxyId] = useState({});
+  const [onboardingByGalaxyId, setOnboardingByGalaxyId] = useState({});
 
   const autoCreateAttemptedRef = useRef(false);
   const restoreAttemptedRef = useRef(false);
@@ -54,6 +61,8 @@ export function useGalaxyGate({ isAuthenticated, userEmail, setDefaultGalaxy }) 
       selectGalaxy("");
       setLevel(0);
       setGalaxies([]);
+      setBranchesByGalaxyId({});
+      setOnboardingByGalaxyId({});
       setHasLoadedGalaxies(false);
       autoCreateAttemptedRef.current = false;
       return;
@@ -102,6 +111,52 @@ export function useGalaxyGate({ isAuthenticated, userEmail, setDefaultGalaxy }) 
     if (!isAuthenticated) return;
     void loadGalaxies();
   }, [isAuthenticated, loadGalaxies]);
+
+  const loadBranchesForGalaxy = useCallback(
+    async (galaxyIdValue = null) => {
+      if (!isAuthenticated) return [];
+      const scopeGalaxyId = String(galaxyIdValue || selectedGalaxyId || "").trim();
+      if (!scopeGalaxyId) return [];
+      try {
+        const response = await apiFetch(buildBranchesUrl(API_BASE, scopeGalaxyId));
+        if (!response.ok) {
+          throw new Error(await parseApiError(response, `Branches failed: ${response.status}`));
+        }
+        const body = await response.json();
+        const normalized = normalizeBranchList(body).filter((item) => !item?.deleted_at);
+        setBranchesByGalaxyId((prev) => ({ ...prev, [scopeGalaxyId]: normalized }));
+        return normalized;
+      } catch (loadError) {
+        setError(loadError.message || "Load branches failed");
+        return [];
+      }
+    },
+    [isAuthenticated, selectedGalaxyId]
+  );
+
+  const loadOnboardingForGalaxy = useCallback(
+    async (galaxyIdValue = null) => {
+      if (!isAuthenticated) return null;
+      const scopeGalaxyId = String(galaxyIdValue || selectedGalaxyId || "").trim();
+      if (!scopeGalaxyId) return null;
+      try {
+        const response = await apiFetch(buildGalaxyOnboardingUrl(API_BASE, scopeGalaxyId));
+        if (!response.ok) {
+          throw new Error(await parseApiError(response, `Onboarding failed: ${response.status}`));
+        }
+        const body = await response.json();
+        const normalized = normalizeOnboardingPublic(body);
+        if (normalized) {
+          setOnboardingByGalaxyId((prev) => ({ ...prev, [scopeGalaxyId]: normalized }));
+        }
+        return normalized;
+      } catch (loadError) {
+        setError(loadError.message || "Load onboarding failed");
+        return null;
+      }
+    },
+    [isAuthenticated, selectedGalaxyId]
+  );
 
   const createGalaxy = useCallback(
     async (rawName) => {
@@ -188,16 +243,38 @@ export function useGalaxyGate({ isAuthenticated, userEmail, setDefaultGalaxy }) 
     setLevel(1);
   }, [selectGalaxy, setLevel]);
 
+  useEffect(() => {
+    if (!isAuthenticated || !selectedGalaxyId) return;
+    void loadBranchesForGalaxy(selectedGalaxyId);
+    void loadOnboardingForGalaxy(selectedGalaxyId);
+  }, [isAuthenticated, loadBranchesForGalaxy, loadOnboardingForGalaxy, selectedGalaxyId]);
+
+  const branches = useMemo(
+    () => (selectedGalaxyId ? branchesByGalaxyId[String(selectedGalaxyId)] || [] : []),
+    [branchesByGalaxyId, selectedGalaxyId]
+  );
+
+  const onboarding = useMemo(
+    () => (selectedGalaxyId ? onboardingByGalaxyId[String(selectedGalaxyId)] || null : null),
+    [onboardingByGalaxyId, selectedGalaxyId]
+  );
+
   return {
     selectedGalaxy,
     selectedGalaxyId,
     galaxies,
+    branchesByGalaxyId,
+    onboardingByGalaxyId,
     loading,
     busy,
     error,
     newGalaxyName,
     setNewGalaxyName,
     loadGalaxies,
+    loadBranchesForGalaxy,
+    loadOnboardingForGalaxy,
+    branches,
+    onboarding,
     createAndEnterGalaxy,
     enterGalaxy,
     backToGalaxyGate,

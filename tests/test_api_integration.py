@@ -163,6 +163,68 @@ def auth_client(client: httpx.Client) -> tuple[httpx.Client, str]:
     return client, galaxy_id
 
 
+def test_auth_session_lifecycle_login_refresh_logout_and_me(client: httpx.Client) -> None:
+    email = f"auth-lifecycle-{uuid.uuid4()}@dataverse.local"
+    password = "Passw0rd123!"
+    previous_authorization = client.headers.get("Authorization")
+
+    try:
+        register = client.post("/auth/register", json={"email": email, "password": password, "galaxy_name": "Auth Lifecycle"})
+        assert register.status_code == 201, register.text
+        register_body = register.json()
+        assert isinstance(register_body.get("access_token"), str) and register_body["access_token"]
+        assert isinstance(register_body.get("refresh_token"), str) and register_body["refresh_token"]
+        assert register_body.get("token_type") == "bearer"
+        assert register_body.get("user", {}).get("email") == email
+        assert isinstance(register_body.get("default_galaxy", {}).get("id"), str)
+
+        login = client.post("/auth/login", json={"email": email, "password": password})
+        assert login.status_code == 200, login.text
+        login_body = login.json()
+        access_token = str(login_body.get("access_token") or "")
+        refresh_token = str(login_body.get("refresh_token") or "")
+        assert access_token
+        assert refresh_token
+        assert login_body.get("token_type") == "bearer"
+
+        client.headers.update({"Authorization": f"Bearer {access_token}"})
+        me_before_logout = client.get("/auth/me")
+        assert me_before_logout.status_code == 200, me_before_logout.text
+        assert me_before_logout.json().get("email") == email
+
+        refresh = client.post("/auth/refresh", json={"refresh_token": refresh_token})
+        assert refresh.status_code == 200, refresh.text
+        refresh_body = refresh.json()
+        refreshed_access_token = str(refresh_body.get("access_token") or "")
+        refreshed_refresh_token = str(refresh_body.get("refresh_token") or "")
+        assert refreshed_access_token
+        assert refreshed_refresh_token
+        assert refresh_body.get("token_type") == "bearer"
+        expires_at_raw = str(refresh_body.get("expires_at") or "")
+        assert expires_at_raw
+        assert _parse_iso_datetime(expires_at_raw) > datetime.now(timezone.utc)
+
+        client.headers.update({"Authorization": f"Bearer {refreshed_access_token}"})
+        me_after_refresh = client.get("/auth/me")
+        assert me_after_refresh.status_code == 200, me_after_refresh.text
+        assert me_after_refresh.json().get("email") == email
+
+        logout = client.post("/auth/logout")
+        assert logout.status_code == 200, logout.text
+        assert logout.json().get("ok") is True
+
+        me_after_logout = client.get("/auth/me")
+        assert me_after_logout.status_code == 401, me_after_logout.text
+
+        refresh_after_logout = client.post("/auth/refresh", json={"refresh_token": refreshed_refresh_token})
+        assert refresh_after_logout.status_code == 401, refresh_after_logout.text
+    finally:
+        if previous_authorization:
+            client.headers.update({"Authorization": previous_authorization})
+        else:
+            client.headers.pop("Authorization", None)
+
+
 def test_parser_accepts_query_text_and_equal_pair(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     command = f"ParserContract-{uuid.uuid4()}"
@@ -1276,6 +1338,208 @@ def test_star_core_planet_physics_endpoint_returns_runtime_shape(auth_client: tu
     assert after_seq.status_code == 200, after_seq.text
     after_body = after_seq.json()
     assert isinstance(after_body.get("items"), list)
+
+
+def test_star_core_endpoint_by_endpoint_closure_v2(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+
+    main_seed = client.post(
+        "/parser/execute",
+        json={
+            "query": (
+                f"ClosureMainA-{uuid.uuid4()} (table: Closure > Prime, amount: 9) + "
+                f"ClosureMainB-{uuid.uuid4()} (table: Closure > Prime, amount: 3)"
+            ),
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert main_seed.status_code == 200, main_seed.text
+
+    branch_name = f"star-closure-{uuid.uuid4().hex[:10]}"
+    branch = client.post("/branches", json={"name": branch_name, "galaxy_id": galaxy_id})
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    branch_seed = client.post(
+        "/parser/execute",
+        json={
+            "query": f"ClosureBranch-{uuid.uuid4()} (table: Closure > Branch, amount: 11)",
+            "galaxy_id": galaxy_id,
+            "branch_id": branch_id,
+        },
+    )
+    assert branch_seed.status_code == 200, branch_seed.text
+
+    policy = client.get(f"/galaxies/{galaxy_id}/star-core/policy")
+    assert policy.status_code == 200, policy.text
+    policy_body = policy.json()
+    assert set(policy_body.keys()) == {
+        "profile_key",
+        "law_preset",
+        "profile_mode",
+        "no_hard_delete",
+        "deletion_mode",
+        "occ_enforced",
+        "idempotency_supported",
+        "branch_scope_supported",
+        "lock_status",
+        "policy_version",
+        "locked_at",
+        "can_edit_core_laws",
+    }
+
+    lock = client.post(
+        f"/galaxies/{galaxy_id}/star-core/policy/lock",
+        json={
+            "profile_key": "SENTINEL",
+            "lock_after_apply": True,
+            "physical_profile_key": "ARCHIVE",
+            "physical_profile_version": 3,
+        },
+    )
+    assert lock.status_code == 200, lock.text
+    lock_body = lock.json()
+    assert lock_body["lock_status"] == "locked"
+    assert lock_body["profile_key"] == "SENTINEL"
+    assert lock_body["can_edit_core_laws"] is False
+
+    physics_profile = client.get(f"/galaxies/{galaxy_id}/star-core/physics/profile")
+    assert physics_profile.status_code == 200, physics_profile.text
+    physics_profile_body = physics_profile.json()
+    assert set(physics_profile_body.keys()) == {
+        "galaxy_id",
+        "profile_key",
+        "profile_version",
+        "lock_status",
+        "locked_at",
+        "coefficients",
+    }
+    assert physics_profile_body["galaxy_id"] == galaxy_id
+    assert physics_profile_body["profile_key"] == "ARCHIVE"
+    assert physics_profile_body["profile_version"] == 3
+    assert isinstance(physics_profile_body["coefficients"], dict)
+    assert "a" in physics_profile_body["coefficients"]
+
+    runtime_main = client.get(f"/galaxies/{galaxy_id}/star-core/runtime", params={"window_events": 64})
+    assert runtime_main.status_code == 200, runtime_main.text
+    runtime_main_body = runtime_main.json()
+    assert set(runtime_main_body.keys()) == {"as_of_event_seq", "events_count", "writes_per_minute"}
+    assert isinstance(runtime_main_body["as_of_event_seq"], int)
+    assert isinstance(runtime_main_body["events_count"], int)
+    assert isinstance(runtime_main_body["writes_per_minute"], float)
+
+    runtime_branch = client.get(
+        f"/galaxies/{galaxy_id}/star-core/runtime",
+        params={"branch_id": branch_id, "window_events": 64},
+    )
+    assert runtime_branch.status_code == 200, runtime_branch.text
+    runtime_branch_body = runtime_branch.json()
+    assert set(runtime_branch_body.keys()) == {"as_of_event_seq", "events_count", "writes_per_minute"}
+
+    pulse_main = client.get(f"/galaxies/{galaxy_id}/star-core/pulse", params={"limit": 16})
+    assert pulse_main.status_code == 200, pulse_main.text
+    pulse_main_body = pulse_main.json()
+    assert set(pulse_main_body.keys()) == {
+        "galaxy_id",
+        "branch_id",
+        "last_event_seq",
+        "sampled_count",
+        "event_types",
+        "events",
+    }
+    if pulse_main_body["events"]:
+        event = pulse_main_body["events"][0]
+        assert set(event.keys()) == {"event_seq", "event_type", "entity_id", "visual_hint", "intensity"}
+
+    pulse_branch = client.get(
+        f"/galaxies/{galaxy_id}/star-core/pulse",
+        params={"branch_id": branch_id, "limit": 16},
+    )
+    assert pulse_branch.status_code == 200, pulse_branch.text
+    pulse_branch_body = pulse_branch.json()
+    assert pulse_branch_body["galaxy_id"] == galaxy_id
+    assert pulse_branch_body["branch_id"] == branch_id
+    after_seq = max(0, int(pulse_branch_body.get("last_event_seq") or 0))
+    pulse_branch_after = client.get(
+        f"/galaxies/{galaxy_id}/star-core/pulse",
+        params={"branch_id": branch_id, "after_event_seq": after_seq, "limit": 16},
+    )
+    assert pulse_branch_after.status_code == 200, pulse_branch_after.text
+    assert isinstance(pulse_branch_after.json().get("events"), list)
+
+    domains_main = client.get(f"/galaxies/{galaxy_id}/star-core/metrics/domains", params={"window_events": 64})
+    assert domains_main.status_code == 200, domains_main.text
+    domains_main_body = domains_main.json()
+    assert set(domains_main_body.keys()) == {
+        "galaxy_id",
+        "branch_id",
+        "sampled_window_size",
+        "sampled_since",
+        "sampled_until",
+        "total_events_count",
+        "domains",
+        "updated_at",
+    }
+    if domains_main_body["domains"]:
+        row = domains_main_body["domains"][0]
+        assert set(row.keys()) == {"domain_name", "status", "events_count", "activity_intensity"}
+
+    domains_branch = client.get(
+        f"/galaxies/{galaxy_id}/star-core/metrics/domains",
+        params={"branch_id": branch_id, "window_events": 64},
+    )
+    assert domains_branch.status_code == 200, domains_branch.text
+    assert domains_branch.json()["branch_id"] == branch_id
+
+    planet_runtime_main = client.get(
+        f"/galaxies/{galaxy_id}/star-core/physics/planets",
+        params={"limit": 200},
+    )
+    assert planet_runtime_main.status_code == 200, planet_runtime_main.text
+    planet_runtime_main_body = planet_runtime_main.json()
+    assert set(planet_runtime_main_body.keys()) == {"as_of_event_seq", "items"}
+    assert isinstance(planet_runtime_main_body["as_of_event_seq"], int)
+    assert isinstance(planet_runtime_main_body["items"], list)
+    if planet_runtime_main_body["items"]:
+        item = planet_runtime_main_body["items"][0]
+        assert set(item.keys()) == {"table_id", "phase", "metrics", "visual", "source_event_seq", "engine_version"}
+        assert set(item["metrics"].keys()) == {"activity", "stress", "health", "inactivity", "corrosion", "rows"}
+        assert set(item["visual"].keys()) == {
+            "size_factor",
+            "luminosity",
+            "pulse_rate",
+            "hue",
+            "saturation",
+            "corrosion_level",
+            "crack_intensity",
+        }
+
+    planet_runtime_main_after = client.get(
+        f"/galaxies/{galaxy_id}/star-core/physics/planets",
+        params={"after_event_seq": planet_runtime_main_body["as_of_event_seq"], "limit": 200},
+    )
+    assert planet_runtime_main_after.status_code == 200, planet_runtime_main_after.text
+    assert isinstance(planet_runtime_main_after.json().get("items"), list)
+
+    planet_runtime_branch = client.get(
+        f"/galaxies/{galaxy_id}/star-core/physics/planets",
+        params={"branch_id": branch_id, "limit": 200},
+    )
+    assert planet_runtime_branch.status_code == 200, planet_runtime_branch.text
+    planet_runtime_branch_body = planet_runtime_branch.json()
+    assert set(planet_runtime_branch_body.keys()) == {"as_of_event_seq", "items"}
+    assert isinstance(planet_runtime_branch_body["items"], list)
+
+    planet_runtime_branch_after = client.get(
+        f"/galaxies/{galaxy_id}/star-core/physics/planets",
+        params={
+            "branch_id": branch_id,
+            "after_event_seq": planet_runtime_branch_body["as_of_event_seq"],
+            "limit": 200,
+        },
+    )
+    assert planet_runtime_branch_after.status_code == 200, planet_runtime_branch_after.text
+    assert isinstance(planet_runtime_branch_after.json().get("items"), list)
 
 
 def test_constellation_layer_v1_endpoint_returns_l2_group_metrics(auth_client: tuple[httpx.Client, str]) -> None:
@@ -2587,6 +2851,327 @@ def test_planet_mvp_create_list_detail_and_universe_tables(auth_client: tuple[ht
     )
     assert table_row is not None
     assert table_row["archetype"] == "catalog"
+
+
+def test_moon_first_class_crud_endpoints(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"MoonCrud > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"moon-crud-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    created_moon = client.post(
+        "/moons",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "Moon CRUD Seed",
+            "minerals": {
+                "entity_id": f"moon-{uuid.uuid4().hex[:8]}",
+                "label": "Moon CRUD Seed",
+                "state": "active",
+                "segment": "starter",
+            },
+            "idempotency_key": f"moon-crud-create-{uuid.uuid4()}",
+        },
+    )
+    assert created_moon.status_code == 201, created_moon.text
+    created_body = created_moon.json()
+    moon_id = created_body["moon_id"]
+    assert created_body["planet_id"] == planet_id
+    facts_by_key = {item["key"]: item for item in created_body.get("facts", [])}
+    assert "entity_id" in facts_by_key
+    assert "state" in facts_by_key
+
+    listed = client.get("/moons", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
+    assert listed.status_code == 200, listed.text
+    listed_items = listed.json().get("items", [])
+    listed_row = next((item for item in listed_items if item.get("moon_id") == moon_id), None)
+    assert listed_row is not None
+
+    detail = client.get(f"/moons/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert detail.status_code == 200, detail.text
+    detail_body = detail.json()
+    assert detail_body["moon_id"] == moon_id
+    assert detail_body["planet_id"] == planet_id
+    expected_event_seq = int(detail_body.get("current_event_seq") or 0)
+    assert expected_event_seq >= 1
+
+    mutated = client.patch(
+        f"/moons/{moon_id}/mutate",
+        json={
+            "galaxy_id": galaxy_id,
+            "minerals": {"state": "archived"},
+            "expected_event_seq": expected_event_seq,
+            "idempotency_key": f"moon-crud-mutate-{uuid.uuid4()}",
+        },
+    )
+    assert mutated.status_code == 200, mutated.text
+    mutated_body = mutated.json()
+    mutated_facts_by_key = {item["key"]: item for item in mutated_body.get("facts", [])}
+    assert mutated_facts_by_key["state"]["typed_value"] == "archived"
+    extinguish_expected_seq = int(mutated_body.get("current_event_seq") or 0)
+    assert extinguish_expected_seq >= expected_event_seq
+
+    extinguished = client.patch(
+        f"/moons/{moon_id}/extinguish",
+        params={
+            "galaxy_id": galaxy_id,
+            "expected_event_seq": extinguish_expected_seq,
+        },
+    )
+    assert extinguished.status_code == 200, extinguished.text
+    extinguished_body = extinguished.json()
+    assert extinguished_body["moon_id"] == moon_id
+    assert extinguished_body["planet_id"] == planet_id
+    assert extinguished_body["is_deleted"] is True
+    assert extinguished_body["deleted_at"] is not None
+
+    missing_after_delete = client.get(f"/moons/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert missing_after_delete.status_code == 404, missing_after_delete.text
+
+
+def test_civilization_contract_gate_create_mutate_extinguish_and_converge(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"Civilization > Gate-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"civil-gate-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    table_id = created_planet.json()["table_id"]
+
+    created = client.post(
+        "/asteroids/ingest",
+        json={
+            "value": "Civilization Gate Seed",
+            "metadata": {
+                "table": planet_name,
+                "entity_id": f"entity-{uuid.uuid4().hex[:8]}",
+                "label": "Civilization Gate Seed",
+                "state": "active",
+                "segment": "ops",
+            },
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"civil-gate-ingest-{uuid.uuid4()}",
+        },
+    )
+    assert created.status_code == 200, created.text
+    body = created.json()
+    asteroid_id = body["id"]
+    assert body["is_deleted"] is False
+    expected_seq = int(body["current_event_seq"] or 0)
+    assert expected_seq >= 1
+
+    mutated = client.patch(
+        f"/asteroids/{asteroid_id}/mutate",
+        json={
+            "metadata": {"state": "archived"},
+            "expected_event_seq": expected_seq,
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"civil-gate-mutate-{uuid.uuid4()}",
+        },
+    )
+    assert mutated.status_code == 200, mutated.text
+    mutated_body = mutated.json()
+    assert mutated_body["metadata"]["state"] == "archived"
+    extinguish_expected_seq = int(mutated_body["current_event_seq"] or 0)
+    assert extinguish_expected_seq >= expected_seq
+
+    tables_before = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert tables_before.status_code == 200, tables_before.text
+    target_table = next((row for row in tables_before.json().get("tables", []) if row.get("table_id") == table_id), None)
+    assert target_table is not None
+    member_ids_before = {item.get("id") for item in target_table.get("members", [])}
+    assert asteroid_id in member_ids_before
+
+    extinguished = client.patch(
+        f"/asteroids/{asteroid_id}/extinguish",
+        params={"galaxy_id": galaxy_id, "expected_event_seq": extinguish_expected_seq},
+    )
+    assert extinguished.status_code == 200, extinguished.text
+    extinguished_body = extinguished.json()
+    assert extinguished_body["is_deleted"] is True
+    assert extinguished_body["deleted_at"] is not None
+
+    snapshot_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_after.status_code == 200, snapshot_after.text
+    snapshot_ids = {item.get("id") for item in snapshot_after.json().get("asteroids", [])}
+    assert asteroid_id not in snapshot_ids
+
+    tables_after = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert tables_after.status_code == 200, tables_after.text
+    target_after = next((row for row in tables_after.json().get("tables", []) if row.get("table_id") == table_id), None)
+    assert target_after is not None
+    member_ids_after = {item.get("id") for item in target_after.get("members", [])}
+    assert asteroid_id not in member_ids_after
+    assert member_ids_after == {
+        item.get("id")
+        for item in snapshot_after.json().get("asteroids", [])
+        if item.get("table_id") == table_id
+    }
+
+
+def test_mineral_contract_gate_typing_validation_and_facts_projection(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    table_name = f"Mineral > Gate-{uuid.uuid4().hex[:8]}"
+    table_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"dataverse:{galaxy_id}:{table_name.lower()}"))
+
+    contract = client.post(
+        f"/contracts/{table_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "required_fields": ["amount"],
+            "field_types": {"amount": "number", "paid_at": "datetime"},
+            "validators": [{"field": "amount", "operator": ">", "value": 0}],
+            "unique_rules": [],
+            "formula_registry": [{"id": "vat-calc", "target": "vat", "expression": "SUM(amount)"}],
+            "physics_rulebook": {"defaults": {"table_name": table_name}},
+        },
+    )
+    assert contract.status_code == 201, contract.text
+
+    invalid = client.post(
+        "/asteroids/ingest",
+        json={
+            "value": "Invalid mineral row",
+            "metadata": {"table": table_name, "amount": "abc"},
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert invalid.status_code == 422, invalid.text
+    assert "Table contract violation" in invalid.text
+
+    valid = client.post(
+        "/asteroids/ingest",
+        json={
+            "value": "Valid mineral row",
+            "metadata": {
+                "table": table_name,
+                "amount": 123.45,
+                "paid_at": "2026-03-01T10:00:00Z",
+                "status": "paid",
+            },
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert valid.status_code == 200, valid.text
+    asteroid_id = valid.json()["id"]
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    row = next((item for item in snapshot.json().get("asteroids", []) if item.get("id") == asteroid_id), None)
+    assert row is not None
+    assert row["table_name"] == table_name
+    facts = row.get("facts", [])
+    assert isinstance(facts, list)
+    facts_by_key = {item["key"]: item for item in facts}
+    assert facts_by_key["amount"]["value_type"] == "number"
+    assert facts_by_key["amount"]["source"] == "metadata"
+    assert facts_by_key["status"]["value_type"] == "string"
+    assert facts_by_key["paid_at"]["value_type"] == "datetime"
+    if "vat" in facts_by_key:
+        assert facts_by_key["vat"]["source"] == "calculated"
+
+
+def test_release_gate_star_lock_first_planet_grid_convergence(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+
+    lock = client.post(
+        f"/galaxies/{galaxy_id}/star-core/policy/lock",
+        json={
+            "profile_key": "SENTINEL",
+            "lock_after_apply": True,
+            "physical_profile_key": "BALANCE",
+            "physical_profile_version": 1,
+        },
+    )
+    assert lock.status_code == 200, lock.text
+    lock_body = lock.json()
+    assert lock_body["lock_status"] == "locked"
+    assert lock_body["can_edit_core_laws"] is False
+
+    planet_name = f"Core > FirstPlanet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"release-gate-first-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_body = created_planet.json()
+    table_id = planet_body["table_id"]
+
+    tables_after_create = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert tables_after_create.status_code == 200, tables_after_create.text
+    table_row = next(
+        (row for row in tables_after_create.json().get("tables", []) if row.get("table_id") == table_id),
+        None,
+    )
+    assert table_row is not None
+    assert isinstance(table_row.get("members"), list)
+    assert table_row["members"] == []
+
+    first_moon = client.post(
+        "/asteroids/ingest",
+        json={
+            "value": f"FirstMoon-{uuid.uuid4().hex[:6]}",
+            # Catalog archetype requires entity_id/label/state by table contract.
+            # Avoid reserved `type/category` keys so table resolution stays on `table`.
+            "metadata": {
+                "table": planet_name,
+                "entity_id": f"seed-{uuid.uuid4().hex[:8]}",
+                "label": "Seed moon",
+                "state": "active",
+                "seed_kind": "seed",
+            },
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert first_moon.status_code == 200, first_moon.text
+    moon_id = first_moon.json()["id"]
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    snapshot_rows_for_planet = [
+        row
+        for row in snapshot.json().get("asteroids", [])
+        if row.get("table_id") == table_id
+    ]
+    snapshot_ids = {row.get("id") for row in snapshot_rows_for_planet}
+    assert moon_id in snapshot_ids
+
+    tables_after_ingest = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert tables_after_ingest.status_code == 200, tables_after_ingest.text
+    table_row_after_ingest = next(
+        (row for row in tables_after_ingest.json().get("tables", []) if row.get("table_id") == table_id),
+        None,
+    )
+    assert table_row_after_ingest is not None
+    member_ids = {member.get("id") for member in table_row_after_ingest.get("members", [])}
+    assert moon_id in member_ids
+
+    # Grid convergence gate: table members and snapshot rows for the same planet must be identical.
+    assert member_ids == snapshot_ids
 
 
 def test_planet_stage0_two_planets_validate_star_laws(auth_client: tuple[httpx.Client, str]) -> None:
