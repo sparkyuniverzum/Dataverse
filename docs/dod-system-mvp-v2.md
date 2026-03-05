@@ -1,6 +1,6 @@
 # System MVP DoD v2 (Star -> Planet -> Moon -> Civilization -> Mineral)
 
-Status: draft baseline (to be used as release gate)  
+Status: closed (MVP sign-off complete)  
 Owner: Core BE/FE  
 Date: 2026-03-05
 
@@ -10,6 +10,19 @@ Define one shared Definition of Done for the whole Dataverse MVP system.
 This DoD is technical and domain-driven, not marketing/product copy.
 
 The goal is to avoid partial "feature done" states and enforce one system gate.
+
+## 1.1 Closure record
+
+MVP sign-off was closed on 2026-03-05 after all defined gate groups were implemented and validated:
+- contract freeze gates (BE + FE),
+- integration closure gates (including star lock -> first planet -> grid convergence),
+- projection replay convergence gate (FE),
+- star physics migration gate (`/star-core/physics/profile/migrate`).
+
+Evidence (latest closure run set):
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "auth_session_lifecycle_login_refresh_logout_and_me or moon_first_class_crud_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or star_core_endpoint_by_endpoint_closure_v2 or release_gate_star_lock_first_planet_grid_convergence or semantic_constitution_endpoint_by_endpoint_closure_v1"`
+- `PYTHONPATH=. pytest -q tests/test_star_core_integration_freeze.py`
+- `make contract-gate`
 
 ## 2. Canonical domain model (frozen for MVP)
 

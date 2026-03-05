@@ -1,6 +1,6 @@
 # Galaxy Workspace Contract v1
 
-Status: draft (MVP baseline)  
+Status: frozen (MVP sign-off)  
 Date: 2026-03-05  
 Depends on: `docs/contracts/api-v1.md`, `docs/contracts/semantic-constitution-v1.md`
 
@@ -70,4 +70,3 @@ Expected status classes:
 2. Branch lifecycle works without cross-galaxy leakage.
 3. Onboarding state is available per galaxy immediately after create.
 4. Integration tests cover foreign access denial and branch promote flow.
-

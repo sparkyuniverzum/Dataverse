@@ -2,6 +2,7 @@
 
 Date: 2026-03-05  
 Owner: Core BE/FE
+Status: closed (gate set implemented and wired to CI)
 
 ## 1. Goal
 
@@ -65,3 +66,7 @@ Close remaining contract gaps for MVP sign-off with repeatable BE/FE test gates.
 - `make contract-gate`
 
 If all pass, contract layer is considered release-ready for current MVP scope.
+
+Closure note:
+- Canonical scripted entrypoint is `make contract-gate` (`scripts/star_contract_gate.sh`).
+- CI mirrors the same gate family in `.github/workflows/ci.yml`.

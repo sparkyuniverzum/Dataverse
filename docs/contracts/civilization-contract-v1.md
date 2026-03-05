@@ -1,6 +1,6 @@
 # Civilization Contract v1
 
-Status: draft (MVP baseline)  
+Status: frozen (MVP sign-off)  
 Date: 2026-03-05  
 Depends on: `docs/contracts/api-v1.md`, `docs/contracts/table-contract-v1.md`, `docs/contracts/moon-contract-v1.md`
 
@@ -61,3 +61,7 @@ Read paths:
 2. Active projection converges after ingest/mutate/extinguish.
 3. Integration tests cover create/mutate/soft-delete + projection convergence.
 4. Contract validation failures return stable error shape and do not append invalid writes.
+
+## 8. Closure evidence
+
+1. `pytest -q tests/test_api_integration.py -k civilization_contract_gate_create_mutate_extinguish_and_converge`

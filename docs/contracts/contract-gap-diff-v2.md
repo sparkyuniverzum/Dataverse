@@ -2,6 +2,7 @@
 
 Date: 2026-03-05  
 Scope: backend + frontend contract coverage audit for MVP system layers
+Status: closed (all tracked contract rows are `DONE`)
 
 Legend:
 - `DONE`: exists and has at least one automated gate
@@ -34,5 +35,5 @@ Legend:
 
 - `BLOCKER`: none for continuing implementation (core contracts exist).
 - `SIGN-OFF BLOCKERS` before MVP freeze:
-1. none at contract gate layer (remaining partial items are quality/depth improvements, not missing gates).
-2. projection convergence replay gate is now test-covered (`src/components/universe/projectionConvergenceGate.test.js`).
+1. none at contract gate layer (closure complete).
+2. projection convergence replay gate is covered (`src/components/universe/projectionConvergenceGate.test.js`).
