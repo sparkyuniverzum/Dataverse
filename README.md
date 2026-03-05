@@ -59,6 +59,16 @@ Parser vrací seznam `tasks` (`INGEST`, `LINK`, `SELECT`, `EXTINGUISH`) a ty jso
 
 Při chybě se transakce rollbackne (nic se trvale nezapíše).
 
+### Frontend rollout flags (parser-only)
+
+Ve frontendu lze postupne vypinat fallback endpointy po akcich:
+
+- `VITE_PARSER_ONLY_LINK=true`
+- `VITE_PARSER_ONLY_INGEST=true`
+- `VITE_PARSER_ONLY_EXTINGUISH=true`
+
+Pokud je flag zapnuty, akce selze primo na parser chybe (bez fallbacku). Pokud je vypnuty, zustava rezim parser-first + fallback.
+
 ## 7. Universe Snapshot (3D frontend)
 
 Endpoint: `GET /universe/snapshot`

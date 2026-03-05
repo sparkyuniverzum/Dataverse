@@ -79,6 +79,8 @@ export default function StarHeartDashboard({
   starPolicy,
   starRuntime,
   starDomains,
+  parserTelemetry,
+  parserExecutionMode,
   selectedProfileKey,
   applyBusy = false,
   applyError = "",
@@ -114,6 +116,13 @@ export default function StarHeartDashboard({
   const profileCards = Object.values(STAR_CORE_PROFILES);
   const topDomains = (Array.isArray(starDomains) ? starDomains : []).slice(0, 5);
   const statusLabel = isLocked ? "Uzamceno" : phase === "apply_profile" ? "Aplikuji profil..." : "Pripraveno";
+  const parserAttempts = Number.isFinite(Number(parserTelemetry?.attempts)) ? Number(parserTelemetry.attempts) : 0;
+  const parserSuccess = Number.isFinite(Number(parserTelemetry?.parser_success)) ? Number(parserTelemetry.parser_success) : 0;
+  const fallbackUsed = Number.isFinite(Number(parserTelemetry?.fallback_used)) ? Number(parserTelemetry.fallback_used) : 0;
+  const fallbackFailed = Number.isFinite(Number(parserTelemetry?.fallback_failed)) ? Number(parserTelemetry.fallback_failed) : 0;
+  const parserSuccessRate = parserAttempts > 0 ? Math.round((parserSuccess / parserAttempts) * 100) : 0;
+  const fallbackRate = parserAttempts > 0 ? Math.round((fallbackUsed / parserAttempts) * 100) : 0;
+  const parserModeLabel = (value) => (value ? "Parser-only" : "Parser + Fallback");
   const laws = [
     {
       key: "no_hard_delete",
@@ -204,6 +213,25 @@ export default function StarHeartDashboard({
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
               Topologie: <strong>{String(starCoreProfile?.topologyMode || "single_star_per_galaxy")}</strong> | Rezim:{" "}
               <strong>{String(starCoreProfile?.profileMode || "auto")}</strong>
+            </div>
+          </article>
+
+          <article style={cardStyle}>
+            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>PARSER RELIABILITY</div>
+            <div style={{ fontSize: "var(--dv-fs-sm)" }}>
+              Uspech parseru: <strong>{parserSuccessRate}%</strong> ({parserSuccess}/{parserAttempts})
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-sm)" }}>
+              Fallback pouzit: <strong>{fallbackRate}%</strong> ({fallbackUsed}/{parserAttempts})
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
+              Fallback fail: <strong>{fallbackFailed}</strong> | Posledni parser error:{" "}
+              <strong>{String(parserTelemetry?.last_error || "n/a")}</strong>
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
+              LINK: <strong>{parserModeLabel(parserExecutionMode?.link)}</strong> | INGEST:{" "}
+              <strong>{parserModeLabel(parserExecutionMode?.ingest)}</strong> | EXTINGUISH:{" "}
+              <strong>{parserModeLabel(parserExecutionMode?.extinguish)}</strong>
             </div>
           </article>
         </div>

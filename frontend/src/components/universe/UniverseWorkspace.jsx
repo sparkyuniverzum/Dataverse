@@ -5,9 +5,17 @@ import {
   apiErrorFromResponse,
   apiFetch,
   buildOccConflictMessage,
+  buildParserPayload,
   buildStarCorePolicyLockUrl,
   isOccConflictError,
 } from "../../lib/dataverseApi";
+import {
+  buildExtinguishMoonCommand,
+  buildIngestMoonCommand,
+  buildLinkMoonsCommand,
+} from "../../lib/builderParserCommand";
+import { PARSER_EXECUTION_MODE } from "../../lib/parserExecutionMode";
+import { createParserTelemetrySnapshot, recordParserTelemetry } from "../../lib/parserExecutionTelemetry";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import LinkHoverTooltip from "./LinkHoverTooltip";
 import { resolveEntityLaws, resolveLinkLaws, resolveStarCoreProfile } from "./lawResolver";
@@ -79,6 +87,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
   const [starControlPhase, setStarControlPhase] = useState(STAR_CONTROL_PHASE.IDLE);
   const [starProfileDraftKey, setStarProfileDraftKey] = useState("ORIGIN");
   const [starControlError, setStarControlError] = useState("");
+  const [parserTelemetry, setParserTelemetry] = useState(() => createParserTelemetrySnapshot());
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
 
@@ -94,6 +103,7 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
     setStarControlPhase(STAR_CONTROL_PHASE.IDLE);
     setStarProfileDraftKey("ORIGIN");
     setStarControlError("");
+    setParserTelemetry(createParserTelemetrySnapshot());
     layoutRef.current = { tablePositions: new Map(), asteroidPositions: new Map() };
   }, [galaxyId]);
 
@@ -307,6 +317,29 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
   }, [asteroidById, selectedAsteroidId]);
 
   const level = selectedTableId ? 3 : 2;
+  const parserExecutionMode = PARSER_EXECUTION_MODE;
+
+  const executeParserCommand = useCallback(
+    async (command) => {
+      const trimmed = String(command || "").trim();
+      if (!trimmed || !galaxyId) {
+        throw new Error("Parser command is empty.");
+      }
+      const response = await apiFetch(`${API_BASE}/parser/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildParserPayload(trimmed, galaxyId)),
+      });
+      if (!response.ok) {
+        throw await apiErrorFromResponse(response, `Parser command failed: ${response.status}`);
+      }
+      return response.json().catch(() => ({}));
+    },
+    [galaxyId]
+  );
+  const trackParserAttempt = useCallback((details) => {
+    setParserTelemetry((prev) => recordParserTelemetry(prev, details));
+  }, []);
 
   const handleCreateLink = useCallback(
     async (payload) => {
@@ -321,10 +354,35 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       const expectedTargetEventSeq = Number.isInteger(targetAsteroid?.current_event_seq)
         ? Number(targetAsteroid.current_event_seq)
         : null;
+      let parserAttempted = false;
+      let fallbackAttempted = false;
+      let parserFailure = null;
+      let parserTelemetryRecorded = false;
 
       setBusy(true);
       clearRuntimeError();
       try {
+        const parserCommand = buildLinkMoonsCommand({
+          sourceId: payload.sourceId,
+          targetId: payload.targetId,
+        });
+        if (parserCommand) {
+          parserAttempted = true;
+          try {
+            await executeParserCommand(parserCommand);
+            trackParserAttempt({ action: "LINK", parserOk: true });
+            parserTelemetryRecorded = true;
+            await refreshProjection({ silent: true });
+            return;
+          } catch (parserError) {
+            parserFailure = parserError;
+            if (parserExecutionMode.link) {
+              throw parserError;
+            }
+          }
+        }
+
+        fallbackAttempted = true;
         const response = await apiFetch(`${API_BASE}/bonds/link`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -341,9 +399,28 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Vazba se nepodarila vytvorit: ${response.status}`);
         }
-
+        if (parserAttempted) {
+          trackParserAttempt({
+            action: "LINK",
+            parserOk: false,
+            parserError: parserFailure,
+            fallbackUsed: true,
+            fallbackOk: true,
+          });
+          parserTelemetryRecorded = true;
+        }
         await refreshProjection({ silent: true });
       } catch (createError) {
+        if (parserAttempted && !parserTelemetryRecorded) {
+          trackParserAttempt({
+            action: "LINK",
+            parserOk: false,
+            parserError: parserFailure || createError,
+            fallbackUsed: fallbackAttempted,
+            fallbackOk: fallbackAttempted ? false : null,
+          });
+          parserTelemetryRecorded = true;
+        }
         if (isOccConflictError(createError)) {
           setRuntimeError(buildOccConflictMessage(createError, "vytvoreni vazby"));
           await refreshProjection({ silent: true });
@@ -354,7 +431,16 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         setBusy(false);
       }
     },
-    [asteroidById, clearRuntimeError, galaxyId, refreshProjection, setRuntimeError]
+    [
+      asteroidById,
+      clearRuntimeError,
+      executeParserCommand,
+      galaxyId,
+      parserExecutionMode,
+      refreshProjection,
+      setRuntimeError,
+      trackParserAttempt,
+    ]
   );
 
   const handleCreateRow = useCallback(
@@ -362,11 +448,41 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       if (!galaxyId || !selectedTableId) return false;
       const trimmed = String(value || "").trim();
       if (!trimmed) return false;
+      let parserAttempted = false;
+      let fallbackAttempted = false;
+      let parserFailure = null;
+      let parserTelemetryRecorded = false;
 
       setBusy(true);
       setPendingCreate(true);
       clearRuntimeError();
       try {
+        const parserCommand = buildIngestMoonCommand({
+          value: trimmed,
+          tableName: selectedTable?.name || tableDisplayName(selectedTable),
+        });
+        if (parserCommand) {
+          parserAttempted = true;
+          try {
+            const parserBody = await executeParserCommand(parserCommand);
+            const parserAsteroids = Array.isArray(parserBody?.asteroids) ? parserBody.asteroids : [];
+            const asteroidId = parserAsteroids[0]?.id ? String(parserAsteroids[0].id) : "";
+            trackParserAttempt({ action: "INGEST", parserOk: true });
+            parserTelemetryRecorded = true;
+            await refreshProjection({ silent: true });
+            if (asteroidId) {
+              setSelectedAsteroidId(asteroidId);
+            }
+            return true;
+          } catch (parserError) {
+            parserFailure = parserError;
+            if (parserExecutionMode.ingest) {
+              throw parserError;
+            }
+          }
+        }
+
+        fallbackAttempted = true;
         const response = await apiFetch(`${API_BASE}/asteroids/ingest`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -384,6 +500,16 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         }
         const payload = await response.json().catch(() => ({}));
         const asteroidId = payload?.id ? String(payload.id) : "";
+        if (parserAttempted) {
+          trackParserAttempt({
+            action: "INGEST",
+            parserOk: false,
+            parserError: parserFailure,
+            fallbackUsed: true,
+            fallbackOk: true,
+          });
+          parserTelemetryRecorded = true;
+        }
 
         await refreshProjection({ silent: true });
         if (asteroidId) {
@@ -391,6 +517,16 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         }
         return true;
       } catch (createError) {
+        if (parserAttempted && !parserTelemetryRecorded) {
+          trackParserAttempt({
+            action: "INGEST",
+            parserOk: false,
+            parserError: parserFailure || createError,
+            fallbackUsed: fallbackAttempted,
+            fallbackOk: fallbackAttempted ? false : null,
+          });
+          parserTelemetryRecorded = true;
+        }
         setRuntimeError(createError?.message || "Mesic se nepodarilo vytvorit.");
         return false;
       } finally {
@@ -398,7 +534,17 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         setBusy(false);
       }
     },
-    [clearRuntimeError, galaxyId, refreshProjection, selectedTableId, setRuntimeError]
+    [
+      clearRuntimeError,
+      executeParserCommand,
+      galaxyId,
+      parserExecutionMode,
+      refreshProjection,
+      selectedTable,
+      selectedTableId,
+      setRuntimeError,
+      trackParserAttempt,
+    ]
   );
 
   const handleUpdateRow = useCallback(
@@ -455,11 +601,39 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
       const asteroid = asteroidById.get(targetId);
       if (!asteroid) return;
       const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq) ? Number(asteroid.current_event_seq) : null;
+      let parserAttempted = false;
+      let fallbackAttempted = false;
+      let parserFailure = null;
+      let parserTelemetryRecorded = false;
 
       setBusy(true);
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "extinguish" }));
       clearRuntimeError();
       try {
+        const parserCommand = buildExtinguishMoonCommand({
+          asteroidId: targetId,
+          asteroidLabel: asteroid?.value,
+        });
+        if (parserCommand) {
+          parserAttempted = true;
+          try {
+            await executeParserCommand(parserCommand);
+            trackParserAttempt({ action: "EXTINGUISH", parserOk: true });
+            parserTelemetryRecorded = true;
+            await refreshProjection({ silent: true });
+            if (String(selectedAsteroidId) === targetId) {
+              setSelectedAsteroidId("");
+            }
+            return;
+          } catch (parserError) {
+            parserFailure = parserError;
+            if (parserExecutionMode.extinguish) {
+              throw parserError;
+            }
+          }
+        }
+
+        fallbackAttempted = true;
         const url = new URL(`${API_BASE}/asteroids/${targetId}/extinguish`);
         url.searchParams.set("galaxy_id", galaxyId);
         url.searchParams.set("idempotency_key", nextIdempotencyKey("extinguish"));
@@ -473,12 +647,32 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Mesic se nepodarilo zhasnout: ${response.status}`);
         }
+        if (parserAttempted) {
+          trackParserAttempt({
+            action: "EXTINGUISH",
+            parserOk: false,
+            parserError: parserFailure,
+            fallbackUsed: true,
+            fallbackOk: true,
+          });
+          parserTelemetryRecorded = true;
+        }
 
         await refreshProjection({ silent: true });
         if (String(selectedAsteroidId) === targetId) {
           setSelectedAsteroidId("");
         }
       } catch (deleteError) {
+        if (parserAttempted && !parserTelemetryRecorded) {
+          trackParserAttempt({
+            action: "EXTINGUISH",
+            parserOk: false,
+            parserError: parserFailure || deleteError,
+            fallbackUsed: fallbackAttempted,
+            fallbackOk: fallbackAttempted ? false : null,
+          });
+          parserTelemetryRecorded = true;
+        }
         if (isOccConflictError(deleteError)) {
           setRuntimeError(buildOccConflictMessage(deleteError, "zhasnuti mesice"));
           await refreshProjection({ silent: true });
@@ -494,7 +688,17 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         setBusy(false);
       }
     },
-    [asteroidById, clearRuntimeError, galaxyId, refreshProjection, selectedAsteroidId, setRuntimeError]
+    [
+      asteroidById,
+      clearRuntimeError,
+      executeParserCommand,
+      galaxyId,
+      parserExecutionMode,
+      refreshProjection,
+      selectedAsteroidId,
+      setRuntimeError,
+      trackParserAttempt,
+    ]
   );
 
   const handleUpsertMetadata = useCallback(
@@ -696,6 +900,8 @@ export default function UniverseWorkspace({ galaxy, onBackToGalaxies, onLogout, 
         starPolicy={starPolicy}
         starRuntime={starRuntime}
         starDomains={starDomains}
+        parserTelemetry={parserTelemetry}
+        parserExecutionMode={parserExecutionMode}
         selectedProfileKey={starProfileDraftKey}
         applyBusy={starControlPhase === STAR_CONTROL_PHASE.APPLY_PROFILE}
         applyError={starControlError}

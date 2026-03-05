@@ -2471,6 +2471,129 @@ def test_planet_mvp_create_list_detail_and_universe_tables(auth_client: tuple[ht
     assert table_row["archetype"] == "catalog"
 
 
+def test_planet_stage0_two_planets_validate_star_laws(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    catalog_name = f"Law > Catalog-{uuid.uuid4().hex[:8]}"
+    stream_name = f"Law > Stream-{uuid.uuid4().hex[:8]}"
+
+    created_catalog = client.post(
+        "/planets",
+        json={
+            "name": catalog_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"planet-catalog-{uuid.uuid4()}",
+        },
+    )
+    assert created_catalog.status_code == 201, created_catalog.text
+    catalog_table_id = created_catalog.json()["table_id"]
+
+    lock = client.post(
+        f"/galaxies/{galaxy_id}/star-core/policy/lock",
+        json={"profile_key": "SENTINEL", "lock_after_apply": True},
+    )
+    assert lock.status_code == 200, lock.text
+    lock_body = lock.json()
+    assert lock_body["lock_status"] == "locked"
+    assert lock_body["can_edit_core_laws"] is False
+
+    lock_again = client.post(
+        f"/galaxies/{galaxy_id}/star-core/policy/lock",
+        json={"profile_key": "ARCHIVE", "lock_after_apply": True},
+    )
+    assert lock_again.status_code == 409, lock_again.text
+
+    created_stream = client.post(
+        "/planets",
+        json={
+            "name": stream_name,
+            "archetype": "stream",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"planet-stream-{uuid.uuid4()}",
+        },
+    )
+    assert created_stream.status_code == 201, created_stream.text
+    stream_table_id = created_stream.json()["table_id"]
+
+    catalog_moon = client.post(
+        "/asteroids/ingest",
+        json={"value": f"Moon-Catalog-{uuid.uuid4().hex[:6]}", "metadata": {"table": catalog_name}, "galaxy_id": galaxy_id},
+    )
+    stream_moon = client.post(
+        "/asteroids/ingest",
+        json={"value": f"Moon-Stream-{uuid.uuid4().hex[:6]}", "metadata": {"table": stream_name}, "galaxy_id": galaxy_id},
+    )
+    assert catalog_moon.status_code == 200, catalog_moon.text
+    assert stream_moon.status_code == 200, stream_moon.text
+    catalog_moon_id = catalog_moon.json()["id"]
+    stream_moon_id = stream_moon.json()["id"]
+
+    linked = client.post(
+        "/bonds/link",
+        json={
+            "source_id": catalog_moon_id,
+            "target_id": stream_moon_id,
+            "type": "RELATION",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert linked.status_code == 200, linked.text
+
+    catalog_detail = client.get(f"/planets/{catalog_table_id}", params={"galaxy_id": galaxy_id})
+    stream_detail = client.get(f"/planets/{stream_table_id}", params={"galaxy_id": galaxy_id})
+    assert catalog_detail.status_code == 200, catalog_detail.text
+    assert stream_detail.status_code == 200, stream_detail.text
+    assert catalog_detail.json()["is_empty"] is False
+    assert stream_detail.json()["is_empty"] is False
+    assert catalog_detail.json()["external_bonds_count"] >= 1
+    assert stream_detail.json()["external_bonds_count"] >= 1
+
+    tables = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert tables.status_code == 200, tables.text
+    table_by_id = {item["table_id"]: item for item in tables.json().get("tables", [])}
+    assert catalog_table_id in table_by_id
+    assert stream_table_id in table_by_id
+    assert len(table_by_id[catalog_table_id].get("members", [])) >= 1
+    assert len(table_by_id[stream_table_id].get("members", [])) >= 1
+    assert len(table_by_id[catalog_table_id].get("external_bonds", [])) >= 1
+    assert len(table_by_id[stream_table_id].get("external_bonds", [])) >= 1
+
+    non_empty_extinguish = client.patch(f"/planets/{catalog_table_id}/extinguish", params={"galaxy_id": galaxy_id})
+    assert non_empty_extinguish.status_code == 409, non_empty_extinguish.text
+    assert "not empty" in non_empty_extinguish.text.lower()
+
+    pulse_before = client.get(f"/galaxies/{galaxy_id}/star-core/pulse", params={"limit": 1})
+    assert pulse_before.status_code == 200, pulse_before.text
+    pulse_cursor = int(pulse_before.json().get("last_event_seq") or 0)
+
+    extinguished_moon = client.patch(f"/asteroids/{catalog_moon_id}/extinguish", params={"galaxy_id": galaxy_id})
+    assert extinguished_moon.status_code == 200, extinguished_moon.text
+    ext_body = extinguished_moon.json()
+    assert ext_body["id"] == catalog_moon_id
+    assert ext_body["is_deleted"] is True
+    assert ext_body.get("deleted_at")
+
+    latest_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=catalog_moon_id)
+    assert latest_seq >= 1
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    visible_ids = {item.get("id") for item in snapshot.json().get("asteroids", [])}
+    assert catalog_moon_id not in visible_ids
+
+    pulse_after = client.get(
+        f"/galaxies/{galaxy_id}/star-core/pulse",
+        params={"after_event_seq": pulse_cursor, "limit": 64},
+    )
+    assert pulse_after.status_code == 200, pulse_after.text
+    pulse_events = pulse_after.json().get("events", [])
+    moon_event = next((item for item in pulse_events if item.get("entity_id") == catalog_moon_id), None)
+    assert moon_event is not None
+    assert moon_event["visual_hint"] == "fade_to_singularity"
+
+
 def test_planet_mvp_extinguish_empty_planet(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     created = client.post(
