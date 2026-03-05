@@ -69,6 +69,11 @@ Ve frontendu lze postupne vypinat fallback endpointy po akcich:
 
 Pokud je flag zapnuty, akce selze primo na parser chybe (bez fallbacku). Pokud je vypnuty, zustava rezim parser-first + fallback.
 
+Staging default:
+- pri buildu v `MODE=staging` je automaticky zapnuty pouze `LINK` parser-only
+- `INGEST` a `EXTINGUISH` zustavaji parser-first + fallback
+- explicitni `VITE_PARSER_ONLY_*` ma vzdy prednost pred defaultem
+
 ## 7. Universe Snapshot (3D frontend)
 
 Endpoint: `GET /universe/snapshot`
@@ -109,6 +114,7 @@ Makefile shortcut:
 - `make test-frontend`
 - `make test-contracts`
 - `make test`
+- `make staging-parser-rollout-smoke` (overi staging rollout parser-only rezimu)
 
 Ops smoke (docker + migrace + API + contract/reliability subset):
 - `make ops-smoke`

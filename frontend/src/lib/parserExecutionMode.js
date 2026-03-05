@@ -8,12 +8,25 @@ function parseBooleanFlag(raw, fallback = false) {
 }
 
 export function resolveParserExecutionMode(env = import.meta.env || {}) {
+  const mode = String(env.MODE || "").trim().toLowerCase();
+  const stagingDefaults =
+    mode === "staging"
+      ? {
+          link: true,
+          ingest: false,
+          extinguish: false,
+        }
+      : {
+          link: false,
+          ingest: false,
+          extinguish: false,
+        };
+
   return Object.freeze({
-    link: parseBooleanFlag(env.VITE_PARSER_ONLY_LINK, false),
-    ingest: parseBooleanFlag(env.VITE_PARSER_ONLY_INGEST, false),
-    extinguish: parseBooleanFlag(env.VITE_PARSER_ONLY_EXTINGUISH, false),
+    link: parseBooleanFlag(env.VITE_PARSER_ONLY_LINK, stagingDefaults.link),
+    ingest: parseBooleanFlag(env.VITE_PARSER_ONLY_INGEST, stagingDefaults.ingest),
+    extinguish: parseBooleanFlag(env.VITE_PARSER_ONLY_EXTINGUISH, stagingDefaults.extinguish),
   });
 }
 
 export const PARSER_EXECUTION_MODE = resolveParserExecutionMode();
-

@@ -1,4 +1,4 @@
-.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full be-gate be-gate-quick be-gate-strict star-contract-gate
+.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full be-gate be-gate-quick be-gate-strict star-contract-gate staging-parser-rollout-smoke
 
 install:
 	./.venv/bin/pip install -r requirements.txt
@@ -110,3 +110,6 @@ be-gate-strict:
 
 star-contract-gate:
 	./scripts/star_contract_gate.sh
+
+staging-parser-rollout-smoke:
+	./scripts/staging_parser_rollout_smoke.sh
