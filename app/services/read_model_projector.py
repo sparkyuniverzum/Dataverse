@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -422,7 +422,7 @@ class ReadModelProjector:
         elif quality_score < 85:
             status = "YELLOW"
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         summary_stmt = insert(GalaxySummaryRM).values(
             user_id=user_id,

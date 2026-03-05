@@ -58,9 +58,5 @@ export function samplePath(points, t) {
   const frac = scaled - i;
   const p0 = safe[i];
   const p1 = safe[Math.min(i + 1, total)];
-  return [
-    p0[0] + (p1[0] - p0[0]) * frac,
-    p0[1] + (p1[1] - p0[1]) * frac,
-    p0[2] + (p1[2] - p0[2]) * frac,
-  ];
+  return [p0[0] + (p1[0] - p0[0]) * frac, p0[1] + (p1[1] - p0[1]) * frac, p0[2] + (p1[2] - p0[2]) * frac];
 }

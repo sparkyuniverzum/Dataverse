@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -232,10 +232,10 @@ class OnboardingService:
             self._set_machine_state_on_progress(progress=progress, machine=machine)
             if self._stage_index(progress.stage_key) == 0 and progress.stage_key != STAGES[0].key:
                 progress.stage_key = STAGES[0].key
-                progress.updated_at = datetime.now(timezone.utc)
+                progress.updated_at = datetime.now(UTC)
             return progress
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         progress = OnboardingProgress(
             user_id=user_id,
             galaxy_id=galaxy_id,
@@ -350,7 +350,7 @@ class OnboardingService:
         progress = await self.ensure_progress(session=session, user_id=user_id, galaxy_id=galaxy_id)
         metrics = await self.read_metrics(session=session, user_id=user_id, galaxy_id=galaxy_id)
         stage_index = self._stage_index(progress.stage_key)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if payload.action == OnboardingAction.reset:
             progress.mode = OnboardingMode.guided.value

@@ -96,7 +96,9 @@ export async function apiErrorFromResponse(response, fallbackMessage = "Request 
 
 export function isOccConflictError(error) {
   if (!error || Number(error.status) !== 409) return false;
-  const code = String(error.code || error?.detail?.code || "").trim().toUpperCase();
+  const code = String(error.code || error?.detail?.code || "")
+    .trim()
+    .toUpperCase();
   return code === "OCC_CONFLICT";
 }
 
@@ -128,7 +130,11 @@ const BOND_TYPE_ALIASES = {
 };
 
 export function normalizeBondType(rawType) {
-  const normalized = String(rawType || "").trim().toUpperCase().replaceAll("-", "_").replaceAll(" ", "_");
+  const normalized = String(rawType || "")
+    .trim()
+    .toUpperCase()
+    .replaceAll("-", "_")
+    .replaceAll(" ", "_");
   if (!normalized) return "RELATION";
   return BOND_TYPE_ALIASES[normalized] || normalized;
 }
@@ -158,7 +164,13 @@ export function buildParserPayload(command, galaxyId = null, branchId = null) {
   return payload;
 }
 
-export function buildTaskBatchPayload({ tasks, mode = "commit", galaxyId = null, branchId = null, idempotencyKey = null } = {}) {
+export function buildTaskBatchPayload({
+  tasks,
+  mode = "commit",
+  galaxyId = null,
+  branchId = null,
+  idempotencyKey = null,
+} = {}) {
   const payload = {
     mode: String(mode || "commit").toLowerCase(),
     tasks: Array.isArray(tasks) ? tasks : [],
@@ -374,7 +386,11 @@ export function buildGalaxyBondsUrl(apiBase, galaxyId, asOfIso = null, branchId 
   return url.toString();
 }
 
-export function buildGalaxyEventsStreamUrl(apiBase, galaxyId, { branchId = null, lastEventSeq = null, pollMs = 1200, heartbeatSec = 15 } = {}) {
+export function buildGalaxyEventsStreamUrl(
+  apiBase,
+  galaxyId,
+  { branchId = null, lastEventSeq = null, pollMs = 1200, heartbeatSec = 15 } = {}
+) {
   const url = new URL(`${apiBase}/galaxies/${galaxyId}/events/stream`);
   if (branchId) {
     url.searchParams.set("branch_id", String(branchId));
@@ -469,7 +485,10 @@ export function buildImportJobErrorsUrl(apiBase, jobId) {
   return `${apiBase}/io/imports/${jobId}/errors`;
 }
 
-export function buildSnapshotExportUrl(apiBase, { format = "csv", galaxyId = null, branchId = null, asOfIso = null } = {}) {
+export function buildSnapshotExportUrl(
+  apiBase,
+  { format = "csv", galaxyId = null, branchId = null, asOfIso = null } = {}
+) {
   const url = new URL(`${apiBase}/io/exports/snapshot`);
   url.searchParams.set("format", String(format || "csv"));
   if (galaxyId) {
@@ -484,7 +503,10 @@ export function buildSnapshotExportUrl(apiBase, { format = "csv", galaxyId = nul
   return url.toString();
 }
 
-export function buildTablesExportUrl(apiBase, { format = "csv", galaxyId = null, branchId = null, asOfIso = null } = {}) {
+export function buildTablesExportUrl(
+  apiBase,
+  { format = "csv", galaxyId = null, branchId = null, asOfIso = null } = {}
+) {
   const url = new URL(`${apiBase}/io/exports/tables`);
   url.searchParams.set("format", String(format || "csv"));
   if (galaxyId) {
@@ -500,17 +522,12 @@ export function buildTablesExportUrl(apiBase, { format = "csv", galaxyId = null,
 }
 
 export function normalizeSnapshot(data) {
-  const asteroidSource = Array.isArray(data?.asteroids)
-    ? data.asteroids
-    : Array.isArray(data?.atoms)
-      ? data.atoms
-      : [];
+  const asteroidSource = Array.isArray(data?.asteroids) ? data.asteroids : Array.isArray(data?.atoms) ? data.atoms : [];
   const asteroids = asteroidSource.filter((asteroid) => asteroid?.is_deleted !== true);
   const asteroidIdSet = new Set(asteroids.map((asteroid) => asteroid.id));
   const bonds = Array.isArray(data?.bonds)
     ? data.bonds.filter(
-        (bond) =>
-          bond?.is_deleted !== true && asteroidIdSet.has(bond.source_id) && asteroidIdSet.has(bond.target_id)
+        (bond) => bond?.is_deleted !== true && asteroidIdSet.has(bond.source_id) && asteroidIdSet.has(bond.target_id)
       )
     : [];
 

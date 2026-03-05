@@ -45,9 +45,7 @@ def test_moon_freeze_gate_routes_match_contract_exactly_and_keep_soft_delete_onl
     expected_signatures = set(source["moon_endpoints"])
     expected_paths = {signature.split(" ", 1)[1] for signature in expected_signatures}
     runtime_moon_signatures = {
-        signature
-        for signature in _registered_http_signatures()
-        if signature.split(" ", 1)[1] in expected_paths
+        signature for signature in _registered_http_signatures() if signature.split(" ", 1)[1] in expected_paths
     }
     assert runtime_moon_signatures == expected_signatures
 

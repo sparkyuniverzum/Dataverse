@@ -1,5 +1,7 @@
 function normalizeSignatures(values) {
-  return [...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean))].sort();
+  return [
+    ...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean)),
+  ].sort();
 }
 
 export const API_V1_CONTRACT_VERSION = "1.0.0";
@@ -64,7 +66,11 @@ export const API_V1_FE_LITERAL_SIGNATURES = Object.freeze([
 ]);
 
 export const API_V1_FE_ENDPOINT_SIGNATURES = Object.freeze(
-  normalizeSignatures([...API_V1_AUTH_SESSION_SIGNATURES, ...API_V1_FE_HELPER_SIGNATURES, ...API_V1_FE_LITERAL_SIGNATURES])
+  normalizeSignatures([
+    ...API_V1_AUTH_SESSION_SIGNATURES,
+    ...API_V1_FE_HELPER_SIGNATURES,
+    ...API_V1_FE_LITERAL_SIGNATURES,
+  ])
 );
 
 export const API_V1_SOFT_DELETE_SIGNATURES = Object.freeze([

@@ -68,7 +68,9 @@ export function buildIngestMoonCommand({ value, tableName, metadata = {} } = {})
 }
 
 export function buildBuilderParserCommand(action) {
-  const kind = String(action?.type || "").trim().toUpperCase();
+  const kind = String(action?.type || "")
+    .trim()
+    .toUpperCase();
   if (kind === "LINK_MOONS") return buildLinkMoonsCommand(action);
   if (kind === "TYPE_MOONS") return buildTypeMoonsCommand(action);
   if (kind === "EXTINGUISH_MOON") return buildExtinguishMoonCommand(action);

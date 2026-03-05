@@ -13,7 +13,7 @@ describe("rowWriteUtils", () => {
 
   it("parses json objects and arrays", () => {
     expect(parseMetadataLiteral('{"a":1}')).toEqual({ a: 1 });
-    expect(parseMetadataLiteral('[1,2,3]')).toEqual([1, 2, 3]);
+    expect(parseMetadataLiteral("[1,2,3]")).toEqual([1, 2, 3]);
   });
 
   it("adds or updates metadata key", () => {

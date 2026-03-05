@@ -39,6 +39,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Backend style gate (ruff)
+        run: |
+          ruff format --check .
+          ruff check .
+
       - name: Run migrations
         run: alembic upgrade head
 
@@ -85,9 +90,17 @@ jobs:
         run: |
           pytest -q tests/test_api_integration.py -k "auth_session_lifecycle_login_refresh_logout_and_me or moon_first_class_crud_endpoints or civilization_first_class_alias_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or star_core_endpoint_by_endpoint_closure_v2 or snapshot_v1_contract or tables_v1_contract or task_executor_rolls_back_on_failed_link or execute_tasks_rollback_after_partial_write or guardian_command_is_idempotent_for_same_rule or mutate_asteroid_occ_parallel_writes_allow_single_winner or link_parallel_same_relation_returns_single_bond or bond_mutate_replaces_type_and_preserves_single_active_edge or bond_extinguish_soft_deletes_link"
 
-      - name: Release gate: star lock -> first planet -> grid convergence
+      - name: Civilization alias parity gate (backend)
+        run: |
+          pytest -q tests/test_api_integration.py -k "moon_first_class_crud_endpoints or civilization_first_class_alias_endpoints"
+
+      - name: "Release gate: star lock -> first planet -> grid convergence"
         run: |
           pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_grid_convergence or release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence"
+
+      - name: "Release gate: star lock -> first planet -> lego schema -> seeded grid"
+        run: |
+          pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_lego_schema_seeded_grid_convergence"
 
       - name: Semantic constitution endpoint closure (backend)
         run: |
@@ -119,6 +132,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Frontend style gate (eslint + prettier)
+        run: |
+          npm run lint
+          npm run format:check
+
       - name: Frontend tests
         run: npm test
 
@@ -139,6 +157,9 @@ jobs:
 
       - name: Projection convergence gate (frontend)
         run: npm test -- --run src/components/universe/projectionConvergenceGate.test.js src/components/universe/moonWriteDefaults.test.js src/components/universe/workspaceUiPersistence.test.js src/components/universe/runtimeSyncUtils.test.js src/lib/hierarchy_layout.test.js
+
+      - name: Planet builder camera nudge gate (frontend)
+        run: npm test -- --run src/components/universe/stageZeroBuilder.test.js src/components/universe/stageZeroUtils.test.js
 
       - name: Moon contract freeze gate (frontend)
         run: npm test -- --run src/lib/moonContract.test.js src/lib/dataverseApi.test.js

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
@@ -9,13 +9,13 @@ from pydantic import BaseModel, Field
 PARSER2_INTENT_VERSION = "2.0"
 
 
-class LinkType(str, Enum):
+class LinkType(StrEnum):
     RELATION = "RELATION"
     TYPE = "TYPE"
     FLOW = "FLOW"
 
 
-class NodeSelectorType(str, Enum):
+class NodeSelectorType(StrEnum):
     NAME = "NAME"
     ID = "ID"
 

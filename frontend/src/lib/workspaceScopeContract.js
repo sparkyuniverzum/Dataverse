@@ -1,5 +1,7 @@
 function normalizeFields(values) {
-  return [...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean))].sort();
+  return [
+    ...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean)),
+  ].sort();
 }
 
 function diff(beFields, feFields) {
@@ -22,19 +24,9 @@ function asInteger(value, fallback = 0) {
   return Math.trunc(parsed);
 }
 
-export const GALAXY_PUBLIC_BE_FIELDS = Object.freeze([
-  "id",
-  "name",
-  "owner_id",
-  "created_at",
-  "deleted_at",
-]);
+export const GALAXY_PUBLIC_BE_FIELDS = Object.freeze(["id", "name", "owner_id", "created_at", "deleted_at"]);
 
-export const GALAXY_GATE_FE_USED_FIELDS = Object.freeze([
-  "id",
-  "name",
-  "deleted_at",
-]);
+export const GALAXY_GATE_FE_USED_FIELDS = Object.freeze(["id", "name", "deleted_at"]);
 
 export const BRANCH_PUBLIC_BE_FIELDS = Object.freeze([
   "id",
@@ -46,12 +38,7 @@ export const BRANCH_PUBLIC_BE_FIELDS = Object.freeze([
   "deleted_at",
 ]);
 
-export const BRANCH_GATE_FE_USED_FIELDS = Object.freeze([
-  "id",
-  "galaxy_id",
-  "name",
-  "deleted_at",
-]);
+export const BRANCH_GATE_FE_USED_FIELDS = Object.freeze(["id", "galaxy_id", "name", "deleted_at"]);
 
 export const ONBOARDING_PUBLIC_BE_FIELDS = Object.freeze([
   "user_id",

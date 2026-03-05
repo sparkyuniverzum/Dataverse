@@ -13,18 +13,9 @@ export const STAR_POLICY_BE_FIELDS = Object.freeze([
   "can_edit_core_laws",
 ]);
 
-export const STAR_RUNTIME_BE_FIELDS = Object.freeze([
-  "as_of_event_seq",
-  "events_count",
-  "writes_per_minute",
-]);
+export const STAR_RUNTIME_BE_FIELDS = Object.freeze(["as_of_event_seq", "events_count", "writes_per_minute"]);
 
-export const STAR_DOMAIN_BE_FIELDS = Object.freeze([
-  "domain_name",
-  "status",
-  "events_count",
-  "activity_intensity",
-]);
+export const STAR_DOMAIN_BE_FIELDS = Object.freeze(["domain_name", "status", "events_count", "activity_intensity"]);
 
 export const STAR_PULSE_EVENT_BE_FIELDS = Object.freeze([
   "event_seq",
@@ -86,11 +77,7 @@ export const STAR_POLICY_FE_USED_FIELDS = Object.freeze([
   "can_edit_core_laws",
 ]);
 
-export const STAR_RUNTIME_FE_USED_FIELDS = Object.freeze([
-  "as_of_event_seq",
-  "events_count",
-  "writes_per_minute",
-]);
+export const STAR_RUNTIME_FE_USED_FIELDS = Object.freeze(["as_of_event_seq", "events_count", "writes_per_minute"]);
 
 export const STAR_DOMAIN_FE_USED_FIELDS = Object.freeze([
   "domain_name",

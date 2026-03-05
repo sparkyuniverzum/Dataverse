@@ -162,14 +162,13 @@ describe("api v1 FE freeze gate", () => {
       expect(feSignatures.has(signature)).toBe(true);
     }
 
-    const deleteSignatures = API_V1_FE_ENDPOINT_SIGNATURES.filter((signature) =>
-      signature.startsWith("DELETE ") &&
-      API_V1_SOFT_DELETE_ROUTE_PREFIXES.some((prefix) => signature.includes(` ${prefix}`))
+    const deleteSignatures = API_V1_FE_ENDPOINT_SIGNATURES.filter(
+      (signature) =>
+        signature.startsWith("DELETE ") &&
+        API_V1_SOFT_DELETE_ROUTE_PREFIXES.some((prefix) => signature.includes(` ${prefix}`))
     );
     expect(deleteSignatures).toEqual([]);
     const softDeleteSignatures = API_V1_FE_ENDPOINT_SIGNATURES.filter((signature) => signature.includes("/extinguish"));
-    expect([...API_V1_SOFT_DELETE_SIGNATURES].sort()).toEqual(
-      softDeleteSignatures.sort()
-    );
+    expect([...API_V1_SOFT_DELETE_SIGNATURES].sort()).toEqual(softDeleteSignatures.sort());
   });
 });

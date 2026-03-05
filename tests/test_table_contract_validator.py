@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -17,7 +17,7 @@ from app.services.task_executor.contract_validation import TableContractValidato
     [
         ("datetime", "2026-03-01T10:00:00Z"),
         ("timestamp", "2026-03-01T10:00:00+00:00"),
-        ("timestamptz", datetime(2026, 3, 1, 10, 0, tzinfo=timezone.utc)),
+        ("timestamptz", datetime(2026, 3, 1, 10, 0, tzinfo=UTC)),
         ("date", "2026-03-01"),
     ],
 )

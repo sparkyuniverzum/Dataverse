@@ -1,7 +1,9 @@
 import { bondSemanticsFromType } from "./dataverseApi";
 
 function normalize(values) {
-  return [...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean))].sort();
+  return [
+    ...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean)),
+  ].sort();
 }
 
 function diff(required, provided) {
@@ -30,7 +32,9 @@ export const SEMANTIC_SOFT_DELETE_ROUTE_SIGNATURES = Object.freeze([
 export const SEMANTIC_NO_DELETE_ROUTE_PREFIXES = Object.freeze(["/asteroids", "/bonds", "/planets", "/galaxies"]);
 
 export function normalizeBranchNameForConstitution(raw) {
-  return String(raw || "").trim().toLocaleLowerCase("en-US");
+  return String(raw || "")
+    .trim()
+    .toLocaleLowerCase("en-US");
 }
 
 export function semanticConstitutionContractDiff({

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
@@ -42,12 +42,12 @@ class SchemaPresetListResponse(BaseModel):
     presets: list[SchemaPresetSummaryPublic] = Field(default_factory=list)
 
 
-class PresetApplyMode(str, Enum):
+class PresetApplyMode(StrEnum):
     preview = "preview"
     commit = "commit"
 
 
-class PresetConflictStrategy(str, Enum):
+class PresetConflictStrategy(StrEnum):
     skip = "skip"
     overwrite = "overwrite"
 

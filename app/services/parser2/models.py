@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class TokenType(str, Enum):
+class TokenType(StrEnum):
     ATOM = "ATOM"
     STRING = "STRING"
     COLON = "COLON"

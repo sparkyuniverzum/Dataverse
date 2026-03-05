@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from threading import Barrier
 
 import httpx
@@ -19,7 +19,7 @@ def _stringify(value: object) -> str:
 
 
 def _parse_iso_datetime(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
 def _latest_entity_event_seq(client: httpx.Client, *, galaxy_id: str, entity_id: str) -> int:
@@ -169,7 +169,9 @@ def test_auth_session_lifecycle_login_refresh_logout_and_me(client: httpx.Client
     previous_authorization = client.headers.get("Authorization")
 
     try:
-        register = client.post("/auth/register", json={"email": email, "password": password, "galaxy_name": "Auth Lifecycle"})
+        register = client.post(
+            "/auth/register", json={"email": email, "password": password, "galaxy_name": "Auth Lifecycle"}
+        )
         assert register.status_code == 201, register.text
         register_body = register.json()
         assert isinstance(register_body.get("access_token"), str) and register_body["access_token"]
@@ -202,7 +204,7 @@ def test_auth_session_lifecycle_login_refresh_logout_and_me(client: httpx.Client
         assert refresh_body.get("token_type") == "bearer"
         expires_at_raw = str(refresh_body.get("expires_at") or "")
         assert expires_at_raw
-        assert _parse_iso_datetime(expires_at_raw) > datetime.now(timezone.utc)
+        assert _parse_iso_datetime(expires_at_raw) > datetime.now(UTC)
 
         client.headers.update({"Authorization": f"Bearer {refreshed_access_token}"})
         me_after_refresh = client.get("/auth/me")
@@ -517,7 +519,9 @@ def test_semantic_constitution_endpoint_by_endpoint_closure_v1(auth_client: tupl
     type_link_task = next((task for task in type_body.get("tasks", []) if task.get("action") == "LINK"), None)
     assert type_link_task is not None
     assert str(type_link_task.get("params", {}).get("type") or "").upper() == "TYPE"
-    type_bond = next((bond for bond in type_body.get("bonds", []) if str(bond.get("type") or "").upper() == "TYPE"), None)
+    type_bond = next(
+        (bond for bond in type_body.get("bonds", []) if str(bond.get("type") or "").upper() == "TYPE"), None
+    )
     assert type_bond is not None
     type_bond_id = type_bond["id"]
 
@@ -1223,7 +1227,10 @@ def test_galaxy_dashboard_v1_endpoints_return_read_model_views(auth_client: tupl
     execute = client.post(
         "/parser/execute",
         json={
-            "query": f"DashA-{uuid.uuid4()} (table: EntitaA > Planeta1, cena: 10) + DashB-{uuid.uuid4()} (table: EntitaB > Planeta2, cena: 20)",
+            "query": (
+                f"DashA-{uuid.uuid4()} (table: EntitaA > Planeta1, cena: 10) + "
+                f"DashB-{uuid.uuid4()} (table: EntitaB > Planeta2, cena: 20)"
+            ),
             "galaxy_id": galaxy_id,
         },
     )
@@ -1262,7 +1269,10 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
     execute = client.post(
         "/parser/execute",
         json={
-            "query": f"StarA-{uuid.uuid4()} (table: Core > Pulse, amount: 5) + StarB-{uuid.uuid4()} (table: Core > Pulse, amount: 7)",
+            "query": (
+                f"StarA-{uuid.uuid4()} (table: Core > Pulse, amount: 5) + "
+                f"StarB-{uuid.uuid4()} (table: Core > Pulse, amount: 7)"
+            ),
             "galaxy_id": galaxy_id,
         },
     )
@@ -1759,7 +1769,10 @@ def test_bond_layer_v1_endpoint_returns_flow_quality_metrics(auth_client: tuple[
     execute = client.post(
         "/parser/execute",
         json={
-            "query": f"FlowA-{uuid.uuid4()} (table: Finance > Orion, cena: 10) + FlowB-{uuid.uuid4()} (table: Finance > Orion, cena: 20)",
+            "query": (
+                f"FlowA-{uuid.uuid4()} (table: Finance > Orion, cena: 10) + "
+                f"FlowB-{uuid.uuid4()} (table: Finance > Orion, cena: 20)"
+            ),
             "galaxy_id": galaxy_id,
         },
     )
@@ -1832,7 +1845,7 @@ def test_tables_v1_contract_contains_sector_and_bond_buckets(auth_client: tuple[
 
         sector = table["sector"]
         assert "center" in sector and isinstance(sector["center"], list) and len(sector["center"]) == 3
-        assert "size" in sector and isinstance(sector["size"], (int, float))
+        assert "size" in sector and isinstance(sector["size"], int | float)
         assert "mode" in sector and sector["mode"] in {"belt", "ring"}
         assert sector.get("grid_plate") is True
 
@@ -3129,7 +3142,9 @@ def test_civilization_first_class_alias_endpoints(auth_client: tuple[httpx.Clien
     assert missing_after_delete.status_code == 404, missing_after_delete.text
 
 
-def test_civilization_contract_gate_create_mutate_extinguish_and_converge(auth_client: tuple[httpx.Client, str]) -> None:
+def test_civilization_contract_gate_create_mutate_extinguish_and_converge(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
     client, galaxy_id = auth_client
     planet_name = f"Civilization > Gate-{uuid.uuid4().hex[:8]}"
     created_planet = client.post(
@@ -3184,7 +3199,9 @@ def test_civilization_contract_gate_create_mutate_extinguish_and_converge(auth_c
 
     tables_before = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
     assert tables_before.status_code == 200, tables_before.text
-    target_table = next((row for row in tables_before.json().get("tables", []) if row.get("table_id") == table_id), None)
+    target_table = next(
+        (row for row in tables_before.json().get("tables", []) if row.get("table_id") == table_id), None
+    )
     assert target_table is not None
     member_ids_before = {item.get("id") for item in target_table.get("members", [])}
     assert asteroid_id in member_ids_before
@@ -3210,9 +3227,7 @@ def test_civilization_contract_gate_create_mutate_extinguish_and_converge(auth_c
     member_ids_after = {item.get("id") for item in target_after.get("members", [])}
     assert asteroid_id not in member_ids_after
     assert member_ids_after == {
-        item.get("id")
-        for item in snapshot_after.json().get("asteroids", [])
-        if item.get("table_id") == table_id
+        item.get("id") for item in snapshot_after.json().get("asteroids", []) if item.get("table_id") == table_id
     }
 
 
@@ -3341,11 +3356,7 @@ def test_release_gate_star_lock_first_planet_grid_convergence(auth_client: tuple
 
     snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
     assert snapshot.status_code == 200, snapshot.text
-    snapshot_rows_for_planet = [
-        row
-        for row in snapshot.json().get("asteroids", [])
-        if row.get("table_id") == table_id
-    ]
+    snapshot_rows_for_planet = [row for row in snapshot.json().get("asteroids", []) if row.get("table_id") == table_id]
     snapshot_ids = {row.get("id") for row in snapshot_rows_for_planet}
     assert moon_id in snapshot_ids
 
@@ -3481,6 +3492,130 @@ def test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence(
     table_member_ids_after_extinguish = {item.get("id") for item in table_row_after_extinguish.get("members", [])}
     assert moon_id not in table_member_ids_after_extinguish
     assert table_member_ids_after_extinguish == snapshot_ids_after_extinguish
+
+
+def test_release_gate_star_lock_first_planet_lego_schema_seeded_grid_convergence(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
+    client, galaxy_id = auth_client
+
+    lock = client.post(
+        f"/galaxies/{galaxy_id}/star-core/policy/lock",
+        json={
+            "profile_key": "SENTINEL",
+            "lock_after_apply": True,
+            "physical_profile_key": "BALANCE",
+            "physical_profile_version": 1,
+        },
+    )
+    assert lock.status_code == 200, lock.text
+    lock_body = lock.json()
+    assert lock_body["lock_status"] == "locked"
+    assert lock_body["can_edit_core_laws"] is False
+
+    planet_name = f"Core > LegoPlanet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"release-gate-lego-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    table_id = created_planet.json()["table_id"]
+
+    schema_commit = client.post(
+        f"/contracts/{table_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "required_fields": ["transaction_name", "amount", "transaction_type"],
+            "field_types": {
+                "value": "string",
+                "transaction_name": "string",
+                "amount": "number",
+                "transaction_type": "string",
+            },
+            "unique_rules": [],
+            "validators": [],
+            "auto_semantics": [],
+            "schema_registry": {
+                "required_fields": ["transaction_name", "amount", "transaction_type"],
+                "field_types": {
+                    "value": "string",
+                    "transaction_name": "string",
+                    "amount": "number",
+                    "transaction_type": "string",
+                },
+                "unique_rules": [],
+                "validators": [],
+                "auto_semantics": [],
+            },
+            "formula_registry": [],
+            "physics_rulebook": {"rules": [], "defaults": {}},
+        },
+    )
+    assert schema_commit.status_code in (200, 201), schema_commit.text
+    schema_body = schema_commit.json()
+    assert schema_body["field_types"]["amount"] == "number"
+    assert "transaction_name" in schema_body["required_fields"]
+
+    seed_rows = [
+        {"label": "Salary", "amount": 48000, "transaction_type": "INCOME"},
+        {"label": "Rent", "amount": -17000, "transaction_type": "EXPENSE"},
+        {"label": "Groceries", "amount": -4200, "transaction_type": "EXPENSE"},
+    ]
+    created_ids: list[str] = []
+    for row in seed_rows:
+        created_civilization = client.post(
+            "/civilizations",
+            json={
+                "galaxy_id": galaxy_id,
+                "planet_id": table_id,
+                "label": row["label"],
+                "minerals": {
+                    "entity_id": f"civilization-{uuid.uuid4().hex[:8]}",
+                    "label": row["label"],
+                    "state": "active",
+                    "transaction_name": row["label"],
+                    "amount": row["amount"],
+                    "transaction_type": row["transaction_type"],
+                },
+                "idempotency_key": f"release-gate-lego-seed-{uuid.uuid4()}",
+            },
+        )
+        assert created_civilization.status_code == 201, created_civilization.text
+        created_body = created_civilization.json()
+        created_ids.append(str(created_body["moon_id"]))
+        facts_by_key = {fact["key"]: fact for fact in created_body.get("facts", [])}
+        assert facts_by_key["transaction_name"]["typed_value"] == row["label"]
+        assert facts_by_key["amount"]["value_type"] == "number"
+        assert facts_by_key["transaction_type"]["typed_value"] == row["transaction_type"]
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    snapshot_rows_for_planet = [row for row in snapshot.json().get("asteroids", []) if row.get("table_id") == table_id]
+    snapshot_ids = {str(row.get("id")) for row in snapshot_rows_for_planet}
+    assert set(created_ids).issubset(snapshot_ids)
+    for row in snapshot_rows_for_planet:
+        if str(row.get("id")) not in created_ids:
+            continue
+        facts_by_key = {fact["key"]: fact for fact in row.get("facts", [])}
+        assert facts_by_key["amount"]["value_type"] == "number"
+        assert facts_by_key["transaction_name"]["source"] == "metadata"
+        assert facts_by_key["transaction_type"]["source"] == "metadata"
+
+    tables = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert tables.status_code == 200, tables.text
+    table_row = next((row for row in tables.json().get("tables", []) if row.get("table_id") == table_id), None)
+    assert table_row is not None
+    member_ids = {str(member.get("id")) for member in table_row.get("members", [])}
+    assert set(created_ids).issubset(member_ids)
+
+    # End-to-end convergence gate: members surfaced in grid projection must equal snapshot rows for same planet.
+    assert member_ids == snapshot_ids
 
 
 def test_planet_stage0_two_planets_validate_star_laws(auth_client: tuple[httpx.Client, str]) -> None:

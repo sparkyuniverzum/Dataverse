@@ -130,7 +130,9 @@ export default function WorkspaceSidebar({
       </button>
 
       <label style={{ display: "grid", gap: 4 }}>
-        <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76, letterSpacing: "var(--dv-tr-wide)" }}>AKTIVNI PLANETA</span>
+        <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76, letterSpacing: "var(--dv-tr-wide)" }}>
+          AKTIVNI PLANETA
+        </span>
         <select
           value={selectedTableId}
           onChange={(event) => onSelectTable(String(event.target.value || ""))}

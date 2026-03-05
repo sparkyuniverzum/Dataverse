@@ -54,7 +54,10 @@ function splitEntityAndPlanetName(table) {
   const separators = [">", "/", "::", "|"];
   for (const separator of separators) {
     if (!raw.includes(separator)) continue;
-    const parts = raw.split(separator).map((part) => part.trim()).filter(Boolean);
+    const parts = raw
+      .split(separator)
+      .map((part) => part.trim())
+      .filter(Boolean);
     if (parts.length >= 2) {
       return {
         entityName: parts[0],
@@ -340,8 +343,16 @@ export function calculateHierarchyLayout({
   }));
 
   const asteroidSim = forceSimulation(asteroidNodes)
-    .force("charge", forceManyBody().strength((node) => -150 - node.mass * 95))
-    .force("collision", forceCollide().radius((node) => node.radius + 5.4 + node.mass * 0.9).iterations(2))
+    .force(
+      "charge",
+      forceManyBody().strength((node) => -150 - node.mass * 95)
+    )
+    .force(
+      "collision",
+      forceCollide()
+        .radius((node) => node.radius + 5.4 + node.mass * 0.9)
+        .iterations(2)
+    )
     .force(
       "link",
       forceLink(asteroidLinksForLayout)

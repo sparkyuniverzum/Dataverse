@@ -8,7 +8,9 @@ function parseBooleanFlag(raw, fallback = false) {
 }
 
 export function resolveParserExecutionMode(env = import.meta.env || {}) {
-  const mode = String(env.MODE || "").trim().toLowerCase();
+  const mode = String(env.MODE || "")
+    .trim()
+    .toLowerCase();
   const stagingDefaults =
     mode === "staging"
       ? {

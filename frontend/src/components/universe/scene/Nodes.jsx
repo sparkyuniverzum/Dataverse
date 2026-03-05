@@ -79,7 +79,10 @@ function buildConstellationVisual(node) {
       const x = (rng() - 0.5) * spread * 2.2;
       const y = (rng() - 0.5) * spread * 1.0;
       const z = (rng() - 0.5) * spread * 2.2;
-      temp.copy(primary).lerp(secondary, rng() * 0.65).lerp(highlight, rng() * 0.1);
+      temp
+        .copy(primary)
+        .lerp(secondary, rng() * 0.65)
+        .lerp(highlight, rng() * 0.1);
       pushPoint(positions, colors, x, y, z, temp);
     }
   } else if (archetype.key === "nebula") {
@@ -154,7 +157,9 @@ export function TableNode({
   const crackIntensity = clamp(Number(physics?.crackIntensity) || 0, 0, 1);
   const hue = clamp(Number(physics?.hue) || 0.58, 0, 1);
   const saturation = clamp(Number(physics?.saturation) || 0.66, 0, 1);
-  const phase = String(node.runtimePlanetPhysics?.phase || phaseFromLegacyStatus(node.v1?.status || "CALM")).toUpperCase();
+  const phase = String(
+    node.runtimePlanetPhysics?.phase || phaseFromLegacyStatus(node.v1?.status || "CALM")
+  ).toUpperCase();
   const phaseVisual = useMemo(
     () =>
       resolvePlanetPhaseVisual({
@@ -170,7 +175,13 @@ export function TableNode({
     () => signatureColorFromSeed(`${node.id}|${node.entityName || node.label}`).getStyle(),
     [node.entityName, node.id, node.label]
   );
-  const previewMoonCount = clamp(Number(node.memberCount || 0), 0, 5);
+  const previewMoonCount = clamp(
+    Number.isFinite(Number(node.previewMoonCountOverride))
+      ? Number(node.previewMoonCountOverride)
+      : Number(node.memberCount || 0),
+    0,
+    5
+  );
   const previewOrbitRadius = node.radius * 2.15;
   const previewMoonRadius = Math.max(0.5, node.radius * 0.11);
   const previewPhase = useMemo(() => ((hashText(node.id) % 360) / 180) * Math.PI, [node.id]);
@@ -178,8 +189,7 @@ export function TableNode({
   useFrame((_, delta) => {
     if (!groupRef.current) return;
     const pulseMultiplier = phaseVisual.pulseMultiplier;
-    targetScaleRef.current =
-      (selected ? 1.16 + stress * 0.05 : 1 + stress * 0.08) * (1 + (pulseMultiplier - 1) * 0.05);
+    targetScaleRef.current = (selected ? 1.16 + stress * 0.05 : 1 + stress * 0.08) * (1 + (pulseMultiplier - 1) * 0.05);
     const nextScale = THREE.MathUtils.damp(groupRef.current.scale.x, targetScaleRef.current, 7, delta);
     groupRef.current.scale.set(nextScale, nextScale, nextScale);
     groupRef.current.rotation.y += delta * visual.spinSpeed * spinFactor * phaseVisual.spinMultiplier;
@@ -225,7 +235,11 @@ export function TableNode({
       <group rotation={visual.rotation}>
         <points>
           <bufferGeometry>
-            <bufferAttribute attach="attributes-position" args={[visual.positions, 3]} count={visual.positions.length / 3} />
+            <bufferAttribute
+              attach="attributes-position"
+              args={[visual.positions, 3]}
+              count={visual.positions.length / 3}
+            />
             <bufferAttribute attach="attributes-color" args={[visual.colors, 3]} count={visual.colors.length / 3} />
           </bufferGeometry>
           <pointsMaterial
@@ -448,9 +462,7 @@ export function AsteroidNode({
         <meshBasicMaterial
           color={phaseVisual.aura}
           transparent
-          opacity={
-            selected ? 0.2 : clamp(0.12 * auraFactor + phaseVisual.corrosionOverlayOpacity * 0.2, 0.1, 0.45)
-          }
+          opacity={selected ? 0.2 : clamp(0.12 * auraFactor + phaseVisual.corrosionOverlayOpacity * 0.2, 0.1, 0.45)}
           depthWrite={false}
         />
       </mesh>

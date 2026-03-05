@@ -1,10 +1,13 @@
 const RESERVED_CONTRACT_KEYS = new Set(["table", "table_id", "table_name", "constellation_name", "planet_name"]);
 
 function normalizeFieldType(rawType) {
-  const normalized = String(rawType || "").trim().toLowerCase();
+  const normalized = String(rawType || "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return "string";
   if (normalized === "text") return "string";
-  if (normalized === "int" || normalized === "integer" || normalized === "float" || normalized === "decimal") return "number";
+  if (normalized === "int" || normalized === "integer" || normalized === "float" || normalized === "decimal")
+    return "number";
   if (normalized === "date") return "datetime";
   if (normalized === "object" || normalized === "array") return "json";
   if (normalized === "bool") return "boolean";
@@ -37,7 +40,9 @@ function findNumericValidatorHint(validators, fieldName) {
 }
 
 function defaultMineralValue({ fieldName, fieldType, label, validators }) {
-  const normalizedField = String(fieldName || "").trim().toLowerCase();
+  const normalizedField = String(fieldName || "")
+    .trim()
+    .toLowerCase();
   if (!normalizedField) return null;
 
   if (normalizedField === "entity_id" || normalizedField.endsWith("_id")) {
@@ -89,4 +94,3 @@ export function buildMoonCreateMinerals({ label, contract } = {}) {
   });
   return minerals;
 }
-

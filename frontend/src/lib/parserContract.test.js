@@ -57,12 +57,7 @@ describe("parser contract FE freeze gate", () => {
   });
 
   it("keeps FE parser builders compatible with parser v2 operator semantics and v1 compatibility", () => {
-    expect(PARSER_FE_BUILDER_ACTIONS).toEqual([
-      "LINK_MOONS",
-      "TYPE_MOONS",
-      "EXTINGUISH_MOON",
-      "INGEST_MOON",
-    ]);
+    expect(PARSER_FE_BUILDER_ACTIONS).toEqual(["LINK_MOONS", "TYPE_MOONS", "EXTINGUISH_MOON", "INGEST_MOON"]);
 
     const link = buildLinkMoonsCommand({ sourceLabel: "A", targetLabel: "B" });
     const type = buildTypeMoonsCommand({ sourceLabel: "A", targetLabel: "B" });

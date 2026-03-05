@@ -23,9 +23,7 @@ export function evaluateProjectionConvergence({ snapshot, tables, selectedTableI
   const bonds = Array.isArray(snapshot?.bonds) ? snapshot.bonds : [];
   const tableRows = Array.isArray(tables) ? tables : [];
 
-  const asteroidById = new Map(
-    asteroids.map((row) => [normalizeId(row?.id), row]).filter(([id]) => Boolean(id))
-  );
+  const asteroidById = new Map(asteroids.map((row) => [normalizeId(row?.id), row]).filter(([id]) => Boolean(id)));
   const tableById = new Map(tableRows.map((row) => [normalizeId(row?.table_id), row]).filter(([id]) => Boolean(id)));
 
   const selectedId = normalizeId(selectedTableId) || normalizeId(tableRows[0]?.table_id);
@@ -60,9 +58,7 @@ export function evaluateProjectionConvergence({ snapshot, tables, selectedTableI
 
   const selectedMemberIds = uniqueSorted((selectedTable.members || []).map((member) => member?.id));
   const selectedGridIds = uniqueSorted(
-    asteroids
-      .filter((row) => normalizeId(row?.table_id) === selectedId)
-      .map((row) => row?.id)
+    asteroids.filter((row) => normalizeId(row?.table_id) === selectedId).map((row) => row?.id)
   );
 
   const layout = calculateHierarchyLayout({

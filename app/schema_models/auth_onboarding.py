@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -23,13 +23,13 @@ class GalaxyPublic(BaseModel):
     deleted_at: datetime | None
 
 
-class OnboardingMode(str, Enum):
+class OnboardingMode(StrEnum):
     guided = "guided"
     template = "template"
     hardcore = "hardcore"
 
 
-class OnboardingAction(str, Enum):
+class OnboardingAction(StrEnum):
     advance = "advance"
     set_mode = "set_mode"
     reset = "reset"

@@ -124,9 +124,15 @@ export default function StarHeartDashboard({
   const topDomains = (Array.isArray(starDomains) ? starDomains : []).slice(0, 5);
   const statusLabel = isLocked ? "Uzamceno" : phase === "apply_profile" ? "Aplikuji profil..." : "Pripraveno";
   const parserAttempts = Number.isFinite(Number(parserTelemetry?.attempts)) ? Number(parserTelemetry.attempts) : 0;
-  const parserSuccess = Number.isFinite(Number(parserTelemetry?.parser_success)) ? Number(parserTelemetry.parser_success) : 0;
-  const fallbackUsed = Number.isFinite(Number(parserTelemetry?.fallback_used)) ? Number(parserTelemetry.fallback_used) : 0;
-  const fallbackFailed = Number.isFinite(Number(parserTelemetry?.fallback_failed)) ? Number(parserTelemetry.fallback_failed) : 0;
+  const parserSuccess = Number.isFinite(Number(parserTelemetry?.parser_success))
+    ? Number(parserTelemetry.parser_success)
+    : 0;
+  const fallbackUsed = Number.isFinite(Number(parserTelemetry?.fallback_used))
+    ? Number(parserTelemetry.fallback_used)
+    : 0;
+  const fallbackFailed = Number.isFinite(Number(parserTelemetry?.fallback_failed))
+    ? Number(parserTelemetry.fallback_failed)
+    : 0;
   const parserSuccessRate = parserAttempts > 0 ? Math.round((parserSuccess / parserAttempts) * 100) : 0;
   const fallbackRate = parserAttempts > 0 ? Math.round((fallbackUsed / parserAttempts) * 100) : 0;
   const physicalProfileVersion = Number.isFinite(Number(starPhysicsProfile?.profile_version))
@@ -135,9 +141,10 @@ export default function StarHeartDashboard({
       ? Number(starCoreProfile.physicalProfileVersion)
       : 1;
   const physicalProfileLockStatus = String(starPhysicsProfile?.lock_status || lockStatus).toLowerCase();
-  const coefficients = starPhysicsProfile?.coefficients && typeof starPhysicsProfile.coefficients === "object"
-    ? starPhysicsProfile.coefficients
-    : {};
+  const coefficients =
+    starPhysicsProfile?.coefficients && typeof starPhysicsProfile.coefficients === "object"
+      ? starPhysicsProfile.coefficients
+      : {};
   const parserModeLabel = (value) => (value ? "Parser-only" : "Parser + Fallback");
   const laws = [
     {
@@ -193,7 +200,9 @@ export default function StarHeartDashboard({
             <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wider)", opacity: 0.78 }}>
               HEART OF STAR
             </div>
-            <div style={{ fontSize: "clamp(18px, 3vw, 26px)", fontWeight: 800 }}>Ridici dashboard fyzikalnich zakonu galaxie</div>
+            <div style={{ fontSize: "clamp(18px, 3vw, 26px)", fontWeight: 800 }}>
+              Ridici dashboard fyzikalnich zakonu galaxie
+            </div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
               Profil <strong>{profileLabel}</strong> | preset <strong>{lawPreset}</strong> | fyzika{" "}
               <strong>{activePhysicalProfileKey}</strong> v{physicalProfileVersion} | lock <strong>{lockStatus}</strong>
@@ -206,7 +215,9 @@ export default function StarHeartDashboard({
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>
           <article style={cardStyle}>
-            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>AKTIVITA</div>
+            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>
+              AKTIVITA
+            </div>
             <div style={{ fontSize: "var(--dv-fs-sm)" }}>
               Write/min: <strong>{writesPerMinute}</strong>
             </div>
@@ -219,10 +230,14 @@ export default function StarHeartDashboard({
           </article>
 
           <article style={cardStyle}>
-            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>USTAVA</div>
+            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>
+              USTAVA
+            </div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
               Status: <strong>{statusLabel}</strong> | Policy verze{" "}
-              <strong>{Number.isFinite(Number(starPolicy?.policy_version)) ? Number(starPolicy.policy_version) : 1}</strong>
+              <strong>
+                {Number.isFinite(Number(starPolicy?.policy_version)) ? Number(starPolicy.policy_version) : 1}
+              </strong>
             </div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
               Locked at: <strong>{formatLockTime(starPolicy?.locked_at)}</strong>
@@ -232,12 +247,15 @@ export default function StarHeartDashboard({
               <strong>{String(starCoreProfile?.profileMode || "auto")}</strong>
             </div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
-              Fyzikalni lock: <strong>{physicalProfileLockStatus}</strong> | Verze: <strong>{physicalProfileVersion}</strong>
+              Fyzikalni lock: <strong>{physicalProfileLockStatus}</strong> | Verze:{" "}
+              <strong>{physicalProfileVersion}</strong>
             </div>
           </article>
 
           <article style={cardStyle}>
-            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>PARSER RELIABILITY</div>
+            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>
+              PARSER RELIABILITY
+            </div>
             <div style={{ fontSize: "var(--dv-fs-sm)" }}>
               Uspech parseru: <strong>{parserSuccessRate}%</strong> ({parserSuccess}/{parserAttempts})
             </div>
@@ -257,7 +275,9 @@ export default function StarHeartDashboard({
         </div>
 
         <article style={cardStyle}>
-          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>PROFILY HVEZDY</div>
+          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>
+            PROFILY HVEZDY
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
             {profileCards.map((profile) => {
               const selected = activeProfileKey === profile.key;
@@ -286,7 +306,9 @@ export default function StarHeartDashboard({
               );
             })}
           </div>
-          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78, marginTop: 6 }}>
+          <div
+            style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78, marginTop: 6 }}
+          >
             FYZIKALNI PROFILY PLANET
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
@@ -347,7 +369,9 @@ export default function StarHeartDashboard({
         </article>
 
         <article style={cardStyle}>
-          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>ZAKONY A DOPAD</div>
+          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>
+            ZAKONY A DOPAD
+          </div>
           <div style={{ display: "grid", gap: 8 }}>
             {laws.map((law) => (
               <div
@@ -369,13 +393,19 @@ export default function StarHeartDashboard({
         </article>
 
         <article style={cardStyle}>
-          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>DOMENOVA ODEZVA</div>
+          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>
+            DOMENOVA ODEZVA
+          </div>
           <div style={{ display: "grid", gap: 5 }}>
             {topDomains.length ? (
               topDomains.map((domain) => (
                 <div key={String(domain?.domain_name || "")} style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
                   {String(domain?.domain_name || "Uncategorized")} | activity{" "}
-                  <strong>{Number.isFinite(Number(domain?.activity_intensity)) ? Number(domain.activity_intensity).toFixed(2) : "0.00"}</strong>{" "}
+                  <strong>
+                    {Number.isFinite(Number(domain?.activity_intensity))
+                      ? Number(domain.activity_intensity).toFixed(2)
+                      : "0.00"}
+                  </strong>{" "}
                   | status <strong>{String(domain?.status || "GREEN")}</strong>
                 </div>
               ))

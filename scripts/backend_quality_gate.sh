@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 
 PYTHON_BIN="${PYTHON_BIN:-./.venv/bin/python}"
 PYTEST_BIN="${PYTEST_BIN:-./.venv/bin/pytest}"
+RUFF_BIN="${RUFF_BIN:-./.venv/bin/ruff}"
 API_BASE="${DATAVERSE_API_BASE:-http://127.0.0.1:8000}"
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
@@ -16,6 +17,12 @@ fi
 
 if [[ ! -x "$PYTEST_BIN" ]]; then
   echo "[be-gate] missing pytest binary: $PYTEST_BIN" >&2
+  exit 1
+fi
+
+if [[ ! -x "$RUFF_BIN" ]]; then
+  echo "[be-gate] missing ruff binary: $RUFF_BIN" >&2
+  echo "[be-gate] install dev deps: ./.venv/bin/pip install -r requirements-dev.txt" >&2
   exit 1
 fi
 
@@ -37,6 +44,9 @@ run_pytest() {
 }
 
 echo "[be-gate] profile: $PROFILE"
+
+run_step "ruff format check" "$RUFF_BIN" format --check .
+run_step "ruff lint check" "$RUFF_BIN" check .
 
 run_step "v1 safety policy (soft delete guard)" ./scripts/release_v1_gate.sh
 

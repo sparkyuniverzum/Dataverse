@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -44,7 +44,7 @@ def _asteroid(*, value: str, metadata: dict | None = None) -> ProjectedAsteroid:
         value=value,
         metadata=metadata or {},
         is_deleted=False,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         deleted_at=None,
         current_event_seq=1,
     )
@@ -73,7 +73,7 @@ def test_handle_ingest_update_family_ingest_does_not_reuse_existing_from_other_t
     async def _append_and_project_event(*, entity_id, event_type, payload):  # noqa: ANN001
         if event_type != "ASTEROID_CREATED":
             raise AssertionError(f"Unexpected event append: {event_type} {entity_id}")
-        return type("Evt", (), {"timestamp": datetime.now(timezone.utc), "event_seq": 2})
+        return type("Evt", (), {"timestamp": datetime.now(UTC), "event_seq": 2})
 
     async def _noop_validate(**kwargs):  # noqa: ANN003
         return None
@@ -276,7 +276,7 @@ def test_handle_ingest_update_family_applies_auto_semantic_reclassification() ->
         if event_type not in {"ASTEROID_CREATED", "METADATA_UPDATED"}:
             raise AssertionError(f"Unexpected event append: {event_type} {entity_id}")
         event_seq = 2 if event_type == "ASTEROID_CREATED" else 3
-        return type("Evt", (), {"timestamp": datetime.now(timezone.utc), "event_seq": event_seq})
+        return type("Evt", (), {"timestamp": datetime.now(UTC), "event_seq": event_seq})
 
     async def _noop_validate(**kwargs):  # noqa: ANN003
         return None

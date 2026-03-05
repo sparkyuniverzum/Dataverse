@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -9,13 +9,13 @@ from app.schema_models.branch_contracts import TableContractPublic
 from app.schema_models.universe import UniverseTableSectorSnapshot, UniverseTableSnapshot
 
 
-class PlanetArchetype(str, Enum):
+class PlanetArchetype(StrEnum):
     catalog = "catalog"
     stream = "stream"
     junction = "junction"
 
 
-class PlanetSchemaMode(str, Enum):
+class PlanetSchemaMode(StrEnum):
     empty = "empty"
     preset = "preset"
 

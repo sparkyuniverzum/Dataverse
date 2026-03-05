@@ -13,21 +13,13 @@ from app.models import Event, Galaxy, TableContract
 from app.services.event_store_service import EventStoreService
 from app.services.universe.event_projection import (
     apply_event as apply_projection_event,
-)
-from app.services.universe.event_projection import (
     project_state_from_branch,
     project_state_from_events,
 )
 from app.services.universe.read_model_projection import (
     _load_calc_state_by_asteroid_id as rm_load_calc_state_by_asteroid_id,
-)
-from app.services.universe.read_model_projection import (
     _load_physics_state_by_asteroid_id as rm_load_physics_state_by_asteroid_id,
-)
-from app.services.universe.read_model_projection import (
     _load_physics_state_by_bond_id as rm_load_physics_state_by_bond_id,
-)
-from app.services.universe.read_model_projection import (
     enrich_bonds_from_read_models,
     enrich_main_timeline_from_read_models,
     evaluate_fallback_universe,
@@ -36,13 +28,8 @@ from app.services.universe.read_model_projection import (
 from app.services.universe.tables_snapshot import build_tables_snapshot
 from app.services.universe.types import (
     DEFAULT_GALAXY_ID,
-    ProjectionPayloadError,
     ProjectedAsteroid,
     ProjectedBond,
-    derive_table_id,
-    derive_table_name,
-    normalize_table_name,
-    split_constellation_and_planet_name,
 )
 
 

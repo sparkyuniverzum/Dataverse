@@ -6,7 +6,13 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-export function SourceCoreStar({ starCore, onSelectStar, onOpenControlCenter, isFocused = false, isControlCenterOpen = false }) {
+export function SourceCoreStar({
+  starCore,
+  onSelectStar,
+  onOpenControlCenter,
+  isFocused = false,
+  isControlCenterOpen = false,
+}) {
   const coreRef = useRef(null);
   const auraRef = useRef(null);
   const ringARef = useRef(null);
@@ -47,7 +53,10 @@ export function SourceCoreStar({ starCore, onSelectStar, onOpenControlCenter, is
   }, [lastEventSeq]);
 
   const baseRadius = useMemo(() => 30 + domainActivity * 10, [domainActivity]);
-  const pulseSpeed = useMemo(() => 0.75 + domainActivity * 1.15 + Math.min(writesPerMinute / 18, 1), [domainActivity, writesPerMinute]);
+  const pulseSpeed = useMemo(
+    () => 0.75 + domainActivity * 1.15 + Math.min(writesPerMinute / 18, 1),
+    [domainActivity, writesPerMinute]
+  );
 
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
@@ -69,15 +78,24 @@ export function SourceCoreStar({ starCore, onSelectStar, onOpenControlCenter, is
     if (ringARef.current) {
       ringARef.current.rotation.z += delta * (0.22 + domainActivity * 0.34);
       ringARef.current.rotation.x = Math.sin(t * 0.4) * 0.08;
-      ringARef.current.material.opacity = clamp(0.28 + (isFocused ? 0.24 : 0) + (isControlCenterOpen ? 0.18 : 0), 0.2, 0.82);
+      ringARef.current.material.opacity = clamp(
+        0.28 + (isFocused ? 0.24 : 0) + (isControlCenterOpen ? 0.18 : 0),
+        0.2,
+        0.82
+      );
     }
     if (ringBRef.current) {
       ringBRef.current.rotation.z -= delta * (0.18 + domainActivity * 0.28);
       ringBRef.current.rotation.y += delta * 0.12;
-      ringBRef.current.material.opacity = clamp(0.18 + (isFocused ? 0.16 : 0) + (isControlCenterOpen ? 0.14 : 0), 0.14, 0.68);
+      ringBRef.current.material.opacity = clamp(
+        0.18 + (isFocused ? 0.16 : 0) + (isControlCenterOpen ? 0.14 : 0),
+        0.14,
+        0.68
+      );
     }
     if (lightRef.current) {
-      lightRef.current.intensity = 5.8 + wave * 2.8 + burst * 2.7 + (isFocused ? 1.8 : 0) + (isControlCenterOpen ? 1.2 : 0);
+      lightRef.current.intensity =
+        5.8 + wave * 2.8 + burst * 2.7 + (isFocused ? 1.8 : 0) + (isControlCenterOpen ? 1.2 : 0);
       lightRef.current.distance = 560 + domainActivity * 280;
     }
   });
@@ -109,7 +127,13 @@ export function SourceCoreStar({ starCore, onSelectStar, onOpenControlCenter, is
           }}
         >
           <icosahedronGeometry args={[baseRadius, 2]} />
-          <meshStandardMaterial color={primaryColor} emissive={secondaryColor} emissiveIntensity={2.2} roughness={0.18} metalness={0.3} />
+          <meshStandardMaterial
+            color={primaryColor}
+            emissive={secondaryColor}
+            emissiveIntensity={2.2}
+            roughness={0.18}
+            metalness={0.3}
+          />
         </mesh>
         <mesh ref={auraRef} raycast={() => null}>
           <sphereGeometry args={[baseRadius * 2.15, 30, 30]} />

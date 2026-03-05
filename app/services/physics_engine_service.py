@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -97,7 +97,7 @@ class PhysicsEngineService:
         galaxy_id: UUID,
         source_event_seq: int,
     ) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         normalized_source_seq = max(0, int(source_event_seq))
 
         calc_rows = list(

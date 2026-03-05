@@ -54,4 +54,3 @@ describe("physicsSystem", () => {
     expect(link.opacityMultiplier).toBeGreaterThan(0.8);
   });
 });
-

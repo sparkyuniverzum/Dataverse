@@ -1,7 +1,7 @@
 import sys
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -27,7 +27,7 @@ def test_evaluate_universe_sum_and_avg() -> None:
     project_id = uuid.uuid4()
     task_a_id = uuid.uuid4()
     task_b_id = uuid.uuid4()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     atoms = [
         DummyAtom(
@@ -58,7 +58,7 @@ def test_evaluate_universe_count_ignores_non_numeric_values() -> None:
     a_id = uuid.uuid4()
     b_id = uuid.uuid4()
     c_id = uuid.uuid4()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     atoms = [
         DummyAtom(id=root_id, value="Root", metadata_={"pocet": "=COUNT(cena)"}, created_at=now),
@@ -81,7 +81,7 @@ def test_evaluate_universe_resolves_recursive_formula_chain() -> None:
     root_id = uuid.uuid4()
     mid_id = uuid.uuid4()
     leaf_id = uuid.uuid4()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     atoms = [
         DummyAtom(id=root_id, value="Root", metadata_={"sum_mid": "=SUM(v)"}, created_at=now),
@@ -102,7 +102,7 @@ def test_evaluate_universe_resolves_recursive_formula_chain() -> None:
 def test_evaluate_universe_detects_circular_reference() -> None:
     a_id = uuid.uuid4()
     b_id = uuid.uuid4()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     atoms = [
         DummyAtom(id=a_id, value="A", metadata_={"x": "=SUM(x)"}, created_at=now),

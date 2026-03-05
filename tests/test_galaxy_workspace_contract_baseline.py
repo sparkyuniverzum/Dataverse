@@ -52,9 +52,7 @@ def test_galaxy_workspace_contract_baseline_routes_are_registered() -> None:
     expected_signatures = set(source["workspace_endpoints"])
     expected_paths = {signature.split(" ", 1)[1] for signature in expected_signatures}
     runtime_workspace_signatures = {
-        signature
-        for signature in _registered_http_signatures()
-        if signature.split(" ", 1)[1] in expected_paths
+        signature for signature in _registered_http_signatures() if signature.split(" ", 1)[1] in expected_paths
     }
     assert runtime_workspace_signatures == expected_signatures
 

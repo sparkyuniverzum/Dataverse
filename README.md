@@ -106,6 +106,14 @@ Frontend (unit testy helper logiky):
 1. `cd frontend`
 2. `npm ci`
 3. `npm test`
+4. `npm run lint`
+5. `npm run format:check`
+
+Frontend format/lint stack:
+- `npm run lint` (ESLint)
+- `npm run lint:fix` (ESLint autofix)
+- `npm run format` (Prettier write)
+- `npm run format:check` (Prettier check)
 
 Makefile shortcut:
 - `make test-backend-unit`
@@ -129,6 +137,18 @@ Backend quality gate (parser-level rigor):
 - `make be-gate-strict` (includes full API integration suite)
 - runbook: `docs/release/backend-quality-gate.md`
 
+Python format/lint stack (Ruff + pre-commit):
+- `make fmt-py` (auto-fix lint + format)
+- `make quality-py` (format check + lint check)
+- `make precommit-install` (install git hooks)
+- `make precommit-run` (run all hooks manually)
+
+Direct commands:
+- `./.venv/bin/ruff check --fix .`
+- `./.venv/bin/ruff format .`
+- `./.venv/bin/ruff format --check .`
+- `./.venv/bin/ruff check .`
+
 ## 9. CI
 
 Repo obsahuje workflow:
@@ -136,4 +156,6 @@ Repo obsahuje workflow:
 
 Pipeline běží:
 - backend: migrace + unit + integrační smoke
+- backend style gate: `ruff format --check` + `ruff check`
+- frontend style gate: `eslint` + `prettier --check`
 - frontend: test + build

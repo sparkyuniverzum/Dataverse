@@ -86,13 +86,13 @@ describe("normalizeSnapshot", () => {
       asteroids: [
         { id: "a1", value: "A", is_deleted: false },
         { id: "a2", value: "B", is_deleted: true },
-        { id: "a3", value: "C", is_deleted: false }
+        { id: "a3", value: "C", is_deleted: false },
       ],
       bonds: [
         { id: "b1", source_id: "a1", target_id: "a3", is_deleted: false },
         { id: "b2", source_id: "a1", target_id: "a2", is_deleted: false },
-        { id: "b3", source_id: "a1", target_id: "a3", is_deleted: true }
-      ]
+        { id: "b3", source_id: "a1", target_id: "a3", is_deleted: true },
+      ],
     };
 
     const result = normalizeSnapshot(snapshot);
@@ -204,7 +204,9 @@ describe("io urls", () => {
   it("builds import and export URLs", () => {
     expect(buildImportRunUrl("http://127.0.0.1:8000")).toBe("http://127.0.0.1:8000/io/imports");
     expect(buildImportJobUrl("http://127.0.0.1:8000", "job-42")).toBe("http://127.0.0.1:8000/io/imports/job-42");
-    expect(buildImportJobErrorsUrl("http://127.0.0.1:8000", "job-42")).toBe("http://127.0.0.1:8000/io/imports/job-42/errors");
+    expect(buildImportJobErrorsUrl("http://127.0.0.1:8000", "job-42")).toBe(
+      "http://127.0.0.1:8000/io/imports/job-42/errors"
+    );
 
     const snapshotUrl = buildSnapshotExportUrl("http://127.0.0.1:8000", {
       galaxyId: "g-1",
@@ -217,7 +219,11 @@ describe("io urls", () => {
     expect(snapshotUrl).toContain("branch_id=br-1");
     expect(snapshotUrl).toContain("as_of=2026-03-01T10%3A00%3A00Z");
 
-    const tablesUrl = buildTablesExportUrl("http://127.0.0.1:8000", { galaxyId: "g-2", branchId: "br-2", format: "csv" });
+    const tablesUrl = buildTablesExportUrl("http://127.0.0.1:8000", {
+      galaxyId: "g-2",
+      branchId: "br-2",
+      format: "csv",
+    });
     expect(tablesUrl).toContain("/io/exports/tables");
     expect(tablesUrl).toContain("format=csv");
     expect(tablesUrl).toContain("galaxy_id=g-2");
@@ -268,9 +274,7 @@ describe("io urls", () => {
       planetId: "table-1",
       branchId: "br-2",
     });
-    expect(civilizationList).toBe(
-      "http://127.0.0.1:8000/civilizations?galaxy_id=g-5&planet_id=table-1&branch_id=br-2"
-    );
+    expect(civilizationList).toBe("http://127.0.0.1:8000/civilizations?galaxy_id=g-5&planet_id=table-1&branch_id=br-2");
 
     const civilizationDetail = buildCivilizationDetailUrl("http://127.0.0.1:8000", "civilization-7", {
       galaxyId: "g-5",

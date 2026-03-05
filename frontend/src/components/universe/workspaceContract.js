@@ -1,5 +1,7 @@
 function normalize(fields) {
-  return [...new Set((Array.isArray(fields) ? fields : []).map((item) => String(item || "").trim()).filter(Boolean))].sort();
+  return [
+    ...new Set((Array.isArray(fields) ? fields : []).map((item) => String(item || "").trim()).filter(Boolean)),
+  ].sort();
 }
 
 function diff(beFields, feFields) {
@@ -11,18 +13,9 @@ function diff(beFields, feFields) {
   };
 }
 
-export const GALAXY_WORKSPACE_BE_FIELDS = Object.freeze([
-  "id",
-  "name",
-  "owner_id",
-  "created_at",
-  "deleted_at",
-]);
+export const GALAXY_WORKSPACE_BE_FIELDS = Object.freeze(["id", "name", "owner_id", "created_at", "deleted_at"]);
 
-export const GALAXY_WORKSPACE_FE_USED_FIELDS = Object.freeze([
-  "id",
-  "name",
-]);
+export const GALAXY_WORKSPACE_FE_USED_FIELDS = Object.freeze(["id", "name"]);
 
 export const CIVILIZATION_SNAPSHOT_ASTEROID_BE_FIELDS = Object.freeze([
   "id",

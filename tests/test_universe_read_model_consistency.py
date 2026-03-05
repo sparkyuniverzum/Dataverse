@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.services.universe import read_model_projection as rm_projection
@@ -18,7 +18,7 @@ def test_enrich_main_timeline_falls_back_when_calc_state_is_stale(monkeypatch) -
         value="Civilization row",
         metadata={"table": "Core > Planet", "state": "archived"},
         is_deleted=False,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         deleted_at=None,
         current_event_seq=12,
     )

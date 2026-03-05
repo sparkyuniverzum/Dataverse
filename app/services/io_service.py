@@ -6,8 +6,8 @@ import io
 import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -22,12 +22,12 @@ from app.services.task_executor_service import TaskExecutorService
 from app.services.universe_service import UniverseService
 
 
-class ImportMode(str, Enum):
+class ImportMode(StrEnum):
     PREVIEW = "preview"
     COMMIT = "commit"
 
 
-class ImportStatus(str, Enum):
+class ImportStatus(StrEnum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     COMPLETED_WITH_ERRORS = "COMPLETED_WITH_ERRORS"
@@ -282,7 +282,7 @@ class ImportExportService:
             job.total_rows = total_rows
             job.processed_rows = processed_rows
             job.errors_count = errors_count
-            job.finished_at = datetime.now(timezone.utc)
+            job.finished_at = datetime.now(UTC)
             job.summary = self._build_job_summary(
                 strict=strict,
                 planned_tasks=planned_tasks,
@@ -463,7 +463,7 @@ class ImportExportService:
             job.total_rows = total_rows
             job.processed_rows = processed_rows
             job.errors_count = errors_count
-            job.finished_at = datetime.now(timezone.utc)
+            job.finished_at = datetime.now(UTC)
             job.summary = self._build_job_summary(
                 strict=strict,
                 planned_tasks=planned_tasks,

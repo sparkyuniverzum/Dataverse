@@ -1,5 +1,7 @@
 function normalizeFields(values) {
-  return [...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean))].sort();
+  return [
+    ...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean)),
+  ].sort();
 }
 
 function diff(beFields, feFields) {
@@ -12,7 +14,9 @@ function diff(beFields, feFields) {
 }
 
 function normalizeEndpointSignatures(values) {
-  return [...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean))].sort();
+  return [
+    ...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean)),
+  ].sort();
 }
 
 function endpointDiff(beSignatures, feSignatures) {

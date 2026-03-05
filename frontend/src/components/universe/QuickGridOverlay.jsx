@@ -118,9 +118,19 @@ export default function QuickGridOverlay({
         gap: 10,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
         <div>
-          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.7, letterSpacing: "var(--dv-tr-wide)" }}>Planeta / Tabulka</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.7, letterSpacing: "var(--dv-tr-wide)" }}>
+            Planeta / Tabulka
+          </div>
           <div style={{ fontSize: "var(--dv-fs-xl)", fontWeight: 700 }}>
             {selectedTable ? tableDisplayName(selectedTable) : "Tabulka"}
           </div>
@@ -156,12 +166,8 @@ export default function QuickGridOverlay({
           placeholder="Filtr radku a bunek..."
           style={inputStyle}
         />
-        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
-          sloupce {gridColumns.length}
-        </span>
-        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
-          write {busy ? "..." : "ready"}
-        </span>
+        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>sloupce {gridColumns.length}</span>
+        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>write {busy ? "..." : "ready"}</span>
       </div>
 
       <div
@@ -325,11 +331,7 @@ export default function QuickGridOverlay({
             {gridFilteredRows.map((row) => {
               const rowPendingOp = pendingRowOps[String(row.id)] || null;
               return (
-                <tr
-                  key={String(row.id)}
-                  onClick={() => onSelectRow?.(String(row.id))}
-                  style={{ cursor: "pointer" }}
-                >
+                <tr key={String(row.id)} onClick={() => onSelectRow?.(String(row.id))} style={{ cursor: "pointer" }}>
                   {gridColumns.map((column, index) => (
                     <td
                       key={`${row.id}:${column}`}

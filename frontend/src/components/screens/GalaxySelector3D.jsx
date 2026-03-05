@@ -161,7 +161,10 @@ function buildGalaxyCloud(galaxyId) {
       const x = rx * spreadX * scale;
       const y = ry * spreadY * scale;
       const z = rz * spreadZ * scale;
-      temp.copy(primary).lerp(secondary, rng() * 0.45).lerp(highlight, 0.08 + rng() * 0.16);
+      temp
+        .copy(primary)
+        .lerp(secondary, rng() * 0.45)
+        .lerp(highlight, 0.08 + rng() * 0.16);
       pushStar(positions, colors, x, y, z, temp);
     }
   } else {
@@ -182,7 +185,10 @@ function buildGalaxyCloud(galaxyId) {
         const x = cluster.x + (rng() - 0.5) * spread * 2.2;
         const y = cluster.y + (rng() - 0.5) * spread * 1.2;
         const z = cluster.z + (rng() - 0.5) * spread * 2.2;
-        temp.copy(primary).lerp(secondary, rng() * 0.65).lerp(highlight, rng() * 0.18);
+        temp
+          .copy(primary)
+          .lerp(secondary, rng() * 0.65)
+          .lerp(highlight, rng() * 0.18);
         pushStar(positions, colors, x, y, z, temp);
       }
     }
@@ -238,11 +244,7 @@ function buildPositions(galaxies) {
       const angle = t * Math.PI * 2;
       const jitter = ((hashText(galaxy.id) % 100) / 100 - 0.5) * 8;
       const y = ((hashText(`${galaxy.id}:y`) % 100) / 100 - 0.5) * 16;
-      positions.set(galaxy.id, [
-        Math.cos(angle) * (radius + jitter),
-        y,
-        Math.sin(angle) * (radius + jitter),
-      ]);
+      positions.set(galaxy.id, [Math.cos(angle) * (radius + jitter), y, Math.sin(angle) * (radius + jitter)]);
       index += 1;
     }
   });
@@ -278,11 +280,7 @@ function GalaxyNode({ galaxy, position, selected, hovered, onHover, onClick, onD
               args={[cloud.positions, 3]}
               count={cloud.positions.length / 3}
             />
-            <bufferAttribute
-              attach="attributes-color"
-              args={[cloud.colors, 3]}
-              count={cloud.colors.length / 3}
-            />
+            <bufferAttribute attach="attributes-color" args={[cloud.colors, 3]} count={cloud.colors.length / 3} />
           </bufferGeometry>
           <pointsMaterial
             size={(selected ? 1.02 : 0.8) * cloud.pointSize}
@@ -392,13 +390,7 @@ function GalaxyScene({ galaxies, selectedId, hoveredId, onHover, onClick, onDoub
         <Bloom intensity={0.64} luminanceThreshold={0.08} luminanceSmoothing={0.34} mipmapBlur />
       </EffectComposer>
 
-      <OrbitControls
-        makeDefault
-        enableDamping
-        dampingFactor={0.08}
-        minDistance={50}
-        maxDistance={620}
-      />
+      <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={50} maxDistance={620} />
     </>
   );
 }
@@ -539,12 +531,7 @@ export default function GalaxySelector3D({
               placeholder="Nazev workspace (napr. Finance 2026)"
               style={inputStyle}
             />
-            <button
-              type="button"
-              onClick={onCreate}
-              disabled={!canCreate}
-              style={actionButtonStyle}
-            >
+            <button type="button" onClick={onCreate} disabled={!canCreate} style={actionButtonStyle}>
               Vytvorit a vstoupit
             </button>
           </div>
@@ -604,89 +591,86 @@ export default function GalaxySelector3D({
             gap: 10,
           }}
         >
-        <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.74 }}>FLEET CONTROL</div>
-        <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Hierarchie: {MODEL_PATH_LABEL}</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-xwide)", opacity: 0.74 }}>
+            FLEET CONTROL
+          </div>
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Hierarchie: {MODEL_PATH_LABEL}</div>
 
-        <div style={{ fontSize: "var(--dv-fs-md)" }}>
+          <div style={{ fontSize: "var(--dv-fs-md)" }}>
+            {selectedGalaxy ? (
+              <>
+                Vybraná galaxie: <strong>{selectedGalaxy.name}</strong>
+              </>
+            ) : (
+              "Klikni na galaxii v prostoru"
+            )}
+          </div>
+
+          {hoveredGalaxy ? (
+            <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>Hover: {hoveredGalaxy.name}</div>
+          ) : null}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+            <input
+              value={newGalaxyName}
+              onChange={(event) => onNameChange(event.target.value)}
+              placeholder="Nova galaxie (napr. Finance-Q2)"
+              style={inputStyle}
+            />
+            <button type="button" onClick={onCreate} disabled={busy || !newGalaxyName.trim()} style={actionButtonStyle}>
+              ↗ Launch
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => candidateGalaxyId && onSelect(candidateGalaxyId)}
+              disabled={!candidateGalaxyId}
+              style={actionButtonStyle}
+            >
+              Vstoupit
+            </button>
+            <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
+              Obnovit
+            </button>
+            <button type="button" onClick={onLogout} style={ghostButtonStyle}>
+              Logout
+            </button>
+          </div>
+
+          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.8 }}>
+            {noGalaxiesYet
+              ? "Nejdriv vytvor galaxii. Potom funguje klik=vyber, dvojklik=vstup."
+              : "Tip: dvojklik na galaxii = okamzity vstup."}
+          </div>
+
           {selectedGalaxy ? (
-            <>
-              Vybraná galaxie: <strong>{selectedGalaxy.name}</strong>
-            </>
-          ) : (
-            "Klikni na galaxii v prostoru"
-          )}
-        </div>
-
-        {hoveredGalaxy ? (
-          <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.78 }}>
-            Hover: {hoveredGalaxy.name}
-          </div>
-        ) : null}
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
-          <input
-            value={newGalaxyName}
-            onChange={(event) => onNameChange(event.target.value)}
-            placeholder="Nova galaxie (napr. Finance-Q2)"
-            style={inputStyle}
-          />
-          <button
-            type="button"
-            onClick={onCreate}
-            disabled={busy || !newGalaxyName.trim()}
-            style={actionButtonStyle}
-          >
-            ↗ Launch
-          </button>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={() => candidateGalaxyId && onSelect(candidateGalaxyId)}
-            disabled={!candidateGalaxyId}
-            style={actionButtonStyle}
-          >
-            Vstoupit
-          </button>
-          <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
-            Obnovit
-          </button>
-          <button type="button" onClick={onLogout} style={ghostButtonStyle}>
-            Logout
-          </button>
-        </div>
-
-        <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.8 }}>
-          {noGalaxiesYet ? "Nejdriv vytvor galaxii. Potom funguje klik=vyber, dvojklik=vstup." : "Tip: dvojklik na galaxii = okamzity vstup."}
-        </div>
-
-        {selectedGalaxy ? (
-          <div
-            style={{
-              border: "1px solid rgba(101, 191, 223, 0.28)",
-              background: "rgba(7, 18, 32, 0.56)",
-              borderRadius: 10,
-              padding: "8px 9px",
-              display: "grid",
-              gap: 4,
-              fontSize: "var(--dv-fs-xs)",
-            }}
-          >
-            <div>
-              Branches: <strong>{candidateBranches.length}</strong>
+            <div
+              style={{
+                border: "1px solid rgba(101, 191, 223, 0.28)",
+                background: "rgba(7, 18, 32, 0.56)",
+                borderRadius: 10,
+                padding: "8px 9px",
+                display: "grid",
+                gap: 4,
+                fontSize: "var(--dv-fs-xs)",
+              }}
+            >
+              <div>
+                Branches: <strong>{candidateBranches.length}</strong>
+              </div>
+              <div>
+                Onboarding stage: <strong>{String(candidateOnboarding?.current_stage_key || "n/a")}</strong>
+              </div>
+              <div>
+                Rezim: <strong>{String(candidateOnboarding?.mode || "n/a")}</strong> | Can advance:{" "}
+                <strong>{candidateOnboarding?.can_advance ? "ano" : "ne"}</strong>
+              </div>
             </div>
-            <div>
-              Onboarding stage: <strong>{String(candidateOnboarding?.current_stage_key || "n/a")}</strong>
-            </div>
-            <div>
-              Rezim: <strong>{String(candidateOnboarding?.mode || "n/a")}</strong> | Can advance:{" "}
-              <strong>{candidateOnboarding?.can_advance ? "ano" : "ne"}</strong>
-            </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{error}</div> : null}
+          {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{error}</div> : null}
         </aside>
       ) : null}
     </main>

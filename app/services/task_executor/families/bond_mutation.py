@@ -4,8 +4,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy import text as sql_text
+from sqlalchemy import and_, func, or_, select, text as sql_text
 
 from app.models import Bond
 from app.services.bond_semantics import normalize_bond_type

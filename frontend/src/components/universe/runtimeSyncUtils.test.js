@@ -16,14 +16,14 @@ describe("runtimeSyncUtils", () => {
     const incoming =
       'id: 10\nevent: keepalive\ndata: {"last_event_seq":10}\n\n' +
       'id: 11\nevent: update\ndata: {"last_event_seq":11}\n\n' +
-      'id: 12\nevent: up';
+      "id: 12\nevent: up";
     const events = [];
     const rest = drainSseBuffer(incoming, (frame) => events.push(frame));
 
     expect(events).toHaveLength(2);
     expect(events[0].event).toBe("keepalive");
     expect(events[1].event).toBe("update");
-    expect(rest).toBe('id: 12\nevent: up');
+    expect(rest).toBe("id: 12\nevent: up");
   });
 
   it("applies cursor and refresh decision from update frame", () => {

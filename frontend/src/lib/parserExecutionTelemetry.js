@@ -29,7 +29,9 @@ function toNonNegativeInt(value, fallback = 0) {
 }
 
 function normalizeActionKey(rawAction) {
-  const normalized = String(rawAction || "").trim().toUpperCase();
+  const normalized = String(rawAction || "")
+    .trim()
+    .toUpperCase();
   if (normalized === "LINK") return ACTION_KEYS.LINK;
   if (normalized === "INGEST") return ACTION_KEYS.INGEST;
   if (normalized === "EXTINGUISH") return ACTION_KEYS.EXTINGUISH;
@@ -55,19 +57,14 @@ export function createParserTelemetrySnapshot(raw = EMPTY_PARSER_TELEMETRY) {
     fallback_failed: toNonNegativeInt(source.fallback_failed),
     by_action: byAction,
     last_error: String(source.last_error || "").trim(),
-    last_error_at: typeof source.last_error_at === "string" && source.last_error_at.trim() ? source.last_error_at : null,
+    last_error_at:
+      typeof source.last_error_at === "string" && source.last_error_at.trim() ? source.last_error_at : null,
   };
 }
 
 export function recordParserTelemetry(
   current,
-  {
-    action = "OTHER",
-    parserOk = false,
-    parserError = null,
-    fallbackUsed = false,
-    fallbackOk = null,
-  } = {}
+  { action = "OTHER", parserOk = false, parserError = null, fallbackUsed = false, fallbackOk = null } = {}
 ) {
   const snapshot = createParserTelemetrySnapshot(current);
   const actionKey = normalizeActionKey(action);
@@ -97,4 +94,3 @@ export function recordParserTelemetry(
 
   return next;
 }
-

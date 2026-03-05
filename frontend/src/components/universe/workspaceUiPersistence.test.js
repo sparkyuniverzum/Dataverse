@@ -75,4 +75,3 @@ describe("workspaceUiPersistence", () => {
     expect(after).toEqual({ selectedTableId: "", quickGridOpen: false });
   });
 });
-

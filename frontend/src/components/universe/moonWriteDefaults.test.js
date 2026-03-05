@@ -59,4 +59,3 @@ describe("moonWriteDefaults", () => {
     expect(minerals.transaction_name).toBe("Ignore Reserved");
   });
 });
-

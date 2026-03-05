@@ -71,4 +71,3 @@ export function writeWorkspaceUiState(galaxyId, nextState, { storage } = {}) {
     return false;
   }
 }
-

@@ -4,8 +4,7 @@ from hashlib import blake2b
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
-from sqlalchemy import text as sql_text
+from sqlalchemy import func, select, text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Event

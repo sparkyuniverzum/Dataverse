@@ -26,7 +26,7 @@ class TableContractValidator:
     def _coerce_number(value: Any) -> float | None:
         if isinstance(value, bool):
             return None
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             return float(value)
         if isinstance(value, str):
             normalized = value.strip().replace("\u00a0", "").replace(" ", "").replace(",", ".")
@@ -85,9 +85,9 @@ class TableContractValidator:
     def _normalize_unique_value(value: Any) -> Any:
         if isinstance(value, str):
             return value.strip()
-        if isinstance(value, (int, float, bool)) or value is None:
+        if isinstance(value, int | float | bool) or value is None:
             return value
-        if isinstance(value, (dict, list)):
+        if isinstance(value, dict | list):
             return repr(value)
         return str(value)
 
@@ -202,7 +202,10 @@ class TableContractValidator:
             if not self._matches_expected_type(str(raw_type), field_value):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Table contract violation [{table_name}]: field '{field_name}' must be '{str(raw_type).strip().lower()}'",
+                    detail=(
+                        f"Table contract violation [{table_name}]: "
+                        f"field '{field_name}' must be '{str(raw_type).strip().lower()}'"
+                    ),
                 )
 
         validators = contract.validators if isinstance(contract.validators, list) else []

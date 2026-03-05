@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -34,7 +34,7 @@ class _HarnessOnboardingService(OnboardingService):
 
 
 def _progress(*, stage_key: str = "galaxy_bootstrap", mode: str = "guided") -> OnboardingProgress:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return OnboardingProgress(
         user_id=uuid4(),
         galaxy_id=uuid4(),
