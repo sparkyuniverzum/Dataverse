@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, select
@@ -83,7 +83,7 @@ class AuthRepository:
     async def soft_delete_galaxy(self, session: AsyncSession, *, user_id: UUID, galaxy_id: UUID) -> Galaxy:
         galaxy = await self.resolve_user_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)
         if galaxy.deleted_at is None:
-            galaxy.deleted_at = datetime.now(timezone.utc)
+            galaxy.deleted_at = datetime.now(UTC)
         return galaxy
 
     async def create_auth_session(
@@ -114,7 +114,7 @@ class AuthRepository:
     async def get_active_auth_session(
         self, session: AsyncSession, *, session_id: UUID, user_id: UUID
     ) -> AuthSession | None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return (
             await session.execute(
                 select(AuthSession).where(
@@ -139,6 +139,6 @@ class AuthRepository:
         if auth_session is None:
             return None
         if auth_session.revoked_at is None:
-            auth_session.revoked_at = datetime.now(timezone.utc)
+            auth_session.revoked_at = datetime.now(UTC)
             auth_session.revoked_reason = revoked_reason
         return auth_session

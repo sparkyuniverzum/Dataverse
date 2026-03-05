@@ -2,14 +2,7 @@ import * as THREE from "three";
 
 import { clamp } from "./sceneMath";
 
-export const PHASE_ORDER = Object.freeze([
-  "CALM",
-  "ACTIVE",
-  "OVERLOADED",
-  "DORMANT",
-  "CORRODING",
-  "CRITICAL",
-]);
+export const PHASE_ORDER = Object.freeze(["CALM", "ACTIVE", "OVERLOADED", "DORMANT", "CORRODING", "CRITICAL"]);
 
 const PHASE_VISUAL_PRESETS = Object.freeze({
   CALM: Object.freeze({
@@ -87,7 +80,9 @@ const LEGACY_STATUS_TO_PHASE = Object.freeze({
 });
 
 export function normalizePhase(phase) {
-  const normalized = String(phase || "").trim().toUpperCase();
+  const normalized = String(phase || "")
+    .trim()
+    .toUpperCase();
   if (!normalized) return "CALM";
   if (PHASE_VISUAL_PRESETS[normalized]) return normalized;
   if (LEGACY_STATUS_TO_PHASE[normalized]) return LEGACY_STATUS_TO_PHASE[normalized];
@@ -194,4 +189,3 @@ export function resolveLinkPhaseVisual({
     targetPhase: target,
   };
 }
-

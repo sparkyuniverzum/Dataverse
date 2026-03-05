@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class ImportModeSchema(str, Enum):
+class ImportModeSchema(StrEnum):
     preview = "preview"
     commit = "commit"
 
 
-class ImportStatusSchema(str, Enum):
+class ImportStatusSchema(StrEnum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     COMPLETED_WITH_ERRORS = "COMPLETED_WITH_ERRORS"

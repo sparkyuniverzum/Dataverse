@@ -17,6 +17,20 @@ In current implementation, civilization is represented by active asteroid rows s
 
 ## 3. Lifecycle API surface
 
+Canonical API surface (implemented):
+- `GET /civilizations`
+- `GET /civilizations/{civilization_id}`
+- `POST /civilizations`
+- `PATCH /civilizations/{civilization_id}/mutate`
+- `PATCH /civilizations/{civilization_id}/extinguish`
+
+Compatibility runtime API surface (alias):
+- `GET /moons`
+- `GET /moons/{moon_id}`
+- `POST /moons`
+- `PATCH /moons/{moon_id}/mutate`
+- `PATCH /moons/{moon_id}/extinguish`
+
 Primary row lifecycle:
 - `POST /asteroids/ingest`
 - `PATCH /asteroids/{asteroid_id}/mutate`

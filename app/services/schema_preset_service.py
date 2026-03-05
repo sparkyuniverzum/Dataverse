@@ -138,7 +138,10 @@ class SchemaPresetService:
         if not resolved_name:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Target planet cannot be resolved from current snapshot. Provide `target_table_name` for empty planets.",
+                detail=(
+                    "Target planet cannot be resolved from current snapshot. "
+                    "Provide `target_table_name` for empty planets."
+                ),
             )
 
         return resolved_name, existing_values

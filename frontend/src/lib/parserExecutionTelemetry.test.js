@@ -59,4 +59,3 @@ describe("parser execution telemetry", () => {
     expect(failed.last_error_at).toMatch(/T/);
   });
 });
-

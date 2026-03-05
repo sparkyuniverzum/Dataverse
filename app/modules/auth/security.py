@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -34,7 +34,7 @@ class TokenClaims:
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _validate_password_length(password: str) -> None:
@@ -101,15 +101,15 @@ def decode_token(token: str, *, expected_type: str | None = None) -> TokenClaims
         raise ValueError("Missing token subject or session")
     if expected_type is not None and token_type != expected_type:
         raise ValueError("Invalid token type")
-    if not isinstance(iat_raw, (int, float)) or not isinstance(exp_raw, (int, float)):
+    if not isinstance(iat_raw, int | float) or not isinstance(exp_raw, int | float):
         raise ValueError("Missing token times")
 
     return TokenClaims(
         user_id=UUID(subject),
         session_id=UUID(session),
         token_type=token_type,
-        issued_at=datetime.fromtimestamp(float(iat_raw), tz=timezone.utc),
-        expires_at=datetime.fromtimestamp(float(exp_raw), tz=timezone.utc),
+        issued_at=datetime.fromtimestamp(float(iat_raw), tz=UTC),
+        expires_at=datetime.fromtimestamp(float(exp_raw), tz=UTC),
     )
 
 

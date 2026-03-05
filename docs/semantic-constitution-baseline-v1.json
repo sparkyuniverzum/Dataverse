@@ -13,7 +13,9 @@
       "## III. Železná pravidla systému (zákony)",
       "Zákon zachování informace",
       "Zákon větví",
-      "Zákon kontraktu"
+      "Zákon kontraktu",
+      "| Moon | Měsíc (Capability) |",
+      "| Civilization | Civilizace (Instance) |"
     ],
     "parser_operator_examples": [
       {

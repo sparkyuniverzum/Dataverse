@@ -32,6 +32,7 @@ export default function UniverseCanvas({
   selectedTableId,
   selectedAsteroidId,
   cameraFocusOffset = [0, 0, 0],
+  cameraMicroNudgeKey = "",
   linkDraft,
   builderDropActive = false,
   builderDropHover = false,
@@ -197,9 +198,7 @@ export default function UniverseCanvas({
         />
         <CommandMeteors enabled />
         {level < 3
-          ? constellationClusters.map((cluster) => (
-              <ConstellationHalo key={cluster.id} cluster={cluster} />
-            ))
+          ? constellationClusters.map((cluster) => <ConstellationHalo key={cluster.id} cluster={cluster} />)
           : null}
 
         {level < 3
@@ -340,6 +339,7 @@ export default function UniverseCanvas({
           selectedTableId={selectedTableId}
           selectedAsteroidId={selectedAsteroidId}
           focusOffset={cameraFocusOffset}
+          microNudgeKey={cameraMicroNudgeKey}
           starDiveActive={starDiveActive}
           focusKey={`${level}:${selectedTableId || "-"}:${selectedAsteroidId || "-"}:${starDiveActive ? "star" : "space"}`}
         />
@@ -351,7 +351,9 @@ export default function UniverseCanvas({
             inset: 0,
             pointerEvents: "none",
             border: builderDropHover ? "2px solid rgba(125, 226, 255, 0.7)" : "2px dashed rgba(125, 226, 255, 0.36)",
-            boxShadow: builderDropHover ? "inset 0 0 48px rgba(89, 209, 255, 0.22)" : "inset 0 0 24px rgba(89, 209, 255, 0.1)",
+            boxShadow: builderDropHover
+              ? "inset 0 0 48px rgba(89, 209, 255, 0.22)"
+              : "inset 0 0 24px rgba(89, 209, 255, 0.1)",
             background:
               "repeating-linear-gradient(0deg, rgba(64, 177, 220, 0.06), rgba(64, 177, 220, 0.06) 1px, transparent 1px, transparent 28px), repeating-linear-gradient(90deg, rgba(64, 177, 220, 0.06), rgba(64, 177, 220, 0.06) 1px, transparent 1px, transparent 28px)",
             opacity: builderDropHover ? 1 : 0.72,

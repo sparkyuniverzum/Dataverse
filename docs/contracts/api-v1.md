@@ -133,6 +133,26 @@ Date: 2026-02-28 (updated 2026-03-05 for planets + grid sync contract)
 - Response `200`: updated `AsteroidResponse`.
 - Errors: `404` not found, `409` optimistic concurrency conflict.
 
+## Civilization rows (transitional naming)
+
+Current runtime includes first-class row lifecycle on both endpoint families:
+- canonical `/civilizations*`,
+- compatibility alias `/moons*`.
+
+### Transitional row API (implemented)
+- `GET /moons`
+- `GET /moons/{moon_id}`
+- `POST /moons`
+- `PATCH /moons/{moon_id}/mutate`
+- `PATCH /moons/{moon_id}/extinguish`
+
+### Canonical naming (implemented, migration target for clients)
+- `GET /civilizations`
+- `GET /civilizations/{civilization_id}`
+- `POST /civilizations`
+- `PATCH /civilizations/{civilization_id}/mutate`
+- `PATCH /civilizations/{civilization_id}/extinguish`
+
 ### `POST /bonds/link`
 - Auth required.
 - Request: `{ "source_id": uuid, "target_id": uuid, "type": string, "expected_source_event_seq"?: int>=0, "expected_target_event_seq"?: int>=0, "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`

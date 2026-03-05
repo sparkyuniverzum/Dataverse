@@ -1,13 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 
 import {
   API_BASE,
   apiErrorFromResponse,
   apiFetch,
+  buildMoonCreateUrl,
+  buildMoonExtinguishUrl,
+  buildMoonMutateUrl,
   buildOccConflictMessage,
   buildParserPayload,
   buildStarCorePolicyLockUrl,
+  buildTableContractUrl,
   isOccConflictError,
 } from "../../lib/dataverseApi";
 import {
@@ -28,12 +40,20 @@ import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
 import WorkspaceSidebar from "./WorkspaceSidebar";
 import { buildStageZeroPlanetName, mapDropPointToPlanetPosition } from "./stageZeroUtils";
 import {
-  collectGridColumns,
-  normalizeText,
-  readGridCell,
-  tableDisplayName,
-  valueToLabel,
-} from "./workspaceFormatters";
+  STAGE_ZERO_CASHFLOW_STEPS,
+  STAGE_ZERO_PRESET_CARDS,
+  buildStageZeroFieldTypes,
+  buildStageZeroCameraMicroNudgeKey,
+  buildStageZeroRequiredFields,
+  buildStageZeroSchemaPreview,
+  createStageZeroSchemaDraft,
+  isStageZeroStepUnlocked,
+  resolveStageZeroPlanetVisualBoost,
+  summarizeStageZeroSchemaDraft,
+} from "./stageZeroBuilder";
+import { buildMoonCreateMinerals } from "./moonWriteDefaults";
+import { readWorkspaceUiState, writeWorkspaceUiState } from "./workspaceUiPersistence";
+import { collectGridColumns, normalizeText, readGridCell, tableDisplayName, valueToLabel } from "./workspaceFormatters";
 
 const DEFAULT_CAMERA_STATE = {
   position: [0, 120, 340],
@@ -218,12 +238,10 @@ export default function UniverseWorkspace({
   const [stageZeroSetupOpen, setStageZeroSetupOpen] = useState(false);
   const [stageZeroPlanetName, setStageZeroPlanetName] = useState("");
   const [stageZeroPresetSelected, setStageZeroPresetSelected] = useState(false);
-  const [stageZeroSchemaDraft, setStageZeroSchemaDraft] = useState({
-    transactionName: false,
-    amount: false,
-    transactionType: false,
-  });
+  const [stageZeroSchemaDraft, setStageZeroSchemaDraft] = useState(() => createStageZeroSchemaDraft());
+  const [stageZeroDraggedSchemaKey, setStageZeroDraggedSchemaKey] = useState("");
   const [stageZeroCommitBusy, setStageZeroCommitBusy] = useState(false);
+  const [workspaceUiHydrated, setWorkspaceUiHydrated] = useState(false);
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const workspaceRef = useRef(null);
@@ -234,11 +252,12 @@ export default function UniverseWorkspace({
   );
 
   useEffect(() => {
+    const persistedUiState = readWorkspaceUiState(galaxyId);
     setPendingCreate(false);
     setPendingRowOps({});
-    setSelectedTableId("");
+    setSelectedTableId(String(persistedUiState.selectedTableId || ""));
     setSelectedAsteroidId("");
-    setQuickGridOpen(false);
+    setQuickGridOpen(Boolean(persistedUiState.quickGridOpen));
     setGridSearchQuery("");
     setLinkDraft(null);
     setHoveredLink(null);
@@ -254,14 +273,20 @@ export default function UniverseWorkspace({
     setStageZeroSetupOpen(false);
     setStageZeroPlanetName("");
     setStageZeroPresetSelected(false);
-    setStageZeroSchemaDraft({
-      transactionName: false,
-      amount: false,
-      transactionType: false,
-    });
+    setStageZeroSchemaDraft(createStageZeroSchemaDraft());
+    setStageZeroDraggedSchemaKey("");
     setStageZeroCommitBusy(false);
+    setWorkspaceUiHydrated(true);
     layoutRef.current = { tablePositions: new Map(), asteroidPositions: new Map() };
   }, [galaxyId]);
+
+  useEffect(() => {
+    if (!workspaceUiHydrated) return;
+    writeWorkspaceUiState(galaxyId, {
+      selectedTableId,
+      quickGridOpen,
+    });
+  }, [galaxyId, quickGridOpen, selectedTableId, workspaceUiHydrated]);
 
   const tableById = useMemo(
     () => new Map((Array.isArray(tables) ? tables : []).map((table) => [String(table.table_id), table])),
@@ -277,6 +302,32 @@ export default function UniverseWorkspace({
     (stageZeroFlow === STAGE_ZERO_FLOW.BLUEPRINT || stageZeroFlow === STAGE_ZERO_FLOW.BUILDING) &&
     !stageZeroCreating;
   const stageZeroDropMode = stageZeroBuilderOpen && stageZeroDragging;
+  const stageZeroSchemaSummary = useMemo(
+    () => summarizeStageZeroSchemaDraft(stageZeroSchemaDraft),
+    [stageZeroSchemaDraft]
+  );
+  const stageZeroAllSchemaStepsDone = stageZeroSchemaSummary.allDone;
+  const stageZeroSchemaPreview = useMemo(
+    () => buildStageZeroSchemaPreview(stageZeroSchemaDraft),
+    [stageZeroSchemaDraft]
+  );
+  const stageZeroVisualBoost = useMemo(
+    () =>
+      resolveStageZeroPlanetVisualBoost(stageZeroSchemaDraft, {
+        enabled: stageZeroSetupOpen && stageZeroPresetSelected,
+      }),
+    [stageZeroPresetSelected, stageZeroSchemaDraft, stageZeroSetupOpen]
+  );
+  const stageZeroCameraMicroNudgeKey = useMemo(
+    () =>
+      buildStageZeroCameraMicroNudgeKey({
+        setupOpen: stageZeroSetupOpen,
+        presetSelected: stageZeroPresetSelected,
+        tableId: selectedTableId,
+        completed: stageZeroSchemaSummary.completed,
+      }),
+    [selectedTableId, stageZeroPresetSelected, stageZeroSchemaSummary.completed, stageZeroSetupOpen]
+  );
 
   useEffect(() => {
     if (!tables.length) {
@@ -295,14 +346,19 @@ export default function UniverseWorkspace({
     if (!stageZeroActive) {
       setStageZeroDragging(false);
       setStageZeroDropHover(false);
+      setStageZeroDraggedSchemaKey("");
       if (stageZeroFlow !== STAGE_ZERO_FLOW.COMPLETE) {
         setStageZeroFlow(STAGE_ZERO_FLOW.COMPLETE);
       }
       return;
     }
+    if (quickGridOpen) {
+      setQuickGridOpen(false);
+    }
     if (stageZeroRequiresStarLock) {
       setStageZeroDragging(false);
       setStageZeroDropHover(false);
+      setStageZeroDraggedSchemaKey("");
       setStageZeroSetupOpen(false);
       if (stageZeroFlow !== STAGE_ZERO_FLOW.INTRO) {
         setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
@@ -312,7 +368,7 @@ export default function UniverseWorkspace({
     if (stageZeroFlow === STAGE_ZERO_FLOW.COMPLETE) {
       setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
     }
-  }, [stageZeroActive, stageZeroFlow, stageZeroRequiresStarLock]);
+  }, [quickGridOpen, stageZeroActive, stageZeroFlow, stageZeroRequiresStarLock]);
 
   const asteroidById = useMemo(
     () => new Map((Array.isArray(snapshot.asteroids) ? snapshot.asteroids : []).map((item) => [String(item.id), item])),
@@ -377,7 +433,9 @@ export default function UniverseWorkspace({
 
   useEffect(() => {
     const policyProfileKey = String(starPolicy?.profile_key || starCoreProfile?.profile?.key || "ORIGIN").toUpperCase();
-    const policyPhysicalKey = String(starPhysicsProfile?.profile_key || starCoreProfile?.physicalProfile?.key || "BALANCE").toUpperCase();
+    const policyPhysicalKey = String(
+      starPhysicsProfile?.profile_key || starCoreProfile?.physicalProfile?.key || "BALANCE"
+    ).toUpperCase();
     if (starPolicyLocked || starControlPhase === STAR_CONTROL_PHASE.IDLE) {
       setStarProfileDraftKey(policyProfileKey);
       setStarPhysicalProfileDraftKey(policyPhysicalKey);
@@ -436,8 +494,14 @@ export default function UniverseWorkspace({
           domainMetric: runtimeDomain,
           pulse: runtimePulse,
         });
-        const metrics = runtimePlanetPhysics?.metrics && typeof runtimePlanetPhysics.metrics === "object" ? runtimePlanetPhysics.metrics : {};
-        const visual = runtimePlanetPhysics?.visual && typeof runtimePlanetPhysics.visual === "object" ? runtimePlanetPhysics.visual : {};
+        const metrics =
+          runtimePlanetPhysics?.metrics && typeof runtimePlanetPhysics.metrics === "object"
+            ? runtimePlanetPhysics.metrics
+            : {};
+        const visual =
+          runtimePlanetPhysics?.visual && typeof runtimePlanetPhysics.visual === "object"
+            ? runtimePlanetPhysics.visual
+            : {};
         const health = clamp(Number(metrics.health) || 0, 0, 1);
         const corrosion = clamp(Number(metrics.corrosion) || 0, 0, 1);
         const backendPhysics = runtimePlanetPhysics
@@ -455,80 +519,125 @@ export default function UniverseWorkspace({
             }
           : {};
         const backendStatus = runtimePlanetPhysics?.phase ? String(runtimePlanetPhysics.phase).toUpperCase() : null;
+        const isStageZeroBuilderTarget =
+          stageZeroSetupOpen && stageZeroPresetSelected && String(selectedTableId || "") === String(node.id || "");
+        const builderPhysics = isStageZeroBuilderTarget
+          ? {
+              radiusFactor: clamp(
+                (Number(backendPhysics.radiusFactor) || Number(resolved.physics?.radiusFactor) || 1) *
+                  stageZeroVisualBoost.radiusFactorBoost,
+                0.85,
+                2.6
+              ),
+              emissiveBoost: clamp(
+                (Number(backendPhysics.emissiveBoost) || Number(resolved.physics?.emissiveBoost) || 0) +
+                  stageZeroVisualBoost.emissiveBoost,
+                0,
+                1
+              ),
+              auraFactor: clamp(
+                (Number(backendPhysics.auraFactor) || Number(resolved.physics?.auraFactor) || 1) *
+                  stageZeroVisualBoost.auraFactorBoost,
+                0.9,
+                2.4
+              ),
+              pulseFactor: clamp(
+                (Number(backendPhysics.pulseFactor) || Number(resolved.physics?.pulseFactor) || 1) +
+                  stageZeroVisualBoost.ratio * 0.32,
+                0.82,
+                2.5
+              ),
+            }
+          : {};
         return {
           ...node,
           position: layout.tablePositions.get(node.id) || [0, 0, 0],
           runtimePulse,
           runtimeDomain,
           runtimePlanetPhysics,
+          previewMoonCountOverride: isStageZeroBuilderTarget ? stageZeroVisualBoost.previewMoonCount : null,
           v1: {
             ...resolved.v1,
             ...(backendStatus ? { status: backendStatus } : {}),
+            ...(isStageZeroBuilderTarget && !backendStatus
+              ? { status: stageZeroAllSchemaStepsDone ? "ACTIVE" : "WARMUP" }
+              : {}),
             quality_score: runtimePlanetPhysics ? Math.round(health * 100) : resolved.v1?.quality_score || 100,
           },
           physics: {
             ...resolved.physics,
             ...backendPhysics,
+            ...builderPhysics,
           },
         };
       }),
-    [domainMetricsByName, layout, starPlanetPhysicsByTableId, starPulseByEntity]
+    [
+      domainMetricsByName,
+      layout,
+      selectedTableId,
+      stageZeroAllSchemaStepsDone,
+      stageZeroPresetSelected,
+      stageZeroSetupOpen,
+      stageZeroVisualBoost.auraFactorBoost,
+      stageZeroVisualBoost.emissiveBoost,
+      stageZeroVisualBoost.previewMoonCount,
+      stageZeroVisualBoost.radiusFactorBoost,
+      stageZeroVisualBoost.ratio,
+      starPlanetPhysicsByTableId,
+      starPulseByEntity,
+    ]
   );
 
-  const asteroidNodes = useMemo(
-    () => {
-      const selectedPlanetRuntime = selectedTableId ? starPlanetPhysicsByTableId[String(selectedTableId)] || null : null;
-      const selectedMetrics =
-        selectedPlanetRuntime?.metrics && typeof selectedPlanetRuntime.metrics === "object"
-          ? selectedPlanetRuntime.metrics
-          : {};
-      const selectedVisual =
-        selectedPlanetRuntime?.visual && typeof selectedPlanetRuntime.visual === "object"
-          ? selectedPlanetRuntime.visual
-          : {};
-      const parentPhase = selectedPlanetRuntime?.phase ? String(selectedPlanetRuntime.phase).toUpperCase() : null;
-      const parentCorrosion = clamp(
-        Number(selectedVisual.corrosion_level ?? selectedMetrics.corrosion ?? 0) || 0,
-        0,
-        1
-      );
-      const parentCrack = clamp(Number(selectedVisual.crack_intensity) || 0, 0, 1);
-      const parentHue = clamp(Number(selectedVisual.hue) || 0, 0, 1);
-      const parentSaturation = clamp(Number(selectedVisual.saturation) || 0, 0, 1);
-      return layout.asteroidNodes.map((node) => {
-        const runtimePulse = starPulseByEntity[String(node.id)] || null;
-        const runtimeDomain = domainMetricsByName.get(String(node.entityName || "")) || null;
-        const resolved = resolveEntityLaws({
-          kind: "moon",
-          basePhysics: node.physics || {},
-          domainMetric: runtimeDomain,
-          pulse: runtimePulse,
-        });
-        const enrichedPhysics = {
-          ...resolved.physics,
-          corrosionLevel: parentCorrosion,
-          crackIntensity: clamp(parentCrack * 0.8 + (resolved.physics?.stress || 0) * 0.2, 0, 1),
-          hue: parentHue,
-          saturation: parentSaturation,
-        };
-        return {
-          ...node,
-          position: layout.asteroidPositions.get(node.id) || [0, 0, 0],
-          runtimePulse,
-          runtimeDomain,
-          parentPhase,
-          v1: {
-            ...resolved.v1,
-            ...(parentPhase ? { status: parentPhase } : {}),
-          },
-          physics: enrichedPhysics,
-        };
+  const asteroidNodes = useMemo(() => {
+    const selectedPlanetRuntime = selectedTableId ? starPlanetPhysicsByTableId[String(selectedTableId)] || null : null;
+    const selectedMetrics =
+      selectedPlanetRuntime?.metrics && typeof selectedPlanetRuntime.metrics === "object"
+        ? selectedPlanetRuntime.metrics
+        : {};
+    const selectedVisual =
+      selectedPlanetRuntime?.visual && typeof selectedPlanetRuntime.visual === "object"
+        ? selectedPlanetRuntime.visual
+        : {};
+    const parentPhase = selectedPlanetRuntime?.phase ? String(selectedPlanetRuntime.phase).toUpperCase() : null;
+    const parentCorrosion = clamp(Number(selectedVisual.corrosion_level ?? selectedMetrics.corrosion ?? 0) || 0, 0, 1);
+    const parentCrack = clamp(Number(selectedVisual.crack_intensity) || 0, 0, 1);
+    const parentHue = clamp(Number(selectedVisual.hue) || 0, 0, 1);
+    const parentSaturation = clamp(Number(selectedVisual.saturation) || 0, 0, 1);
+    return layout.asteroidNodes.map((node) => {
+      const runtimePulse = starPulseByEntity[String(node.id)] || null;
+      const runtimeDomain = domainMetricsByName.get(String(node.entityName || "")) || null;
+      const resolved = resolveEntityLaws({
+        kind: "moon",
+        basePhysics: node.physics || {},
+        domainMetric: runtimeDomain,
+        pulse: runtimePulse,
       });
-    },
-    [domainMetricsByName, layout, selectedTableId, starPlanetPhysicsByTableId, starPulseByEntity]
-  );
+      const enrichedPhysics = {
+        ...resolved.physics,
+        corrosionLevel: parentCorrosion,
+        crackIntensity: clamp(parentCrack * 0.8 + (resolved.physics?.stress || 0) * 0.2, 0, 1),
+        hue: parentHue,
+        saturation: parentSaturation,
+      };
+      return {
+        ...node,
+        position: layout.asteroidPositions.get(node.id) || [0, 0, 0],
+        runtimePulse,
+        runtimeDomain,
+        parentPhase,
+        v1: {
+          ...resolved.v1,
+          ...(parentPhase ? { status: parentPhase } : {}),
+        },
+        physics: enrichedPhysics,
+      };
+    });
+  }, [domainMetricsByName, layout, selectedTableId, starPlanetPhysicsByTableId, starPulseByEntity]);
   const tableNodeById = useMemo(() => new Map(tableNodes.map((node) => [String(node.id), node])), [tableNodes]);
-  const asteroidNodeById = useMemo(() => new Map(asteroidNodes.map((node) => [String(node.id), node])), [asteroidNodes]);
+  const asteroidNodeById = useMemo(
+    () => new Map(asteroidNodes.map((node) => [String(node.id), node])),
+    [asteroidNodes]
+  );
   const tableLinks = useMemo(
     () =>
       (layout.tableLinks || []).map((link) => {
@@ -670,11 +779,8 @@ export default function UniverseWorkspace({
         setStageZeroPlanetName(planetName);
         setStageZeroFlow(STAGE_ZERO_FLOW.COMPLETE);
         setStageZeroPresetSelected(false);
-        setStageZeroSchemaDraft({
-          transactionName: false,
-          amount: false,
-          transactionType: false,
-        });
+        setStageZeroSchemaDraft(createStageZeroSchemaDraft());
+        setStageZeroDraggedSchemaKey("");
         setStageZeroSetupOpen(true);
       } catch (createError) {
         setRuntimeError(createError?.message || "Planetu se nepodarilo vytvorit.");
@@ -764,18 +870,52 @@ export default function UniverseWorkspace({
     [handleStageZeroDropPlanet, stageZeroCreating]
   );
 
-  const stageZeroAllSchemaStepsDone =
-    stageZeroSchemaDraft.transactionName && stageZeroSchemaDraft.amount && stageZeroSchemaDraft.transactionType;
-  const stageZeroSchemaPreview = [
-    { key: "transactionName", label: "transaction_name", type: "text", done: stageZeroSchemaDraft.transactionName },
-    { key: "amount", label: "amount", type: "number", done: stageZeroSchemaDraft.amount },
-    { key: "transactionType", label: "transaction_type", type: "enum(INCOME|EXPENSE)", done: stageZeroSchemaDraft.transactionType },
-  ];
+  const handleStageZeroSchemaStep = useCallback(
+    (key) => {
+      if (!stageZeroPresetSelected || !String(key || "").trim()) return;
+      setStageZeroSchemaDraft((prev) => ({ ...prev, [key]: true }));
+      setStageZeroDraggedSchemaKey("");
+    },
+    [stageZeroPresetSelected]
+  );
+  const handleStageZeroSchemaBlockDragStart = useCallback(
+    (key) => {
+      if (!stageZeroPresetSelected) return;
+      const normalizedKey = String(key || "").trim();
+      if (!normalizedKey) return;
+      setStageZeroDraggedSchemaKey(normalizedKey);
+    },
+    [stageZeroPresetSelected]
+  );
+  const handleStageZeroSchemaBlockDragEnd = useCallback(() => {
+    setStageZeroDraggedSchemaKey("");
+  }, []);
+  const handleStageZeroSchemaBlockDrop = useCallback(
+    (targetKey, targetIndex) => {
+      if (!stageZeroPresetSelected) return;
+      const normalizedKey = String(targetKey || "").trim();
+      if (!normalizedKey) return;
+      if (!isStageZeroStepUnlocked(targetIndex, stageZeroSchemaDraft)) return;
+      if (stageZeroDraggedSchemaKey && stageZeroDraggedSchemaKey !== normalizedKey) {
+        return;
+      }
+      handleStageZeroSchemaStep(normalizedKey);
+    },
+    [handleStageZeroSchemaStep, stageZeroDraggedSchemaKey, stageZeroPresetSelected, stageZeroSchemaDraft]
+  );
 
-  const handleStageZeroSchemaStep = useCallback((key) => {
-    if (!stageZeroPresetSelected) return;
-    setStageZeroSchemaDraft((prev) => ({ ...prev, [key]: true }));
-  }, [stageZeroPresetSelected]);
+  const loadTableContract = useCallback(
+    async (tableId) => {
+      const targetTableId = String(tableId || "").trim();
+      if (!galaxyId || !targetTableId) return null;
+      const contractRead = await apiFetch(buildTableContractUrl(API_BASE, targetTableId, galaxyId));
+      if (!contractRead.ok) {
+        throw await apiErrorFromResponse(contractRead, `Kontrakt planety nelze nacist: ${contractRead.status}`);
+      }
+      return contractRead.json();
+    },
+    [galaxyId]
+  );
 
   const handleStageZeroCommitPreset = useCallback(async () => {
     if (!galaxyId || !selectedTableId || !selectedTable || !stageZeroAllSchemaStepsDone || stageZeroCommitBusy) return;
@@ -783,18 +923,9 @@ export default function UniverseWorkspace({
     setBusy(true);
     clearRuntimeError();
     try {
-      const contractRead = await apiFetch(`${API_BASE}/contracts/${selectedTableId}?galaxy_id=${galaxyId}`);
-      if (!contractRead.ok) {
-        throw await apiErrorFromResponse(contractRead, `Kontrakt planety nelze nacist: ${contractRead.status}`);
-      }
-      const currentContract = await contractRead.json();
-      const nextFieldTypes = {
-        value: "string",
-        transaction_name: "string",
-        amount: "number",
-        transaction_type: "string",
-      };
-      const requiredFields = ["transaction_name", "amount", "transaction_type"];
+      const currentContract = await loadTableContract(selectedTableId);
+      const nextFieldTypes = buildStageZeroFieldTypes();
+      const requiredFields = buildStageZeroRequiredFields();
       const nextPayload = {
         galaxy_id: galaxyId,
         required_fields: requiredFields,
@@ -824,24 +955,25 @@ export default function UniverseWorkspace({
         throw await apiErrorFromResponse(contractWrite, `Schema se nepodarilo ulozit: ${contractWrite.status}`);
       }
 
-      const tableName = String(selectedTable?.name || selectedTable?.table_name || stageZeroPlanetName || "").trim();
       const rows = [
         { name: "Salary", amount: 48000, type: "INCOME" },
         { name: "Rent", amount: -17000, type: "EXPENSE" },
         { name: "Groceries", amount: -4200, type: "EXPENSE" },
       ];
       for (const row of rows) {
-        const ingest = await apiFetch(`${API_BASE}/asteroids/ingest`, {
+        const minerals = {
+          ...buildMoonCreateMinerals({ label: row.name, contract: nextPayload }),
+          transaction_name: row.name,
+          amount: row.amount,
+          transaction_type: row.type,
+        };
+        const ingest = await apiFetch(buildMoonCreateUrl(API_BASE), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            value: row.name,
-            metadata: {
-              table: tableName,
-              transaction_name: row.name,
-              amount: row.amount,
-              transaction_type: row.type,
-            },
+            label: row.name,
+            minerals,
+            planet_id: selectedTableId,
             galaxy_id: galaxyId,
             idempotency_key: nextIdempotencyKey("stage0-seed"),
           }),
@@ -863,13 +995,13 @@ export default function UniverseWorkspace({
   }, [
     clearRuntimeError,
     galaxyId,
+    loadTableContract,
     refreshProjection,
     selectedTable,
     selectedTableId,
     setRuntimeError,
     stageZeroAllSchemaStepsDone,
     stageZeroCommitBusy,
-    stageZeroPlanetName,
   ]);
 
   const executeParserCommand = useCallback(
@@ -1036,23 +1168,27 @@ export default function UniverseWorkspace({
         }
 
         fallbackAttempted = true;
-        const response = await apiFetch(`${API_BASE}/asteroids/ingest`, {
+        const tableContract = await loadTableContract(selectedTableId);
+        const minerals = buildMoonCreateMinerals({
+          label: trimmed,
+          contract: tableContract,
+        });
+        const response = await apiFetch(buildMoonCreateUrl(API_BASE), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            value: trimmed,
-            metadata: {
-              table_id: selectedTableId,
-            },
+            label: trimmed,
+            minerals,
+            planet_id: selectedTableId,
             galaxy_id: galaxyId,
             idempotency_key: nextIdempotencyKey("ingest"),
           }),
         });
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Mesic se nepodarilo vytvorit: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo vytvorit: ${response.status}`);
         }
         const payload = await response.json().catch(() => ({}));
-        const asteroidId = payload?.id ? String(payload.id) : "";
+        const asteroidId = payload?.moon_id ? String(payload.moon_id) : "";
         if (parserAttempted) {
           trackParserAttempt({
             action: "INGEST",
@@ -1080,7 +1216,7 @@ export default function UniverseWorkspace({
           });
           parserTelemetryRecorded = true;
         }
-        setRuntimeError(createError?.message || "Mesic se nepodarilo vytvorit.");
+        setRuntimeError(createError?.message || "Civilizaci se nepodarilo vytvorit.");
         return false;
       } finally {
         setPendingCreate(false);
@@ -1091,6 +1227,7 @@ export default function UniverseWorkspace({
       clearRuntimeError,
       executeParserCommand,
       galaxyId,
+      loadTableContract,
       parserExecutionMode,
       refreshProjection,
       selectedTable,
@@ -1107,32 +1244,34 @@ export default function UniverseWorkspace({
 
       const asteroid = asteroidById.get(targetId);
       if (!asteroid) return;
-      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq) ? Number(asteroid.current_event_seq) : null;
+      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
+        ? Number(asteroid.current_event_seq)
+        : null;
 
       setBusy(true);
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "mutate" }));
       clearRuntimeError();
       try {
-        const response = await apiFetch(`${API_BASE}/asteroids/${targetId}/mutate`, {
+        const response = await apiFetch(buildMoonMutateUrl(API_BASE, targetId), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            value,
+            label: value,
             galaxy_id: galaxyId,
             idempotency_key: nextIdempotencyKey("mutate"),
             ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
           }),
         });
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Mesic se nepodarilo upravit: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo upravit: ${response.status}`);
         }
         await refreshProjection({ silent: true });
       } catch (updateError) {
         if (isOccConflictError(updateError)) {
-          setRuntimeError(buildOccConflictMessage(updateError, "uprava mesice"));
+          setRuntimeError(buildOccConflictMessage(updateError, "uprava civilizace"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(updateError?.message || "Mesic se nepodarilo upravit.");
+          setRuntimeError(updateError?.message || "Civilizaci se nepodarilo upravit.");
         }
       } finally {
         setPendingRowOps((prev) => {
@@ -1153,7 +1292,9 @@ export default function UniverseWorkspace({
 
       const asteroid = asteroidById.get(targetId);
       if (!asteroid) return;
-      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq) ? Number(asteroid.current_event_seq) : null;
+      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
+        ? Number(asteroid.current_event_seq)
+        : null;
       let parserAttempted = false;
       let fallbackAttempted = false;
       let parserFailure = null;
@@ -1187,7 +1328,7 @@ export default function UniverseWorkspace({
         }
 
         fallbackAttempted = true;
-        const url = new URL(`${API_BASE}/asteroids/${targetId}/extinguish`);
+        const url = new URL(buildMoonExtinguishUrl(API_BASE, targetId));
         url.searchParams.set("galaxy_id", galaxyId);
         url.searchParams.set("idempotency_key", nextIdempotencyKey("extinguish"));
         if (expectedEventSeq !== null) {
@@ -1198,7 +1339,7 @@ export default function UniverseWorkspace({
           method: "PATCH",
         });
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Mesic se nepodarilo zhasnout: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo zhasnout: ${response.status}`);
         }
         if (parserAttempted) {
           trackParserAttempt({
@@ -1227,10 +1368,10 @@ export default function UniverseWorkspace({
           parserTelemetryRecorded = true;
         }
         if (isOccConflictError(deleteError)) {
-          setRuntimeError(buildOccConflictMessage(deleteError, "zhasnuti mesice"));
+          setRuntimeError(buildOccConflictMessage(deleteError, "zhasnuti civilizace"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(deleteError?.message || "Mesic se nepodarilo zhasnout.");
+          setRuntimeError(deleteError?.message || "Civilizaci se nepodarilo zhasnout.");
         }
       } finally {
         setPendingRowOps((prev) => {
@@ -1262,7 +1403,9 @@ export default function UniverseWorkspace({
 
       const asteroid = asteroidById.get(targetId);
       if (!asteroid) return false;
-      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq) ? Number(asteroid.current_event_seq) : null;
+      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
+        ? Number(asteroid.current_event_seq)
+        : null;
       const currentMetadata = asteroid?.metadata && typeof asteroid.metadata === "object" ? asteroid.metadata : {};
       const nextMetadata = mergeMetadataValue(currentMetadata, metadataKey, rawValue);
 
@@ -1270,11 +1413,11 @@ export default function UniverseWorkspace({
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "metadata" }));
       clearRuntimeError();
       try {
-        const response = await apiFetch(`${API_BASE}/asteroids/${targetId}/mutate`, {
+        const response = await apiFetch(buildMoonMutateUrl(API_BASE, targetId), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            metadata: nextMetadata,
+            minerals: nextMetadata,
             galaxy_id: galaxyId,
             idempotency_key: nextIdempotencyKey("metadata"),
             ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
@@ -1382,7 +1525,10 @@ export default function UniverseWorkspace({
   const selectedTableLabel = selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "";
 
   return (
-    <main ref={workspaceRef} style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#020205" }}>
+    <main
+      ref={workspaceRef}
+      style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#020205" }}
+    >
       <DndContext
         sensors={dndSensors}
         onDragStart={handleStageZeroDndStart}
@@ -1390,580 +1536,617 @@ export default function UniverseWorkspace({
         onDragEnd={handleStageZeroDndEnd}
         onDragCancel={handleStageZeroDndCancel}
       >
-      <UniverseCanvas
-        level={level}
-        tableNodes={tableNodes}
-        asteroidNodes={asteroidNodes}
-        tableLinks={tableLinks}
-        asteroidLinks={asteroidLinks}
-        cameraState={DEFAULT_CAMERA_STATE}
-        starCore={starCoreForCanvas}
-        starFocused={starControlPhase === STAR_CONTROL_PHASE.STAR_FOCUSED}
-        starControlOpen={starHeartOpen}
-        starDiveActive={starHeartOpen}
-        selectedTableId={selectedTableId}
-        selectedAsteroidId={selectedAsteroidId}
-        cameraFocusOffset={stageZeroSetupOpen && selectedTableId && !selectedAsteroidId ? [140, 0, 0] : [0, 0, 0]}
-        linkDraft={linkDraft}
-        builderDropActive={stageZeroDropMode || stageZeroCreating}
-        builderDropHover={stageZeroDropHover}
-        hideMouseGuide={minimalShell}
-        onSelectStar={handleStarSelect}
-        onOpenStarControlCenter={handleOpenStarHeartDashboard}
-        onClearStarFocus={handleClearStarFocus}
-        onSelectTable={(tableId) => {
-          setSelectedTableId(String(tableId || ""));
-          setSelectedAsteroidId("");
-        }}
-        onSelectAsteroid={(asteroidId) => {
-          setSelectedAsteroidId(String(asteroidId || ""));
-        }}
-        onOpenContext={() => {}}
-        onLinkStart={(draft) => setLinkDraft(draft)}
-        onLinkMove={(nextPoint) =>
-          setLinkDraft((prev) => {
-            if (!prev) return prev;
-            return { ...prev, to: nextPoint };
-          })
-        }
-        onLinkComplete={(payload) => {
-          setLinkDraft(null);
-          void handleCreateLink(payload);
-        }}
-        onLinkCancel={() => setLinkDraft(null)}
-        onHoverLink={setHoveredLink}
-        onLeaveLink={() => setHoveredLink(null)}
-        onSelectLink={() => {}}
-      />
-      <StageZeroDropZone active={stageZeroDropMode || stageZeroCreating} />
-
-      {stageZeroRequiresStarLock ? (
-        <section
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 60,
-            display: "grid",
-            placeItems: "center",
-            background: "radial-gradient(circle at 50% 50%, rgba(37, 27, 13, 0.28), rgba(2, 6, 14, 0.72))",
-            backdropFilter: "blur(2px)",
+        <UniverseCanvas
+          level={level}
+          tableNodes={tableNodes}
+          asteroidNodes={asteroidNodes}
+          tableLinks={tableLinks}
+          asteroidLinks={asteroidLinks}
+          cameraState={DEFAULT_CAMERA_STATE}
+          starCore={starCoreForCanvas}
+          starFocused={starControlPhase === STAR_CONTROL_PHASE.STAR_FOCUSED}
+          starControlOpen={starHeartOpen}
+          starDiveActive={starHeartOpen}
+          selectedTableId={selectedTableId}
+          selectedAsteroidId={selectedAsteroidId}
+          cameraFocusOffset={stageZeroSetupOpen && selectedTableId && !selectedAsteroidId ? [140, 0, 0] : [0, 0, 0]}
+          cameraMicroNudgeKey={stageZeroCameraMicroNudgeKey}
+          linkDraft={linkDraft}
+          builderDropActive={stageZeroDropMode || stageZeroCreating}
+          builderDropHover={stageZeroDropHover}
+          hideMouseGuide={minimalShell}
+          onSelectStar={handleStarSelect}
+          onOpenStarControlCenter={handleOpenStarHeartDashboard}
+          onClearStarFocus={handleClearStarFocus}
+          onSelectTable={(tableId) => {
+            setSelectedTableId(String(tableId || ""));
+            setSelectedAsteroidId("");
           }}
-        >
-          <article
+          onSelectAsteroid={(asteroidId) => {
+            setSelectedAsteroidId(String(asteroidId || ""));
+          }}
+          onOpenContext={() => {}}
+          onLinkStart={(draft) => setLinkDraft(draft)}
+          onLinkMove={(nextPoint) =>
+            setLinkDraft((prev) => {
+              if (!prev) return prev;
+              return { ...prev, to: nextPoint };
+            })
+          }
+          onLinkComplete={(payload) => {
+            setLinkDraft(null);
+            void handleCreateLink(payload);
+          }}
+          onLinkCancel={() => setLinkDraft(null)}
+          onHoverLink={setHoveredLink}
+          onLeaveLink={() => setHoveredLink(null)}
+          onSelectLink={() => {}}
+        />
+        <StageZeroDropZone active={stageZeroDropMode || stageZeroCreating} />
+
+        {stageZeroRequiresStarLock ? (
+          <section
             style={{
-              width: "min(680px, calc(100vw - 24px))",
-              borderRadius: 14,
-              border: "1px solid rgba(252, 205, 122, 0.38)",
-              background: "rgba(12, 10, 7, 0.92)",
-              color: "#ffeccf",
-              padding: 16,
+              position: "fixed",
+              inset: 0,
+              zIndex: 60,
               display: "grid",
-              gap: 10,
-              boxShadow: "0 0 24px rgba(189, 126, 46, 0.22)",
+              placeItems: "center",
+              background: "radial-gradient(circle at 50% 50%, rgba(37, 27, 13, 0.28), rgba(2, 6, 14, 0.72))",
+              backdropFilter: "blur(2px)",
             }}
           >
-            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>STAGE 0 / STAR CORE</div>
-            <div style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 800 }}>Nejdriv nastav zakony hvezdy</div>
-            <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.9, lineHeight: "var(--dv-lh-base)" }}>
-              Hvezda urcuje fyzikalni zakon cele galaxie. Dokud neni Star Core uzamceny, neni bezpecne zakladat prvni planetu.
-            </div>
-            <div
+            <article
               style={{
-                border: "1px solid rgba(242, 195, 114, 0.26)",
-                borderRadius: 10,
-                background: "rgba(22, 16, 10, 0.7)",
-                padding: "9px 10px",
+                width: "min(680px, calc(100vw - 24px))",
+                borderRadius: 14,
+                border: "1px solid rgba(252, 205, 122, 0.38)",
+                background: "rgba(12, 10, 7, 0.92)",
+                color: "#ffeccf",
+                padding: 16,
                 display: "grid",
-                gap: 6,
+                gap: 10,
+                boxShadow: "0 0 24px rgba(189, 126, 46, 0.22)",
               }}
             >
-              {[
-                {
-                  key: "no_hard_delete",
-                  label: "Zakaz tvrdeho mazani (soft-delete only)",
-                  impact: "Historie metrik zustane konzistentni i po odstraneni dat.",
-                  done: starPolicy?.no_hard_delete !== false,
-                },
-                {
-                  key: "occ",
-                  label: "OCC ochrana soubehu",
-                  impact: "Dva zapisy neprepisou stejny zaznam bez varovani.",
-                  done: starPolicy?.occ_enforced !== false,
-                },
-                {
-                  key: "idempotency",
-                  label: "Idempotence prikazu",
-                  impact: "Opakovany request nevytvori duplicitni data pri retry.",
-                  done: starPolicy?.idempotency_supported !== false,
-                },
-                {
-                  key: "physical_profile",
-                  label: "Fyzikalni profil planety",
-                  impact: "Urci, jak planety meni velikost, zar a degradaci pri zatezi.",
-                  done: Boolean(String(starPhysicsProfile?.profile_key || "").trim()),
-                },
-                { key: "lock", label: "Star Core lock status = locked", done: starPolicyLocked },
-              ].map((item) => (
-                <div key={item.key} style={{ display: "grid", gap: 3 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--dv-fs-xs)" }}>
-                    <input type="checkbox" checked={Boolean(item.done)} readOnly />
-                    <span>{item.label}</span>
-                  </label>
-                  {item.impact ? (
-                    <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72, paddingLeft: 24 }}>
-                      {item.impact}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={handleOpenStarHeartDashboard}
-                style={{
-                  border: "1px solid rgba(255, 205, 121, 0.52)",
-                  background: "linear-gradient(120deg, #ffb457, #ffd27a)",
-                  color: "#3f2200",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                Otevrit Star Heart Dashboard
-              </button>
-            </div>
-          </article>
-        </section>
-      ) : null}
-
-      {stageZeroActive && !stageZeroRequiresStarLock && stageZeroFlow === STAGE_ZERO_FLOW.INTRO ? (
-        <section
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 60,
-            display: "grid",
-            placeItems: "center",
-            background: "radial-gradient(circle at 50% 50%, rgba(19, 42, 66, 0.28), rgba(2, 6, 14, 0.68))",
-            backdropFilter: "blur(2px)",
-          }}
-        >
-          <article
-            style={{
-              width: "min(640px, calc(100vw - 24px))",
-              borderRadius: 14,
-              border: "1px solid rgba(126, 216, 250, 0.38)",
-              background: "rgba(5, 13, 24, 0.92)",
-              color: "#d8f8ff",
-              padding: 16,
-              display: "grid",
-              gap: 10,
-              boxShadow: "0 0 24px rgba(46, 145, 189, 0.24)",
-            }}
-          >
-            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>STAGE 0</div>
-            <div style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 800 }}>Prazdny vesmir ceka na prvni planetu</div>
-            <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88, lineHeight: "var(--dv-lh-base)" }}>
-              Planeta je kontejner pro data. Nejdriv ji umistime do prostoru, potom ji nastavime zakladni zakony a schema.
-            </div>
-            <button
-              type="button"
-              onClick={() => setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT)}
-              style={{
-                border: "1px solid rgba(114, 219, 252, 0.5)",
-                background: "linear-gradient(120deg, #21bbea, #44d8ff)",
-                color: "#072737",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontWeight: 700,
-                cursor: "pointer",
-                width: "fit-content",
-              }}
-            >
-              Otevrit stavebnici
-            </button>
-          </article>
-        </section>
-      ) : null}
-
-      {stageZeroBuilderOpen ? (
-        <aside
-          style={{
-            position: "fixed",
-            left: 12,
-            top: "50%",
-            transform: "translateY(-50%)",
-            zIndex: 59,
-            width: 250,
-            borderRadius: 14,
-            border: "1px solid rgba(106, 208, 243, 0.38)",
-            background: "rgba(6, 15, 28, 0.9)",
-            color: "#dbf8ff",
-            boxShadow: "0 0 26px rgba(36, 136, 182, 0.24)",
-            padding: 12,
-            display: "grid",
-            gap: 10,
-          }}
-        >
-          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>BLUEPRINT PANEL</div>
-          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82, lineHeight: "var(--dv-lh-base)" }}>
-            Tohle je tva stavebnice. Vezmi Planetu a pretahni ji kamkoliv do prazdneho prostoru.
-          </div>
-          <StageZeroDraggablePlanetCard disabled={stageZeroCreating} />
-        </aside>
-      ) : null}
-
-      {stageZeroCreating ? (
-        <div
-          style={{
-            position: "fixed",
-            left: "50%",
-            top: 18,
-            transform: "translateX(-50%)",
-            zIndex: 61,
-            borderRadius: 999,
-            border: "1px solid rgba(118, 209, 243, 0.42)",
-            background: "rgba(5, 14, 26, 0.9)",
-            color: "#d9f8ff",
-            padding: "7px 12px",
-            fontSize: "var(--dv-fs-xs)",
-          }}
-        >
-          Zhmotnuji planetu v prostoru...
-        </div>
-      ) : null}
-
-      {stageZeroSetupOpen && selectedTableId ? (
-        <aside
-          style={{
-            position: "fixed",
-            right: 12,
-            top: 232,
-            zIndex: 58,
-            width: "min(420px, calc(100vw - 24px))",
-            borderRadius: 14,
-            border: "1px solid rgba(112, 203, 238, 0.34)",
-            background: "rgba(5, 13, 24, 0.88)",
-            color: "#ddf7ff",
-            padding: 12,
-            display: "grid",
-            gap: 8,
-            backdropFilter: "blur(10px)",
-          }}
-        >
-          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>SETUP PANEL</div>
-          <div style={{ fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-base)" }}>
-            Vyborne. <strong>{stageZeroPlanetName || "Planeta"}</strong> slouzi jako kontejner pro mesice (data). Aby v ni
-            nebyl chaos, nastavime zakladni schema krok za krokem.
-          </div>
-          {!stageZeroPresetSelected ? (
-            <>
-              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
-                Vesmír nebudujeme od nuly, pouzivame proverene nakresy. Vyber si pro zacatek Cashflow.
+              <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+                STAGE 0 / STAR CORE
               </div>
-              <div style={{ display: "grid", gap: 8 }}>
-                <button
-                  type="button"
-                  style={{
-                    border: "1px solid rgba(110, 198, 229, 0.2)",
-                    background: "rgba(7, 18, 32, 0.8)",
-                    color: "#8fb9c9",
-                    borderRadius: 10,
-                    padding: "9px 10px",
-                    textAlign: "left",
-                    cursor: "not-allowed",
-                  }}
-                  disabled
-                >
-                  Agilni CRM (zamceno)
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    border: "1px solid rgba(110, 198, 229, 0.2)",
-                    background: "rgba(7, 18, 32, 0.8)",
-                    color: "#8fb9c9",
-                    borderRadius: 10,
-                    padding: "9px 10px",
-                    textAlign: "left",
-                    cursor: "not-allowed",
-                  }}
-                  disabled
-                >
-                  Sklad (zamceno)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStageZeroPresetSelected(true)}
-                  style={{
-                    border: "1px solid rgba(142, 234, 255, 0.62)",
-                    background: "linear-gradient(120deg, rgba(35, 165, 207, 0.42), rgba(88, 226, 255, 0.2))",
-                    color: "#dcfcff",
-                    borderRadius: 10,
-                    padding: "10px 11px",
-                    textAlign: "left",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    boxShadow: "0 0 18px rgba(98, 223, 255, 0.24)",
-                  }}
-                >
-                  Osobni Cashflow
-                </button>
+              <div style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 800 }}>Nejdriv nastav zakony hvezdy</div>
+              <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.9, lineHeight: "var(--dv-lh-base)" }}>
+                Hvezda urcuje fyzikalni zakon cele galaxie. Dokud neni Star Core uzamceny, neni bezpecne zakladat prvni
+                planetu.
               </div>
-            </>
-          ) : (
-            <>
               <div
                 style={{
-                  border: "1px solid rgba(98, 188, 220, 0.24)",
+                  border: "1px solid rgba(242, 195, 114, 0.26)",
                   borderRadius: 10,
-                  background: "rgba(6, 17, 30, 0.7)",
-                  padding: "8px 9px",
-                  display: "grid",
-                  gap: 8,
-                }}
-              >
-                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
-                  Krok A: Pridat <strong>Nazev transakce</strong> (Text)
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleStageZeroSchemaStep("transactionName")}
-                  disabled={stageZeroSchemaDraft.transactionName}
-                  style={{
-                    border: "1px solid rgba(114, 219, 252, 0.5)",
-                    background: stageZeroSchemaDraft.transactionName
-                      ? "rgba(25, 75, 58, 0.86)"
-                      : "linear-gradient(120deg, #21bbea, #44d8ff)",
-                    color: stageZeroSchemaDraft.transactionName ? "#d7ffe5" : "#072737",
-                    borderRadius: 9,
-                    padding: "7px 10px",
-                    fontWeight: 700,
-                    cursor: stageZeroSchemaDraft.transactionName ? "default" : "pointer",
-                  }}
-                >
-                  {stageZeroSchemaDraft.transactionName ? "Pridano ✓" : "+ Nazev"}
-                </button>
-              </div>
-
-              <div
-                style={{
-                  border: "1px solid rgba(98, 188, 220, 0.24)",
-                  borderRadius: 10,
-                  background: "rgba(6, 17, 30, 0.7)",
-                  padding: "8px 9px",
-                  display: "grid",
-                  gap: 8,
-                  opacity: stageZeroSchemaDraft.transactionName ? 1 : 0.58,
-                }}
-              >
-                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
-                  Krok B: Pridat <strong>Castku</strong> (Cislo)
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleStageZeroSchemaStep("amount")}
-                  disabled={!stageZeroSchemaDraft.transactionName || stageZeroSchemaDraft.amount}
-                  style={{
-                    border: "1px solid rgba(114, 219, 252, 0.5)",
-                    background: stageZeroSchemaDraft.amount
-                      ? "rgba(25, 75, 58, 0.86)"
-                      : "linear-gradient(120deg, #21bbea, #44d8ff)",
-                    color: stageZeroSchemaDraft.amount ? "#d7ffe5" : "#072737",
-                    borderRadius: 9,
-                    padding: "7px 10px",
-                    fontWeight: 700,
-                    cursor: !stageZeroSchemaDraft.transactionName || stageZeroSchemaDraft.amount ? "default" : "pointer",
-                  }}
-                >
-                  {stageZeroSchemaDraft.amount ? "Pridano ✓" : "+ Castka"}
-                </button>
-              </div>
-
-              <div
-                style={{
-                  border: "1px solid rgba(98, 188, 220, 0.24)",
-                  borderRadius: 10,
-                  background: "rgba(6, 17, 30, 0.7)",
-                  padding: "8px 9px",
-                  display: "grid",
-                  gap: 8,
-                  opacity: stageZeroSchemaDraft.amount ? 1 : 0.58,
-                }}
-              >
-                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
-                  Krok C: Pridat <strong>Typ</strong> (Prijem/Vydej)
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleStageZeroSchemaStep("transactionType")}
-                  disabled={!stageZeroSchemaDraft.amount || stageZeroSchemaDraft.transactionType}
-                  style={{
-                    border: "1px solid rgba(114, 219, 252, 0.5)",
-                    background: stageZeroSchemaDraft.transactionType
-                      ? "rgba(25, 75, 58, 0.86)"
-                      : "linear-gradient(120deg, #21bbea, #44d8ff)",
-                    color: stageZeroSchemaDraft.transactionType ? "#d7ffe5" : "#072737",
-                    borderRadius: 9,
-                    padding: "7px 10px",
-                    fontWeight: 700,
-                    cursor: !stageZeroSchemaDraft.amount || stageZeroSchemaDraft.transactionType ? "default" : "pointer",
-                  }}
-                >
-                  {stageZeroSchemaDraft.transactionType ? "Pridano ✓" : "+ Typ"}
-                </button>
-              </div>
-
-              <div
-                style={{
-                  border: "1px solid rgba(95, 188, 220, 0.26)",
-                  borderRadius: 10,
-                  background: "rgba(7, 18, 32, 0.74)",
-                  padding: "8px 9px",
+                  background: "rgba(22, 16, 10, 0.7)",
+                  padding: "9px 10px",
                   display: "grid",
                   gap: 6,
                 }}
               >
-                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>Prubezny preview planety</div>
-                {stageZeroSchemaPreview.map((item) => (
-                  <div key={item.key} style={{ fontSize: "var(--dv-fs-xs)", opacity: item.done ? 0.96 : 0.58 }}>
-                    {item.done ? "✓" : "○"} {item.label} <span style={{ opacity: 0.74 }}>({item.type})</span>
+                {[
+                  {
+                    key: "no_hard_delete",
+                    label: "Zakaz tvrdeho mazani (soft-delete only)",
+                    impact: "Historie metrik zustane konzistentni i po odstraneni dat.",
+                    done: starPolicy?.no_hard_delete !== false,
+                  },
+                  {
+                    key: "occ",
+                    label: "OCC ochrana soubehu",
+                    impact: "Dva zapisy neprepisou stejny zaznam bez varovani.",
+                    done: starPolicy?.occ_enforced !== false,
+                  },
+                  {
+                    key: "idempotency",
+                    label: "Idempotence prikazu",
+                    impact: "Opakovany request nevytvori duplicitni data pri retry.",
+                    done: starPolicy?.idempotency_supported !== false,
+                  },
+                  {
+                    key: "physical_profile",
+                    label: "Fyzikalni profil planety",
+                    impact: "Urci, jak planety meni velikost, zar a degradaci pri zatezi.",
+                    done: Boolean(String(starPhysicsProfile?.profile_key || "").trim()),
+                  },
+                  { key: "lock", label: "Star Core lock status = locked", done: starPolicyLocked },
+                ].map((item) => (
+                  <div key={item.key} style={{ display: "grid", gap: 3 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--dv-fs-xs)" }}>
+                      <input type="checkbox" checked={Boolean(item.done)} readOnly />
+                      <span>{item.label}</span>
+                    </label>
+                    {item.impact ? (
+                      <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72, paddingLeft: 24 }}>{item.impact}</div>
+                    ) : null}
                   </div>
                 ))}
-                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
-                  Po zazehnuti jadra se vlozi 3 ukazkove mesice do gridu.
-                </div>
               </div>
-
-              {stageZeroAllSchemaStepsDone ? (
-                <div
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={handleOpenStarHeartDashboard}
                   style={{
-                    border: "1px solid rgba(120, 217, 247, 0.38)",
+                    border: "1px solid rgba(255, 205, 121, 0.52)",
+                    background: "linear-gradient(120deg, #ffb457, #ffd27a)",
+                    color: "#3f2200",
                     borderRadius: 10,
-                    background: "rgba(8, 22, 36, 0.74)",
-                    padding: "8px 10px",
-                    display: "grid",
-                    gap: 8,
+                    padding: "10px 12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
                   }}
                 >
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
-                    Plan je kompletni. Vytvori se struktura o 3 zakonech a nasypou se 3 ukazkove zaznamy.
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleStageZeroCommitPreset();
-                    }}
-                    disabled={stageZeroCommitBusy}
-                    style={{
-                      border: "1px solid rgba(130, 233, 255, 0.64)",
-                      background: "linear-gradient(120deg, #35c1ea, #8cecff)",
-                      color: "#062535",
-                      borderRadius: 10,
-                      padding: "9px 12px",
-                      fontWeight: 800,
-                      cursor: stageZeroCommitBusy ? "wait" : "pointer",
-                    }}
-                  >
-                    {stageZeroCommitBusy ? "Aplikuji..." : "Zazehnout Jadro"}
-                  </button>
-                </div>
-              ) : null}
-            </>
-          )}
+                  Otevrit Star Heart Dashboard
+                </button>
+              </div>
+            </article>
+          </section>
+        ) : null}
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={() => setStageZeroSetupOpen(false)}
+        {stageZeroActive && !stageZeroRequiresStarLock && stageZeroFlow === STAGE_ZERO_FLOW.INTRO ? (
+          <section
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 60,
+              display: "grid",
+              placeItems: "center",
+              background: "radial-gradient(circle at 50% 50%, rgba(19, 42, 66, 0.28), rgba(2, 6, 14, 0.68))",
+              backdropFilter: "blur(2px)",
+            }}
+          >
+            <article
               style={{
-                border: "1px solid rgba(113, 202, 234, 0.3)",
-                background: "rgba(7, 18, 32, 0.86)",
-                color: "#d5f5ff",
-                borderRadius: 9,
-                padding: "8px 10px",
-                cursor: "pointer",
+                width: "min(640px, calc(100vw - 24px))",
+                borderRadius: 14,
+                border: "1px solid rgba(126, 216, 250, 0.38)",
+                background: "rgba(5, 13, 24, 0.92)",
+                color: "#d8f8ff",
+                padding: 16,
+                display: "grid",
+                gap: 10,
+                boxShadow: "0 0 24px rgba(46, 145, 189, 0.24)",
               }}
             >
-              Zavrit panel
-            </button>
+              <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+                STAGE 0
+              </div>
+              <div style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 800 }}>
+                Prazdny vesmir ceka na prvni planetu
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88, lineHeight: "var(--dv-lh-base)" }}>
+                Planeta je kontejner pro data. Nejdriv ji umistime do prostoru, potom ji nastavime zakladni zakony a
+                schema.
+              </div>
+              <button
+                type="button"
+                onClick={() => setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT)}
+                style={{
+                  border: "1px solid rgba(114, 219, 252, 0.5)",
+                  background: "linear-gradient(120deg, #21bbea, #44d8ff)",
+                  color: "#072737",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  width: "fit-content",
+                }}
+              >
+                Otevrit stavebnici
+              </button>
+            </article>
+          </section>
+        ) : null}
+
+        {stageZeroBuilderOpen ? (
+          <aside
+            style={{
+              position: "fixed",
+              left: 12,
+              top: "50%",
+              transform: "translateY(-50%)",
+              zIndex: 59,
+              width: 250,
+              borderRadius: 14,
+              border: "1px solid rgba(106, 208, 243, 0.38)",
+              background: "rgba(6, 15, 28, 0.9)",
+              color: "#dbf8ff",
+              boxShadow: "0 0 26px rgba(36, 136, 182, 0.24)",
+              padding: 12,
+              display: "grid",
+              gap: 10,
+            }}
+          >
+            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+              BLUEPRINT PANEL
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82, lineHeight: "var(--dv-lh-base)" }}>
+              Tohle je tva stavebnice. Vezmi Planetu a pretahni ji kamkoliv do prazdneho prostoru.
+            </div>
+            <StageZeroDraggablePlanetCard disabled={stageZeroCreating} />
+          </aside>
+        ) : null}
+
+        {stageZeroCreating ? (
+          <div
+            style={{
+              position: "fixed",
+              left: "50%",
+              top: 18,
+              transform: "translateX(-50%)",
+              zIndex: 61,
+              borderRadius: 999,
+              border: "1px solid rgba(118, 209, 243, 0.42)",
+              background: "rgba(5, 14, 26, 0.9)",
+              color: "#d9f8ff",
+              padding: "7px 12px",
+              fontSize: "var(--dv-fs-xs)",
+            }}
+          >
+            Zhmotnuji planetu v prostoru...
           </div>
-        </aside>
-      ) : null}
+        ) : null}
 
-      <WorkspaceSidebar
-        galaxy={galaxy}
-        branches={branches}
-        onboarding={onboarding}
-        tableNodes={tableNodes}
-        asteroidCount={snapshot.asteroids.length}
-        bondCount={snapshot.bonds.length}
-        loading={loading}
-        busy={busy}
-        error={error}
-        selectedTableId={selectedTableId}
-        selectedTableLabel={selectedTableLabel}
-        selectedAsteroidLabel={selectedAsteroidLabel}
-        onSelectTable={(tableId) => {
-          setSelectedTableId(tableId);
-          setSelectedAsteroidId("");
-        }}
-        onOpenGrid={() => setQuickGridOpen(true)}
-        onRefresh={() => {
-          void refreshProjection();
-        }}
-        onOpenStarHeart={handleOpenStarHeartDashboard}
-        onBackToGalaxies={onBackToGalaxies}
-        onLogout={onLogout}
-      />
+        {stageZeroSetupOpen && selectedTableId ? (
+          <aside
+            style={{
+              position: "fixed",
+              right: 12,
+              top: 232,
+              zIndex: 58,
+              width: "min(420px, calc(100vw - 24px))",
+              borderRadius: 14,
+              border: "1px solid rgba(112, 203, 238, 0.34)",
+              background: "rgba(5, 13, 24, 0.88)",
+              color: "#ddf7ff",
+              padding: 12,
+              display: "grid",
+              gap: 8,
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+              SETUP PANEL
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-base)" }}>
+              Vyborne. <strong>{stageZeroPlanetName || "Planeta"}</strong> slouzi jako kontejner pro civilizaci (radky
+              dat). Aby v ni nebyl chaos, nastavime zakladni schema krok za krokem.
+            </div>
+            {!stageZeroPresetSelected ? (
+              <>
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
+                  Vesmír nebudujeme od nuly, pouzivame proverene nakresy. Vyber si pro zacatek Cashflow.
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {STAGE_ZERO_PRESET_CARDS.map((preset) => {
+                    const locked = Boolean(preset.locked);
+                    return (
+                      <button
+                        key={preset.key}
+                        type="button"
+                        onClick={() => {
+                          if (locked) return;
+                          setStageZeroPresetSelected(true);
+                          setStageZeroSchemaDraft(createStageZeroSchemaDraft());
+                          setStageZeroDraggedSchemaKey("");
+                        }}
+                        disabled={locked}
+                        style={{
+                          border: locked ? "1px solid rgba(110, 198, 229, 0.2)" : "1px solid rgba(142, 234, 255, 0.62)",
+                          background: locked
+                            ? "rgba(7, 18, 32, 0.8)"
+                            : "linear-gradient(120deg, rgba(35, 165, 207, 0.42), rgba(88, 226, 255, 0.2))",
+                          color: locked ? "#8fb9c9" : "#dcfcff",
+                          borderRadius: 10,
+                          padding: "10px 11px",
+                          textAlign: "left",
+                          fontWeight: locked ? 500 : 700,
+                          cursor: locked ? "not-allowed" : "pointer",
+                          boxShadow: locked ? "none" : "0 0 18px rgba(98, 223, 255, 0.24)",
+                          display: "grid",
+                          gap: 3,
+                        }}
+                      >
+                        <span>{preset.label}</span>
+                        {locked ? (
+                          <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>{preset.lockReason}</span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <div
+                  style={{
+                    border: "1px solid rgba(95, 188, 220, 0.26)",
+                    borderRadius: 10,
+                    background: "rgba(7, 18, 32, 0.74)",
+                    padding: "8px 9px",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.92 }}>
+                    Stavebni plan: skladej schema z Lego dilku (klik nebo drag & drop).
+                  </div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
+                    Vizualni odezva planety: {stageZeroSchemaSummary.completed}/{stageZeroSchemaSummary.total} dilku •
+                    zar +{Math.round(stageZeroVisualBoost.emissiveBoost * 100)}%
+                  </div>
+                </div>
 
-      <StarHeartDashboard
-        open={starHeartOpen}
-        phase={starControlPhase}
-        starCoreProfile={starCoreProfile}
-        starPolicy={starPolicy}
-        starPhysicsProfile={starPhysicsProfile}
-        starRuntime={starRuntime}
-        starDomains={starDomains}
-        parserTelemetry={parserTelemetry}
-        parserExecutionMode={parserExecutionMode}
-        selectedProfileKey={starProfileDraftKey}
-        selectedPhysicalProfileKey={starPhysicalProfileDraftKey}
-        applyBusy={starControlPhase === STAR_CONTROL_PHASE.APPLY_PROFILE}
-        applyError={starControlError}
-        onSelectProfile={setStarProfileDraftKey}
-        onSelectPhysicalProfile={setStarPhysicalProfileDraftKey}
-        onApplyProfileLock={() => {
-          void handleApplyStarProfileLock();
-        }}
-        onClose={handleCloseStarHeartDashboard}
-      />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {STAGE_ZERO_CASHFLOW_STEPS.map((step, index) => {
+                    const unlocked = isStageZeroStepUnlocked(index, stageZeroSchemaDraft);
+                    const done = Boolean(stageZeroSchemaDraft[step.key]);
+                    return (
+                      <button
+                        key={`tray-${step.key}`}
+                        type="button"
+                        draggable={unlocked && !done}
+                        onDragStart={(event) => {
+                          if (!unlocked || done) return;
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", step.key);
+                          handleStageZeroSchemaBlockDragStart(step.key);
+                        }}
+                        onDragEnd={handleStageZeroSchemaBlockDragEnd}
+                        onClick={() => {
+                          if (!unlocked || done) return;
+                          handleStageZeroSchemaStep(step.key);
+                        }}
+                        disabled={!unlocked || done}
+                        style={{
+                          border: done ? "1px solid rgba(120, 232, 182, 0.6)" : "1px solid rgba(114, 219, 252, 0.5)",
+                          background: done
+                            ? "linear-gradient(120deg, rgba(30, 94, 67, 0.9), rgba(30, 136, 92, 0.7))"
+                            : "linear-gradient(120deg, rgba(33, 187, 234, 0.24), rgba(68, 216, 255, 0.14))",
+                          color: done ? "#d8ffea" : "#d7f7ff",
+                          borderRadius: 9,
+                          padding: "7px 10px",
+                          fontSize: "var(--dv-fs-xs)",
+                          cursor: !unlocked || done ? "default" : "grab",
+                          opacity: unlocked ? 1 : 0.58,
+                        }}
+                      >
+                        {done ? "✓ " : "+ "}
+                        {step.blockLabel}
+                      </button>
+                    );
+                  })}
+                </div>
 
-      <QuickGridOverlay
-        open={quickGridOpen}
-        selectedTable={selectedTable}
-        tableRows={tableRows}
-        gridColumns={gridColumns}
-        gridFilteredRows={gridFilteredRows}
-        gridSearchQuery={gridSearchQuery}
-        onGridSearchChange={setGridSearchQuery}
-        selectedAsteroidId={selectedAsteroidId}
-        onSelectRow={setSelectedAsteroidId}
-        onCreateRow={handleCreateRow}
-        onUpdateRow={handleUpdateRow}
-        onDeleteRow={handleDeleteRow}
-        onUpsertMetadata={handleUpsertMetadata}
-        pendingCreate={pendingCreate}
-        pendingRowOps={pendingRowOps}
-        busy={busy}
-        onClose={() => setQuickGridOpen(false)}
-        readGridCell={readGridCell}
-      />
+                {STAGE_ZERO_CASHFLOW_STEPS.map((step, index) => {
+                  const unlocked = isStageZeroStepUnlocked(index, stageZeroSchemaDraft);
+                  const done = Boolean(stageZeroSchemaDraft[step.key]);
+                  const isDragTarget = stageZeroDraggedSchemaKey && stageZeroDraggedSchemaKey === step.key;
+                  return (
+                    <div
+                      key={step.key}
+                      onDragOver={(event) => {
+                        if (!unlocked || done) return;
+                        event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        if (!unlocked || done) return;
+                        event.preventDefault();
+                        const droppedKey = String(
+                          event.dataTransfer?.getData("text/plain") || stageZeroDraggedSchemaKey || ""
+                        );
+                        if (droppedKey !== step.key) {
+                          setStageZeroDraggedSchemaKey("");
+                          return;
+                        }
+                        handleStageZeroSchemaBlockDrop(step.key, index);
+                      }}
+                      style={{
+                        border: done
+                          ? "1px solid rgba(116, 228, 170, 0.36)"
+                          : isDragTarget
+                            ? "1px solid rgba(144, 233, 255, 0.72)"
+                            : "1px solid rgba(98, 188, 220, 0.24)",
+                        borderRadius: 10,
+                        background: done ? "rgba(15, 44, 34, 0.78)" : "rgba(6, 17, 30, 0.7)",
+                        padding: "8px 9px",
+                        display: "grid",
+                        gap: 8,
+                        opacity: unlocked ? 1 : 0.58,
+                        transition: "border-color 150ms ease, box-shadow 150ms ease",
+                        boxShadow: isDragTarget ? "0 0 16px rgba(98, 223, 255, 0.24)" : "none",
+                      }}
+                    >
+                      <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>
+                        {step.title}: <strong>{step.sentence}</strong> {step.instruction}
+                      </div>
+                      <div
+                        style={{
+                          border: "1px dashed rgba(114, 219, 252, 0.34)",
+                          borderRadius: 8,
+                          padding: "7px 9px",
+                          fontSize: "var(--dv-fs-xs)",
+                          color: done ? "#d9ffea" : "#a0d4e4",
+                        }}
+                      >
+                        {done
+                          ? `Slot osazen: ${step.blockLabel} ✓`
+                          : "Slot prazdny: pretahni dil sem nebo klikni na dil v trayi."}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleStageZeroSchemaStep(step.key)}
+                        disabled={!unlocked || done}
+                        style={{
+                          border: "1px solid rgba(114, 219, 252, 0.5)",
+                          background: done ? "rgba(25, 75, 58, 0.86)" : "linear-gradient(120deg, #21bbea, #44d8ff)",
+                          color: done ? "#d7ffe5" : "#072737",
+                          borderRadius: 9,
+                          padding: "7px 10px",
+                          fontWeight: 700,
+                          cursor: !unlocked || done ? "default" : "pointer",
+                        }}
+                      >
+                        {done ? "Pridano ✓" : `+ ${step.blockLabel}`}
+                      </button>
+                    </div>
+                  );
+                })}
 
-      <LinkHoverTooltip hoveredLink={hoveredLink} />
-      <DragOverlay>{stageZeroDragging ? <StageZeroDragGhost /> : null}</DragOverlay>
+                <div
+                  style={{
+                    border: "1px solid rgba(95, 188, 220, 0.26)",
+                    borderRadius: 10,
+                    background: "rgba(7, 18, 32, 0.74)",
+                    padding: "8px 9px",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>Prubezny preview planety</div>
+                  {stageZeroSchemaPreview.map((item) => (
+                    <div key={item.key} style={{ fontSize: "var(--dv-fs-xs)", opacity: item.done ? 0.96 : 0.58 }}>
+                      {item.done ? "✓" : "○"} {item.label} <span style={{ opacity: 0.74 }}>({item.type})</span>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
+                    Po zazehnuti jadra se vlozi 3 ukazkove civilizacni radky do gridu.
+                  </div>
+                </div>
+
+                {stageZeroAllSchemaStepsDone ? (
+                  <div
+                    style={{
+                      border: "1px solid rgba(120, 217, 247, 0.38)",
+                      borderRadius: 10,
+                      background: "rgba(8, 22, 36, 0.74)",
+                      padding: "8px 10px",
+                      display: "grid",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                      Plan je kompletni. Vytvori se struktura o 3 zakonech a nasypou se 3 ukazkove zaznamy.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleStageZeroCommitPreset();
+                      }}
+                      disabled={stageZeroCommitBusy}
+                      style={{
+                        border: "1px solid rgba(130, 233, 255, 0.64)",
+                        background: "linear-gradient(120deg, #35c1ea, #8cecff)",
+                        color: "#062535",
+                        borderRadius: 10,
+                        padding: "9px 12px",
+                        fontWeight: 800,
+                        cursor: stageZeroCommitBusy ? "wait" : "pointer",
+                      }}
+                    >
+                      {stageZeroCommitBusy ? "Aplikuji..." : "Zazehnout Jadro"}
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            )}
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setStageZeroSetupOpen(false);
+                  setStageZeroDraggedSchemaKey("");
+                }}
+                style={{
+                  border: "1px solid rgba(113, 202, 234, 0.3)",
+                  background: "rgba(7, 18, 32, 0.86)",
+                  color: "#d5f5ff",
+                  borderRadius: 9,
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                Zavrit panel
+              </button>
+            </div>
+          </aside>
+        ) : null}
+
+        <WorkspaceSidebar
+          galaxy={galaxy}
+          branches={branches}
+          onboarding={onboarding}
+          tableNodes={tableNodes}
+          asteroidCount={snapshot.asteroids.length}
+          bondCount={snapshot.bonds.length}
+          loading={loading}
+          busy={busy}
+          error={error}
+          selectedTableId={selectedTableId}
+          selectedTableLabel={selectedTableLabel}
+          selectedAsteroidLabel={selectedAsteroidLabel}
+          onSelectTable={(tableId) => {
+            setSelectedTableId(tableId);
+            setSelectedAsteroidId("");
+          }}
+          onOpenGrid={() => setQuickGridOpen(true)}
+          onRefresh={() => {
+            void refreshProjection();
+          }}
+          onOpenStarHeart={handleOpenStarHeartDashboard}
+          onBackToGalaxies={onBackToGalaxies}
+          onLogout={onLogout}
+        />
+
+        <StarHeartDashboard
+          open={starHeartOpen}
+          phase={starControlPhase}
+          starCoreProfile={starCoreProfile}
+          starPolicy={starPolicy}
+          starPhysicsProfile={starPhysicsProfile}
+          starRuntime={starRuntime}
+          starDomains={starDomains}
+          parserTelemetry={parserTelemetry}
+          parserExecutionMode={parserExecutionMode}
+          selectedProfileKey={starProfileDraftKey}
+          selectedPhysicalProfileKey={starPhysicalProfileDraftKey}
+          applyBusy={starControlPhase === STAR_CONTROL_PHASE.APPLY_PROFILE}
+          applyError={starControlError}
+          onSelectProfile={setStarProfileDraftKey}
+          onSelectPhysicalProfile={setStarPhysicalProfileDraftKey}
+          onApplyProfileLock={() => {
+            void handleApplyStarProfileLock();
+          }}
+          onClose={handleCloseStarHeartDashboard}
+        />
+
+        <QuickGridOverlay
+          open={quickGridOpen}
+          selectedTable={selectedTable}
+          tableRows={tableRows}
+          gridColumns={gridColumns}
+          gridFilteredRows={gridFilteredRows}
+          gridSearchQuery={gridSearchQuery}
+          onGridSearchChange={setGridSearchQuery}
+          selectedAsteroidId={selectedAsteroidId}
+          onSelectRow={setSelectedAsteroidId}
+          onCreateRow={handleCreateRow}
+          onUpdateRow={handleUpdateRow}
+          onDeleteRow={handleDeleteRow}
+          onUpsertMetadata={handleUpsertMetadata}
+          pendingCreate={pendingCreate}
+          pendingRowOps={pendingRowOps}
+          busy={busy}
+          onClose={() => setQuickGridOpen(false)}
+          readGridCell={readGridCell}
+        />
+
+        <LinkHoverTooltip hoveredLink={hoveredLink} />
+        <DragOverlay>{stageZeroDragging ? <StageZeroDragGhost /> : null}</DragOverlay>
       </DndContext>
     </main>
   );

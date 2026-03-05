@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timezone
+from datetime import UTC
 
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
@@ -37,9 +37,9 @@ async def get_current_auth_context(
         raise missing_session_error()
     if auth_session.revoked_at is not None:
         raise missing_session_error()
-    if auth_session.access_expires_at.astimezone(timezone.utc) <= utc_now():
+    if auth_session.access_expires_at.astimezone(UTC) <= utc_now():
         raise missing_session_error()
-    if auth_session.refresh_expires_at.astimezone(timezone.utc) <= utc_now():
+    if auth_session.refresh_expires_at.astimezone(UTC) <= utc_now():
         raise missing_session_error()
 
     user = await repository.get_user_by_id(session=session, user_id=claims.user_id)

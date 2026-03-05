@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from app.services.auth_service import AuthService
 from sqlalchemy import and_, select
 
 from app.db import AsyncSessionLocal
 from app.models import Atom, Galaxy, User
+from app.services.auth_service import AuthService
 from app.services.parser_service import AtomicTask
 from app.services.task_executor_service import TaskExecutorService
 

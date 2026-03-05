@@ -77,12 +77,7 @@ export default function App() {
 
   if (!isAuthenticated) {
     return (
-      <AuthExperience
-        onLogin={handleAuthLogin}
-        onRegister={handleAuthRegister}
-        busy={authBusy}
-        error={authError}
-      />
+      <AuthExperience onLogin={handleAuthLogin} onRegister={handleAuthRegister} busy={authBusy} error={authError} />
     );
   }
 

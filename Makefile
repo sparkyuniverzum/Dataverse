@@ -1,4 +1,4 @@
-.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full be-gate be-gate-quick be-gate-strict star-contract-gate contract-gate staging-parser-rollout-smoke parser-full-smoke
+.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full be-gate be-gate-quick be-gate-strict star-contract-gate contract-gate staging-parser-rollout-smoke parser-full-smoke fmt-py fmt-py-check lint-py quality-py fmt-fe fmt-fe-check lint-fe quality-fe precommit-install precommit-run
 
 install:
 	./.venv/bin/pip install -r requirements.txt
@@ -120,3 +120,32 @@ staging-parser-rollout-smoke:
 
 parser-full-smoke:
 	./scripts/parser_full_smoke.sh
+
+fmt-py:
+	./.venv/bin/ruff check --fix .
+	./.venv/bin/ruff format .
+
+fmt-py-check:
+	./.venv/bin/ruff format --check .
+
+lint-py:
+	./.venv/bin/ruff check .
+
+quality-py: fmt-py-check lint-py
+
+fmt-fe:
+	cd frontend && npm run format
+
+fmt-fe-check:
+	cd frontend && npm run format:check
+
+lint-fe:
+	cd frontend && npm run lint
+
+quality-fe: fmt-fe-check lint-fe
+
+precommit-install:
+	./.venv/bin/pre-commit install
+
+precommit-run:
+	./.venv/bin/pre-commit run --all-files

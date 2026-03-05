@@ -92,7 +92,13 @@ function GalaxyHeroScene({ pointer }) {
       <group ref={groupRef}>
         <mesh>
           <sphereGeometry args={[0.6, 30, 30]} />
-          <meshStandardMaterial color="#e8f8ff" emissive="#6edfff" emissiveIntensity={1.05} roughness={0.18} metalness={0.26} />
+          <meshStandardMaterial
+            color="#e8f8ff"
+            emissive="#6edfff"
+            emissiveIntensity={1.05}
+            roughness={0.18}
+            metalness={0.26}
+          />
         </mesh>
         <mesh>
           <sphereGeometry args={[0.95, 28, 28]} />
@@ -110,13 +116,23 @@ function GalaxyHeroScene({ pointer }) {
             userData={{ isNode: true, pulse: node.pulse, phase: node.phase }}
           >
             <sphereGeometry args={[node.radius, 18, 18]} />
-            <meshStandardMaterial color={node.color} emissive={node.color} emissiveIntensity={0.9} roughness={0.24} metalness={0.12} />
+            <meshStandardMaterial
+              color={node.color}
+              emissive={node.color}
+              emissiveIntensity={0.9}
+              roughness={0.24}
+              metalness={0.12}
+            />
           </mesh>
         ))}
 
         <points>
           <bufferGeometry>
-            <bufferAttribute attach="attributes-position" args={[data.particlePositions, 3]} count={data.particlePositions.length / 3} />
+            <bufferAttribute
+              attach="attributes-position"
+              args={[data.particlePositions, 3]}
+              count={data.particlePositions.length / 3}
+            />
           </bufferGeometry>
           <pointsMaterial size={0.024} color="#95defb" transparent opacity={0.48} depthWrite={false} />
         </points>
@@ -136,7 +152,9 @@ function FeatureCard({ title, text }) {
       }}
     >
       <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", color: "#98dbff" }}>{title}</div>
-      <div style={{ marginTop: 5, fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-relaxed)", opacity: 0.92 }}>{text}</div>
+      <div style={{ marginTop: 5, fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-relaxed)", opacity: 0.92 }}>
+        {text}
+      </div>
     </div>
   );
 }
@@ -214,9 +232,21 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
             }}
           >
             <div>
-              <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", opacity: 0.74 }}>DATAVERSE / COSMIC DATA ENGINE</div>
-              <h1 style={{ margin: "12px 0 0", maxWidth: 620, fontSize: "clamp(28px, 3.2vw, 50px)", lineHeight: 1.05 }}>{title}</h1>
-              <p style={{ marginTop: 12, maxWidth: 620, fontSize: "var(--dv-fs-2xl)", lineHeight: "var(--dv-lh-relaxed)", opacity: 0.9 }}>
+              <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", opacity: 0.74 }}>
+                DATAVERSE / COSMIC DATA ENGINE
+              </div>
+              <h1 style={{ margin: "12px 0 0", maxWidth: 620, fontSize: "clamp(28px, 3.2vw, 50px)", lineHeight: 1.05 }}>
+                {title}
+              </h1>
+              <p
+                style={{
+                  marginTop: 12,
+                  maxWidth: 620,
+                  fontSize: "var(--dv-fs-2xl)",
+                  lineHeight: "var(--dv-lh-relaxed)",
+                  opacity: 0.9,
+                }}
+              >
                 Data nejsou radky. Jsou to zive ekosystemy planet, mesicu a gravitacnich mostu.
               </p>
             </div>
@@ -252,8 +282,12 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
             background: "linear-gradient(170deg, rgba(6,14,27,0.86), rgba(4,9,18,0.88))",
           }}
         >
-          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", color: "#8fd9fb" }}>AUTH MODULE</div>
-          <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800, lineHeight: 1.1 }}>Pripojte se k Jadru</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", color: "#8fd9fb" }}>
+            AUTH MODULE
+          </div>
+          <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800, lineHeight: 1.1 }}>
+            Pripojte se k Jadru
+          </div>
           <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.84 }}>
             Prihlaseni otevre cisty vesmir, herni plochu a sidebar. Nic navic.
           </div>
@@ -290,7 +324,9 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
           </div>
 
           <label style={{ display: "grid", gap: 6, marginTop: 2 }}>
-            <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>E-MAIL PILOTA</span>
+            <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>
+              E-MAIL PILOTA
+            </span>
             <input
               type="email"
               value={email}
@@ -302,29 +338,28 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
           </label>
 
           <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>PRISTUPOVY KLIC</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                placeholder="********"
-                style={inputStyle}
-              />
+            <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>
+              PRISTUPOVY KLIC
+            </span>
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              placeholder="********"
+              style={inputStyle}
+            />
           </label>
 
           {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffabc3" }}>{error}</div> : null}
 
           <button type="submit" disabled={busy} style={ctaStyle(busy)}>
-            {busy
-              ? "Navazuji spojeni..."
-              : mode === "login"
-                ? "Vstoupit do Galaxie"
-                : "Iniciovat Hvezdu"}
+            {busy ? "Navazuji spojeni..." : mode === "login" ? "Vstoupit do Galaxie" : "Iniciovat Hvezdu"}
           </button>
 
           <div style={{ marginTop: 4, fontSize: "var(--dv-fs-xs)", opacity: 0.72, lineHeight: "var(--dv-lh-relaxed)" }}>
-            Pokracovanim potvrzujete, ze chcete aktivovat datovy prostor s event sourcing historii a soft-delete pravidly.
+            Pokracovanim potvrzujete, ze chcete aktivovat datovy prostor s event sourcing historii a soft-delete
+            pravidly.
           </div>
         </form>
       </section>

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import blake2b
 from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select
-from sqlalchemy import text as sql_text
+from sqlalchemy import and_, select, text as sql_text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -368,7 +367,7 @@ class CosmosService:
         if promoted_events:
             await self.read_model_projector.apply_events(session=session, events=promoted_events)
 
-        branch.deleted_at = datetime.now(timezone.utc)
+        branch.deleted_at = datetime.now(UTC)
         return branch, len(promoted_events)
 
     async def get_table_contract(
@@ -602,7 +601,7 @@ class CosmosService:
         )
         if not active_contracts:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Planet contract not found")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for contract in active_contracts:
             contract.deleted_at = now
             contract.updated_at = now

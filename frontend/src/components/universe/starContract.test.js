@@ -53,9 +53,7 @@ describe("starContract normalization", () => {
     expect(runtime.events_count).toBe(12);
     expect(runtime.as_of_event_seq).toBe(7);
 
-    const domains = normalizeStarDomains([
-      { domain_name: "Finance", activity_intensity: 2.4, status: "green" },
-    ]);
+    const domains = normalizeStarDomains([{ domain_name: "Finance", activity_intensity: 2.4, status: "green" }]);
     expect(domains[0].domain_name).toBe("Finance");
     expect(domains[0].activity_intensity).toBe(1);
     expect(domains[0].status).toBe("GREEN");
@@ -148,13 +146,17 @@ describe("starContract BE->FE usage diff", () => {
   });
 
   it("matches frozen star physics baseline v2", () => {
-    const baselinePath = fileURLToPath(new URL("../../../../docs/star-physics-contract-baseline-v2.json", import.meta.url));
+    const baselinePath = fileURLToPath(
+      new URL("../../../../docs/star-physics-contract-baseline-v2.json", import.meta.url)
+    );
     const baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
     expect(baseline.version).toBe("v2");
     expect(baseline.source_of_truth.physics_profile.be_fields).toEqual(STAR_PHYSICS_PROFILE_BE_FIELDS);
     expect(baseline.source_of_truth.physics_profile.fe_used_fields).toEqual(STAR_PHYSICS_PROFILE_FE_USED_FIELDS);
     expect(baseline.source_of_truth.planet_physics_item.be_fields).toEqual(STAR_PLANET_PHYSICS_ITEM_BE_FIELDS);
-    expect(baseline.source_of_truth.planet_physics_item.fe_used_fields).toEqual(STAR_PLANET_PHYSICS_ITEM_FE_USED_FIELDS);
+    expect(baseline.source_of_truth.planet_physics_item.fe_used_fields).toEqual(
+      STAR_PLANET_PHYSICS_ITEM_FE_USED_FIELDS
+    );
     expect(baseline.diff).toEqual(getStarPhysicsContractUsageDiff());
   });
 });

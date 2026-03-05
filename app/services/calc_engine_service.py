@@ -4,7 +4,7 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
@@ -412,7 +412,7 @@ class CalcEngineService:
         evaluated_atoms: Iterable[Mapping[str, Any]],
         active_asteroid_ids: set[UUID],
     ) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         normalized_source_seq = max(0, int(source_event_seq))
 
         rows = self.build_calc_rows(evaluated_atoms)

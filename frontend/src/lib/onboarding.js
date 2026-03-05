@@ -1,4 +1,5 @@
-export const MODEL_PATH_LABEL = "Galaxie (workspace) / Souhvezdi (oblasti) / Planety (tabulky) / Mesice (radky) / Nerosty (bunky)";
+export const MODEL_PATH_LABEL =
+  "Galaxie (workspace) / Souhvezdi (oblasti) / Planety (tabulky) / Mesice (radky) / Nerosty (bunky)";
 
 export const LANDING_GUIDE = [
   "Prihlas nebo registruj ucet.",

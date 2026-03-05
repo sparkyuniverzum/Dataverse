@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -46,7 +46,7 @@ def _galaxy(*, owner_id):
         id=uuid4(),
         name="Test Galaxy",
         owner_id=owner_id,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 

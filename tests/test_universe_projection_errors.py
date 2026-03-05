@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -22,7 +22,7 @@ class _FakeEventStore:
                 entity_id=uuid4(),
                 event_type="BOND_FORMED",
                 payload={"source_id": "not-a-uuid", "target_id": str(uuid4()), "type": "RELATION"},
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 event_seq=1,
             )
         ]

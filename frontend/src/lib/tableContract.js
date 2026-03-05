@@ -1,5 +1,7 @@
 function normalize(values) {
-  return [...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean))].sort();
+  return [
+    ...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean)),
+  ].sort();
 }
 
 function diff(required, provided) {
@@ -15,14 +17,8 @@ export const TABLE_CONTRACT_VERSION = "1.0.0";
 export const TABLE_CONTRACT_SCOPE = "table-contract-v1";
 export const TABLE_CONTRACT_DOC = "docs/contracts/table-contract-v1.md";
 
-export const SNAPSHOT_ASTEROID_TABLE_BE_FIELDS = Object.freeze([
-  "table_id",
-  "table_name",
-]);
-export const SNAPSHOT_ASTEROID_TABLE_FE_USED_FIELDS = Object.freeze([
-  "table_id",
-  "table_name",
-]);
+export const SNAPSHOT_ASTEROID_TABLE_BE_FIELDS = Object.freeze(["table_id", "table_name"]);
+export const SNAPSHOT_ASTEROID_TABLE_FE_USED_FIELDS = Object.freeze(["table_id", "table_name"]);
 
 export const SNAPSHOT_BOND_TABLE_BE_FIELDS = Object.freeze([
   "source_table_id",
@@ -72,16 +68,8 @@ export const TABLE_ROW_FE_USED_FIELDS = Object.freeze([
   "sector",
 ]);
 
-export const TABLE_MEMBER_BE_FIELDS = Object.freeze([
-  "id",
-  "value",
-  "created_at",
-]);
-export const TABLE_MEMBER_FE_USED_FIELDS = Object.freeze([
-  "id",
-  "value",
-  "created_at",
-]);
+export const TABLE_MEMBER_BE_FIELDS = Object.freeze(["id", "value", "created_at"]);
+export const TABLE_MEMBER_FE_USED_FIELDS = Object.freeze(["id", "value", "created_at"]);
 
 export const TABLE_BOND_BE_FIELDS = Object.freeze([
   "id",
@@ -104,18 +92,8 @@ export const TABLE_BOND_FE_USED_FIELDS = Object.freeze([
   "peer_table_name",
 ]);
 
-export const TABLE_SECTOR_BE_FIELDS = Object.freeze([
-  "center",
-  "size",
-  "mode",
-  "grid_plate",
-]);
-export const TABLE_SECTOR_FE_USED_FIELDS = Object.freeze([
-  "center",
-  "size",
-  "mode",
-  "grid_plate",
-]);
+export const TABLE_SECTOR_BE_FIELDS = Object.freeze(["center", "size", "mode", "grid_plate"]);
+export const TABLE_SECTOR_FE_USED_FIELDS = Object.freeze(["center", "size", "mode", "grid_plate"]);
 
 export function tableContractDiff() {
   return {

@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -15,7 +15,7 @@ def _asteroid(asteroid_id: str, value: object) -> ProjectedAsteroid:
         value=value,
         metadata={},
         is_deleted=False,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         deleted_at=None,
     )
 

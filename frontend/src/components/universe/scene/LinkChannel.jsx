@@ -74,7 +74,16 @@ function resolveLinkSemantic(link) {
   };
 }
 
-export function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, onHoverLink, onLeaveLink, onSelectLink }) {
+export function LinkChannel({
+  link,
+  sourceNode,
+  targetNode,
+  dimmed,
+  emphasized,
+  onHoverLink,
+  onLeaveLink,
+  onSelectLink,
+}) {
   const pulseRef = useRef(null);
   const pulse2Ref = useRef(null);
   const trailRefs = useRef([]);
@@ -196,7 +205,14 @@ export function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, 
 
   return (
     <group>
-      <Line points={points} color={mixedColor} lineWidth={lineWidth} transparent opacity={opacity} raycast={() => null} />
+      <Line
+        points={points}
+        color={mixedColor}
+        lineWidth={lineWidth}
+        transparent
+        opacity={opacity}
+        raycast={() => null}
+      />
       <mesh
         onPointerOver={(event) => {
           event.stopPropagation();
@@ -229,14 +245,23 @@ export function LinkChannel({ link, sourceNode, targetNode, dimmed, emphasized, 
         <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       <Billboard position={labelPoint}>
-        <Text raycast={() => null} fontSize={emphasized ? 2.15 : 1.85} color={mixedColor} anchorX="center" anchorY="middle" maxWidth={48}>
+        <Text
+          raycast={() => null}
+          fontSize={emphasized ? 2.15 : 1.85}
+          color={mixedColor}
+          anchorX="center"
+          anchorY="middle"
+          maxWidth={48}
+        >
           {`${typeLabel} ${directionLabel}`}
         </Text>
       </Billboard>
       {!dimmed && activeFlow ? (
         <>
           <mesh ref={pulseRef}>
-            <sphereGeometry args={[(emphasized ? 1.2 : 0.86) * pulseSizeFactor * phaseVisual.pulseMultiplier, 12, 12]} />
+            <sphereGeometry
+              args={[(emphasized ? 1.2 : 0.86) * pulseSizeFactor * phaseVisual.pulseMultiplier, 12, 12]}
+            />
             <meshBasicMaterial color={pulseColor} transparent opacity={0.95} />
           </mesh>
           <mesh ref={pulse2Ref}>

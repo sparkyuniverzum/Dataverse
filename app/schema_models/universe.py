@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -27,7 +27,7 @@ class UniverseAsteroidSnapshot(BaseModel):
     current_event_seq: int = 0
 
 
-class FactValueType(str, Enum):
+class FactValueType(StrEnum):
     STRING = "string"
     NUMBER = "number"
     BOOLEAN = "boolean"
@@ -36,13 +36,13 @@ class FactValueType(str, Enum):
     NULL = "null"
 
 
-class FactSource(str, Enum):
+class FactSource(StrEnum):
     VALUE = "value"
     METADATA = "metadata"
     CALCULATED = "calculated"
 
 
-class FactStatus(str, Enum):
+class FactStatus(StrEnum):
     VALID = "valid"
     HOLOGRAM = "hologram"
     INVALID = "invalid"

@@ -4,7 +4,7 @@ import json
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -97,7 +97,7 @@ class TaskExecutorService:
             if isinstance(value, UUID):
                 normalized[str(key)] = str(value)
             elif isinstance(value, datetime):
-                normalized[str(key)] = value.astimezone(timezone.utc).isoformat()
+                normalized[str(key)] = value.astimezone(UTC).isoformat()
             elif isinstance(value, list):
                 normalized[str(key)] = [str(item) if isinstance(item, UUID) else item for item in value]
             else:
@@ -209,7 +209,7 @@ class TaskExecutorService:
             )
         effect = {
             "id": str(uuid4()),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "code": str(code).strip().upper(),
             "severity": str(severity).strip().lower() or "info",
             "confidence": normalized_confidence,

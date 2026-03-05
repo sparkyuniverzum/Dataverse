@@ -31,6 +31,11 @@ import {
   buildMoonExtinguishUrl,
   buildMoonListUrl,
   buildMoonMutateUrl,
+  buildCivilizationCreateUrl,
+  buildCivilizationDetailUrl,
+  buildCivilizationExtinguishUrl,
+  buildCivilizationListUrl,
+  buildCivilizationMutateUrl,
   buildPlanetExtinguishUrl,
   buildSnapshotExportUrl,
   buildSnapshotUrl,
@@ -62,6 +67,9 @@ function normalizePath(pathname) {
     .replace(/\/galaxies\/[^/]+\/star-core\/pulse$/, "/galaxies/{galaxy_id}/star-core/pulse")
     .replace(/\/galaxies\/[^/]+\/star-core\/runtime$/, "/galaxies/{galaxy_id}/star-core/runtime")
     .replace(/\/galaxies\/[^/]+\/extinguish$/, "/galaxies/{galaxy_id}/extinguish")
+    .replace(/\/civilizations\/[^/]+\/mutate$/, "/civilizations/{civilization_id}/mutate")
+    .replace(/\/civilizations\/[^/]+\/extinguish$/, "/civilizations/{civilization_id}/extinguish")
+    .replace(/\/civilizations\/[^/]+$/, "/civilizations/{civilization_id}")
     .replace(/\/moons\/[^/]+\/mutate$/, "/moons/{moon_id}/mutate")
     .replace(/\/moons\/[^/]+\/extinguish$/, "/moons/{moon_id}/extinguish")
     .replace(/\/moons\/[^/]+$/, "/moons/{moon_id}")
@@ -81,6 +89,8 @@ function helperSignaturesFromDataverseApi() {
   const base = "http://127.0.0.1:8000";
   return [
     signatureFromUrl(buildBranchesUrl(base, "g-1"), "GET"),
+    signatureFromUrl(buildCivilizationListUrl(base, { galaxyId: "g-1", planetId: "table-1" }), "GET"),
+    signatureFromUrl(buildCivilizationDetailUrl(base, "civilization-1", { galaxyId: "g-1" }), "GET"),
     signatureFromUrl(buildTableContractUrl(base, "table-1", "g-1"), "GET"),
     signatureFromUrl(buildGalaxyBondsUrl(base, "g-1"), "GET"),
     signatureFromUrl(buildGalaxyEventsStreamUrl(base, "g-1"), "GET"),
@@ -104,11 +114,14 @@ function helperSignaturesFromDataverseApi() {
     signatureFromUrl(buildAsteroidExtinguishUrl(base, "a-1", { galaxyId: "g-1" }), "PATCH"),
     signatureFromUrl(buildBondExtinguishUrl(base, "b-1", { galaxyId: "g-1" }), "PATCH"),
     signatureFromUrl(buildGalaxyExtinguishUrl(base, "g-1"), "PATCH"),
+    signatureFromUrl(buildCivilizationExtinguishUrl(base, "civilization-1"), "PATCH"),
+    signatureFromUrl(buildCivilizationMutateUrl(base, "civilization-1"), "PATCH"),
     signatureFromUrl(buildMoonExtinguishUrl(base, "moon-1"), "PATCH"),
     signatureFromUrl(buildMoonMutateUrl(base, "moon-1"), "PATCH"),
     signatureFromUrl(buildPlanetExtinguishUrl(base, "table-1", { galaxyId: "g-1" }), "PATCH"),
     signatureFromUrl(buildStarCorePolicyLockUrl(base, "g-1"), "POST"),
     signatureFromUrl(buildImportRunUrl(base), "POST"),
+    signatureFromUrl(buildCivilizationCreateUrl(base), "POST"),
     signatureFromUrl(buildMoonCreateUrl(base), "POST"),
   ].sort();
 }
@@ -149,14 +162,13 @@ describe("api v1 FE freeze gate", () => {
       expect(feSignatures.has(signature)).toBe(true);
     }
 
-    const deleteSignatures = API_V1_FE_ENDPOINT_SIGNATURES.filter((signature) =>
-      signature.startsWith("DELETE ") &&
-      API_V1_SOFT_DELETE_ROUTE_PREFIXES.some((prefix) => signature.includes(` ${prefix}`))
+    const deleteSignatures = API_V1_FE_ENDPOINT_SIGNATURES.filter(
+      (signature) =>
+        signature.startsWith("DELETE ") &&
+        API_V1_SOFT_DELETE_ROUTE_PREFIXES.some((prefix) => signature.includes(` ${prefix}`))
     );
     expect(deleteSignatures).toEqual([]);
     const softDeleteSignatures = API_V1_FE_ENDPOINT_SIGNATURES.filter((signature) => signature.includes("/extinguish"));
-    expect([...API_V1_SOFT_DELETE_SIGNATURES].sort()).toEqual(
-      softDeleteSignatures.sort()
-    );
+    expect([...API_V1_SOFT_DELETE_SIGNATURES].sort()).toEqual(softDeleteSignatures.sort());
   });
 });

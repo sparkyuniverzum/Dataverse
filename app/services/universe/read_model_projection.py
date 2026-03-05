@@ -317,6 +317,13 @@ async def enrich_main_timeline_from_read_models(
         calc_state = calc_by_id.get(asteroid.id)
         if calc_state is None:
             return None
+        # Guard against stale calc projections right after writes.
+        # If calc source seq lags behind asteroid event seq, fallback universe
+        # projection preserves write-after-read consistency for metadata facts.
+        calc_source_seq = int(calc_state.get("source_event_seq", 0) or 0)
+        asteroid_event_seq = int(getattr(asteroid, "current_event_seq", 0) or 0)
+        if calc_source_seq < asteroid_event_seq:
+            return None
         calculated_values = calc_state.get("calculated_values", {})
         if not isinstance(calculated_values, dict):
             calculated_values = {}

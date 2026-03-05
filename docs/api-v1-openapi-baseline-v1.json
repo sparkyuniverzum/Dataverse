@@ -9,6 +9,8 @@
     "method_path_signatures": [
       "GET /auth/me",
       "GET /branches",
+      "GET /civilizations",
+      "GET /civilizations/{civilization_id}",
       "GET /contracts/{table_id}",
       "GET /galaxies",
       "GET /galaxies/{galaxy_id}/activity",
@@ -41,6 +43,8 @@
       "PATCH /asteroids/{asteroid_id}/mutate",
       "PATCH /bonds/{bond_id}/extinguish",
       "PATCH /bonds/{bond_id}/mutate",
+      "PATCH /civilizations/{civilization_id}/extinguish",
+      "PATCH /civilizations/{civilization_id}/mutate",
       "PATCH /galaxies/{galaxy_id}/extinguish",
       "PATCH /galaxies/{galaxy_id}/onboarding",
       "PATCH /moons/{moon_id}/extinguish",
@@ -54,6 +58,7 @@
       "POST /bonds/link",
       "POST /branches",
       "POST /branches/{branch_id}/promote",
+      "POST /civilizations",
       "POST /contracts/{table_id}",
       "POST /galaxies",
       "POST /galaxies/{galaxy_id}/star-core/physics/profile/migrate",
@@ -68,6 +73,6 @@
     "required_security_schemes": [
       "OAuth2PasswordBearer"
     ],
-    "schema_sha256": "41593c652c21115cf1ce7318920549e04d9da19a87075eb240ec82a4cfe53ab5"
+    "schema_sha256": "9c725a5867a633fbc7172a9e6a5d02d14506e99807e1cba468b6d99d1ac63ea4"
   }
 }

@@ -7,8 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select
-from sqlalchemy import text as sql_text
+from sqlalchemy import and_, select, text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import IdempotencyRecord

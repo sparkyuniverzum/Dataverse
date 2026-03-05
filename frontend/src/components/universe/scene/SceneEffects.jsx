@@ -5,14 +5,7 @@ import { Billboard, Text } from "@react-three/drei";
 import { clamp, createRng } from "./sceneMath";
 import { signatureColorFromSeed } from "./sceneStyling";
 
-const COMMAND_METEOR_HINTS = [
-  "/grid",
-  "/3d",
-  "Ukaz : cil",
-  "A + B",
-  "A.pole := hodnota",
-  ":help",
-];
+const COMMAND_METEOR_HINTS = ["/grid", "/3d", "Ukaz : cil", "A + B", "A.pole := hodnota", ":help"];
 
 const METEOR_CYCLE_SECONDS = 180;
 const METEOR_SHOWER_SECONDS = 42;

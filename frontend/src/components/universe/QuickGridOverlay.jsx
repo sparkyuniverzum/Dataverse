@@ -118,9 +118,19 @@ export default function QuickGridOverlay({
         gap: 10,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
         <div>
-          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.7, letterSpacing: "var(--dv-tr-wide)" }}>Planeta / Tabulka</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.7, letterSpacing: "var(--dv-tr-wide)" }}>
+            Planeta / Tabulka
+          </div>
           <div style={{ fontSize: "var(--dv-fs-xl)", fontWeight: 700 }}>
             {selectedTable ? tableDisplayName(selectedTable) : "Tabulka"}
           </div>
@@ -156,12 +166,8 @@ export default function QuickGridOverlay({
           placeholder="Filtr radku a bunek..."
           style={inputStyle}
         />
-        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
-          sloupce {gridColumns.length}
-        </span>
-        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
-          write {busy ? "..." : "ready"}
-        </span>
+        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>sloupce {gridColumns.length}</span>
+        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>write {busy ? "..." : "ready"}</span>
       </div>
 
       <div
@@ -179,7 +185,7 @@ export default function QuickGridOverlay({
         <input
           value={createValue}
           onChange={(event) => setCreateValue(event.target.value)}
-          placeholder="Nova hodnota mesice..."
+          placeholder="Nova hodnota civilizace..."
           style={inputStyle}
           disabled={busy}
         />
@@ -194,7 +200,7 @@ export default function QuickGridOverlay({
             }
           }}
         >
-          {pendingCreate ? "Pridavam..." : "Pridat mesic"}
+          {pendingCreate ? "Pridavam..." : "Pridat civilizaci"}
         </button>
       </div>
 
@@ -213,7 +219,7 @@ export default function QuickGridOverlay({
         <input
           value={editValue}
           onChange={(event) => setEditValue(event.target.value)}
-          placeholder={selectedRow ? "Upravit hodnotu vybraneho mesice..." : "Vyber mesic v tabulce..."}
+          placeholder={selectedRow ? "Upravit hodnotu vybrane civilizace..." : "Vyber civilizaci v tabulce..."}
           style={inputStyle}
           disabled={busy || !selectedRow}
         />
@@ -261,7 +267,7 @@ export default function QuickGridOverlay({
         <input
           value={metadataValue}
           onChange={(event) => setMetadataValue(event.target.value)}
-          placeholder={selectedRow ? "Hodnota (prázdné = odebrat)" : "Vyber mesic v tabulce..."}
+          placeholder={selectedRow ? "Hodnota (prázdné = odebrat)" : "Vyber civilizaci v tabulce..."}
           style={inputStyle}
           disabled={busy || !selectedRow}
         />
@@ -316,7 +322,7 @@ export default function QuickGridOverlay({
                     minWidth: column === "value" ? 240 : 170,
                   }}
                 >
-                  {column === "value" ? "mesic" : column}
+                  {column === "value" ? "civilizace" : column}
                 </th>
               ))}
             </tr>
@@ -325,11 +331,7 @@ export default function QuickGridOverlay({
             {gridFilteredRows.map((row) => {
               const rowPendingOp = pendingRowOps[String(row.id)] || null;
               return (
-                <tr
-                  key={String(row.id)}
-                  onClick={() => onSelectRow?.(String(row.id))}
-                  style={{ cursor: "pointer" }}
-                >
+                <tr key={String(row.id)} onClick={() => onSelectRow?.(String(row.id))} style={{ cursor: "pointer" }}>
                   {gridColumns.map((column, index) => (
                     <td
                       key={`${row.id}:${column}`}

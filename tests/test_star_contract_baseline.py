@@ -7,8 +7,8 @@ from app.schema_models.star_core import (
     StarCorePhysicsProfileMigrateResponse,
     StarCorePhysicsProfilePublic,
     StarCorePlanetPhysicsItemPublic,
-    StarCoreProfileApplyRequest,
     StarCorePolicyPublic,
+    StarCoreProfileApplyRequest,
     StarCorePulseEventPublic,
     StarCoreRuntimePublic,
 )

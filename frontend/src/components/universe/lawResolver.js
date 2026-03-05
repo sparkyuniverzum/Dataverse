@@ -180,7 +180,9 @@ export function resolveEntityLaws({ kind, basePhysics = {}, domainMetric = null,
         config.stressClamp[1]
       ),
       pulseFactor: clamp(
-        config.pulseFactorBase + domainActivity * config.pulseFactorFromDomain + pulseIntensity * config.pulseFactorFromPulse,
+        config.pulseFactorBase +
+          domainActivity * config.pulseFactorFromDomain +
+          pulseIntensity * config.pulseFactorFromPulse,
         config.pulseFactorClamp[0],
         config.pulseFactorClamp[1]
       ),
@@ -210,7 +212,11 @@ export function resolveLinkLaws({
 
   if (kind === "table") {
     const config = LAW_MATRIX_V1.tableLink;
-    const flow = clamp(Math.max(sourceActivity, targetActivity) * config.flowFromDomain + linkPulseIntensity * config.flowFromPulse, 0, 1);
+    const flow = clamp(
+      Math.max(sourceActivity, targetActivity) * config.flowFromDomain + linkPulseIntensity * config.flowFromPulse,
+      0,
+      1
+    );
     return {
       ...basePhysics,
       flow,
@@ -257,16 +263,25 @@ function totalDomainAlerts(starDomains) {
 }
 
 function resolveProfileByKey(key) {
-  const normalized = String(key || "").trim().toUpperCase();
+  const normalized = String(key || "")
+    .trim()
+    .toUpperCase();
   return STAR_CORE_PROFILES[normalized] || STAR_CORE_PROFILES.ORIGIN;
 }
 
 function resolvePhysicalProfileByKey(key) {
-  const normalized = String(key || "").trim().toUpperCase();
+  const normalized = String(key || "")
+    .trim()
+    .toUpperCase();
   return STAR_PHYSICAL_PROFILES[normalized] || STAR_PHYSICAL_PROFILES.BALANCE;
 }
 
-export function resolveStarCoreProfile({ starRuntime = null, starDomains = null, starPolicy = null, starPhysicsProfile = null } = {}) {
+export function resolveStarCoreProfile({
+  starRuntime = null,
+  starDomains = null,
+  starPolicy = null,
+  starPhysicsProfile = null,
+} = {}) {
   const writesPerMinute = Number(starRuntime?.writes_per_minute || 0);
   const eventsCount = Number(starRuntime?.events_count || 0);
   const domains = Array.isArray(starDomains) ? starDomains : [];
@@ -282,7 +297,9 @@ export function resolveStarCoreProfile({ starRuntime = null, starDomains = null,
     profile = STAR_CORE_PROFILES.ARCHIVE;
   }
 
-  const lockStatus = String(starPolicy?.lock_status || "draft").trim().toLowerCase();
+  const lockStatus = String(starPolicy?.lock_status || "draft")
+    .trim()
+    .toLowerCase();
   const isLocked = lockStatus === "locked";
   const policyProfile = resolveProfileByKey(starPolicy?.profile_key);
   const policyPresetRaw = String(starPolicy?.law_preset || "").trim();

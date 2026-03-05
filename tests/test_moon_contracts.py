@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.schemas import (
     FactSource,
@@ -67,7 +67,7 @@ def test_asteroid_snapshot_to_moon_row_projects_canonical_shape() -> None:
         metadata={"cena": 120, "jednotka": "ks"},
         calculated_values={"suma": 240},
         active_alerts=["LOW_STOCK"],
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         current_event_seq=7,
     )
 

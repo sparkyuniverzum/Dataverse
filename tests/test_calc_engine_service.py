@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.services.calc_engine_service import CalcEngineService
@@ -65,7 +65,7 @@ def test_build_calc_rows_skips_invalid_asteroid_id() -> None:
 
 def test_evaluate_atoms_uses_flow_bonds_only_for_aggregation() -> None:
     service = CalcEngineService()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     galaxy_id = uuid4()
 
     root_id = uuid4()
@@ -95,7 +95,7 @@ def test_evaluate_atoms_uses_flow_bonds_only_for_aggregation() -> None:
 
 def test_evaluate_atoms_uses_formula_registry_as_primary_source() -> None:
     service = CalcEngineService()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     galaxy_id = uuid4()
     table_name = "Finance"
     table_id = derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
@@ -139,7 +139,7 @@ def test_evaluate_atoms_uses_formula_registry_as_primary_source() -> None:
 
 def test_evaluate_atoms_reports_deterministic_formula_error_codes() -> None:
     service = CalcEngineService()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     galaxy_id = uuid4()
     table_name = "Finance"
     table_id = derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
