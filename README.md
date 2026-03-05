@@ -115,6 +115,7 @@ Makefile shortcut:
 - `make test-contracts`
 - `make test`
 - `make staging-parser-rollout-smoke` (overi staging rollout parser-only rezimu)
+- `make parser-full-smoke` (v1+v2 parser unit/contract + parser API integration subset)
 
 Ops smoke (docker + migrace + API + contract/reliability subset):
 - `make ops-smoke`
