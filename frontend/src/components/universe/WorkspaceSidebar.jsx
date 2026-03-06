@@ -210,6 +210,7 @@ export default function WorkspaceSidebar({
         <button
           type="button"
           onClick={onLogout}
+          data-testid="auth-logout-button"
           style={{ ...ghostButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
         >
           Logout

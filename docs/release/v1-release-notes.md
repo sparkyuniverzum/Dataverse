@@ -98,3 +98,5 @@ Release SHA: `89f4f17`
   - Playwright browser smoke gate is now green (`PM-P4-03`).
 - P4 closure:
   - all `PM-P4-*` gates are green (interactive harness + component harness + browser smoke).
+- P5 kickoff:
+  - real auth bootstrap helper (`PM-P5-01`) and real auth/session lifecycle smoke (`PM-P5-02`) are implemented.

@@ -168,6 +168,22 @@ DoD:
 2. Harness validates blocked transitions and recover semantics under error.
 3. Harness gate is included in CI and release gate pack.
 
+## 3.6 P5 (Real auth/session staging flow)
+
+### P5.1 Auth bootstrap for browser smoke
+
+DoD:
+1. Browser smoke prepares deterministic real user credentials.
+2. Bootstrap works for both first run (register) and rerun (login fallback).
+3. Helper is reusable across staging smoke specs.
+
+### P5.2 Real auth/session lifecycle smoke
+
+DoD:
+1. Browser smoke covers `login -> me -> refresh -> logout` on real app route.
+2. Session token lifecycle is verified through real API responses.
+3. Logout clears local session tokens in browser.
+
 ## 4. Test matrix (required gates)
 
 Legend:
@@ -197,6 +213,8 @@ Legend:
 | PM-P4-01 | P4 | Interactive wizard harness (mission + guards + recover) | FE e2e-like harness | GREEN | `frontend/src/components/universe/planetBuilderWizardHarness.test.js` |
 | PM-P4-02 | P4 | Component-level wizard harness with real UI events | FE component harness | GREEN | `frontend/src/components/universe/planetBuilderWizardPanel.component.test.jsx` |
 | PM-P4-03 | P4 | Browser smoke (Playwright) lock -> converged | FE browser e2e smoke | GREEN | `frontend/e2e/planet-builder-wizard-smoke.spec.mjs` |
+| PM-P5-01 | P5 | Real auth bootstrap helper | FE staging e2e helper | GREEN | `frontend/e2e/staging/auth-bootstrap.mjs` |
+| PM-P5-02 | P5 | Real auth/session lifecycle smoke | FE staging browser smoke | GREEN | `frontend/e2e/staging/auth-session-real.smoke.spec.mjs` |
 
 ## 5. Exit criteria by phase
 
@@ -239,6 +257,11 @@ Legend:
 1. Interactive harness (`PM-P4-01`) is green.
 2. Component UI-event harness (`PM-P4-02`) is green.
 3. Browser smoke (`PM-P4-03`) is green.
+
+### Planet+Moon v3 P5 progress
+
+1. Real auth bootstrap helper is in place for staging smoke runs.
+2. Real auth/session browser smoke is implemented (`login -> me -> refresh -> logout`).
 
 ## 6. Out of scope for this document
 

@@ -540,7 +540,7 @@ export default function GalaxySelector3D({
             <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
               Obnovit
             </button>
-            <button type="button" onClick={onLogout} style={ghostButtonStyle}>
+            <button type="button" onClick={onLogout} data-testid="auth-logout-button" style={ghostButtonStyle}>
               Logout
             </button>
           </div>
@@ -634,7 +634,7 @@ export default function GalaxySelector3D({
             <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
               Obnovit
             </button>
-            <button type="button" onClick={onLogout} style={ghostButtonStyle}>
+            <button type="button" onClick={onLogout} data-testid="auth-logout-button" style={ghostButtonStyle}>
               Logout
             </button>
           </div>
