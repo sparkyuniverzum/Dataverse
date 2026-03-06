@@ -331,9 +331,7 @@ class TableContractValidator:
             if not fields:
                 continue
             source = (
-                contract.unique_rule_sources[unique_index]
-                if unique_index < len(contract.unique_rule_sources)
-                else None
+                contract.unique_rule_sources[unique_index] if unique_index < len(contract.unique_rule_sources) else None
             )
             rule_id = str(rule.get("id") or "").strip() or None
 

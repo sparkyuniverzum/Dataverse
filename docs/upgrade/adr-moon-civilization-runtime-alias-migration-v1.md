@@ -1,7 +1,7 @@
 # ADR: Moon Capability vs Civilization Row Naming Migration v1
 
-Status: accepted (phase 1 implemented)  
-Date: 2026-03-05  
+Status: accepted (phase 1 implemented)
+Date: 2026-03-05
 Owner: Core BE/FE architecture
 
 ## 1. Context

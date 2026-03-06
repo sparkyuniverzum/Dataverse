@@ -1,6 +1,6 @@
 # DataVerse API Contract v1
 
-Status: frozen from current implementation (`app/main.py`, `app/schemas.py`)  
+Status: frozen from current implementation (`app/main.py`, `app/schemas.py`)
 Date: 2026-02-28 (updated 2026-03-05 for planets + grid sync contract)
 
 ## Global rules

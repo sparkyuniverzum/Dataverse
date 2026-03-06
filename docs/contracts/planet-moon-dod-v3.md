@@ -1,8 +1,8 @@
 # Planet + Moon DoD v3
 
-Status: active (post-MVP execution plan)  
-Date: 2026-03-06  
-Owner: Core BE/FE architecture  
+Status: active (post-MVP execution plan)
+Date: 2026-03-06
+Owner: Core BE/FE architecture
 Depends on: `docs/contracts/planet-builder-mvp-v2.md`, `docs/contracts/moon-contract-v1.md`, `docs/contracts/civilization-contract-v1.md`, `docs/contracts/mineral-contract-v1.md`, `docs/upgrade/adr-moon-civilization-runtime-alias-migration-v1.md`
 
 ## 1. Purpose

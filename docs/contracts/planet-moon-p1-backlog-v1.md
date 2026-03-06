@@ -1,7 +1,7 @@
 # Planet+Moon P1 Backlog v1
 
-Status: active  
-Date: 2026-03-06  
+Status: active
+Date: 2026-03-06
 Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/upgrade/adr-moon-civilization-runtime-alias-migration-v1.md`
 
 ## 1. Goal

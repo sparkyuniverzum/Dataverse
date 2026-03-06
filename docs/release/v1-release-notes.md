@@ -1,7 +1,7 @@
 # DataVerse V1 Release Notes
 
-Date: 2026-03-02  
-Release tag: `v1.0.1`  
+Date: 2026-03-02
+Release tag: `v1.0.1`
 Release SHA: `89f4f17`
 
 ## Scope closed in V1

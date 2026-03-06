@@ -45,12 +45,7 @@ class MoonCapabilityUpdateRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_has_patch(self) -> MoonCapabilityUpdateRequest:
-        if (
-            self.capability_class is None
-            and self.config is None
-            and self.order_index is None
-            and self.status is None
-        ):
+        if self.capability_class is None and self.config is None and self.order_index is None and self.status is None:
             raise ValueError("Provide at least one patch field")
         if self.config is not None and not isinstance(self.config, dict):
             self.config = {}

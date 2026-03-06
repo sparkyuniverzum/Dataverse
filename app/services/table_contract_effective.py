@@ -133,15 +133,13 @@ def compile_effective_table_contract(
         base_contract.required_fields if isinstance(base_contract.required_fields, list) else []
     )
     required_field_sources: dict[str, dict[str, Any]] = {
-        field: {"source": "base_contract", "capability_key": None, "capability_id": None}
-        for field in required_fields
+        field: {"source": "base_contract", "capability_key": None, "capability_id": None} for field in required_fields
     }
     field_types = _normalize_field_types(
         base_contract.field_types if isinstance(base_contract.field_types, dict) else {}
     )
     field_type_sources: dict[str, dict[str, Any]] = {
-        key: {"source": "base_contract", "capability_key": None, "capability_id": None}
-        for key in field_types
+        key: {"source": "base_contract", "capability_key": None, "capability_id": None} for key in field_types
     }
     unique_rules = _normalize_dict_list(
         base_contract.unique_rules if isinstance(base_contract.unique_rules, list) else []
