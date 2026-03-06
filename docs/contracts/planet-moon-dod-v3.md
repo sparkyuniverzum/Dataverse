@@ -1,6 +1,6 @@
 # Planet + Moon DoD v3
 
-Status: active (post-MVP execution plan)
+Status: active (planet/moon preview layer not closed)
 Date: 2026-03-06
 Owner: Core BE/FE architecture
 Depends on: `docs/contracts/planet-builder-mvp-v2.md`, `docs/contracts/moon-contract-v1.md`, `docs/contracts/civilization-contract-v1.md`, `docs/contracts/mineral-contract-v1.md`, `docs/upgrade/adr-moon-civilization-runtime-alias-migration-v1.md`
@@ -184,6 +184,94 @@ DoD:
 2. Session token lifecycle is verified through real API responses.
 3. Logout clears local session tokens in browser.
 
+### P5.3 Real workspace bootstrap smoke
+
+DoD:
+1. Browser smoke covers first-run and rerun workspace entry paths.
+2. Galaxy create/select/enter transition is deterministic for staging runs.
+3. Smoke uses real API and real app route (no harness route).
+
+### P5.4 Real star-lock -> first-planet -> grid convergence smoke
+
+DoD:
+1. Browser smoke covers `star lock -> first planet placement -> setup -> commit`.
+2. Grid convergence is asserted via real runtime projection after commit.
+3. Smoke is scriptable as a staging release gate.
+
+## 3.7 P6 (Planet/Moon preview layer closure)
+
+Execution backlog: `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`
+
+### P6.1 Planet preview payload parity
+
+DoD:
+1. Planet preview payload shape is explicit and versioned (phase, corrosion, crack, pulse, emissive).
+2. FE rendering uses BE-authoritative preview metrics without semantic drift.
+3. Contract freeze gate fails on missing/renamed preview keys.
+
+### P6.2 Moon preview and orbit readability
+
+DoD:
+1. Moon preview nodes are deterministic for create/mutate/extinguish lifecycle.
+2. Orbit layout is stable for high moon counts and avoids overlap with planet core.
+3. Preview remains legible in both idle and high-load phases.
+
+### P6.3 Planet/Moon preview convergence
+
+DoD:
+1. Grid civilization changes converge to 3D planet/moon preview in bounded time.
+2. Replay path preserves the same preview state as live path.
+3. Browser smoke validates first-planet + moon lifecycle preview updates.
+
+### P6.4 Camera choreography determinism
+
+DoD:
+1. Camera focus transitions are deterministic across star/planet/grid pivots.
+2. Camera framing preserves setup panel readability.
+3. Rapid state changes do not break focus target stability.
+
+### P6.5 In-context causal guidance
+
+DoD:
+1. Preview states expose `what changed`, `why`, and `next action`.
+2. Guidance is runtime-driven and synchronized with active state.
+3. Repair/violation hints remain mapped to affected preview entities.
+
+### P6.6 Interaction fail-safe
+
+DoD:
+1. Overlay stacking does not block required actions unexpectedly.
+2. Small viewport interactions remain operable for DnD and setup controls.
+3. Recover action always returns to nearest valid mission step.
+
+### P6.7 Accessibility + reduced-motion parity
+
+DoD:
+1. Core preview actions are keyboard reachable.
+2. Reduced-motion mode preserves semantic feedback.
+3. Critical-state contrast/readability is test-gated.
+
+### P6.8 Performance envelope
+
+DoD:
+1. Preview layer has explicit frame-time budget and load profile.
+2. High moon-count scenarios stay responsive.
+3. Regressions are surfaced through automated gate failures.
+
+### P6.9 Workspace resume continuity
+
+DoD:
+1. Planet/grid/builder context restores deterministically after refresh/reopen.
+2. Persisted UI state cannot force invalid preview transitions.
+3. Resume path preserves Star lock semantics.
+
+### P6.10 Comprehensive browser smoke coverage
+
+DoD:
+1. Preview-layer smoke covers payload parity, interaction, and convergence semantics together.
+2. Smoke is script-gated for staging/release profile.
+3. Failures provide actionable traces for camera/preview/interactions.
+
 ## 4. Test matrix (required gates)
 
 Legend:
@@ -215,6 +303,18 @@ Legend:
 | PM-P4-03 | P4 | Browser smoke (Playwright) lock -> converged | FE browser e2e smoke | GREEN | `frontend/e2e/planet-builder-wizard-smoke.spec.mjs` |
 | PM-P5-01 | P5 | Real auth bootstrap helper | FE staging e2e helper | GREEN | `frontend/e2e/staging/auth-bootstrap.mjs` |
 | PM-P5-02 | P5 | Real auth/session lifecycle smoke | FE staging browser smoke | GREEN | `frontend/e2e/staging/auth-session-real.smoke.spec.mjs` |
+| PM-P5-03 | P5 | Real workspace bootstrap smoke | FE staging browser smoke | GREEN | `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs` |
+| PM-P5-04 | P5 | Real star-lock -> first planet -> grid convergence smoke | FE staging browser smoke + script gate | GREEN | `npm --prefix frontend run test:e2e:workspace-starlock` + `./scripts/staging_workspace_starlock_wizard_grid_smoke.sh` |
+| PM-P6-01 | P6 | Planet preview payload parity | BE+FE contract gate | ADD | `tests/test_api_integration.py::test_planet_preview_payload_parity_v1` + `frontend/src/components/universe/planetPhysicsParity.test.js` |
+| PM-P6-02 | P6 | Moon preview orbit readability | FE layout/physics gate | ADD | `frontend/src/lib/hierarchy_layout.test.js` + `frontend/src/components/universe/scene/physicsSystem.test.js` |
+| PM-P6-03 | P6 | Planet/Moon preview convergence under lifecycle | BE+FE convergence gate | ADD | `tests/test_api_integration.py::test_planet_moon_preview_convergence_lifecycle_v1` + `frontend/src/components/universe/projectionConvergenceGate.test.js` |
+| PM-P6-04 | P6 | Browser smoke for preview layer | FE staging browser smoke | ADD | `frontend/e2e/staging/planet-moon-preview.smoke.spec.mjs` |
+| PM-P6-05 | P6 | Camera choreography determinism | FE component + browser gate | ADD | `frontend/src/components/universe/CameraPilot.test.jsx` + `frontend/e2e/staging/camera-focus-flow.smoke.spec.mjs` |
+| PM-P6-06 | P6 | In-context causal guidance | FE contract gate | ADD | `frontend/src/components/universe/planetBuilderFlow.test.js` + `frontend/src/components/universe/workspaceContractExplainability.test.js` |
+| PM-P6-07 | P6 | Interaction fail-safe | FE component + browser gate | ADD | `frontend/src/components/universe/planetBuilderWizardPanel.component.test.jsx` + `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs` |
+| PM-P6-08 | P6 | Accessibility and reduced-motion parity | FE a11y contract + browser smoke | ADD | `frontend/src/components/universe/accessibilityPreview.test.jsx` + `frontend/e2e/staging/accessibility-preview.smoke.spec.mjs` |
+| PM-P6-09 | P6 | Preview performance envelope | FE perf gate + browser smoke | ADD | `frontend/src/components/universe/scene/performanceBudget.test.js` + `frontend/e2e/staging/preview-performance.smoke.spec.mjs` |
+| PM-P6-10 | P6 | Workspace resume continuity | FE persistence + browser smoke | ADD | `frontend/src/components/universe/workspaceUiPersistence.test.js` + `frontend/e2e/staging/workspace-resume-preview.smoke.spec.mjs` |
 
 ## 5. Exit criteria by phase
 
@@ -262,6 +362,13 @@ Legend:
 
 1. Real auth bootstrap helper is in place for staging smoke runs.
 2. Real auth/session browser smoke is implemented (`login -> me -> refresh -> logout`).
+3. Real workspace bootstrap path is validated in browser smoke.
+4. Real star-lock -> first planet -> grid convergence path is validated and script-gated.
+
+### Planet+Moon v3 P6 kickoff (open)
+
+1. Planet/Moon preview layer is not closed; preview parity/readability/convergence remain open.
+2. `PM-P6-01` .. `PM-P6-10` are tracked as `ADD` gates and are release-relevant for preview quality closure.
 
 ## 6. Out of scope for this document
 

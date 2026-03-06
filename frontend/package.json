@@ -11,6 +11,7 @@
     "test:e2e": "playwright test --config=playwright.config.mjs",
     "test:e2e:planet-builder": "playwright test --config=playwright.config.mjs e2e/planet-builder-wizard-smoke.spec.mjs",
     "test:e2e:auth-session": "playwright test --config=playwright.config.mjs e2e/staging/auth-session-real.smoke.spec.mjs",
+    "test:e2e:workspace-starlock": "playwright test --config=playwright.config.mjs e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs",
     "lint": "node ./node_modules/eslint/bin/eslint.js .",
     "lint:fix": "node ./node_modules/eslint/bin/eslint.js . --fix",
     "format": "node ./node_modules/prettier/bin/prettier.cjs . --write",

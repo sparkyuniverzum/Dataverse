@@ -1,6 +1,6 @@
 # Planet Builder UX Flow P5 Backlog v1
 
-Status: active
+Status: closed
 Date: 2026-03-06
 Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/contracts/planet-builder-ux-flow-p4-backlog-v1.md`
 
@@ -21,8 +21,8 @@ Move smoke validation from local harness routes toward real staging app flow:
 Current state:
 - `PM-P5-01`: closed.
 - `PM-P5-02`: closed.
-- `PM-P5-03`: open.
-- `PM-P5-04`: open.
+- `PM-P5-03`: closed.
+- `PM-P5-04`: closed.
 
 ## 3. Scope items
 
@@ -53,9 +53,17 @@ DoD:
 2. Smoke remains deterministic for first-run and rerun state.
 3. Validation works with real staging API.
 
+Gate:
+- `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs` (workspace entry segment)
+
 ### 3.4 PM-P5-04 Full real mission smoke
 
 DoD:
 1. Browser smoke validates star lock -> first planet wizard -> grid convergence.
 2. No harness route for primary path.
 3. Smoke promoted as staging release gate.
+
+Gate:
+- `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs`
+- `npm --prefix frontend run test:e2e:workspace-starlock`
+- `./scripts/staging_workspace_starlock_wizard_grid_smoke.sh`

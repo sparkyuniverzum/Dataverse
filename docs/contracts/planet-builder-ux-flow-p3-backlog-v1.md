@@ -1,6 +1,6 @@
 # Planet Builder UX Flow P3 Backlog v1
 
-Status: active
+Status: closed
 Date: 2026-03-06
 Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/contracts/planet-builder-mvp-v2.md`
 

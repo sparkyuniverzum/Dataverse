@@ -49,13 +49,19 @@ class ServiceContainer:
 
 
 _SERVICE_SINGLETON: ServiceContainer | None = None
+LOCAL_FRONTEND_ORIGINS = [
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://127.0.0.1:4173",
+    "http://localhost:4173",
+]
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="DataVerse API", version="0.3.0-auth-multitenant")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+        allow_origins=LOCAL_FRONTEND_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -100,3 +100,13 @@ Release SHA: `89f4f17`
   - all `PM-P4-*` gates are green (interactive harness + component harness + browser smoke).
 - P5 kickoff:
   - real auth bootstrap helper (`PM-P5-01`) and real auth/session lifecycle smoke (`PM-P5-02`) are implemented.
+
+## Planet Builder UX flow P5 closure addendum (2026-03-06)
+- `PM-P5-03` closed:
+  - real workspace bootstrap path is covered in browser smoke (first-run create and rerun enter paths).
+- `PM-P5-04` closed:
+  - real `star lock -> first planet wizard -> grid convergence` path is covered in browser smoke.
+- Gate evidence:
+  - `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs`
+  - `npm --prefix frontend run test:e2e:workspace-starlock`
+  - `./scripts/staging_workspace_starlock_wizard_grid_smoke.sh`

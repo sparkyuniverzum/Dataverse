@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 export { setBodyCursor, curvePoints } from "./scene/sceneMath";
 export { buildConstellationClusters } from "./scene/clusters";
 export { MouseGuideOverlay } from "./scene/MouseGuideOverlay";

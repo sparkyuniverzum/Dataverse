@@ -141,10 +141,7 @@ export function TableNode({
 }) {
   const groupRef = useRef(null);
   const previewRef = useRef(null);
-  const visual = useMemo(
-    () => buildConstellationVisual(node),
-    [node.id, node.entityName, node.memberCount, node.radius, node.label]
-  );
+  const visual = useMemo(() => buildConstellationVisual(node), [node]);
   const targetScaleRef = useRef(selected ? 1.16 : 1);
   const v1Style = resolvePlanetV1Style(node.v1);
   const physics = node.physics || FALLBACK_NODE_PHYSICS;
