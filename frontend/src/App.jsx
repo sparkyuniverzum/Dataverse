@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 
 import AuthExperience from "./components/app/AuthExperience";
 import GalaxyGateScreen from "./components/app/GalaxyGateScreen";
+import PlanetBuilderSmokeScreen from "./components/app/PlanetBuilderSmokeScreen";
 import SessionBootScreen from "./components/app/SessionBootScreen";
 import WorkspaceShell from "./components/app/WorkspaceShell";
 import { useAuth } from "./context/AuthContext.jsx";
@@ -9,6 +10,7 @@ import { useGalaxyGate } from "./hooks/useGalaxyGate";
 
 export default function App() {
   const { user, isAuthenticated, isLoading, login, register, logout, setDefaultGalaxy } = useAuth();
+  const pathname = typeof window !== "undefined" ? String(window.location.pathname || "") : "";
 
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -70,6 +72,10 @@ export default function App() {
     },
     [loadGalaxies, register]
   );
+
+  if (pathname === "/smoke/planet-builder") {
+    return <PlanetBuilderSmokeScreen />;
+  }
 
   if (isLoading) {
     return <SessionBootScreen />;

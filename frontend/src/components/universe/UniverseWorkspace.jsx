@@ -13,9 +13,6 @@ import {
   API_BASE,
   apiErrorFromResponse,
   apiFetch,
-  buildMoonCreateUrl,
-  buildMoonExtinguishUrl,
-  buildMoonMutateUrl,
   buildOccConflictMessage,
   buildParserPayload,
   buildStarCorePolicyLockUrl,
@@ -29,6 +26,10 @@ import {
 } from "../../lib/builderParserCommand";
 import { PARSER_EXECUTION_MODE } from "../../lib/parserExecutionMode";
 import { createParserTelemetrySnapshot, recordParserTelemetry } from "../../lib/parserExecutionTelemetry";
+import {
+  buildCivilizationWriteRouteCandidates,
+  shouldFallbackToMoonAlias,
+} from "../../lib/civilizationRuntimeRouteGate";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import LinkHoverTooltip from "./LinkHoverTooltip";
 import { resolveEntityLaws, resolveLinkLaws, resolveStarCoreProfile } from "./lawResolver";
@@ -52,6 +53,28 @@ import {
   summarizeStageZeroSchemaDraft,
 } from "./stageZeroBuilder";
 import { buildMoonCreateMinerals } from "./moonWriteDefaults";
+import {
+  buildGuidedRepairAuditRecord,
+  buildGuidedRepairMessage,
+  buildGuidedRepairMutationRequest,
+  resolveGuidedRepairSuggestion,
+} from "./repairFlowContract";
+import {
+  resolveMoonParentRuntimePhysics,
+  resolvePlanetAuthoritativePhysics,
+  resolveTableRuntimeLayoutPhysics,
+} from "./planetPhysicsParity";
+import {
+  buildPlanetBuilderTransitionMessage,
+  evaluatePlanetBuilderTransition,
+  buildPlanetBuilderNarrative,
+  buildPlanetBuilderStepChecklist,
+  PLANET_BUILDER_ACTION,
+  PLANET_BUILDER_STATE,
+  resolvePlanetBuilderRecoveryState,
+  resolvePlanetBuilderState,
+} from "./planetBuilderFlow";
+import { buildContractViolationMessage } from "./workspaceContractExplainability";
 import { readWorkspaceUiState, writeWorkspaceUiState } from "./workspaceUiPersistence";
 import { collectGridColumns, normalizeText, readGridCell, tableDisplayName, valueToLabel } from "./workspaceFormatters";
 
@@ -231,6 +254,9 @@ export default function UniverseWorkspace({
   const [starPhysicalProfileDraftKey, setStarPhysicalProfileDraftKey] = useState("BALANCE");
   const [starControlError, setStarControlError] = useState("");
   const [parserTelemetry, setParserTelemetry] = useState(() => createParserTelemetrySnapshot());
+  const [repairSuggestion, setRepairSuggestion] = useState(null);
+  const [repairApplyBusy, setRepairApplyBusy] = useState(false);
+  const [repairAuditTrail, setRepairAuditTrail] = useState([]);
   const [stageZeroFlow, setStageZeroFlow] = useState(STAGE_ZERO_FLOW.INTRO);
   const [stageZeroDragging, setStageZeroDragging] = useState(false);
   const [stageZeroDropHover, setStageZeroDropHover] = useState(false);
@@ -242,6 +268,7 @@ export default function UniverseWorkspace({
   const [stageZeroDraggedSchemaKey, setStageZeroDraggedSchemaKey] = useState("");
   const [stageZeroCommitBusy, setStageZeroCommitBusy] = useState(false);
   const [workspaceUiHydrated, setWorkspaceUiHydrated] = useState(false);
+  const [planetBuilderLastValidState, setPlanetBuilderLastValidState] = useState(PLANET_BUILDER_STATE.IDLE);
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const workspaceRef = useRef(null);
@@ -266,6 +293,9 @@ export default function UniverseWorkspace({
     setStarPhysicalProfileDraftKey("BALANCE");
     setStarControlError("");
     setParserTelemetry(createParserTelemetrySnapshot());
+    setRepairSuggestion(null);
+    setRepairApplyBusy(false);
+    setRepairAuditTrail([]);
     setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
     setStageZeroDragging(false);
     setStageZeroDropHover(false);
@@ -277,6 +307,7 @@ export default function UniverseWorkspace({
     setStageZeroDraggedSchemaKey("");
     setStageZeroCommitBusy(false);
     setWorkspaceUiHydrated(true);
+    setPlanetBuilderLastValidState(PLANET_BUILDER_STATE.IDLE);
     layoutRef.current = { tablePositions: new Map(), asteroidPositions: new Map() };
   }, [galaxyId]);
 
@@ -328,6 +359,56 @@ export default function UniverseWorkspace({
       }),
     [selectedTableId, stageZeroPresetSelected, stageZeroSchemaSummary.completed, stageZeroSetupOpen]
   );
+  const planetBuilderState = useMemo(
+    () =>
+      resolvePlanetBuilderState({
+        stageZeroActive,
+        stageZeroRequiresStarLock,
+        stageZeroFlow,
+        stageZeroDragging,
+        stageZeroCreating,
+        stageZeroSetupOpen,
+        stageZeroPresetSelected,
+        stageZeroAllSchemaStepsDone,
+        stageZeroCommitBusy,
+        stageZeroCompletedSteps: stageZeroSchemaSummary.completed,
+        quickGridOpen,
+        runtimeError: error,
+      }),
+    [
+      error,
+      quickGridOpen,
+      stageZeroActive,
+      stageZeroAllSchemaStepsDone,
+      stageZeroCommitBusy,
+      stageZeroCreating,
+      stageZeroDragging,
+      stageZeroFlow,
+      stageZeroPresetSelected,
+      stageZeroRequiresStarLock,
+      stageZeroSchemaSummary.completed,
+      stageZeroSetupOpen,
+    ]
+  );
+  const planetBuilderNarrative = useMemo(() => buildPlanetBuilderNarrative(planetBuilderState), [planetBuilderState]);
+  const planetBuilderChecklist = useMemo(
+    () => buildPlanetBuilderStepChecklist(planetBuilderState),
+    [planetBuilderState]
+  );
+  const planetBuilderRecoveryState = useMemo(
+    () =>
+      resolvePlanetBuilderRecoveryState({
+        currentState: planetBuilderState,
+        lastValidState: planetBuilderLastValidState,
+      }),
+    [planetBuilderLastValidState, planetBuilderState]
+  );
+
+  useEffect(() => {
+    if (planetBuilderState !== PLANET_BUILDER_STATE.ERROR_RECOVERABLE) {
+      setPlanetBuilderLastValidState(planetBuilderState);
+    }
+  }, [planetBuilderState]);
 
   useEffect(() => {
     if (!tables.length) {
@@ -387,16 +468,9 @@ export default function UniverseWorkspace({
   const tablePhysicsById = useMemo(() => {
     const map = new Map();
     Object.entries(starPlanetPhysicsByTableId || {}).forEach(([tableId, runtime]) => {
-      const visual = runtime?.visual && typeof runtime.visual === "object" ? runtime.visual : {};
-      const metrics = runtime?.metrics && typeof runtime.metrics === "object" ? runtime.metrics : {};
-      const sizeFactor = clamp(Number(visual.size_factor) || 1, 0.85, 2.4);
-      const stress = clamp(Number(metrics.stress) || 0, 0, 1);
-      const rows = Math.max(0, Number(metrics.rows) || 0);
-      const massFactor = clamp(1 + stress * 0.75 + Math.log10(rows + 1) * 0.12, 0.9, 2.4);
-      map.set(String(tableId), {
-        radiusFactor: sizeFactor,
-        massFactor,
-      });
+      const layoutPhysics = resolveTableRuntimeLayoutPhysics(runtime);
+      if (!layoutPhysics) return;
+      map.set(String(tableId), layoutPhysics);
     });
     return map;
   }, [starPlanetPhysicsByTableId]);
@@ -494,31 +568,11 @@ export default function UniverseWorkspace({
           domainMetric: runtimeDomain,
           pulse: runtimePulse,
         });
-        const metrics =
-          runtimePlanetPhysics?.metrics && typeof runtimePlanetPhysics.metrics === "object"
-            ? runtimePlanetPhysics.metrics
-            : {};
-        const visual =
-          runtimePlanetPhysics?.visual && typeof runtimePlanetPhysics.visual === "object"
-            ? runtimePlanetPhysics.visual
-            : {};
-        const health = clamp(Number(metrics.health) || 0, 0, 1);
-        const corrosion = clamp(Number(metrics.corrosion) || 0, 0, 1);
-        const backendPhysics = runtimePlanetPhysics
-          ? {
-              stress: clamp(Number(metrics.stress) || resolved.physics?.stress || 0, 0, 1),
-              radiusFactor: clamp(Number(visual.size_factor) || 1, 0.85, 2.4),
-              pulseFactor: clamp(Number(visual.pulse_rate) || resolved.physics?.pulseFactor || 1, 0.82, 2.4),
-              emissiveBoost: clamp(Number(visual.luminosity) || resolved.physics?.emissiveBoost || 0, 0, 1),
-              auraFactor: clamp(1 + (1 - health) * 0.5 + corrosion * 0.3, 0.9, 2.2),
-              alertPressure: clamp(corrosion * 0.7 + (1 - health) * 0.3, 0, 1),
-              corrosionLevel: clamp(Number(visual.corrosion_level) || corrosion, 0, 1),
-              crackIntensity: clamp(Number(visual.crack_intensity) || 0, 0, 1),
-              hue: clamp(Number(visual.hue) || 0, 0, 1),
-              saturation: clamp(Number(visual.saturation) || 0, 0, 1),
-            }
-          : {};
-        const backendStatus = runtimePlanetPhysics?.phase ? String(runtimePlanetPhysics.phase).toUpperCase() : null;
+        const authoritative = resolvePlanetAuthoritativePhysics(runtimePlanetPhysics, {
+          fallbackPhysics: resolved.physics,
+        });
+        const backendPhysics = authoritative.physics;
+        const backendStatus = authoritative.status;
         const isStageZeroBuilderTarget =
           stageZeroSetupOpen && stageZeroPresetSelected && String(selectedTableId || "") === String(node.id || "");
         const builderPhysics = isStageZeroBuilderTarget
@@ -562,7 +616,10 @@ export default function UniverseWorkspace({
             ...(isStageZeroBuilderTarget && !backendStatus
               ? { status: stageZeroAllSchemaStepsDone ? "ACTIVE" : "WARMUP" }
               : {}),
-            quality_score: runtimePlanetPhysics ? Math.round(health * 100) : resolved.v1?.quality_score || 100,
+            quality_score:
+              runtimePlanetPhysics && Number.isInteger(authoritative.qualityScore)
+                ? authoritative.qualityScore
+                : resolved.v1?.quality_score || 100,
           },
           physics: {
             ...resolved.physics,
@@ -590,19 +647,8 @@ export default function UniverseWorkspace({
 
   const asteroidNodes = useMemo(() => {
     const selectedPlanetRuntime = selectedTableId ? starPlanetPhysicsByTableId[String(selectedTableId)] || null : null;
-    const selectedMetrics =
-      selectedPlanetRuntime?.metrics && typeof selectedPlanetRuntime.metrics === "object"
-        ? selectedPlanetRuntime.metrics
-        : {};
-    const selectedVisual =
-      selectedPlanetRuntime?.visual && typeof selectedPlanetRuntime.visual === "object"
-        ? selectedPlanetRuntime.visual
-        : {};
-    const parentPhase = selectedPlanetRuntime?.phase ? String(selectedPlanetRuntime.phase).toUpperCase() : null;
-    const parentCorrosion = clamp(Number(selectedVisual.corrosion_level ?? selectedMetrics.corrosion ?? 0) || 0, 0, 1);
-    const parentCrack = clamp(Number(selectedVisual.crack_intensity) || 0, 0, 1);
-    const parentHue = clamp(Number(selectedVisual.hue) || 0, 0, 1);
-    const parentSaturation = clamp(Number(selectedVisual.saturation) || 0, 0, 1);
+    const { parentPhase, parentCorrosion, parentCrack, parentHue, parentSaturation } =
+      resolveMoonParentRuntimePhysics(selectedPlanetRuntime);
     return layout.asteroidNodes.map((node) => {
       const runtimePulse = starPulseByEntity[String(node.id)] || null;
       const runtimeDomain = domainMetricsByName.get(String(node.entityName || "")) || null;
@@ -741,6 +787,82 @@ export default function UniverseWorkspace({
 
   const level = selectedTableId ? 3 : 2;
   const parserExecutionMode = PARSER_EXECUTION_MODE;
+  const appendRepairAudit = useCallback((entry) => {
+    if (!entry) return;
+    setRepairAuditTrail((prev) => [entry, ...prev].slice(0, 32));
+  }, []);
+  const clearRuntimeIssue = useCallback(() => {
+    clearRuntimeError();
+    setRepairSuggestion(null);
+  }, [clearRuntimeError]);
+  const reportContractViolationWithRepair = useCallback(
+    (errorLike, { fallbackMessage = "Operace selhala.", operation = "unknown", civilizationId = "" } = {}) => {
+      const suggestion = resolveGuidedRepairSuggestion(errorLike, { operation, civilizationId });
+      setRepairSuggestion(suggestion);
+      const message = buildContractViolationMessage(errorLike, { fallbackMessage });
+      if (suggestion) {
+        appendRepairAudit(
+          buildGuidedRepairAuditRecord(suggestion, {
+            stage: "planned",
+          })
+        );
+      }
+      setRuntimeError(suggestion ? `${message} | ${buildGuidedRepairMessage(suggestion)}` : message);
+    },
+    [appendRepairAudit, setRuntimeError]
+  );
+  const runBuilderGuard = useCallback(
+    (action, { schemaComplete = stageZeroAllSchemaStepsDone } = {}) => {
+      const result = evaluatePlanetBuilderTransition({
+        state: planetBuilderState,
+        action,
+        context: {
+          schemaComplete,
+          starLocked: starPolicyLocked,
+          lastValidState: planetBuilderLastValidState,
+        },
+      });
+      if (result.allowed) return true;
+      setRuntimeError(buildPlanetBuilderTransitionMessage(result));
+      return false;
+    },
+    [planetBuilderLastValidState, planetBuilderState, setRuntimeError, stageZeroAllSchemaStepsDone, starPolicyLocked]
+  );
+  const applyBuilderRecoveryState = useCallback(
+    (recoveryState) => {
+      const targetState = String(recoveryState || "").trim();
+      if (!targetState) return;
+      clearRuntimeIssue();
+      if (targetState === PLANET_BUILDER_STATE.BLUEPRINT_OPEN || targetState === PLANET_BUILDER_STATE.DRAGGING_PLANET) {
+        setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT);
+        setStageZeroSetupOpen(false);
+        setStageZeroDragging(false);
+        setStageZeroDropHover(false);
+        return;
+      }
+      if (
+        targetState === PLANET_BUILDER_STATE.PLANET_PLACED ||
+        targetState === PLANET_BUILDER_STATE.CAMERA_SETTLED ||
+        targetState === PLANET_BUILDER_STATE.BUILDER_OPEN
+      ) {
+        setStageZeroFlow(STAGE_ZERO_FLOW.COMPLETE);
+        setStageZeroSetupOpen(true);
+        return;
+      }
+      if (
+        targetState === PLANET_BUILDER_STATE.CAPABILITY_ASSEMBLING ||
+        targetState === PLANET_BUILDER_STATE.PREVIEW_READY ||
+        targetState === PLANET_BUILDER_STATE.COMMITTING
+      ) {
+        setStageZeroFlow(STAGE_ZERO_FLOW.COMPLETE);
+        setStageZeroSetupOpen(true);
+        if (!stageZeroPresetSelected) {
+          setStageZeroPresetSelected(true);
+        }
+      }
+    },
+    [clearRuntimeIssue, stageZeroPresetSelected]
+  );
 
   const handleStageZeroDropPlanet = useCallback(
     async (dropPayload) => {
@@ -751,7 +873,7 @@ export default function UniverseWorkspace({
 
       setStageZeroCreating(true);
       setBusy(true);
-      clearRuntimeError();
+      clearRuntimeIssue();
       try {
         const response = await apiFetch(`${API_BASE}/planets`, {
           method: "POST",
@@ -793,7 +915,7 @@ export default function UniverseWorkspace({
       }
     },
     [
-      clearRuntimeError,
+      clearRuntimeIssue,
       galaxyId,
       refreshProjection,
       setRuntimeError,
@@ -808,11 +930,12 @@ export default function UniverseWorkspace({
     (event) => {
       if (!stageZeroBuilderOpen) return;
       if (String(event?.active?.id || "") !== STAGE_ZERO_DND.PLANET_ITEM) return;
+      if (!runBuilderGuard(PLANET_BUILDER_ACTION.START_DRAG_PLANET)) return;
       setStageZeroDragging(true);
       setStageZeroDropHover(false);
       setStageZeroFlow(STAGE_ZERO_FLOW.BUILDING);
     },
-    [stageZeroBuilderOpen]
+    [runBuilderGuard, stageZeroBuilderOpen]
   );
 
   const handleStageZeroDndOver = useCallback((event) => {
@@ -842,6 +965,10 @@ export default function UniverseWorkspace({
         }
         return;
       }
+      if (!runBuilderGuard(PLANET_BUILDER_ACTION.DROP_PLANET)) {
+        setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT);
+        return;
+      }
 
       const center = resolveDragCenter(event);
       const viewportRect = workspaceRef.current?.getBoundingClientRect?.();
@@ -867,16 +994,17 @@ export default function UniverseWorkspace({
         viewport,
       });
     },
-    [handleStageZeroDropPlanet, stageZeroCreating]
+    [handleStageZeroDropPlanet, runBuilderGuard, stageZeroCreating]
   );
 
   const handleStageZeroSchemaStep = useCallback(
     (key) => {
       if (!stageZeroPresetSelected || !String(key || "").trim()) return;
+      if (!runBuilderGuard(PLANET_BUILDER_ACTION.ASSEMBLE_SCHEMA_STEP)) return;
       setStageZeroSchemaDraft((prev) => ({ ...prev, [key]: true }));
       setStageZeroDraggedSchemaKey("");
     },
-    [stageZeroPresetSelected]
+    [runBuilderGuard, stageZeroPresetSelected]
   );
   const handleStageZeroSchemaBlockDragStart = useCallback(
     (key) => {
@@ -919,9 +1047,10 @@ export default function UniverseWorkspace({
 
   const handleStageZeroCommitPreset = useCallback(async () => {
     if (!galaxyId || !selectedTableId || !selectedTable || !stageZeroAllSchemaStepsDone || stageZeroCommitBusy) return;
+    if (!runBuilderGuard(PLANET_BUILDER_ACTION.COMMIT_PRESET, { schemaComplete: stageZeroAllSchemaStepsDone })) return;
     setStageZeroCommitBusy(true);
     setBusy(true);
-    clearRuntimeError();
+    clearRuntimeIssue();
     try {
       const currentContract = await loadTableContract(selectedTableId);
       const nextFieldTypes = buildStageZeroFieldTypes();
@@ -960,6 +1089,13 @@ export default function UniverseWorkspace({
         { name: "Rent", amount: -17000, type: "EXPENSE" },
         { name: "Groceries", amount: -4200, type: "EXPENSE" },
       ];
+
+      const postCivilization = async (payload) => {
+        const [primaryUrl, legacyUrl] = buildCivilizationWriteRouteCandidates(API_BASE, { operation: "create" });
+        const primary = await apiFetch(primaryUrl, payload);
+        if (!shouldFallbackToMoonAlias(primary.status)) return primary;
+        return apiFetch(legacyUrl, payload);
+      };
       for (const row of rows) {
         const minerals = {
           ...buildMoonCreateMinerals({ label: row.name, contract: nextPayload }),
@@ -967,7 +1103,7 @@ export default function UniverseWorkspace({
           amount: row.amount,
           transaction_type: row.type,
         };
-        const ingest = await apiFetch(buildMoonCreateUrl(API_BASE), {
+        const ingest = await postCivilization({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -993,10 +1129,11 @@ export default function UniverseWorkspace({
       setBusy(false);
     }
   }, [
-    clearRuntimeError,
+    clearRuntimeIssue,
     galaxyId,
     loadTableContract,
     refreshProjection,
+    runBuilderGuard,
     selectedTable,
     selectedTableId,
     setRuntimeError,
@@ -1045,7 +1182,7 @@ export default function UniverseWorkspace({
       let parserTelemetryRecorded = false;
 
       setBusy(true);
-      clearRuntimeError();
+      clearRuntimeIssue();
       try {
         const parserCommand = buildLinkMoonsCommand({
           sourceId: payload.sourceId,
@@ -1110,7 +1247,10 @@ export default function UniverseWorkspace({
           setRuntimeError(buildOccConflictMessage(createError, "vytvoreni vazby"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(createError?.message || "Vazbu se nepodarilo vytvorit.");
+          reportContractViolationWithRepair(createError, {
+            fallbackMessage: createError?.message || "Vazbu se nepodarilo vytvorit.",
+            operation: "link",
+          });
         }
       } finally {
         setBusy(false);
@@ -1118,11 +1258,12 @@ export default function UniverseWorkspace({
     },
     [
       asteroidById,
-      clearRuntimeError,
+      clearRuntimeIssue,
       executeParserCommand,
       galaxyId,
       parserExecutionMode,
       refreshProjection,
+      reportContractViolationWithRepair,
       setRuntimeError,
       trackParserAttempt,
     ]
@@ -1140,7 +1281,7 @@ export default function UniverseWorkspace({
 
       setBusy(true);
       setPendingCreate(true);
-      clearRuntimeError();
+      clearRuntimeIssue();
       try {
         const parserCommand = buildIngestMoonCommand({
           value: trimmed,
@@ -1173,17 +1314,28 @@ export default function UniverseWorkspace({
           label: trimmed,
           contract: tableContract,
         });
-        const response = await apiFetch(buildMoonCreateUrl(API_BASE), {
+        const createPayload = {
+          label: trimmed,
+          minerals,
+          planet_id: selectedTableId,
+          galaxy_id: galaxyId,
+          idempotency_key: nextIdempotencyKey("ingest"),
+        };
+        const [primaryCreateUrl, legacyCreateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
+          operation: "create",
+        });
+        let response = await apiFetch(primaryCreateUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            label: trimmed,
-            minerals,
-            planet_id: selectedTableId,
-            galaxy_id: galaxyId,
-            idempotency_key: nextIdempotencyKey("ingest"),
-          }),
+          body: JSON.stringify(createPayload),
         });
+        if (shouldFallbackToMoonAlias(response.status)) {
+          response = await apiFetch(legacyCreateUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(createPayload),
+          });
+        }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo vytvorit: ${response.status}`);
         }
@@ -1216,7 +1368,10 @@ export default function UniverseWorkspace({
           });
           parserTelemetryRecorded = true;
         }
-        setRuntimeError(createError?.message || "Civilizaci se nepodarilo vytvorit.");
+        reportContractViolationWithRepair(createError, {
+          fallbackMessage: createError?.message || "Civilizaci se nepodarilo vytvorit.",
+          operation: "create",
+        });
         return false;
       } finally {
         setPendingCreate(false);
@@ -1224,15 +1379,15 @@ export default function UniverseWorkspace({
       }
     },
     [
-      clearRuntimeError,
+      clearRuntimeIssue,
       executeParserCommand,
       galaxyId,
       loadTableContract,
       parserExecutionMode,
       refreshProjection,
+      reportContractViolationWithRepair,
       selectedTable,
       selectedTableId,
-      setRuntimeError,
       trackParserAttempt,
     ]
   );
@@ -1250,18 +1405,30 @@ export default function UniverseWorkspace({
 
       setBusy(true);
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "mutate" }));
-      clearRuntimeError();
+      clearRuntimeIssue();
       try {
-        const response = await apiFetch(buildMoonMutateUrl(API_BASE, targetId), {
+        const mutatePayload = {
+          label: value,
+          galaxy_id: galaxyId,
+          idempotency_key: nextIdempotencyKey("mutate"),
+          ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
+        };
+        const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
+          operation: "mutate",
+          civilizationId: targetId,
+        });
+        let response = await apiFetch(primaryMutateUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            label: value,
-            galaxy_id: galaxyId,
-            idempotency_key: nextIdempotencyKey("mutate"),
-            ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
-          }),
+          body: JSON.stringify(mutatePayload),
         });
+        if (shouldFallbackToMoonAlias(response.status)) {
+          response = await apiFetch(legacyMutateUrl, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mutatePayload),
+          });
+        }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo upravit: ${response.status}`);
         }
@@ -1271,7 +1438,11 @@ export default function UniverseWorkspace({
           setRuntimeError(buildOccConflictMessage(updateError, "uprava civilizace"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(updateError?.message || "Civilizaci se nepodarilo upravit.");
+          reportContractViolationWithRepair(updateError, {
+            fallbackMessage: updateError?.message || "Civilizaci se nepodarilo upravit.",
+            operation: "mutate",
+            civilizationId: targetId,
+          });
         }
       } finally {
         setPendingRowOps((prev) => {
@@ -1282,7 +1453,7 @@ export default function UniverseWorkspace({
         setBusy(false);
       }
     },
-    [asteroidById, clearRuntimeError, galaxyId, refreshProjection, setRuntimeError]
+    [asteroidById, clearRuntimeIssue, galaxyId, refreshProjection, reportContractViolationWithRepair, setRuntimeError]
   );
 
   const handleDeleteRow = useCallback(
@@ -1302,7 +1473,7 @@ export default function UniverseWorkspace({
 
       setBusy(true);
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "extinguish" }));
-      clearRuntimeError();
+      clearRuntimeIssue();
       try {
         const parserCommand = buildExtinguishMoonCommand({
           asteroidId: targetId,
@@ -1328,16 +1499,29 @@ export default function UniverseWorkspace({
         }
 
         fallbackAttempted = true;
-        const url = new URL(buildMoonExtinguishUrl(API_BASE, targetId));
-        url.searchParams.set("galaxy_id", galaxyId);
-        url.searchParams.set("idempotency_key", nextIdempotencyKey("extinguish"));
-        if (expectedEventSeq !== null) {
-          url.searchParams.set("expected_event_seq", String(expectedEventSeq));
-        }
-
-        const response = await apiFetch(url.toString(), {
+        const extinguishIdempotencyKey = nextIdempotencyKey("extinguish");
+        const [primaryExtinguishBaseUrl, legacyExtinguishBaseUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
+          operation: "extinguish",
+          civilizationId: targetId,
+        });
+        const buildExtinguishUrl = (baseUrl) => {
+          const url = new URL(baseUrl);
+          url.searchParams.set("galaxy_id", galaxyId);
+          url.searchParams.set("idempotency_key", extinguishIdempotencyKey);
+          if (expectedEventSeq !== null) {
+            url.searchParams.set("expected_event_seq", String(expectedEventSeq));
+          }
+          return url.toString();
+        };
+        let response = await apiFetch(buildExtinguishUrl(primaryExtinguishBaseUrl), {
           method: "PATCH",
         });
+        if (shouldFallbackToMoonAlias(response.status)) {
+          response = await apiFetch(buildExtinguishUrl(legacyExtinguishBaseUrl), {
+            method: "PATCH",
+          });
+        }
+
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo zhasnout: ${response.status}`);
         }
@@ -1371,7 +1555,11 @@ export default function UniverseWorkspace({
           setRuntimeError(buildOccConflictMessage(deleteError, "zhasnuti civilizace"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(deleteError?.message || "Civilizaci se nepodarilo zhasnout.");
+          reportContractViolationWithRepair(deleteError, {
+            fallbackMessage: deleteError?.message || "Civilizaci se nepodarilo zhasnout.",
+            operation: "extinguish",
+            civilizationId: targetId,
+          });
         }
       } finally {
         setPendingRowOps((prev) => {
@@ -1384,11 +1572,12 @@ export default function UniverseWorkspace({
     },
     [
       asteroidById,
-      clearRuntimeError,
+      clearRuntimeIssue,
       executeParserCommand,
       galaxyId,
       parserExecutionMode,
       refreshProjection,
+      reportContractViolationWithRepair,
       selectedAsteroidId,
       setRuntimeError,
       trackParserAttempt,
@@ -1411,18 +1600,30 @@ export default function UniverseWorkspace({
 
       setBusy(true);
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "metadata" }));
-      clearRuntimeError();
+      clearRuntimeIssue();
       try {
-        const response = await apiFetch(buildMoonMutateUrl(API_BASE, targetId), {
+        const mutatePayload = {
+          minerals: nextMetadata,
+          galaxy_id: galaxyId,
+          idempotency_key: nextIdempotencyKey("metadata"),
+          ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
+        };
+        const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
+          operation: "mutate",
+          civilizationId: targetId,
+        });
+        let response = await apiFetch(primaryMutateUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            minerals: nextMetadata,
-            galaxy_id: galaxyId,
-            idempotency_key: nextIdempotencyKey("metadata"),
-            ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
-          }),
+          body: JSON.stringify(mutatePayload),
         });
+        if (shouldFallbackToMoonAlias(response.status)) {
+          response = await apiFetch(legacyMutateUrl, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mutatePayload),
+          });
+        }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Nerost se nepodarilo ulozit: ${response.status}`);
         }
@@ -1433,7 +1634,11 @@ export default function UniverseWorkspace({
           setRuntimeError(buildOccConflictMessage(metadataError, "uprava nerostu"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(metadataError?.message || "Nerost se nepodarilo ulozit.");
+          reportContractViolationWithRepair(metadataError, {
+            fallbackMessage: metadataError?.message || "Nerost se nepodarilo ulozit.",
+            operation: "metadata",
+            civilizationId: targetId,
+          });
         }
         return false;
       } finally {
@@ -1445,8 +1650,83 @@ export default function UniverseWorkspace({
         setBusy(false);
       }
     },
-    [asteroidById, clearRuntimeError, galaxyId, refreshProjection, setRuntimeError]
+    [asteroidById, clearRuntimeIssue, galaxyId, refreshProjection, reportContractViolationWithRepair, setRuntimeError]
   );
+
+  const handleApplyGuidedRepair = useCallback(async () => {
+    const activeSuggestion = repairSuggestion;
+    if (!galaxyId || !activeSuggestion) return;
+    const targetId = String(activeSuggestion.civilization_id || "").trim();
+    if (!targetId) return;
+
+    const asteroid = asteroidById.get(targetId);
+    const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq) ? Number(asteroid.current_event_seq) : null;
+    const request = buildGuidedRepairMutationRequest(activeSuggestion, {
+      galaxyId,
+      expectedEventSeq,
+    });
+    if (!request) return;
+
+    setRepairApplyBusy(true);
+    setBusy(true);
+    setRuntimeError("");
+    try {
+      const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
+        operation: "mutate",
+        civilizationId: request.civilizationId,
+      });
+      let response = await apiFetch(primaryMutateUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request.payload),
+      });
+      if (shouldFallbackToMoonAlias(response.status)) {
+        response = await apiFetch(legacyMutateUrl, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request.payload),
+        });
+      }
+      if (!response.ok) {
+        throw await apiErrorFromResponse(response, `Guided repair selhal: ${response.status}`);
+      }
+      await refreshProjection({ silent: true });
+      setRepairSuggestion(null);
+      appendRepairAudit(
+        buildGuidedRepairAuditRecord(activeSuggestion, {
+          stage: "applied",
+        })
+      );
+    } catch (applyError) {
+      appendRepairAudit(
+        buildGuidedRepairAuditRecord(activeSuggestion, {
+          stage: "failed",
+          errorMessage: applyError?.message || "Guided repair failed.",
+        })
+      );
+      if (isOccConflictError(applyError)) {
+        setRuntimeError(buildOccConflictMessage(applyError, "guided repair"));
+        await refreshProjection({ silent: true });
+      } else {
+        reportContractViolationWithRepair(applyError, {
+          fallbackMessage: applyError?.message || "Guided repair se nepodarilo aplikovat.",
+          operation: "repair_apply",
+          civilizationId: targetId,
+        });
+      }
+    } finally {
+      setRepairApplyBusy(false);
+      setBusy(false);
+    }
+  }, [
+    appendRepairAudit,
+    asteroidById,
+    galaxyId,
+    refreshProjection,
+    repairSuggestion,
+    reportContractViolationWithRepair,
+    setRuntimeError,
+  ]);
 
   const handleStarSelect = useCallback(() => {
     if (starPolicyLocked) {
@@ -1483,7 +1763,7 @@ export default function UniverseWorkspace({
     }
     setStarControlError("");
     setStarControlPhase(STAR_CONTROL_PHASE.APPLY_PROFILE);
-    clearRuntimeError();
+    clearRuntimeIssue();
     try {
       const response = await apiFetch(buildStarCorePolicyLockUrl(API_BASE, galaxyId), {
         method: "POST",
@@ -1512,7 +1792,7 @@ export default function UniverseWorkspace({
       setStarControlPhase(starPolicyLocked ? STAR_CONTROL_PHASE.LOCKED : STAR_CONTROL_PHASE.STAR_HEART_DASHBOARD_OPEN);
     }
   }, [
-    clearRuntimeError,
+    clearRuntimeIssue,
     galaxyId,
     refreshStarTelemetry,
     setRuntimeError,
@@ -1723,7 +2003,10 @@ export default function UniverseWorkspace({
               </div>
               <button
                 type="button"
-                onClick={() => setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT)}
+                onClick={() => {
+                  if (!runBuilderGuard(PLANET_BUILDER_ACTION.OPEN_BLUEPRINT, { schemaComplete: false })) return;
+                  setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT);
+                }}
                 style={{
                   border: "1px solid rgba(114, 219, 252, 0.5)",
                   background: "linear-gradient(120deg, #21bbea, #44d8ff)",
@@ -1829,6 +2112,7 @@ export default function UniverseWorkspace({
                         type="button"
                         onClick={() => {
                           if (locked) return;
+                          if (!runBuilderGuard(PLANET_BUILDER_ACTION.SELECT_PRESET)) return;
                           setStageZeroPresetSelected(true);
                           setStageZeroSchemaDraft(createStageZeroSchemaDraft());
                           setStageZeroDraggedSchemaKey("");
@@ -2076,6 +2360,87 @@ export default function UniverseWorkspace({
           </aside>
         ) : null}
 
+        {stageZeroActive && (
+          <aside
+            style={{
+              position: "fixed",
+              left: 12,
+              top: 12,
+              zIndex: 58,
+              width: "min(340px, calc(100vw - 24px))",
+              borderRadius: 14,
+              border: "1px solid rgba(108, 206, 240, 0.34)",
+              background: "rgba(5, 13, 24, 0.82)",
+              color: "#ddf7ff",
+              backdropFilter: "blur(10px)",
+              boxShadow: "0 0 24px rgba(34, 132, 182, 0.18)",
+              padding: "10px 11px",
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+              PLANET BUILDER MISSION
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-sm)" }}>
+              Stav: <strong>{planetBuilderState}</strong>
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9, lineHeight: "var(--dv-lh-base)" }}>
+              {planetBuilderNarrative.why}
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, lineHeight: "var(--dv-lh-base)" }}>
+              {planetBuilderNarrative.action}
+            </div>
+            <div style={{ display: "grid", gap: 4 }}>
+              {planetBuilderChecklist.map((item) => (
+                <div
+                  key={item.label}
+                  style={{
+                    fontSize: "var(--dv-fs-2xs)",
+                    opacity: item.done ? 0.95 : item.active ? 0.9 : 0.64,
+                    color: item.active ? "#9defff" : undefined,
+                  }}
+                >
+                  {item.done ? "✓" : item.active ? "→" : "○"} {item.label}
+                </div>
+              ))}
+            </div>
+            {planetBuilderState === PLANET_BUILDER_STATE.ERROR_RECOVERABLE ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const recoveryResult = evaluatePlanetBuilderTransition({
+                    state: planetBuilderState,
+                    action: PLANET_BUILDER_ACTION.RECOVER_ERROR,
+                    context: {
+                      starLocked: starPolicyLocked,
+                      schemaComplete: stageZeroAllSchemaStepsDone,
+                      lastValidState: planetBuilderLastValidState,
+                    },
+                  });
+                  if (!recoveryResult.allowed) {
+                    setRuntimeError(buildPlanetBuilderTransitionMessage(recoveryResult));
+                    return;
+                  }
+                  applyBuilderRecoveryState(recoveryResult.next_state || planetBuilderRecoveryState);
+                }}
+                style={{
+                  border: "1px solid rgba(120, 217, 247, 0.38)",
+                  background: "rgba(8, 22, 36, 0.74)",
+                  color: "#d6f8ff",
+                  borderRadius: 10,
+                  padding: "8px 10px",
+                  fontSize: "var(--dv-fs-xs)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Obnovit posledni validni krok ({planetBuilderRecoveryState})
+              </button>
+            ) : null}
+          </aside>
+        )}
+
         <WorkspaceSidebar
           galaxy={galaxy}
           branches={branches}
@@ -2100,6 +2465,15 @@ export default function UniverseWorkspace({
           onOpenStarHeart={handleOpenStarHeartDashboard}
           onBackToGalaxies={onBackToGalaxies}
           onLogout={onLogout}
+          builderState={planetBuilderState}
+          builderWhy={planetBuilderNarrative.why}
+          builderAction={planetBuilderNarrative.action}
+          repairSuggestion={repairSuggestion}
+          repairApplyBusy={repairApplyBusy}
+          onApplyRepair={() => {
+            void handleApplyGuidedRepair();
+          }}
+          repairAuditCount={repairAuditTrail.length}
         />
 
         <StarHeartDashboard

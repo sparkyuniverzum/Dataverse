@@ -81,6 +81,13 @@ export default function WorkspaceSidebar({
   onOpenStarHeart,
   onBackToGalaxies,
   onLogout,
+  builderState = "",
+  builderWhy = "",
+  builderAction = "",
+  repairSuggestion = null,
+  repairApplyBusy = false,
+  onApplyRepair = null,
+  repairAuditCount = 0,
 }) {
   return (
     <aside
@@ -124,6 +131,36 @@ export default function WorkspaceSidebar({
         {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam...</span> : null}
         {busy ? <span style={{ ...hudBadgeStyle, color: "#ffd59c" }}>Ukladam...</span> : null}
       </div>
+
+      {builderState ? (
+        <div
+          style={{
+            border: "1px solid rgba(108, 206, 240, 0.24)",
+            borderRadius: 10,
+            background: "rgba(6, 18, 30, 0.56)",
+            padding: "8px 9px",
+            display: "grid",
+            gap: 4,
+          }}
+        >
+          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+            PLANET BUILDER
+          </div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>
+            Stav: <strong>{builderState}</strong>
+          </div>
+          {builderWhy ? (
+            <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76, lineHeight: "var(--dv-lh-base)" }}>
+              {builderWhy}
+            </div>
+          ) : null}
+          {builderAction ? (
+            <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76, lineHeight: "var(--dv-lh-base)" }}>
+              {builderAction}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <button type="button" onClick={onOpenStarHeart} style={actionButtonStyle}>
         Vstoupit do srdce hvezdy
@@ -190,6 +227,39 @@ export default function WorkspaceSidebar({
           }}
         >
           {error}
+        </div>
+      ) : null}
+
+      {repairSuggestion ? (
+        <div
+          style={{
+            borderTop: "1px solid rgba(118, 215, 247, 0.24)",
+            paddingTop: 6,
+            display: "grid",
+            gap: 6,
+          }}
+        >
+          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.8 }}>
+            GUIDED REPAIR
+          </div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
+            {repairSuggestion.mineral_key} -&gt; <strong>{repairSuggestion.suggested_raw_value}</strong>
+          </div>
+          <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>
+            strategy={repairSuggestion.strategy_key} | audit log={repairAuditCount}
+          </div>
+          <button
+            type="button"
+            style={actionButtonStyle}
+            disabled={!repairSuggestion.civilization_id || repairApplyBusy}
+            onClick={() => {
+              if (typeof onApplyRepair === "function") {
+                onApplyRepair();
+              }
+            }}
+          >
+            {repairApplyBusy ? "Aplikuji opravu..." : "Aplikovat navrh opravy"}
+          </button>
         </div>
       ) : null}
     </aside>

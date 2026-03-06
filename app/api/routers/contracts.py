@@ -35,7 +35,7 @@ async def get_table_contract(
         galaxy_id=galaxy_id,
         services=services,
     )
-    contract = await services.cosmos_service.get_table_contract(
+    contract = await services.cosmos_service.get_effective_table_contract(
         session=session,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
@@ -53,7 +53,7 @@ async def upsert_table_contract(
     services: ServiceContainer = Depends(get_service_container),
 ) -> TableContractPublic:
     async with transactional_context(session):
-        contract = await services.cosmos_service.upsert_table_contract(
+        await services.cosmos_service.upsert_table_contract(
             session=session,
             user_id=current_user.id,
             galaxy_id=payload.galaxy_id,
@@ -66,6 +66,12 @@ async def upsert_table_contract(
             auto_semantics=payload.auto_semantics,
             formula_registry=payload.formula_registry,
             physics_rulebook=payload.physics_rulebook,
+        )
+        contract = await services.cosmos_service.get_effective_table_contract(
+            session=session,
+            user_id=current_user.id,
+            galaxy_id=payload.galaxy_id,
+            table_id=table_id,
         )
     await commit_if_active(session)
     return table_contract_to_public(contract)

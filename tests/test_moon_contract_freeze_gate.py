@@ -4,11 +4,20 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+from fastapi import HTTPException
 from fastapi.routing import APIRoute
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.main import app
+from app.services.moon_capability_matrix import (
+    MATRIX_CONFLICT_CODE,
+    MATRIX_FORBIDDEN_REASON_SAME_KEY_CLASS_CHANGE,
+    MATRIX_VERSION,
+    SUPPORTED_CAPABILITY_CLASSES,
+    ensure_capability_matrix_transition,
+)
 
 
 def _root() -> Path:
@@ -17,6 +26,12 @@ def _root() -> Path:
 
 def _load_baseline() -> dict:
     baseline_path = _root() / "docs" / "moon-contract-baseline-v1.json"
+    with baseline_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _load_capability_matrix_baseline() -> dict:
+    baseline_path = _root() / "docs" / "moon-capability-matrix-v1.json"
     with baseline_path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
 
@@ -73,3 +88,32 @@ def test_moon_freeze_gate_contract_doc_keeps_invariant_markers() -> None:
     ]
     for marker in required_markers:
         assert marker in body
+
+
+def test_capability_matrix_freeze_v1() -> None:
+    baseline = _load_capability_matrix_baseline()
+    assert baseline["version"] == "1.0.0"
+    assert baseline["scope"] == "moon-capability-matrix-v1"
+    assert baseline["matrix_version"] == MATRIX_VERSION
+    assert set(baseline.get("classes", [])) == set(SUPPORTED_CAPABILITY_CLASSES)
+    rules = baseline.get("rules", [])
+    assert isinstance(rules, list) and rules
+    same_key_rule = next((item for item in rules if item.get("id") == "same_key_class_immutable"), None)
+    assert same_key_rule is not None
+    assert same_key_rule["type"] == "forbidden_transition"
+    assert same_key_rule["code"] == MATRIX_CONFLICT_CODE
+    assert same_key_rule["reason"] == MATRIX_FORBIDDEN_REASON_SAME_KEY_CLASS_CHANGE
+    assert same_key_rule["http_status"] == 409
+
+    with pytest.raises(HTTPException) as exc:
+        ensure_capability_matrix_transition(
+            capability_key="cashflow.validation",
+            current_class="validation",
+            requested_class="formula",
+        )
+    detail = getattr(exc.value, "detail", {})
+    assert getattr(exc.value, "status_code", None) == 409
+    assert isinstance(detail, dict)
+    assert detail.get("code") == MATRIX_CONFLICT_CODE
+    assert detail.get("reason") == MATRIX_FORBIDDEN_REASON_SAME_KEY_CLASS_CHANGE
+    assert detail.get("matrix_version") == MATRIX_VERSION

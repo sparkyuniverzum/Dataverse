@@ -22,6 +22,10 @@ export function buildLinkMoonsCommand({ sourceId, targetId, sourceLabel = "", ta
   return `${left} + ${right}`;
 }
 
+export function buildLinkCivilizationsCommand(params = {}) {
+  return buildLinkMoonsCommand(params);
+}
+
 export function buildTypeMoonsCommand({ sourceId, targetId, sourceLabel = "", targetLabel = "" } = {}) {
   const left = toParserOperand(sourceId || sourceLabel);
   const right = toParserOperand(targetId || targetLabel);
@@ -29,10 +33,18 @@ export function buildTypeMoonsCommand({ sourceId, targetId, sourceLabel = "", ta
   return `${left} : ${right}`;
 }
 
+export function buildTypeCivilizationsCommand(params = {}) {
+  return buildTypeMoonsCommand(params);
+}
+
 export function buildExtinguishMoonCommand({ asteroidId, asteroidLabel = "" } = {}) {
   const operand = toParserOperand(asteroidId || asteroidLabel);
   if (!operand) return "";
   return `Delete : ${operand}`;
+}
+
+export function buildExtinguishCivilizationCommand(params = {}) {
+  return buildExtinguishMoonCommand(params);
 }
 
 function toMetadataLiteral(value) {
@@ -67,14 +79,19 @@ export function buildIngestMoonCommand({ value, tableName, metadata = {} } = {})
   return `${entity} (${fields.join(", ")})`;
 }
 
+export function buildIngestCivilizationCommand(params = {}) {
+  return buildIngestMoonCommand(params);
+}
+
 export function buildBuilderParserCommand(action) {
   const kind = String(action?.type || "")
     .trim()
     .toUpperCase();
-  if (kind === "LINK_MOONS") return buildLinkMoonsCommand(action);
-  if (kind === "TYPE_MOONS") return buildTypeMoonsCommand(action);
-  if (kind === "EXTINGUISH_MOON") return buildExtinguishMoonCommand(action);
-  if (kind === "INGEST_MOON") return buildIngestMoonCommand(action);
+  if (kind === "LINK_MOONS" || kind === "LINK_CIVILIZATIONS") return buildLinkCivilizationsCommand(action);
+  if (kind === "TYPE_MOONS" || kind === "TYPE_CIVILIZATIONS") return buildTypeCivilizationsCommand(action);
+  if (kind === "EXTINGUISH_MOON" || kind === "EXTINGUISH_CIVILIZATION")
+    return buildExtinguishCivilizationCommand(action);
+  if (kind === "INGEST_MOON" || kind === "INGEST_CIVILIZATION") return buildIngestCivilizationCommand(action);
   return "";
 }
 

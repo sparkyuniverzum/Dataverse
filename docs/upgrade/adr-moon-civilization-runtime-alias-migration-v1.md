@@ -1,7 +1,7 @@
 # ADR: Moon Capability vs Civilization Row Naming Migration v1
 
-Status: accepted (phase 1 implemented)  
-Date: 2026-03-05  
+Status: accepted (phase 1 implemented)
+Date: 2026-03-05
 Owner: Core BE/FE architecture
 
 ## 1. Context
@@ -54,6 +54,10 @@ Phase 1 implementation status:
 1. Switch FE row runtime calls to `/civilizations*`.
 2. Keep compatibility fallback for legacy clients.
 3. Keep contract gates for both surfaces.
+
+Phase 2 implementation status:
+1. FE workspace row runtime now uses `/civilizations*` as primary write path.
+2. Legacy fallback to `/moons*` is preserved for compatibility statuses (`404/405/501`).
 
 ### Phase 3
 

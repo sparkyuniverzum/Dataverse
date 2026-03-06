@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "playwright test --config=playwright.config.mjs",
+    "test:e2e:planet-builder": "playwright test --config=playwright.config.mjs e2e/planet-builder-wizard-smoke.spec.mjs",
     "lint": "node ./node_modules/eslint/bin/eslint.js .",
     "lint:fix": "node ./node_modules/eslint/bin/eslint.js . --fix",
     "format": "node ./node_modules/prettier/bin/prettier.cjs . --write",
@@ -27,6 +29,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.3",
+    "@playwright/test": "^1.58.2",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^5.1.4",
     "eslint": "^9.39.3",
     "eslint-config-prettier": "^9.1.2",
@@ -34,6 +39,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.26",
     "globals": "^15.15.0",
+    "jsdom": "^28.1.0",
     "prettier": "^3.8.1",
     "vite": "^7.3.1",
     "vitest": "^3.2.4"

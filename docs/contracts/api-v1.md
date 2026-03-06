@@ -1,6 +1,6 @@
 # DataVerse API Contract v1
 
-Status: frozen from current implementation (`app/main.py`, `app/schemas.py`)  
+Status: frozen from current implementation (`app/main.py`, `app/schemas.py`)
 Date: 2026-02-28 (updated 2026-03-05 for planets + grid sync contract)
 
 ## Global rules
@@ -152,6 +152,41 @@ Current runtime includes first-class row lifecycle on both endpoint families:
 - `POST /civilizations`
 - `PATCH /civilizations/{civilization_id}/mutate`
 - `PATCH /civilizations/{civilization_id}/extinguish`
+
+## Moon capabilities (first-class capability aggregate)
+
+### `GET /planets/{planet_id}/capabilities`
+- Auth required.
+- Query: `galaxy_id?: uuid`, `branch_id?: uuid`, `include_inactive?: bool`, `include_history?: bool`.
+- Response `200`: `{ "items": MoonCapabilityPublic[] }`.
+- Rules:
+  - capability lifecycle is currently main timeline only (`branch_id=null`), otherwise `409`.
+  - default list returns active current versions only.
+  - `include_inactive=true` includes deprecated active versions.
+  - `include_history=true` also includes historical superseded versions.
+
+### `POST /planets/{planet_id}/capabilities`
+- Auth required.
+- Request:
+  - `{ "galaxy_id"?: uuid, "branch_id"?: uuid, "capability_key": string, "capability_class": "dictionary"|"validation"|"formula"|"bridge", "config"?: object, "order_index"?: int, "status"?: "active"|"deprecated", "idempotency_key"?: string }`
+- Response `201`: `MoonCapabilityPublic`.
+- Rules:
+  - upsert is keyed by `(galaxy_id, planet_id, capability_key)` in active space.
+  - unchanged payload returns current active version.
+  - changed payload creates next version and supersedes previous active row.
+
+### `PATCH /capabilities/{capability_id}`
+- Auth required.
+- Request:
+  - `{ "galaxy_id"?: uuid, "branch_id"?: uuid, "capability_class"?: "...", "config"?: object, "order_index"?: int, "status"?: "active"|"deprecated", "expected_version"?: int>=1, "idempotency_key"?: string }`
+- Response `200`: `MoonCapabilityPublic`.
+- OCC:
+  - if `expected_version` differs from current version, endpoint returns `409` with `code=OCC_CONFLICT`.
+
+### `PATCH /capabilities/{capability_id}/deprecate`
+- Auth required.
+- Request: `{ "galaxy_id"?: uuid, "branch_id"?: uuid, "expected_version"?: int>=1, "idempotency_key"?: string }`
+- Response `200`: `MoonCapabilityPublic` (`status="deprecated"`).
 
 ### `POST /bonds/link`
 - Auth required.

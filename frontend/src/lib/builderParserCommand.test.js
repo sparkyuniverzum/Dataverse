@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildBuilderParserCommand,
   buildBuilderParserPayload,
+  buildExtinguishCivilizationCommand,
   buildExtinguishMoonCommand,
+  buildIngestCivilizationCommand,
   buildIngestMoonCommand,
+  buildLinkCivilizationsCommand,
   buildLinkMoonsCommand,
+  buildTypeCivilizationsCommand,
   buildTypeMoonsCommand,
   toParserOperand,
 } from "./builderParserCommand";
@@ -83,5 +87,56 @@ describe("builder parser commands", () => {
         targetLabel: "B",
       })
     ).toBe("A : B");
+  });
+
+  it("supports civilization aliases for command builders", () => {
+    expect(
+      buildLinkCivilizationsCommand({
+        sourceLabel: "A",
+        targetLabel: "B",
+      })
+    ).toBe("A + B");
+    expect(
+      buildTypeCivilizationsCommand({
+        sourceLabel: "A",
+        targetLabel: "B",
+      })
+    ).toBe("A : B");
+    expect(buildExtinguishCivilizationCommand({ asteroidLabel: "Moon Prime" })).toBe('Delete : "Moon Prime"');
+    expect(
+      buildIngestCivilizationCommand({
+        value: "Invoice 2026-03",
+        tableName: "Finance > Cashflow",
+      })
+    ).toBe('"Invoice 2026-03" (table: Finance > Cashflow)');
+  });
+
+  it("supports *_CIVILIZATIONS action aliases", () => {
+    expect(
+      buildBuilderParserCommand({
+        type: "LINK_CIVILIZATIONS",
+        sourceLabel: "A",
+        targetLabel: "B",
+      })
+    ).toBe("A + B");
+    expect(
+      buildBuilderParserCommand({
+        type: "TYPE_CIVILIZATIONS",
+        sourceLabel: "A",
+        targetLabel: "B",
+      })
+    ).toBe("A : B");
+    expect(
+      buildBuilderParserCommand({
+        type: "EXTINGUISH_CIVILIZATION",
+        asteroidLabel: "A",
+      })
+    ).toBe("Delete : A");
+    expect(
+      buildBuilderParserCommand({
+        type: "INGEST_CIVILIZATION",
+        value: "A",
+      })
+    ).toBe("A");
   });
 });

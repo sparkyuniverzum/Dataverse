@@ -13,11 +13,12 @@ from sqlalchemy import and_, cast, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Atom, Bond, Event, TableContract
+from app.models import Atom, Bond, Event
 from app.services.bond_semantics import normalize_bond_type
 from app.services.event_store_service import EventStoreService
 from app.services.parser_service import AtomicTask
 from app.services.read_model_projector import ReadModelProjector
+from app.services.table_contract_effective import EffectiveTableContract
 from app.services.task_executor.contract_validation import TableContractValidator
 from app.services.task_executor.families import (
     handle_extinguish_family,
@@ -59,7 +60,7 @@ class _TaskExecutionContext:
     context_asteroid_ids: list[UUID]
     asteroids_by_id: dict[UUID, ProjectedAsteroid]
     bonds_by_id: dict[UUID, ProjectedBond]
-    contract_cache: dict[UUID, TableContract | None]
+    contract_cache: dict[UUID, EffectiveTableContract | None]
     appended_events: list[Event]
     append_and_project_event: Callable[..., Awaitable[Event]]
     preload_scope: str = "full"
@@ -259,7 +260,7 @@ class TaskExecutorService:
         session: AsyncSession,
         galaxy_id: UUID,
         asteroid: ProjectedAsteroid,
-        contract_cache: dict[UUID, TableContract | None],
+        contract_cache: dict[UUID, EffectiveTableContract | None],
     ) -> list[dict[str, Any]]:
         if session is None:
             return []
@@ -606,8 +607,8 @@ class TaskExecutorService:
         session: AsyncSession,
         galaxy_id: UUID,
         table_id: UUID,
-        cache: dict[UUID, TableContract | None],
-    ) -> TableContract | None:
+        cache: dict[UUID, EffectiveTableContract | None],
+    ) -> EffectiveTableContract | None:
         return await self.contract_validator.load_latest(
             session=session,
             galaxy_id=galaxy_id,
@@ -624,7 +625,7 @@ class TaskExecutorService:
         value: Any,
         metadata: dict[str, Any],
         asteroids_by_id: dict[UUID, ProjectedAsteroid],
-        contract_cache: dict[UUID, TableContract | None],
+        contract_cache: dict[UUID, EffectiveTableContract | None],
         execution_context: _TaskExecutionContext | None = None,
     ) -> None:
         current_asteroids_by_id = asteroids_by_id
