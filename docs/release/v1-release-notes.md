@@ -49,3 +49,52 @@ Release SHA: `89f4f17`
   - `docs/contracts/planet-moon-dod-v3.md` marks `PM-P0-01` .. `PM-P0-08` as `GREEN`.
 - Release gate confirmation:
   - `scripts/star_contract_gate.sh` -> PASS
+
+## Planet+Moon v3 P1 closure addendum (2026-03-06)
+- P1 hardening gate set is fully green:
+  - `PM-P1-01` `/civilizations*` canonical runtime gate.
+  - `PM-P1-02` `/moons*` compatibility + deprecation marker parity gate.
+  - `PM-P1-03` capability matrix freeze + machine-readable conflict guard.
+  - `PM-P1-04` BE->FE planet visual-law parity gate.
+- Added/closed gate evidence:
+  - `frontend/src/lib/civilizationRuntimeRouteGate.test.js`
+  - `tests/test_api_integration.py::test_moons_alias_deprecation_marker_and_parity`
+  - `tests/test_moon_contract_freeze_gate.py::test_capability_matrix_freeze_v1`
+  - `frontend/src/components/universe/planetPhysicsParity.test.js`
+- Consolidated status:
+  - `docs/contracts/planet-moon-p1-backlog-v1.md` is closed.
+
+## Planet+Moon v3 P2 progress addendum (2026-03-06)
+- `PM-P2-01` closed: bulk civilization write resilience (`OCC + idempotency + rollback`).
+  - Gate: `tests/test_api_integration.py::test_bulk_civilization_writes_occ_idempotency`.
+- `PM-P2-02` closed: replay convergence under load (BE + FE).
+  - Gates:
+    - `tests/test_universe_projection_errors.py::test_projection_replay_convergence_under_load`
+    - `frontend/src/components/universe/projectionConvergenceGate.test.js` (high-volume replay scenario).
+
+## Planet+Moon v3 P2 closure addendum (2026-03-06)
+- `PM-P2-03` closed: deterministic guided repair flow in FE runtime path.
+  - Gate: `frontend/src/components/universe/repairFlowContract.test.js`.
+- Guided repair runtime now includes:
+  - deterministic repair suggestion from contract-violation detail,
+  - idempotent mutation payload builder for repair apply,
+  - local audit trail records for planned/applied/failed repair actions.
+- Official closure status:
+  - `PM-P2-01` .. `PM-P2-03` are all `GREEN` in `docs/contracts/planet-moon-dod-v3.md`.
+
+## Planet Builder UX flow kickoff (2026-03-06)
+- Started next MVP layer above repair baseline:
+  - explicit Planet Builder state machine + causal mission copy in workspace UI.
+- Initial gate:
+  - `frontend/src/components/universe/planetBuilderFlow.test.js`.
+- Follow-up closure:
+  - transition guards now block invalid builder transitions and recover to last valid step (`P3-02`).
+- Mission gate added:
+  - FE e2e-like scenario `StarLockedRequired -> ... -> Converged` (`P3-03`).
+- P4 kickoff:
+  - interactive Planet Builder wizard harness gate (`PM-P4-01`) for mission + guards + recover behavior.
+- P4 progress:
+  - component-level wizard harness with real UI click events is now gated (`PM-P4-02`).
+  - Playwright browser smoke gate is now green (`PM-P4-03`).
+- P4 closure:
+  - all `PM-P4-*` gates are green (interactive harness + component harness + browser smoke).

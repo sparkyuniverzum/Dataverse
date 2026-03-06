@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Branch, Event, Galaxy, MoonCapability, TableContract
 from app.services.event_store_service import EventStoreService
 from app.services.galaxy_scope_service import resolve_user_galaxy_for_user
+from app.services.moon_capability_matrix import ensure_capability_matrix_transition
 from app.services.read_model_projector import ReadModelProjector
 from app.services.table_contract_effective import EffectiveTableContract, compile_effective_table_contract
 from app.services.universe.types import derive_table_id, normalize_table_name
@@ -729,6 +730,13 @@ class CosmosService:
             )
         ).scalar_one_or_none()
 
+        if latest_active is not None:
+            ensure_capability_matrix_transition(
+                capability_key=normalized_key,
+                current_class=str(latest_active.capability_class),
+                requested_class=normalized_class,
+            )
+
         if (
             latest_active is not None
             and latest_active.capability_class == normalized_class
@@ -810,6 +818,11 @@ class CosmosService:
         next_order_index = max(0, int(order_index)) if order_index is not None else int(current.order_index)
         next_status = (
             self._normalize_capability_status(status_value) if status_value is not None else str(current.status)
+        )
+        ensure_capability_matrix_transition(
+            capability_key=str(current.capability_key),
+            current_class=str(current.capability_class),
+            requested_class=next_class,
         )
 
         if (

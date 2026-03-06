@@ -3020,6 +3020,175 @@ def test_task_batch_commit_persists_changes_atomically(auth_client: tuple[httpx.
     assert int(after["current_event_seq"]) > base_seq
 
 
+def test_bulk_civilization_writes_occ_idempotency(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"BulkCivilization > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"bulk-civil-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    created_seed = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "Bulk Civilization Seed",
+            "minerals": {
+                "entity_id": f"bulk-seed-{uuid.uuid4().hex[:8]}",
+                "label": "Bulk Civilization Seed",
+                "state": "active",
+            },
+            "idempotency_key": f"bulk-civil-seed-{uuid.uuid4()}",
+        },
+    )
+    assert created_seed.status_code == 201, created_seed.text
+    seed_body = created_seed.json()
+    seed_id = seed_body["moon_id"]
+    seed_event_seq = int(seed_body.get("current_event_seq") or 0)
+    assert seed_event_seq >= 1
+
+    batch_key = f"bulk-civil-batch-{uuid.uuid4()}"
+    batch_label = f"Bulk Civilization Insert-{uuid.uuid4().hex[:6]}"
+    batch_payload = {
+        "mode": "commit",
+        "idempotency_key": batch_key,
+        "galaxy_id": galaxy_id,
+        "tasks": [
+            {
+                "action": "UPDATE_ASTEROID",
+                "params": {
+                    "asteroid_id": seed_id,
+                    "metadata": {"state": "reviewed"},
+                    "expected_event_seq": seed_event_seq,
+                },
+            },
+            {
+                "action": "INGEST",
+                "params": {
+                    "value": batch_label,
+                    "metadata": {
+                        "table": planet_name,
+                        "entity_id": f"bulk-batch-{uuid.uuid4().hex[:8]}",
+                        "label": batch_label,
+                        "state": "active",
+                    },
+                },
+            },
+        ],
+    }
+    first_batch = client.post("/tasks/execute-batch", json=batch_payload)
+    assert first_batch.status_code == 200, first_batch.text
+    assert first_batch.json()["mode"] == "commit"
+    assert first_batch.json()["task_count"] == 2
+
+    detail_after_batch = client.get(f"/civilizations/{seed_id}", params={"galaxy_id": galaxy_id})
+    assert detail_after_batch.status_code == 200, detail_after_batch.text
+    detail_after_batch_body = detail_after_batch.json()
+    facts_by_key_after_batch = {item["key"]: item for item in detail_after_batch_body.get("facts", [])}
+    assert facts_by_key_after_batch["state"]["typed_value"] == "reviewed"
+    seq_after_batch = int(detail_after_batch_body.get("current_event_seq") or 0)
+    assert seq_after_batch == seed_event_seq + 1
+
+    list_after_batch = client.get("/civilizations", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
+    assert list_after_batch.status_code == 200, list_after_batch.text
+    rows_after_batch = list_after_batch.json().get("items", [])
+    assert len(rows_after_batch) == 2
+    inserted_row = next((item for item in rows_after_batch if item.get("label") == batch_label), None)
+    assert inserted_row is not None
+    inserted_row_id = str(inserted_row.get("moon_id"))
+
+    replay_batch = client.post("/tasks/execute-batch", json=batch_payload)
+    assert replay_batch.status_code == 200, replay_batch.text
+    assert replay_batch.json()["task_count"] == 2
+
+    detail_after_replay = client.get(f"/civilizations/{seed_id}", params={"galaxy_id": galaxy_id})
+    assert detail_after_replay.status_code == 200, detail_after_replay.text
+    assert int(detail_after_replay.json().get("current_event_seq") or 0) == seq_after_batch
+
+    list_after_replay = client.get("/civilizations", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
+    assert list_after_replay.status_code == 200, list_after_replay.text
+    rows_after_replay = list_after_replay.json().get("items", [])
+    assert len(rows_after_replay) == 2
+    inserted_rows_after_replay = [item for item in rows_after_replay if item.get("label") == batch_label]
+    assert len(inserted_rows_after_replay) == 1
+    assert str(inserted_rows_after_replay[0].get("moon_id")) == inserted_row_id
+
+    key_conflict_payload = {
+        **batch_payload,
+        "tasks": [
+            {
+                "action": "UPDATE_ASTEROID",
+                "params": {
+                    "asteroid_id": seed_id,
+                    "metadata": {"state": "other"},
+                    "expected_event_seq": seed_event_seq,
+                },
+            }
+        ],
+    }
+    key_conflict = client.post("/tasks/execute-batch", json=key_conflict_payload)
+    assert key_conflict.status_code == 409, key_conflict.text
+    assert "Idempotency key" in key_conflict.text
+
+    stale_expected_seq = seq_after_batch - 1
+    rollback_label = f"Bulk Civilization Rollback-{uuid.uuid4().hex[:6]}"
+    conflict_batch = client.post(
+        "/tasks/execute-batch",
+        json={
+            "mode": "commit",
+            "idempotency_key": f"bulk-civil-conflict-{uuid.uuid4()}",
+            "galaxy_id": galaxy_id,
+            "tasks": [
+                {
+                    "action": "INGEST",
+                    "params": {
+                        "value": rollback_label,
+                        "metadata": {
+                            "table": planet_name,
+                            "entity_id": f"bulk-rollback-{uuid.uuid4().hex[:8]}",
+                            "label": rollback_label,
+                            "state": "active",
+                        },
+                    },
+                },
+                {
+                    "action": "UPDATE_ASTEROID",
+                    "params": {
+                        "asteroid_id": seed_id,
+                        "metadata": {"state": "should-not-commit"},
+                        "expected_event_seq": stale_expected_seq,
+                    },
+                },
+            ],
+        },
+    )
+    detail = _assert_occ_conflict(conflict_batch, expected_event_seq=stale_expected_seq)
+    assert "update_asteroid" in str(detail.get("context", "")).lower()
+    assert detail.get("entity_id") == seed_id
+
+    list_after_conflict = client.get("/civilizations", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
+    assert list_after_conflict.status_code == 200, list_after_conflict.text
+    rows_after_conflict = list_after_conflict.json().get("items", [])
+    assert len(rows_after_conflict) == 2
+    assert all(item.get("label") != rollback_label for item in rows_after_conflict)
+
+    detail_after_conflict = client.get(f"/civilizations/{seed_id}", params={"galaxy_id": galaxy_id})
+    assert detail_after_conflict.status_code == 200, detail_after_conflict.text
+    detail_after_conflict_body = detail_after_conflict.json()
+    assert int(detail_after_conflict_body.get("current_event_seq") or 0) == seq_after_batch
+    facts_by_key_after_conflict = {item["key"]: item for item in detail_after_conflict_body.get("facts", [])}
+    assert facts_by_key_after_conflict["state"]["typed_value"] == "reviewed"
+
+
 def test_apply_bundle_preset_preview_and_commit(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
 
@@ -3336,6 +3505,68 @@ def test_moon_capability_first_class_endpoints(auth_client: tuple[httpx.Client, 
     history_items = listed_history.json().get("items", [])
     versions = sorted(int(item.get("version") or 0) for item in history_items)
     assert versions == [1, 2, 3]
+
+
+def test_moon_capability_matrix_forbids_same_key_class_transition(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"MoonMatrix > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"moon-matrix-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    created = client.post(
+        f"/planets/{planet_id}/capabilities",
+        json={
+            "galaxy_id": galaxy_id,
+            "capability_key": "cashflow.guard",
+            "capability_class": "validation",
+            "config": {
+                "validators": [
+                    {
+                        "id": "amount-positive",
+                        "field": "amount",
+                        "operator": ">",
+                        "value": 0,
+                    }
+                ]
+            },
+            "order_index": 15,
+            "status": "active",
+            "idempotency_key": f"moon-matrix-create-{uuid.uuid4()}",
+        },
+    )
+    assert created.status_code == 201, created.text
+    capability_id = created.json()["id"]
+    assert created.json()["capability_class"] == "validation"
+
+    forbidden_transition = client.patch(
+        f"/capabilities/{capability_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "expected_version": 1,
+            "capability_class": "formula",
+            "config": {"formula_registry": [{"id": "vat", "target": "vat", "expression": "SUM(amount)"}]},
+            "idempotency_key": f"moon-matrix-forbidden-{uuid.uuid4()}",
+        },
+    )
+    assert forbidden_transition.status_code == 409, forbidden_transition.text
+    detail = forbidden_transition.json().get("detail", {})
+    assert isinstance(detail, dict)
+    assert detail.get("code") == "MOON_CAPABILITY_MATRIX_CONFLICT"
+    assert detail.get("reason") == "capability_class_change_forbidden"
+    assert detail.get("matrix_version") == "v1"
+    assert detail.get("capability_key") == "cashflow.guard"
+    assert detail.get("current_class") == "validation"
+    assert detail.get("requested_class") == "formula"
 
 
 def test_moon_capability_entity_lifecycle_and_projection_convergence(auth_client: tuple[httpx.Client, str]) -> None:
@@ -3795,6 +4026,112 @@ def test_civilization_first_class_alias_endpoints(auth_client: tuple[httpx.Clien
 
     missing_after_delete = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
     assert missing_after_delete.status_code == 404, missing_after_delete.text
+
+
+def test_moons_alias_deprecation_marker_and_parity(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"MoonAliasParity > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"moon-alias-parity-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    created = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "Moon Alias Parity Seed",
+            "minerals": {
+                "entity_id": f"moon-alias-{uuid.uuid4().hex[:8]}",
+                "label": "Moon Alias Parity Seed",
+                "state": "active",
+            },
+            "idempotency_key": f"moon-alias-parity-create-{uuid.uuid4()}",
+        },
+    )
+    assert created.status_code == 201, created.text
+    moon_id = created.json()["moon_id"]
+    expected_event_seq = int(created.json().get("current_event_seq") or 0)
+    assert expected_event_seq >= 1
+
+    def _assert_moons_alias_headers(response: httpx.Response) -> None:
+        assert response.headers.get("X-Dataverse-Deprecated-Alias") == "true"
+        assert response.headers.get("X-Dataverse-Canonical-Route") == "/civilizations"
+
+    listed_civilizations = client.get(
+        "/civilizations",
+        params={"galaxy_id": galaxy_id, "planet_id": planet_id},
+    )
+    assert listed_civilizations.status_code == 200, listed_civilizations.text
+    listed_moons = client.get("/moons", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
+    assert listed_moons.status_code == 200, listed_moons.text
+    _assert_moons_alias_headers(listed_moons)
+    civ_item = next(
+        (item for item in listed_civilizations.json().get("items", []) if item.get("moon_id") == moon_id),
+        None,
+    )
+    moon_item = next((item for item in listed_moons.json().get("items", []) if item.get("moon_id") == moon_id), None)
+    assert civ_item is not None
+    assert moon_item is not None
+    assert moon_item["moon_id"] == civ_item["moon_id"]
+    assert moon_item["planet_id"] == civ_item["planet_id"]
+    assert moon_item["label"] == civ_item["label"]
+    assert moon_item["current_event_seq"] == civ_item["current_event_seq"]
+
+    detail_civilization = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert detail_civilization.status_code == 200, detail_civilization.text
+    detail_moon = client.get(f"/moons/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert detail_moon.status_code == 200, detail_moon.text
+    _assert_moons_alias_headers(detail_moon)
+    detail_civ_facts = {item["key"]: item for item in detail_civilization.json().get("facts", [])}
+    detail_moon_facts = {item["key"]: item for item in detail_moon.json().get("facts", [])}
+    assert detail_moon_facts == detail_civ_facts
+
+    mutated_moon = client.patch(
+        f"/moons/{moon_id}/mutate",
+        json={
+            "galaxy_id": galaxy_id,
+            "minerals": {"state": "archived"},
+            "expected_event_seq": expected_event_seq,
+            "idempotency_key": f"moon-alias-parity-mutate-{uuid.uuid4()}",
+        },
+    )
+    assert mutated_moon.status_code == 200, mutated_moon.text
+    _assert_moons_alias_headers(mutated_moon)
+    mutated_moon_body = mutated_moon.json()
+    mutated_event_seq = int(mutated_moon_body.get("current_event_seq") or 0)
+    assert mutated_event_seq > expected_event_seq
+    moon_facts_by_key = {item["key"]: item for item in mutated_moon_body.get("facts", [])}
+    assert moon_facts_by_key["state"]["typed_value"] == "archived"
+
+    detail_civilization_after_mutate = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert detail_civilization_after_mutate.status_code == 200, detail_civilization_after_mutate.text
+    civ_facts_after_mutate = {item["key"]: item for item in detail_civilization_after_mutate.json().get("facts", [])}
+    assert civ_facts_after_mutate["state"]["typed_value"] == "archived"
+
+    extinguished_moon = client.patch(
+        f"/moons/{moon_id}/extinguish",
+        params={
+            "galaxy_id": galaxy_id,
+            "expected_event_seq": mutated_event_seq,
+            "idempotency_key": f"moon-alias-parity-extinguish-{uuid.uuid4()}",
+        },
+    )
+    assert extinguished_moon.status_code == 200, extinguished_moon.text
+    _assert_moons_alias_headers(extinguished_moon)
+    assert extinguished_moon.json()["is_deleted"] is True
+
+    missing_after_extinguish = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert missing_after_extinguish.status_code == 404, missing_after_extinguish.text
 
 
 def test_civilization_contract_gate_create_mutate_extinguish_and_converge(

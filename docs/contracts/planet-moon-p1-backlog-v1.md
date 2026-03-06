@@ -1,6 +1,6 @@
 # Planet+Moon P1 Backlog v1
 
-Status: active
+Status: closed
 Date: 2026-03-06
 Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/upgrade/adr-moon-civilization-runtime-alias-migration-v1.md`
 
@@ -20,6 +20,15 @@ P0 closure prerequisite is satisfied (`PM-P0-01` .. `PM-P0-08` all green).
 2. `PM-P1-02` Compatibility window (`/moons*` parity + deprecation marker).
 3. `PM-P1-03` Capability compatibility matrix freeze.
 4. `PM-P1-04` Planet visual-law parity gate.
+
+Current state:
+- `PM-P1-01`: closed (canonical-first FE runtime routes + gate implemented).
+- `PM-P1-02`: closed (`/moons*` deprecation marker + parity gates implemented).
+- `PM-P1-03`: closed (capability matrix v1 freeze + machine-readable conflict guard).
+- `PM-P1-04`: closed (planet visual-law parity gate + FE authoritative mapping helper).
+
+Closure status:
+- All `PM-P1-*` rows are `GREEN` in `docs/contracts/planet-moon-dod-v3.md`.
 
 ## 3. Scope items
 

@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "scope": "moon-capability-matrix-v1",
+  "matrix_version": "v1",
+  "classes": [
+    "bridge",
+    "dictionary",
+    "formula",
+    "validation"
+  ],
+  "rules": [
+    {
+      "id": "same_key_class_immutable",
+      "type": "forbidden_transition",
+      "code": "MOON_CAPABILITY_MATRIX_CONFLICT",
+      "reason": "capability_class_change_forbidden",
+      "http_status": 409
+    }
+  ]
+}

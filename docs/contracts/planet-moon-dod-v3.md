@@ -145,6 +145,29 @@ DoD:
 1. FE offers deterministic repair suggestions for known contract violations.
 2. Repair actions remain idempotent and auditable.
 
+P2 closure record (2026-03-06):
+1. `PM-P2-01` is GREEN.
+2. `PM-P2-02` is GREEN.
+3. `PM-P2-03` is GREEN.
+
+## 3.4 P3 (Planet Builder UX flow hardening)
+
+### P3.1 Deterministic builder state machine + causal guidance
+
+DoD:
+1. FE resolves one canonical builder state from runtime flags.
+2. Every active builder state has explicit "why" + "next action" copy.
+3. Recoverable errors keep user in the nearest valid builder step.
+
+## 3.5 P4 (Interactive wizard harness)
+
+### P4.1 Interactive wizard e2e harness
+
+DoD:
+1. FE has interactive wizard harness that simulates real user actions step-by-step.
+2. Harness validates blocked transitions and recover semantics under error.
+3. Harness gate is included in CI and release gate pack.
+
 ## 4. Test matrix (required gates)
 
 Legend:
@@ -161,13 +184,19 @@ Legend:
 | PM-P0-06 | P0 | Bridge Moon integrity | BE integration | GREEN | `tests/test_api_integration.py::test_bridge_integrity_soft_delete_and_replay_convergence` |
 | PM-P0-07 | P0 | E2E convergence baseline | BE integration | GREEN | `pytest -q tests/test_api_integration.py -k "release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence"` |
 | PM-P0-08 | P0 | FE replay convergence | FE gate | GREEN | `cd frontend && npm test -- --run src/components/universe/projectionConvergenceGate.test.js` |
-| PM-P1-01 | P1 | `/civilizations*` canonical runtime | FE contract gate | ADD | `frontend/src/lib/civilizationRuntimeRouteGate.test.js` |
-| PM-P1-02 | P1 | `/moons*` compatibility window | BE+FE contract | ADD | `tests/test_api_integration.py::test_moons_alias_deprecation_marker_and_parity` + FE route inventory gate |
-| PM-P1-03 | P1 | Capability compatibility matrix | BE machine gate | ADD | `tests/test_moon_contract_freeze_gate.py::test_capability_matrix_freeze_v1` |
-| PM-P1-04 | P1 | Planet visual-law parity | FE gate | ADD | `frontend/src/components/universe/planetPhysicsParity.test.js` |
-| PM-P2-01 | P2 | Bulk write resilience | BE integration | ADD | `tests/test_api_integration.py::test_bulk_civilization_writes_occ_idempotency` |
-| PM-P2-02 | P2 | Replay under load | BE+FE convergence | ADD | `tests/test_universe_projection_errors.py::test_projection_replay_convergence_under_load` + FE replay gate |
-| PM-P2-03 | P2 | Guided repair flow | FE e2e-like unit | ADD | `frontend/src/components/universe/repairFlowContract.test.js` |
+| PM-P1-01 | P1 | `/civilizations*` canonical runtime | FE contract gate | GREEN | `frontend/src/lib/civilizationRuntimeRouteGate.test.js` |
+| PM-P1-02 | P1 | `/moons*` compatibility window | BE+FE contract | GREEN | `tests/test_api_integration.py::test_moons_alias_deprecation_marker_and_parity` + FE route inventory gate |
+| PM-P1-03 | P1 | Capability compatibility matrix | BE machine gate | GREEN | `tests/test_moon_contract_freeze_gate.py::test_capability_matrix_freeze_v1` |
+| PM-P1-04 | P1 | Planet visual-law parity | FE gate | GREEN | `frontend/src/components/universe/planetPhysicsParity.test.js` |
+| PM-P2-01 | P2 | Bulk write resilience | BE integration | GREEN | `tests/test_api_integration.py::test_bulk_civilization_writes_occ_idempotency` |
+| PM-P2-02 | P2 | Replay under load | BE+FE convergence | GREEN | `tests/test_universe_projection_errors.py::test_projection_replay_convergence_under_load` + FE replay gate |
+| PM-P2-03 | P2 | Guided repair flow | FE e2e-like unit | GREEN | `frontend/src/components/universe/repairFlowContract.test.js` |
+| PM-P3-01 | P3 | Planet Builder state machine + guidance | FE contract gate | GREEN | `frontend/src/components/universe/planetBuilderFlow.test.js` |
+| PM-P3-02 | P3 | Planet Builder transition guards + recover | FE contract gate | GREEN | `frontend/src/components/universe/planetBuilderFlow.test.js` |
+| PM-P3-03 | P3 | Planet Builder mission scenario (lock -> convergence) | FE e2e-like unit | GREEN | `frontend/src/components/universe/planetBuilderMissionFlow.test.js` |
+| PM-P4-01 | P4 | Interactive wizard harness (mission + guards + recover) | FE e2e-like harness | GREEN | `frontend/src/components/universe/planetBuilderWizardHarness.test.js` |
+| PM-P4-02 | P4 | Component-level wizard harness with real UI events | FE component harness | GREEN | `frontend/src/components/universe/planetBuilderWizardPanel.component.test.jsx` |
+| PM-P4-03 | P4 | Browser smoke (Playwright) lock -> converged | FE browser e2e smoke | GREEN | `frontend/e2e/planet-builder-wizard-smoke.spec.mjs` |
 
 ## 5. Exit criteria by phase
 
@@ -188,6 +217,28 @@ Legend:
 1. Bulk/replay resilience gates are green.
 2. Observability signals are available for on-call diagnosis.
 3. Guided repair flows are deterministic and audited.
+
+### Planet+Moon v3 P3 kickoff
+
+1. Planet Builder runtime flow has canonical FE state machine gate.
+2. Causal guidance copy is rendered for each active builder state.
+
+### Planet+Moon v3 P3 progress
+
+1. Transition guards block invalid builder actions by state.
+2. Recover action returns to the last valid builder step.
+3. FE mission scenario gate validates deterministic state sequence from star lock to convergence.
+
+### Planet+Moon v3 P4 kickoff
+
+1. Interactive wizard harness simulates real builder actions and validates outcomes end-to-end.
+2. Component-level and browser-level smoke gates are green.
+
+### Planet+Moon v3 P4 closure
+
+1. Interactive harness (`PM-P4-01`) is green.
+2. Component UI-event harness (`PM-P4-02`) is green.
+3. Browser smoke (`PM-P4-03`) is green.
 
 ## 6. Out of scope for this document
 

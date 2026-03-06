@@ -137,7 +137,10 @@ export function buildContractViolationMessage(input, { fallbackMessage = "Operac
   if (detail.actual_value !== null) parts.push(`hodnota=${formatActualValue(detail.actual_value)}`);
   if (detail.expected_type) parts.push(`typ=${detail.expected_type}`);
   if (detail.operator) {
-    const operatorPart = detail.expected_value !== null ? `${detail.operator} ${formatActualValue(detail.expected_value)}` : detail.operator;
+    const operatorPart =
+      detail.expected_value !== null
+        ? `${detail.operator} ${formatActualValue(detail.expected_value)}`
+        : detail.operator;
     parts.push(`podminka=${operatorPart}`);
   }
   if (detail.rule_id) parts.push(`rule_id=${detail.rule_id}`);

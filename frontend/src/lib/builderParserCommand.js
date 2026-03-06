@@ -89,7 +89,8 @@ export function buildBuilderParserCommand(action) {
     .toUpperCase();
   if (kind === "LINK_MOONS" || kind === "LINK_CIVILIZATIONS") return buildLinkCivilizationsCommand(action);
   if (kind === "TYPE_MOONS" || kind === "TYPE_CIVILIZATIONS") return buildTypeCivilizationsCommand(action);
-  if (kind === "EXTINGUISH_MOON" || kind === "EXTINGUISH_CIVILIZATION") return buildExtinguishCivilizationCommand(action);
+  if (kind === "EXTINGUISH_MOON" || kind === "EXTINGUISH_CIVILIZATION")
+    return buildExtinguishCivilizationCommand(action);
   if (kind === "INGEST_MOON" || kind === "INGEST_CIVILIZATION") return buildIngestCivilizationCommand(action);
   return "";
 }

@@ -1,7 +1,7 @@
 # Moon Capability Contract v1
 
-Status: frozen (MVP sign-off)  
-Date: 2026-03-05  
+Status: frozen (MVP sign-off)
+Date: 2026-03-05
 Depends on: `docs/contracts/table-contract-v1.md`, `docs/contracts/api-v1.md`
 
 ## 1. Purpose
@@ -76,6 +76,7 @@ Canonical row API (implemented, naming-aligned):
 2. Moon capability changes are versioned by contract history.
 3. Moon capability effects are deterministic for the same input timeline.
 4. No Moon capability may introduce hard-delete semantics.
+5. Capability class transition is forbidden for the same `capability_key` (matrix v1).
 
 ## 7. Known MVP gap
 

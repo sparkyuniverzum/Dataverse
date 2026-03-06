@@ -58,6 +58,8 @@ frontend/.vite/
 frontend/.eslintcache
 frontend/.cache/
 frontend/*.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
 
 npm-debug.log*
 yarn-debug.log*

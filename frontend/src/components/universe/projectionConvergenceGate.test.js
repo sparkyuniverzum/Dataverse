@@ -139,4 +139,77 @@ describe("projection convergence gate", () => {
       expect(report.reason).toBe("ok");
     });
   });
+
+  it("stays converged under high-volume stream replay", () => {
+    let nextRowNumber = 64;
+    const members = Array.from({ length: nextRowNumber }, (_, index) => `load-${index + 1}`);
+    const asteroids = members.map((id, index) => ({
+      id,
+      value: `LoadRow-${index + 1}`,
+      metadata: { amount: index + 1 },
+    }));
+    const bonds = members.slice(1).map((id, index) => ({
+      id: `bond-load-${index + 1}`,
+      source_id: members[index],
+      target_id: id,
+      type: "RELATION",
+    }));
+    let projection = makeProjection({ members, asteroids, bonds });
+
+    let cursor = 0;
+    let refreshes = 0;
+    const totalFrames = 100;
+
+    for (let seq = 1; seq <= totalFrames; seq += 1) {
+      const frame = {
+        id: String(seq),
+        event: seq % 11 === 0 ? "keepalive" : "update",
+        data: { last_event_seq: seq },
+      };
+      const decision = applySseFrameCursor(frame, cursor);
+      cursor = decision.cursor;
+      if (!decision.shouldRefresh) continue;
+      refreshes += 1;
+
+      if (seq % 16 === 0) {
+        nextRowNumber += 1;
+        const nextId = `load-${nextRowNumber}`;
+        projection = makeProjection({
+          members: [...projection.tables[0].members.map((item) => item.id), nextId],
+          asteroids: [
+            ...projection.snapshot.asteroids.map((row) => ({
+              id: row.id,
+              value: row.value,
+              metadata: row.metadata,
+              table_id: row.table_id,
+            })),
+            { id: nextId, value: `LoadRow-${nextRowNumber}`, metadata: { amount: nextRowNumber } },
+          ],
+          bonds: [
+            ...projection.snapshot.bonds.map((row) => ({
+              id: row.id,
+              source_id: row.source_id,
+              target_id: row.target_id,
+              type: row.type,
+            })),
+            {
+              id: `bond-load-${nextRowNumber - 1}`,
+              source_id: `load-${nextRowNumber - 1}`,
+              target_id: nextId,
+              type: "RELATION",
+            },
+          ],
+        });
+      }
+
+      const report = evaluateProjectionConvergence(projection);
+      expect(report.ok).toBe(true);
+      expect(report.reason).toBe("ok");
+    }
+
+    expect(cursor).toBe(totalFrames);
+    expect(refreshes).toBeGreaterThan(75);
+    expect(projection.tables[0].members).toHaveLength(nextRowNumber);
+    expect(projection.snapshot.asteroids).toHaveLength(nextRowNumber);
+  }, 20000);
 });

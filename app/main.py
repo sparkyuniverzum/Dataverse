@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from fastapi import Request
+
 from app.api.routers.asteroids import router as asteroids_router
 from app.api.routers.bonds import router as bonds_router
 from app.api.routers.branches import router as branches_router
@@ -17,6 +19,22 @@ from app.app_factory import create_app
 from app.modules.auth.router import router as auth_router
 
 app = create_app()
+
+
+def _is_moons_alias_path(path: str) -> bool:
+    normalized = str(path or "").strip()
+    return normalized == "/moons" or normalized.startswith("/moons/")
+
+
+@app.middleware("http")
+async def moons_alias_deprecation_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if _is_moons_alias_path(request.url.path):
+        response.headers["X-Dataverse-Deprecated-Alias"] = "true"
+        response.headers["X-Dataverse-Canonical-Route"] = "/civilizations"
+    return response
+
+
 app.include_router(auth_router)
 app.include_router(galaxies_router)
 app.include_router(branches_router)
