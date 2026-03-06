@@ -10,6 +10,7 @@ from app.schema_models.branch_contracts import (  # noqa: F401
 from app.schema_models.dashboard import *  # noqa: F401,F403
 from app.schema_models.execution import *  # noqa: F401,F403
 from app.schema_models.io_models import *  # noqa: F401,F403
+from app.schema_models.moon_capabilities import *  # noqa: F401,F403
 from app.schema_models.moons import *  # noqa: F401,F403
 from app.schema_models.planetary import *  # noqa: F401,F403
 from app.schema_models.presets import *  # noqa: F401,F403

@@ -29,6 +29,7 @@ PYTHONPATH=. "$PYTEST_BIN" -q tests/test_api_v1_openapi_freeze.py
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_galaxy_workspace_contract_baseline.py
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_moon_contract_baseline.py
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_moon_contract_freeze_gate.py
+PYTHONPATH=. "$PYTEST_BIN" -q tests/test_moon_contracts.py -k "capability_composition_order_and_conflict_policy"
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_civilization_contract_baseline.py
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_mineral_contract_baseline.py
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_semantic_constitution_contract.py
@@ -38,7 +39,7 @@ PYTHONPATH=. "$PYTEST_BIN" -q tests/test_schemas_table_contract.py
 
 echo
 echo "[star-contract-gate] backend integration closure gates"
-PYTHONPATH=. "$PYTEST_BIN" -q tests/test_api_integration.py -k "star_core_endpoint_by_endpoint_closure_v2 or moon_first_class_crud_endpoints or civilization_first_class_alias_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or release_gate_star_lock_first_planet_grid_convergence or release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence or semantic_constitution_endpoint_by_endpoint_closure_v1 or auth_session_lifecycle_login_refresh_logout_and_me"
+PYTHONPATH=. "$PYTEST_BIN" -q tests/test_api_integration.py -k "star_core_endpoint_by_endpoint_closure_v2 or moon_first_class_crud_endpoints or moon_capability_entity_lifecycle_and_projection_convergence or contract_evolution_revalidate_backfill_mark_invalid or civilization_first_class_alias_endpoints or civilization_contract_gate_create_mutate_extinguish_and_converge or mineral_contract_gate_typing_validation_and_facts_projection or contract_violation_explainability_payload_shape or bridge_integrity_soft_delete_and_replay_convergence or release_gate_star_lock_first_planet_grid_convergence or release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence or semantic_constitution_endpoint_by_endpoint_closure_v1 or auth_session_lifecycle_login_refresh_logout_and_me"
 PYTHONPATH=. "$PYTEST_BIN" -q tests/test_star_core_integration_freeze.py
 
 echo
@@ -53,6 +54,7 @@ npm --prefix frontend test -- --run \
   src/lib/semanticConstitutionContract.test.js \
   src/lib/moonContract.test.js \
   src/components/universe/workspaceContract.test.js \
+  src/components/universe/workspaceContractExplainability.test.js \
   src/components/universe/workspaceFormatters.test.js \
   src/components/universe/projectionConvergenceGate.test.js \
   src/components/universe/moonWriteDefaults.test.js \

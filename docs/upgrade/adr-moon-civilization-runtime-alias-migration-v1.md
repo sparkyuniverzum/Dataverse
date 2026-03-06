@@ -55,6 +55,10 @@ Phase 1 implementation status:
 2. Keep compatibility fallback for legacy clients.
 3. Keep contract gates for both surfaces.
 
+Phase 2 implementation status:
+1. FE workspace row runtime now uses `/civilizations*` as primary write path.
+2. Legacy fallback to `/moons*` is preserved for compatibility statuses (`404/405/501`).
+
 ### Phase 3
 
 1. Mark `/moons*` as deprecated in OpenAPI and release notes.

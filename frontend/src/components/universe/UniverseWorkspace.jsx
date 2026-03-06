@@ -13,6 +13,9 @@ import {
   API_BASE,
   apiErrorFromResponse,
   apiFetch,
+  buildCivilizationCreateUrl,
+  buildCivilizationExtinguishUrl,
+  buildCivilizationMutateUrl,
   buildMoonCreateUrl,
   buildMoonExtinguishUrl,
   buildMoonMutateUrl,
@@ -52,6 +55,7 @@ import {
   summarizeStageZeroSchemaDraft,
 } from "./stageZeroBuilder";
 import { buildMoonCreateMinerals } from "./moonWriteDefaults";
+import { buildContractViolationMessage } from "./workspaceContractExplainability";
 import { readWorkspaceUiState, writeWorkspaceUiState } from "./workspaceUiPersistence";
 import { collectGridColumns, normalizeText, readGridCell, tableDisplayName, valueToLabel } from "./workspaceFormatters";
 
@@ -187,6 +191,8 @@ function nextIdempotencyKey(prefix) {
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
+
+const LEGACY_ROW_ENDPOINT_FALLBACK_STATUSES = new Set([404, 405, 501]);
 
 export default function UniverseWorkspace({
   galaxy,
@@ -960,6 +966,12 @@ export default function UniverseWorkspace({
         { name: "Rent", amount: -17000, type: "EXPENSE" },
         { name: "Groceries", amount: -4200, type: "EXPENSE" },
       ];
+
+      const postCivilization = async (payload) => {
+        const primary = await apiFetch(buildCivilizationCreateUrl(API_BASE), payload);
+        if (!LEGACY_ROW_ENDPOINT_FALLBACK_STATUSES.has(primary.status)) return primary;
+        return apiFetch(buildMoonCreateUrl(API_BASE), payload);
+      };
       for (const row of rows) {
         const minerals = {
           ...buildMoonCreateMinerals({ label: row.name, contract: nextPayload }),
@@ -967,7 +979,7 @@ export default function UniverseWorkspace({
           amount: row.amount,
           transaction_type: row.type,
         };
-        const ingest = await apiFetch(buildMoonCreateUrl(API_BASE), {
+        const ingest = await postCivilization({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1110,7 +1122,11 @@ export default function UniverseWorkspace({
           setRuntimeError(buildOccConflictMessage(createError, "vytvoreni vazby"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(createError?.message || "Vazbu se nepodarilo vytvorit.");
+          setRuntimeError(
+            buildContractViolationMessage(createError, {
+              fallbackMessage: createError?.message || "Vazbu se nepodarilo vytvorit.",
+            })
+          );
         }
       } finally {
         setBusy(false);
@@ -1173,17 +1189,25 @@ export default function UniverseWorkspace({
           label: trimmed,
           contract: tableContract,
         });
-        const response = await apiFetch(buildMoonCreateUrl(API_BASE), {
+        const createPayload = {
+          label: trimmed,
+          minerals,
+          planet_id: selectedTableId,
+          galaxy_id: galaxyId,
+          idempotency_key: nextIdempotencyKey("ingest"),
+        };
+        let response = await apiFetch(buildCivilizationCreateUrl(API_BASE), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            label: trimmed,
-            minerals,
-            planet_id: selectedTableId,
-            galaxy_id: galaxyId,
-            idempotency_key: nextIdempotencyKey("ingest"),
-          }),
+          body: JSON.stringify(createPayload),
         });
+        if (LEGACY_ROW_ENDPOINT_FALLBACK_STATUSES.has(response.status)) {
+          response = await apiFetch(buildMoonCreateUrl(API_BASE), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(createPayload),
+          });
+        }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo vytvorit: ${response.status}`);
         }
@@ -1216,7 +1240,11 @@ export default function UniverseWorkspace({
           });
           parserTelemetryRecorded = true;
         }
-        setRuntimeError(createError?.message || "Civilizaci se nepodarilo vytvorit.");
+        setRuntimeError(
+          buildContractViolationMessage(createError, {
+            fallbackMessage: createError?.message || "Civilizaci se nepodarilo vytvorit.",
+          })
+        );
         return false;
       } finally {
         setPendingCreate(false);
@@ -1252,16 +1280,24 @@ export default function UniverseWorkspace({
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "mutate" }));
       clearRuntimeError();
       try {
-        const response = await apiFetch(buildMoonMutateUrl(API_BASE, targetId), {
+        const mutatePayload = {
+          label: value,
+          galaxy_id: galaxyId,
+          idempotency_key: nextIdempotencyKey("mutate"),
+          ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
+        };
+        let response = await apiFetch(buildCivilizationMutateUrl(API_BASE, targetId), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            label: value,
-            galaxy_id: galaxyId,
-            idempotency_key: nextIdempotencyKey("mutate"),
-            ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
-          }),
+          body: JSON.stringify(mutatePayload),
         });
+        if (LEGACY_ROW_ENDPOINT_FALLBACK_STATUSES.has(response.status)) {
+          response = await apiFetch(buildMoonMutateUrl(API_BASE, targetId), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mutatePayload),
+          });
+        }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo upravit: ${response.status}`);
         }
@@ -1271,7 +1307,11 @@ export default function UniverseWorkspace({
           setRuntimeError(buildOccConflictMessage(updateError, "uprava civilizace"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(updateError?.message || "Civilizaci se nepodarilo upravit.");
+          setRuntimeError(
+            buildContractViolationMessage(updateError, {
+              fallbackMessage: updateError?.message || "Civilizaci se nepodarilo upravit.",
+            })
+          );
         }
       } finally {
         setPendingRowOps((prev) => {
@@ -1328,16 +1368,25 @@ export default function UniverseWorkspace({
         }
 
         fallbackAttempted = true;
-        const url = new URL(buildMoonExtinguishUrl(API_BASE, targetId));
-        url.searchParams.set("galaxy_id", galaxyId);
-        url.searchParams.set("idempotency_key", nextIdempotencyKey("extinguish"));
-        if (expectedEventSeq !== null) {
-          url.searchParams.set("expected_event_seq", String(expectedEventSeq));
-        }
-
-        const response = await apiFetch(url.toString(), {
+        const extinguishIdempotencyKey = nextIdempotencyKey("extinguish");
+        const buildExtinguishUrl = (baseBuilder) => {
+          const url = new URL(baseBuilder(API_BASE, targetId));
+          url.searchParams.set("galaxy_id", galaxyId);
+          url.searchParams.set("idempotency_key", extinguishIdempotencyKey);
+          if (expectedEventSeq !== null) {
+            url.searchParams.set("expected_event_seq", String(expectedEventSeq));
+          }
+          return url.toString();
+        };
+        let response = await apiFetch(buildExtinguishUrl(buildCivilizationExtinguishUrl), {
           method: "PATCH",
         });
+        if (LEGACY_ROW_ENDPOINT_FALLBACK_STATUSES.has(response.status)) {
+          response = await apiFetch(buildExtinguishUrl(buildMoonExtinguishUrl), {
+            method: "PATCH",
+          });
+        }
+
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo zhasnout: ${response.status}`);
         }
@@ -1371,7 +1420,11 @@ export default function UniverseWorkspace({
           setRuntimeError(buildOccConflictMessage(deleteError, "zhasnuti civilizace"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(deleteError?.message || "Civilizaci se nepodarilo zhasnout.");
+          setRuntimeError(
+            buildContractViolationMessage(deleteError, {
+              fallbackMessage: deleteError?.message || "Civilizaci se nepodarilo zhasnout.",
+            })
+          );
         }
       } finally {
         setPendingRowOps((prev) => {
@@ -1413,16 +1466,24 @@ export default function UniverseWorkspace({
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "metadata" }));
       clearRuntimeError();
       try {
-        const response = await apiFetch(buildMoonMutateUrl(API_BASE, targetId), {
+        const mutatePayload = {
+          minerals: nextMetadata,
+          galaxy_id: galaxyId,
+          idempotency_key: nextIdempotencyKey("metadata"),
+          ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
+        };
+        let response = await apiFetch(buildCivilizationMutateUrl(API_BASE, targetId), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            minerals: nextMetadata,
-            galaxy_id: galaxyId,
-            idempotency_key: nextIdempotencyKey("metadata"),
-            ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
-          }),
+          body: JSON.stringify(mutatePayload),
         });
+        if (LEGACY_ROW_ENDPOINT_FALLBACK_STATUSES.has(response.status)) {
+          response = await apiFetch(buildMoonMutateUrl(API_BASE, targetId), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mutatePayload),
+          });
+        }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Nerost se nepodarilo ulozit: ${response.status}`);
         }
@@ -1433,7 +1494,11 @@ export default function UniverseWorkspace({
           setRuntimeError(buildOccConflictMessage(metadataError, "uprava nerostu"));
           await refreshProjection({ silent: true });
         } else {
-          setRuntimeError(metadataError?.message || "Nerost se nepodarilo ulozit.");
+          setRuntimeError(
+            buildContractViolationMessage(metadataError, {
+              fallbackMessage: metadataError?.message || "Nerost se nepodarilo ulozit.",
+            })
+          );
         }
         return false;
       } finally {

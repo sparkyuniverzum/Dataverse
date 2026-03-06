@@ -35,6 +35,7 @@
       "GET /moons",
       "GET /moons/{moon_id}",
       "GET /planets",
+      "GET /planets/{planet_id}/capabilities",
       "GET /planets/{table_id}",
       "GET /presets/catalog",
       "GET /universe/snapshot",
@@ -43,6 +44,8 @@
       "PATCH /asteroids/{asteroid_id}/mutate",
       "PATCH /bonds/{bond_id}/extinguish",
       "PATCH /bonds/{bond_id}/mutate",
+      "PATCH /capabilities/{capability_id}",
+      "PATCH /capabilities/{capability_id}/deprecate",
       "PATCH /civilizations/{civilization_id}/extinguish",
       "PATCH /civilizations/{civilization_id}/mutate",
       "PATCH /galaxies/{galaxy_id}/extinguish",
@@ -67,12 +70,13 @@
       "POST /moons",
       "POST /parser/execute",
       "POST /planets",
+      "POST /planets/{planet_id}/capabilities",
       "POST /presets/apply",
       "POST /tasks/execute-batch"
     ],
     "required_security_schemes": [
       "OAuth2PasswordBearer"
     ],
-    "schema_sha256": "9c725a5867a633fbc7172a9e6a5d02d14506e99807e1cba468b6d99d1ac63ea4"
+    "schema_sha256": "5f20da076e615ecc17047662802a2540b7d13ed332b5df618b2ed6f8637c7dca"
   }
 }

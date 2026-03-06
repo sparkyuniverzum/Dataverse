@@ -2784,6 +2784,159 @@ def test_bond_extinguish_soft_deletes_link(auth_client: tuple[httpx.Client, str]
     assert body["id"] not in bond_ids
 
 
+def test_bridge_integrity_soft_delete_and_replay_convergence(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+
+    source_planet_name = f"BridgeSrc > Planet-{uuid.uuid4().hex[:8]}"
+    target_planet_name = f"BridgeDst > Planet-{uuid.uuid4().hex[:8]}"
+    source_planet = client.post(
+        "/planets",
+        json={
+            "name": source_planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"bridge-src-planet-{uuid.uuid4()}",
+        },
+    )
+    target_planet = client.post(
+        "/planets",
+        json={
+            "name": target_planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"bridge-dst-planet-{uuid.uuid4()}",
+        },
+    )
+    assert source_planet.status_code == 201, source_planet.text
+    assert target_planet.status_code == 201, target_planet.text
+    source_table_id = source_planet.json()["table_id"]
+    target_table_id = target_planet.json()["table_id"]
+
+    created_source = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": source_table_id,
+            "label": "Bridge Source",
+            "minerals": {
+                "entity_id": f"bridge-src-{uuid.uuid4().hex[:8]}",
+                "label": "Bridge Source",
+                "state": "active",
+            },
+            "idempotency_key": f"bridge-src-civ-{uuid.uuid4()}",
+        },
+    )
+    created_target = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": target_table_id,
+            "label": "Bridge Target",
+            "minerals": {
+                "entity_id": f"bridge-dst-{uuid.uuid4().hex[:8]}",
+                "label": "Bridge Target",
+                "state": "active",
+            },
+            "idempotency_key": f"bridge-dst-civ-{uuid.uuid4()}",
+        },
+    )
+    assert created_source.status_code == 201, created_source.text
+    assert created_target.status_code == 201, created_target.text
+    source_row_id = created_source.json()["moon_id"]
+    target_row_id = created_target.json()["moon_id"]
+    source_expected_seq = int(created_source.json().get("current_event_seq") or 0)
+    assert source_expected_seq >= 1
+
+    linked = client.post(
+        "/bonds/link",
+        json={
+            "source_id": source_row_id,
+            "target_id": target_row_id,
+            "type": "RELATION",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert linked.status_code == 200, linked.text
+    linked_body = linked.json()
+    bridge_bond_id = linked_body["id"]
+    bridge_created_at = _parse_iso_datetime(linked_body["created_at"])
+
+    snapshot_before = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_before.status_code == 200, snapshot_before.text
+    before_rows = snapshot_before.json().get("asteroids", [])
+    before_bonds = snapshot_before.json().get("bonds", [])
+    before_row_ids = {row.get("id") for row in before_rows}
+    before_bond_ids = {bond.get("id") for bond in before_bonds}
+    assert source_row_id in before_row_ids
+    assert target_row_id in before_row_ids
+    assert bridge_bond_id in before_bond_ids
+
+    extinguished = client.patch(
+        f"/civilizations/{source_row_id}/extinguish",
+        params={
+            "galaxy_id": galaxy_id,
+            "expected_event_seq": source_expected_seq,
+            "idempotency_key": f"bridge-src-extinguish-{uuid.uuid4()}",
+        },
+    )
+    assert extinguished.status_code == 200, extinguished.text
+    ext_body = extinguished.json()
+    assert ext_body["moon_id"] == source_row_id
+    assert ext_body["is_deleted"] is True
+    assert ext_body["deleted_at"] is not None
+    deleted_at = _parse_iso_datetime(ext_body["deleted_at"])
+
+    snapshot_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_after.status_code == 200, snapshot_after.text
+    after_rows = snapshot_after.json().get("asteroids", [])
+    after_bonds = snapshot_after.json().get("bonds", [])
+    after_row_ids = {row.get("id") for row in after_rows}
+    after_bond_ids = {bond.get("id") for bond in after_bonds}
+    assert source_row_id not in after_row_ids
+    assert target_row_id in after_row_ids
+    assert bridge_bond_id not in after_bond_ids
+
+    tables_after = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+    assert tables_after.status_code == 200, tables_after.text
+    source_table_row = next(
+        (row for row in tables_after.json().get("tables", []) if row.get("table_id") == source_table_id),
+        None,
+    )
+    target_table_row = next(
+        (row for row in tables_after.json().get("tables", []) if row.get("table_id") == target_table_id),
+        None,
+    )
+    assert source_table_row is not None
+    assert target_table_row is not None
+    source_members = {item.get("id") for item in source_table_row.get("members", [])}
+    target_members = {item.get("id") for item in target_table_row.get("members", [])}
+    assert source_row_id not in source_members
+    assert target_row_id in target_members
+
+    as_of_alive = bridge_created_at.isoformat()
+    snapshot_alive = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id, "as_of": as_of_alive})
+    assert snapshot_alive.status_code == 200, snapshot_alive.text
+    alive_row_ids = {row.get("id") for row in snapshot_alive.json().get("asteroids", [])}
+    alive_bond_ids = {bond.get("id") for bond in snapshot_alive.json().get("bonds", [])}
+    assert source_row_id in alive_row_ids
+    assert target_row_id in alive_row_ids
+    assert bridge_bond_id in alive_bond_ids
+
+    as_of_after_delete = (deleted_at + timedelta(milliseconds=1)).isoformat()
+    snapshot_after_delete = client.get(
+        "/universe/snapshot",
+        params={"galaxy_id": galaxy_id, "as_of": as_of_after_delete},
+    )
+    assert snapshot_after_delete.status_code == 200, snapshot_after_delete.text
+    after_delete_row_ids = {row.get("id") for row in snapshot_after_delete.json().get("asteroids", [])}
+    after_delete_bond_ids = {bond.get("id") for bond in snapshot_after_delete.json().get("bonds", [])}
+    assert source_row_id not in after_delete_row_ids
+    assert target_row_id in after_delete_row_ids
+    assert bridge_bond_id not in after_delete_bond_ids
+
+
 def test_task_batch_preview_does_not_persist_changes(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     label = f"BatchPreview-{uuid.uuid4()}"
@@ -3055,6 +3208,508 @@ def test_moon_first_class_crud_endpoints(auth_client: tuple[httpx.Client, str]) 
 
     missing_after_delete = client.get(f"/moons/{moon_id}", params={"galaxy_id": galaxy_id})
     assert missing_after_delete.status_code == 404, missing_after_delete.text
+
+
+def test_moon_capability_first_class_endpoints(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"MoonCapability > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"moon-capability-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    listed_empty = client.get(f"/planets/{planet_id}/capabilities", params={"galaxy_id": galaxy_id})
+    assert listed_empty.status_code == 200, listed_empty.text
+    assert listed_empty.json().get("items", []) == []
+
+    create_idempotency_key = f"moon-capability-create-{uuid.uuid4()}"
+    create_payload = {
+        "galaxy_id": galaxy_id,
+        "capability_key": "cashflow.validation",
+        "capability_class": "validation",
+        "config": {"required_fields": ["amount"], "field_types": {"amount": "number"}},
+        "order_index": 10,
+        "status": "active",
+        "idempotency_key": create_idempotency_key,
+    }
+    created = client.post(f"/planets/{planet_id}/capabilities", json=create_payload)
+    assert created.status_code == 201, created.text
+    created_body = created.json()
+    capability_id = created_body["id"]
+    assert created_body["planet_id"] == planet_id
+    assert created_body["capability_key"] == "cashflow.validation"
+    assert created_body["capability_class"] == "validation"
+    assert created_body["status"] == "active"
+    assert int(created_body["version"]) == 1
+
+    effective_contract_after_create = client.get(f"/contracts/{planet_id}", params={"galaxy_id": galaxy_id})
+    assert effective_contract_after_create.status_code == 200, effective_contract_after_create.text
+    effective_contract_body = effective_contract_after_create.json()
+    assert "amount" in effective_contract_body.get("required_fields", [])
+    assert effective_contract_body.get("field_types", {}).get("amount") == "number"
+
+    replay = client.post(f"/planets/{planet_id}/capabilities", json=create_payload)
+    assert replay.status_code == 201, replay.text
+    replay_body = replay.json()
+    assert replay_body["id"] == capability_id
+    assert int(replay_body["version"]) == 1
+
+    updated = client.patch(
+        f"/capabilities/{capability_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "expected_version": 1,
+            "config": {"required_fields": ["amount", "transaction_type"], "field_types": {"amount": "number"}},
+            "order_index": 12,
+            "idempotency_key": f"moon-capability-update-{uuid.uuid4()}",
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    updated_body = updated.json()
+    assert updated_body["id"] != capability_id
+    assert updated_body["capability_key"] == "cashflow.validation"
+    assert updated_body["order_index"] == 12
+    assert int(updated_body["version"]) == 2
+    current_capability_id = updated_body["id"]
+
+    stale_update = client.patch(
+        f"/capabilities/{current_capability_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "expected_version": 1,
+            "config": {"required_fields": ["amount"]},
+            "idempotency_key": f"moon-capability-stale-{uuid.uuid4()}",
+        },
+    )
+    assert stale_update.status_code == 409, stale_update.text
+    stale_detail = stale_update.json().get("detail", {})
+    assert stale_detail.get("code") == "OCC_CONFLICT"
+    assert stale_detail.get("context") == "moon_capability_update"
+    assert stale_detail.get("expected_version") == 1
+    assert stale_detail.get("current_version") == 2
+
+    deprecated = client.patch(
+        f"/capabilities/{current_capability_id}/deprecate",
+        json={
+            "galaxy_id": galaxy_id,
+            "expected_version": 2,
+            "idempotency_key": f"moon-capability-deprecate-{uuid.uuid4()}",
+        },
+    )
+    assert deprecated.status_code == 200, deprecated.text
+    deprecated_body = deprecated.json()
+    assert deprecated_body["status"] == "deprecated"
+    assert int(deprecated_body["version"]) == 3
+
+    effective_contract_after_deprecate = client.get(f"/contracts/{planet_id}", params={"galaxy_id": galaxy_id})
+    assert effective_contract_after_deprecate.status_code == 200, effective_contract_after_deprecate.text
+    deprecated_contract_body = effective_contract_after_deprecate.json()
+    assert "amount" not in deprecated_contract_body.get("required_fields", [])
+
+    listed_default = client.get(f"/planets/{planet_id}/capabilities", params={"galaxy_id": galaxy_id})
+    assert listed_default.status_code == 200, listed_default.text
+    assert listed_default.json().get("items", []) == []
+
+    listed_inactive = client.get(
+        f"/planets/{planet_id}/capabilities",
+        params={"galaxy_id": galaxy_id, "include_inactive": True},
+    )
+    assert listed_inactive.status_code == 200, listed_inactive.text
+    inactive_items = listed_inactive.json().get("items", [])
+    assert len(inactive_items) == 1
+    assert inactive_items[0]["status"] == "deprecated"
+    assert int(inactive_items[0]["version"]) == 3
+
+    listed_history = client.get(
+        f"/planets/{planet_id}/capabilities",
+        params={"galaxy_id": galaxy_id, "include_inactive": True, "include_history": True},
+    )
+    assert listed_history.status_code == 200, listed_history.text
+    history_items = listed_history.json().get("items", [])
+    versions = sorted(int(item.get("version") or 0) for item in history_items)
+    assert versions == [1, 2, 3]
+
+
+def test_moon_capability_entity_lifecycle_and_projection_convergence(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"CapabilityLifecycle > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"capability-lifecycle-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    def assert_projection_converged() -> set[str]:
+        snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+        assert snapshot.status_code == 200, snapshot.text
+        snapshot_ids = {
+            str(row.get("id"))
+            for row in snapshot.json().get("asteroids", [])
+            if str(row.get("table_id")) == str(planet_id)
+        }
+
+        tables = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+        assert tables.status_code == 200, tables.text
+        table_row = next(
+            (row for row in tables.json().get("tables", []) if str(row.get("table_id")) == str(planet_id)),
+            None,
+        )
+        assert table_row is not None
+        member_ids = {str(item.get("id")) for item in table_row.get("members", [])}
+        assert member_ids == snapshot_ids
+        return snapshot_ids
+
+    created_capability = client.post(
+        f"/planets/{planet_id}/capabilities",
+        json={
+            "galaxy_id": galaxy_id,
+            "capability_key": "transaction.guard",
+            "capability_class": "validation",
+            "config": {
+                "required_fields": ["amount", "transaction_type"],
+                "field_types": {"amount": "number", "transaction_type": "string"},
+            },
+            "order_index": 15,
+            "status": "active",
+            "idempotency_key": f"capability-lifecycle-create-{uuid.uuid4()}",
+        },
+    )
+    assert created_capability.status_code == 201, created_capability.text
+    capability_body = created_capability.json()
+    capability_id = capability_body["id"]
+    assert capability_body["capability_key"] == "transaction.guard"
+    assert int(capability_body["version"]) == 1
+
+    effective_contract = client.get(f"/contracts/{planet_id}", params={"galaxy_id": galaxy_id})
+    assert effective_contract.status_code == 200, effective_contract.text
+    effective_body = effective_contract.json()
+    assert "amount" in effective_body.get("required_fields", [])
+    assert "transaction_type" in effective_body.get("required_fields", [])
+
+    first_row = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "Lifecycle Row 1",
+            "minerals": {
+                "entity_id": f"row-{uuid.uuid4().hex[:8]}",
+                "label": "Lifecycle Row 1",
+                "state": "active",
+                "amount": 1200,
+                "transaction_type": "income",
+            },
+            "idempotency_key": f"capability-lifecycle-row1-{uuid.uuid4()}",
+        },
+    )
+    assert first_row.status_code == 201, first_row.text
+    first_row_id = str(first_row.json()["moon_id"])
+    converged_ids_after_first = assert_projection_converged()
+    assert first_row_id in converged_ids_after_first
+
+    second_row_missing_required = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "Lifecycle Row Missing",
+            "minerals": {
+                "entity_id": f"row-{uuid.uuid4().hex[:8]}",
+                "label": "Lifecycle Row Missing",
+                "state": "active",
+                "amount": 200,
+            },
+            "idempotency_key": f"capability-lifecycle-missing-{uuid.uuid4()}",
+        },
+    )
+    assert second_row_missing_required.status_code == 422, second_row_missing_required.text
+    missing_detail = second_row_missing_required.json().get("detail", {})
+    assert missing_detail.get("reason") == "required_missing"
+    assert missing_detail.get("mineral_key") == "transaction_type"
+    assert missing_detail.get("source") == "moon_capability"
+    assert missing_detail.get("capability_key") == "transaction.guard"
+    assert missing_detail.get("capability_id") == capability_id
+
+    updated_capability = client.patch(
+        f"/capabilities/{capability_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "expected_version": 1,
+            "order_index": 25,
+            "config": {
+                "required_fields": ["amount", "transaction_type", "segment"],
+                "field_types": {"amount": "number", "transaction_type": "string", "segment": "string"},
+            },
+            "idempotency_key": f"capability-lifecycle-update-{uuid.uuid4()}",
+        },
+    )
+    assert updated_capability.status_code == 200, updated_capability.text
+    updated_body = updated_capability.json()
+    assert int(updated_body["version"]) == 2
+    current_capability_id = updated_body["id"]
+
+    deprecated = client.patch(
+        f"/capabilities/{current_capability_id}/deprecate",
+        json={
+            "galaxy_id": galaxy_id,
+            "expected_version": 2,
+            "idempotency_key": f"capability-lifecycle-deprecate-{uuid.uuid4()}",
+        },
+    )
+    assert deprecated.status_code == 200, deprecated.text
+    assert deprecated.json()["status"] == "deprecated"
+    assert int(deprecated.json()["version"]) == 3
+
+    contract_after_deprecate = client.get(f"/contracts/{planet_id}", params={"galaxy_id": galaxy_id})
+    assert contract_after_deprecate.status_code == 200, contract_after_deprecate.text
+    contract_after_deprecate_body = contract_after_deprecate.json()
+    assert "amount" not in contract_after_deprecate_body.get("required_fields", [])
+    assert "transaction_type" not in contract_after_deprecate_body.get("required_fields", [])
+
+    third_row = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "Lifecycle Row 2",
+            "minerals": {
+                "entity_id": f"row-{uuid.uuid4().hex[:8]}",
+                "label": "Lifecycle Row 2",
+                "state": "active",
+            },
+            "idempotency_key": f"capability-lifecycle-row2-{uuid.uuid4()}",
+        },
+    )
+    assert third_row.status_code == 201, third_row.text
+    third_row_id = str(third_row.json()["moon_id"])
+    converged_ids_after_third = assert_projection_converged()
+    assert first_row_id in converged_ids_after_third
+    assert third_row_id in converged_ids_after_third
+
+
+def test_contract_evolution_revalidate_backfill_mark_invalid(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"Evolution > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"contract-evolution-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    created_row = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "Evolution Seed",
+            "minerals": {
+                "entity_id": f"evo-{uuid.uuid4().hex[:8]}",
+                "label": "Evolution Seed",
+                "state": "active",
+            },
+            "idempotency_key": f"contract-evolution-seed-{uuid.uuid4()}",
+        },
+    )
+    assert created_row.status_code == 201, created_row.text
+    row_id = created_row.json()["moon_id"]
+
+    evolved_capability = client.post(
+        f"/planets/{planet_id}/capabilities",
+        json={
+            "galaxy_id": galaxy_id,
+            "capability_key": "score.governance",
+            "capability_class": "validation",
+            "config": {
+                "required_fields": ["score"],
+                "field_types": {"score": "number"},
+                "validators": [{"id": "score-positive", "field": "score", "operator": ">", "value": 0}],
+            },
+            "order_index": 30,
+            "status": "active",
+            "idempotency_key": f"contract-evolution-capability-{uuid.uuid4()}",
+        },
+    )
+    assert evolved_capability.status_code == 201, evolved_capability.text
+    capability_body = evolved_capability.json()
+    assert capability_body["capability_key"] == "score.governance"
+
+    row_detail = client.get(f"/civilizations/{row_id}", params={"galaxy_id": galaxy_id})
+    assert row_detail.status_code == 200, row_detail.text
+    current_seq = int(row_detail.json().get("current_event_seq") or 0)
+    assert current_seq >= 1
+
+    revalidate_fail = client.patch(
+        f"/civilizations/{row_id}/mutate",
+        json={
+            "galaxy_id": galaxy_id,
+            "label": "Evolution Seed Revalidate",
+            "expected_event_seq": current_seq,
+            "idempotency_key": f"contract-evolution-revalidate-{uuid.uuid4()}",
+        },
+    )
+    assert revalidate_fail.status_code == 422, revalidate_fail.text
+    revalidate_detail = revalidate_fail.json().get("detail", {})
+    assert revalidate_detail.get("code") == "TABLE_CONTRACT_VIOLATION"
+    assert revalidate_detail.get("reason") == "required_missing"
+    assert revalidate_detail.get("mineral_key") == "score"
+    assert revalidate_detail.get("source") == "moon_capability"
+    assert revalidate_detail.get("capability_key") == "score.governance"
+
+    mark_invalid = client.patch(
+        f"/civilizations/{row_id}/mutate",
+        json={
+            "galaxy_id": galaxy_id,
+            "minerals": {"score": -5},
+            "expected_event_seq": current_seq,
+            "idempotency_key": f"contract-evolution-invalid-{uuid.uuid4()}",
+        },
+    )
+    assert mark_invalid.status_code == 422, mark_invalid.text
+    mark_invalid_detail = mark_invalid.json().get("detail", {})
+    assert mark_invalid_detail.get("code") == "TABLE_CONTRACT_VIOLATION"
+    assert mark_invalid_detail.get("reason") == "validator_failed"
+    assert mark_invalid_detail.get("mineral_key") == "score"
+    assert mark_invalid_detail.get("actual_value") == -5
+    assert mark_invalid_detail.get("rule_id") == "score-positive"
+
+    backfill = client.patch(
+        f"/civilizations/{row_id}/mutate",
+        json={
+            "galaxy_id": galaxy_id,
+            "minerals": {"score": 10},
+            "expected_event_seq": current_seq,
+            "idempotency_key": f"contract-evolution-backfill-{uuid.uuid4()}",
+        },
+    )
+    assert backfill.status_code == 200, backfill.text
+    backfill_body = backfill.json()
+    backfilled_facts = {item["key"]: item for item in backfill_body.get("facts", [])}
+    assert backfilled_facts["score"]["typed_value"] == 10
+    next_seq = int(backfill_body.get("current_event_seq") or 0)
+    assert next_seq > current_seq
+
+    revalidate_ok = client.patch(
+        f"/civilizations/{row_id}/mutate",
+        json={
+            "galaxy_id": galaxy_id,
+            "label": "Evolution Seed Valid",
+            "expected_event_seq": next_seq,
+            "idempotency_key": f"contract-evolution-revalidate-ok-{uuid.uuid4()}",
+        },
+    )
+    assert revalidate_ok.status_code == 200, revalidate_ok.text
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    row = next((item for item in snapshot.json().get("asteroids", []) if item.get("id") == row_id), None)
+    assert row is not None
+    assert row.get("metadata", {}).get("score") == 10
+
+
+def test_contract_violation_explainability_payload_shape(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"Explainability > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"explainability-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    base_contract = client.post(
+        f"/contracts/{planet_id}",
+        json={
+            "galaxy_id": galaxy_id,
+            "required_fields": ["entity_id", "state"],
+            "field_types": {"entity_id": "string", "state": "string"},
+            "validators": [],
+            "unique_rules": [],
+            "physics_rulebook": {"defaults": {"table_name": planet_name}},
+        },
+    )
+    assert base_contract.status_code == 201, base_contract.text
+
+    capability = client.post(
+        f"/planets/{planet_id}/capabilities",
+        json={
+            "galaxy_id": galaxy_id,
+            "capability_key": "state.guard",
+            "capability_class": "validation",
+            "config": {
+                "validators": [
+                    {
+                        "id": "state-must-be-active",
+                        "field": "state",
+                        "operator": "==",
+                        "value": "active",
+                    }
+                ]
+            },
+            "order_index": 20,
+            "status": "active",
+            "idempotency_key": f"explainability-capability-{uuid.uuid4()}",
+        },
+    )
+    assert capability.status_code == 201, capability.text
+    capability_body = capability.json()
+    capability_id = capability_body["id"]
+    assert capability_body["capability_key"] == "state.guard"
+
+    violated = client.post(
+        "/asteroids/ingest",
+        json={
+            "value": "Explainability row",
+            "metadata": {
+                "table": planet_name,
+                "entity_id": f"entity-{uuid.uuid4().hex[:8]}",
+                "state": "archived",
+            },
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert violated.status_code == 422, violated.text
+    detail = violated.json().get("detail")
+    assert isinstance(detail, dict)
+    assert detail["code"] == "TABLE_CONTRACT_VIOLATION"
+    assert "Table contract violation" in str(detail["message"])
+    assert detail["table_name"] == planet_name
+    assert detail["reason"] == "validator_failed"
+    assert detail["mineral_key"] == "state"
+    assert detail["actual_value"] == "archived"
+    assert detail["operator"] == "=="
+    assert detail["expected_value"] == "active"
+    assert detail["rule_id"] == "state-must-be-active"
+    assert detail["source"] == "moon_capability"
+    assert detail["capability_key"] == "state.guard"
+    assert detail["capability_id"] == capability_id
 
 
 def test_civilization_first_class_alias_endpoints(auth_client: tuple[httpx.Client, str]) -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from app.models import Branch, Galaxy, ImportError, ImportJob, TableContract, User
+from app.models import Branch, Galaxy, ImportError, ImportJob, MoonCapability, User
 from app.schemas import (
     BondSummaryPublic,
     BranchPublic,
@@ -14,6 +14,7 @@ from app.schemas import (
     GalaxySummaryPublic,
     ImportErrorPublic,
     ImportJobPublic,
+    MoonCapabilityPublic,
     MoonSummaryPublic,
     PlanetSummaryPublic,
     StarCoreDomainMetricPublic,
@@ -334,7 +335,7 @@ def branch_to_public(branch: Branch) -> BranchPublic:
     )
 
 
-def table_contract_to_public(contract: TableContract) -> TableContractPublic:
+def table_contract_to_public(contract: Any) -> TableContractPublic:
     required_fields = contract.required_fields if isinstance(contract.required_fields, list) else []
     field_types = contract.field_types if isinstance(contract.field_types, dict) else {}
     unique_rules = contract.unique_rules if isinstance(contract.unique_rules, list) else []
@@ -384,6 +385,25 @@ def table_contract_to_public(contract: TableContract) -> TableContractPublic:
         created_at=contract.created_at,
         updated_at=contract.updated_at,
         deleted_at=contract.deleted_at,
+    )
+
+
+def moon_capability_to_public(capability: MoonCapability) -> MoonCapabilityPublic:
+    raw_config = capability.config_json if isinstance(capability.config_json, dict) else {}
+    return MoonCapabilityPublic(
+        id=capability.id,
+        galaxy_id=capability.galaxy_id,
+        planet_id=capability.table_id,
+        capability_key=str(capability.capability_key),
+        capability_class=str(capability.capability_class),
+        config=raw_config,
+        order_index=int(capability.order_index),
+        status=str(capability.status),
+        version=int(capability.version),
+        created_by=capability.created_by,
+        created_at=capability.created_at,
+        updated_at=capability.updated_at,
+        deleted_at=capability.deleted_at,
     )
 
 

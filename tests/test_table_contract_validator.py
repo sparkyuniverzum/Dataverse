@@ -43,3 +43,61 @@ def test_matches_expected_type_rejects_unsupported_type() -> None:
 
     assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert "unsupported field type 'duration'" in str(exc.value.detail)
+
+
+def test_raise_contract_violation_includes_structured_payload_for_base_contract() -> None:
+    with pytest.raises(HTTPException) as exc:
+        TableContractValidator._raise_contract_violation(
+            table_name="Core > Orders",
+            reason="type_mismatch",
+            message_suffix="field 'amount' must be 'number'",
+            mineral_key="amount",
+            actual_value="abc",
+            expected_type="number",
+            source=None,
+        )
+
+    assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    detail = exc.value.detail
+    assert isinstance(detail, dict)
+    assert detail["code"] == "TABLE_CONTRACT_VIOLATION"
+    assert detail["table_name"] == "Core > Orders"
+    assert detail["reason"] == "type_mismatch"
+    assert detail["mineral_key"] == "amount"
+    assert detail["actual_value"] == "abc"
+    assert detail["expected_type"] == "number"
+    assert detail["source"] == "base_contract"
+    assert detail["capability_key"] is None
+    assert detail["capability_id"] is None
+    assert "Table contract violation [Core > Orders]" in detail["message"]
+
+
+def test_raise_contract_violation_includes_capability_source() -> None:
+    with pytest.raises(HTTPException) as exc:
+        TableContractValidator._raise_contract_violation(
+            table_name="Core > Orders",
+            reason="validator_failed",
+            message_suffix="validator failed for field 'state'",
+            mineral_key="state",
+            actual_value="legacy",
+            operator="==",
+            expected_value="active",
+            rule_id="state-enum",
+            source={
+                "source": "moon_capability",
+                "capability_key": "lifecycle-governance",
+                "capability_id": "11111111-1111-1111-1111-111111111111",
+            },
+        )
+
+    assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    detail = exc.value.detail
+    assert isinstance(detail, dict)
+    assert detail["reason"] == "validator_failed"
+    assert detail["mineral_key"] == "state"
+    assert detail["operator"] == "=="
+    assert detail["expected_value"] == "active"
+    assert detail["rule_id"] == "state-enum"
+    assert detail["source"] == "moon_capability"
+    assert detail["capability_key"] == "lifecycle-governance"
+    assert detail["capability_id"] == "11111111-1111-1111-1111-111111111111"

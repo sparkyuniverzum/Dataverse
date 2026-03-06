@@ -35,3 +35,17 @@ Release SHA: `89f4f17`
   - `src/components/universe/projectionConvergenceGate.test.js`.
 - Contract matrix closure confirmed:
   - `docs/contracts/contract-gap-diff-v2.md` has all tracked rows in `DONE`.
+
+## Planet+Moon v3 P0 closure addendum (2026-03-06)
+- P0 gate set is fully green for capability + civilization + mineral + bridge integrity path.
+- Added and closed gate set:
+  - `tests/test_api_integration.py::test_moon_capability_entity_lifecycle_and_projection_convergence`
+  - `tests/test_moon_contracts.py::test_capability_composition_order_and_conflict_policy`
+  - `tests/test_api_integration.py::test_contract_evolution_revalidate_backfill_mark_invalid`
+  - `tests/test_api_integration.py::test_contract_violation_explainability_payload_shape`
+  - `frontend/src/components/universe/workspaceContractExplainability.test.js`
+  - `tests/test_api_integration.py::test_bridge_integrity_soft_delete_and_replay_convergence`
+- Consolidated DoD status:
+  - `docs/contracts/planet-moon-dod-v3.md` marks `PM-P0-01` .. `PM-P0-08` as `GREEN`.
+- Release gate confirmation:
+  - `scripts/star_contract_gate.sh` -> PASS
