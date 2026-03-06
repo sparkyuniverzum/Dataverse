@@ -275,8 +275,9 @@ DoD:
 ## 4. Test matrix (required gates)
 
 Legend:
-- `GREEN`: already covered by current automated gate.
-- `ADD`: required new gate for v3 closure.
+- `GREEN`: gate is covered and validated in current automation snapshot.
+- `PARTIAL`: gate coverage exists but closure evidence is incomplete.
+- `OPEN`: required gate artifact is missing and must be added.
 
 | ID | Priority | Scope | Gate type | Status | Target test / command |
 |---|---|---|---|---|---|
@@ -305,16 +306,16 @@ Legend:
 | PM-P5-02 | P5 | Real auth/session lifecycle smoke | FE staging browser smoke | GREEN | `frontend/e2e/staging/auth-session-real.smoke.spec.mjs` |
 | PM-P5-03 | P5 | Real workspace bootstrap smoke | FE staging browser smoke | GREEN | `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs` |
 | PM-P5-04 | P5 | Real star-lock -> first planet -> grid convergence smoke | FE staging browser smoke + script gate | GREEN | `npm --prefix frontend run test:e2e:workspace-starlock` + `./scripts/staging_workspace_starlock_wizard_grid_smoke.sh` |
-| PM-P6-01 | P6 | Planet preview payload parity | BE+FE contract gate | ADD | `tests/test_api_integration.py::test_planet_preview_payload_parity_v1` + `frontend/src/components/universe/planetPhysicsParity.test.js` |
-| PM-P6-02 | P6 | Moon preview orbit readability | FE layout/physics gate | ADD | `frontend/src/lib/hierarchy_layout.test.js` + `frontend/src/components/universe/scene/physicsSystem.test.js` |
-| PM-P6-03 | P6 | Planet/Moon preview convergence under lifecycle | BE+FE convergence gate | ADD | `tests/test_api_integration.py::test_planet_moon_preview_convergence_lifecycle_v1` + `frontend/src/components/universe/projectionConvergenceGate.test.js` |
-| PM-P6-04 | P6 | Browser smoke for preview layer | FE staging browser smoke | ADD | `frontend/e2e/staging/planet-moon-preview.smoke.spec.mjs` |
-| PM-P6-05 | P6 | Camera choreography determinism | FE component + browser gate | ADD | `frontend/src/components/universe/CameraPilot.test.jsx` + `frontend/e2e/staging/camera-focus-flow.smoke.spec.mjs` |
-| PM-P6-06 | P6 | In-context causal guidance | FE contract gate | ADD | `frontend/src/components/universe/planetBuilderFlow.test.js` + `frontend/src/components/universe/workspaceContractExplainability.test.js` |
-| PM-P6-07 | P6 | Interaction fail-safe | FE component + browser gate | ADD | `frontend/src/components/universe/planetBuilderWizardPanel.component.test.jsx` + `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs` |
-| PM-P6-08 | P6 | Accessibility and reduced-motion parity | FE a11y contract + browser smoke | ADD | `frontend/src/components/universe/accessibilityPreview.test.jsx` + `frontend/e2e/staging/accessibility-preview.smoke.spec.mjs` |
-| PM-P6-09 | P6 | Preview performance envelope | FE perf gate + browser smoke | ADD | `frontend/src/components/universe/scene/performanceBudget.test.js` + `frontend/e2e/staging/preview-performance.smoke.spec.mjs` |
-| PM-P6-10 | P6 | Workspace resume continuity | FE persistence + browser smoke | ADD | `frontend/src/components/universe/workspaceUiPersistence.test.js` + `frontend/e2e/staging/workspace-resume-preview.smoke.spec.mjs` |
+| PM-P6-01 | P6 | Planet preview payload parity | BE+FE contract gate | PARTIAL | `tests/test_api_integration.py::test_star_core_planet_physics_endpoint_returns_runtime_shape` + `frontend/src/components/universe/planetPhysicsParity.test.js` + `ADD: tests/test_api_integration.py::test_planet_preview_payload_parity_v1` |
+| PM-P6-02 | P6 | Moon preview orbit readability | FE layout/physics gate | GREEN | `frontend/src/lib/hierarchy_layout.test.js` + `frontend/src/components/universe/scene/physicsSystem.test.js` |
+| PM-P6-03 | P6 | Planet/Moon preview convergence under lifecycle | BE+FE convergence gate | PARTIAL | `tests/test_api_integration.py::test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence` + `frontend/src/components/universe/projectionConvergenceGate.test.js` + `ADD: tests/test_api_integration.py::test_planet_moon_preview_convergence_lifecycle_v1` |
+| PM-P6-04 | P6 | Browser smoke for preview layer | FE staging browser smoke | PARTIAL | `frontend/e2e/staging/planet-moon-preview.smoke.spec.mjs` + `./scripts/staging_planet_moon_preview_smoke.sh` |
+| PM-P6-05 | P6 | Camera choreography determinism | FE component + browser gate | OPEN | `frontend/src/components/universe/cameraPilotMath.test.js` + `ADD: frontend/src/components/universe/CameraPilot.test.jsx` + `ADD: frontend/e2e/staging/camera-focus-flow.smoke.spec.mjs` |
+| PM-P6-06 | P6 | In-context causal guidance | FE contract gate | GREEN | `frontend/src/components/universe/planetBuilderFlow.test.js` + `frontend/src/components/universe/workspaceContractExplainability.test.js` |
+| PM-P6-07 | P6 | Interaction fail-safe | FE component + browser gate | PARTIAL | `frontend/src/components/universe/planetBuilderWizardPanel.component.test.jsx` + `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs` |
+| PM-P6-08 | P6 | Accessibility and reduced-motion parity | FE a11y contract + browser smoke | PARTIAL | `frontend/src/components/universe/accessibilityPreview.test.jsx` + `frontend/e2e/staging/accessibility-preview.smoke.spec.mjs` |
+| PM-P6-09 | P6 | Preview performance envelope | FE perf gate + browser smoke | PARTIAL | `frontend/src/components/universe/scene/performanceBudget.test.js` + `frontend/e2e/staging/preview-performance.smoke.spec.mjs` |
+| PM-P6-10 | P6 | Workspace resume continuity | FE persistence + browser smoke | OPEN | `frontend/src/components/universe/workspaceUiPersistence.test.js` + `ADD: frontend/e2e/staging/workspace-resume-preview.smoke.spec.mjs` |
 
 ## 5. Exit criteria by phase
 
@@ -368,7 +369,7 @@ Legend:
 ### Planet+Moon v3 P6 kickoff (open)
 
 1. Planet/Moon preview layer is not closed; preview parity/readability/convergence remain open.
-2. `PM-P6-01` .. `PM-P6-10` are tracked as `ADD` gates and are release-relevant for preview quality closure.
+2. Current normalized status: `PM-P6-02`, `PM-P6-06` are `GREEN`; `PM-P6-01`, `PM-P6-03`, `PM-P6-04`, `PM-P6-07`, `PM-P6-08`, `PM-P6-09` are `PARTIAL`; `PM-P6-05`, `PM-P6-10` are `OPEN`.
 
 ## 6. Out of scope for this document
 

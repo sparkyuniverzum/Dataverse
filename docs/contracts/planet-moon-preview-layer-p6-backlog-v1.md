@@ -26,17 +26,27 @@ This backlog is focused on preview correctness and readability, not aesthetic re
 9. `PM-P6-09` Preview performance envelope.
 10. `PM-P6-10` Workspace resume/persistence continuity.
 
+Status legend:
+- `GREEN`: gate exists and passed in the current local verification snapshot.
+- `PARTIAL`: implementation/gate exists, but closure is incomplete (missing dedicated BE/staging closure evidence).
+- `OPEN`: required gate artifact is missing.
+
+Verification snapshot (2026-03-06, local):
+- `cd frontend && npm test -- src/components/universe/planetPhysicsParity.test.js src/lib/hierarchy_layout.test.js src/components/universe/scene/physicsSystem.test.js src/components/universe/projectionConvergenceGate.test.js src/components/universe/workspaceContractExplainability.test.js src/components/universe/planetBuilderFlow.test.js src/components/universe/planetBuilderWizardPanel.component.test.jsx src/components/universe/accessibilityPreview.test.jsx src/components/universe/scene/performanceBudget.test.js src/components/universe/workspaceUiPersistence.test.js` -> `10 files, 40 tests passed`.
+- Staging Playwright gates were not executed in this local snapshot.
+- Dedicated BE preview-specific parity tests listed as `ADD` are not yet present in `tests/test_api_integration.py`.
+
 Current state:
-- `PM-P6-01`: open.
-- `PM-P6-02`: open.
-- `PM-P6-03`: open.
-- `PM-P6-04`: open.
-- `PM-P6-05`: open.
-- `PM-P6-06`: open.
-- `PM-P6-07`: open.
-- `PM-P6-08`: open.
-- `PM-P6-09`: open.
-- `PM-P6-10`: open.
+- `PM-P6-01`: `PARTIAL` (FE parity gate `GREEN`, dedicated BE parity gate missing).
+- `PM-P6-02`: `GREEN` (FE orbit/layout/physics gates pass).
+- `PM-P6-03`: `PARTIAL` (FE convergence gate `GREEN`, dedicated BE preview-lifecycle gate missing).
+- `PM-P6-04`: `PARTIAL` (staging smoke gate files/scripts exist; execution evidence not recorded in this snapshot).
+- `PM-P6-05`: `OPEN` (camera component + staging smoke gates missing).
+- `PM-P6-06`: `GREEN` (causal guidance gates pass).
+- `PM-P6-07`: `PARTIAL` (component gate `GREEN`; staging execution evidence pending).
+- `PM-P6-08`: `PARTIAL` (unit gate `GREEN`; staging execution evidence pending).
+- `PM-P6-09`: `PARTIAL` (unit gate `GREEN`; staging execution evidence pending).
+- `PM-P6-10`: `OPEN` (staging resume smoke gate missing).
 
 ## 3. Scope items
 
@@ -48,8 +58,9 @@ DoD:
 3. Freeze gate catches key removal/rename/type drift.
 
 Gate:
-- `tests/test_api_integration.py::test_planet_preview_payload_parity_v1`
+- `tests/test_api_integration.py::test_star_core_planet_physics_endpoint_returns_runtime_shape` (interim BE runtime-shape coverage)
 - `frontend/src/components/universe/planetPhysicsParity.test.js`
+- `ADD: tests/test_api_integration.py::test_planet_preview_payload_parity_v1` (dedicated BE parity gate)
 
 ### 3.2 PM-P6-02 Moon orbit readability
 
@@ -70,8 +81,9 @@ DoD:
 3. Convergence gate fails on preview drift.
 
 Gate:
-- `tests/test_api_integration.py::test_planet_moon_preview_convergence_lifecycle_v1`
+- `tests/test_api_integration.py::test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence` (interim lifecycle convergence coverage)
 - `frontend/src/components/universe/projectionConvergenceGate.test.js`
+- `ADD: tests/test_api_integration.py::test_planet_moon_preview_convergence_lifecycle_v1` (dedicated BE preview-lifecycle gate)
 
 ### 3.4 PM-P6-04 Browser smoke
 
@@ -93,8 +105,9 @@ DoD:
 3. Camera does not oscillate or over-correct under rapid state changes.
 
 Gate:
-- `frontend/src/components/universe/CameraPilot.test.jsx`
-- `frontend/e2e/staging/camera-focus-flow.smoke.spec.mjs`
+- `frontend/src/components/universe/cameraPilotMath.test.js` (interim math-level guard)
+- `ADD: frontend/src/components/universe/CameraPilot.test.jsx`
+- `ADD: frontend/e2e/staging/camera-focus-flow.smoke.spec.mjs`
 
 ### 3.6 PM-P6-06 Causal guidance closure
 
@@ -149,7 +162,7 @@ DoD:
 
 Gate:
 - `frontend/src/components/universe/workspaceUiPersistence.test.js`
-- `frontend/e2e/staging/workspace-resume-preview.smoke.spec.mjs`
+- `ADD: frontend/e2e/staging/workspace-resume-preview.smoke.spec.mjs`
 
 ## 4. Exit criteria
 

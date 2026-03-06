@@ -110,3 +110,20 @@ Release SHA: `89f4f17`
   - `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs`
   - `npm --prefix frontend run test:e2e:workspace-starlock`
   - `./scripts/staging_workspace_starlock_wizard_grid_smoke.sh`
+
+## Planet+Moon v3 P6 reconciliation addendum (2026-03-06)
+- Local FE gate sweep for current P6 scope is green:
+  - `cd frontend && npm test -- src/components/universe/planetPhysicsParity.test.js src/lib/hierarchy_layout.test.js src/components/universe/scene/physicsSystem.test.js src/components/universe/projectionConvergenceGate.test.js src/components/universe/workspaceContractExplainability.test.js src/components/universe/planetBuilderFlow.test.js src/components/universe/planetBuilderWizardPanel.component.test.jsx src/components/universe/accessibilityPreview.test.jsx src/components/universe/scene/performanceBudget.test.js src/components/universe/workspaceUiPersistence.test.js` -> `10 files, 40 tests passed`.
+- Staging gate artifacts added for preview layer:
+  - `frontend/e2e/staging/planet-moon-preview.smoke.spec.mjs`
+  - `frontend/e2e/staging/accessibility-preview.smoke.spec.mjs`
+  - `frontend/e2e/staging/preview-performance.smoke.spec.mjs`
+  - `./scripts/staging_planet_moon_preview_smoke.sh`
+  - `./scripts/staging_accessibility_preview_smoke.sh`
+  - `./scripts/staging_preview_performance_smoke.sh`
+- P6 remains open and is tracked as partial closure:
+  - open gaps: `PM-P6-05` (camera component/e2e gates), `PM-P6-10` (workspace resume staging smoke gate),
+  - partial gaps: dedicated BE preview parity/lifecycle tests are still marked as `ADD`.
+- Canonical P6 state is maintained in:
+  - `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`
+  - `docs/contracts/planet-moon-dod-v3.md`
