@@ -11,7 +11,7 @@ const METEOR_CYCLE_SECONDS = 180;
 const METEOR_SHOWER_SECONDS = 42;
 const METEOR_FALL_SECONDS = 22;
 
-export function CommandMeteors({ enabled = true }) {
+export function CommandMeteors({ enabled = true, reducedMotion = false }) {
   const meteorRefs = useRef([]);
   const meteors = useMemo(
     () =>
@@ -38,7 +38,7 @@ export function CommandMeteors({ enabled = true }) {
   );
 
   useFrame((state, delta) => {
-    if (!enabled) return;
+    if (!enabled || reducedMotion) return;
     const elapsed = state.clock.elapsedTime;
     const cycleT = elapsed % METEOR_CYCLE_SECONDS;
     const showerActive = cycleT < METEOR_SHOWER_SECONDS;
@@ -69,7 +69,7 @@ export function CommandMeteors({ enabled = true }) {
     });
   });
 
-  if (!enabled) return null;
+  if (!enabled || reducedMotion) return null;
 
   return (
     <group>
@@ -109,11 +109,11 @@ export function CommandMeteors({ enabled = true }) {
   );
 }
 
-export function ConstellationHalo({ cluster }) {
+export function ConstellationHalo({ cluster, reducedMotion = false }) {
   const ringRef = useRef(null);
 
   useFrame((_, delta) => {
-    if (!ringRef.current) return;
+    if (!ringRef.current || reducedMotion) return;
     ringRef.current.rotation.z += delta * 0.06;
   });
 

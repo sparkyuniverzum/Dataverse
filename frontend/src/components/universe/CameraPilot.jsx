@@ -21,6 +21,7 @@ export default function CameraPilot({
   microNudgeKey = "",
   starDiveActive = false,
   focusKey,
+  reducedMotion = false,
 }) {
   const { camera } = useThree();
   const lastFocusKeyRef = useRef("");
@@ -65,6 +66,11 @@ export default function CameraPilot({
 
   useEffect(() => {
     if (unresolvedSelection) return;
+    if (reducedMotion) {
+      flightTimeRef.current = 0;
+      lastFocusKeyRef.current = String(focusKey || "");
+      return;
+    }
     if (!hasExplicitFocusTarget) {
       flightTimeRef.current = 0;
       lastFocusKeyRef.current = String(focusKey || "");
@@ -75,9 +81,14 @@ export default function CameraPilot({
       lastFocusKeyRef.current = key;
       flightTimeRef.current = 0.95;
     }
-  }, [focusKey, hasExplicitFocusTarget, unresolvedSelection]);
+  }, [focusKey, hasExplicitFocusTarget, reducedMotion, unresolvedSelection]);
 
   useEffect(() => {
+    if (reducedMotion) {
+      microNudgeTimeRef.current = 0;
+      lastMicroNudgeKeyRef.current = String(microNudgeKey || "");
+      return;
+    }
     if (unresolvedSelection || !hasExplicitFocusTarget) {
       microNudgeTimeRef.current = 0;
       lastMicroNudgeKeyRef.current = String(microNudgeKey || "");
@@ -97,7 +108,33 @@ export default function CameraPilot({
       lastMicroNudgeKeyRef.current = key;
       microNudgeTimeRef.current = 0.36;
     }
-  }, [hasExplicitFocusTarget, microNudgeKey, unresolvedSelection]);
+  }, [hasExplicitFocusTarget, microNudgeKey, reducedMotion, unresolvedSelection]);
+
+  useEffect(() => {
+    if (!reducedMotion || unresolvedSelection || !target || !targetPos || !targetLook) return;
+    camera.position.copy(targetPos);
+    if (controlsRef.current) {
+      controlsRef.current.target.copy(targetLook);
+      const limits = resolveControlDistanceLimits({
+        starDiveActive,
+        targetDistance: target.distance,
+        cameraState,
+      });
+      controlsRef.current.minDistance = limits.minDistance;
+      controlsRef.current.maxDistance = limits.maxDistance;
+      controlsRef.current.update();
+    }
+  }, [
+    camera,
+    cameraState,
+    controlsRef,
+    reducedMotion,
+    starDiveActive,
+    target,
+    targetLook,
+    targetPos,
+    unresolvedSelection,
+  ]);
 
   useFrame((_, delta) => {
     if (!target || !targetPos || !targetLook) return;
@@ -105,7 +142,7 @@ export default function CameraPilot({
     const hasMicroNudge = microNudgeTimeRef.current > 0;
     const shouldPilot = inFlight || hasMicroNudge;
 
-    if (!shouldPilot) {
+    if (reducedMotion || !shouldPilot) {
       if (controlsRef.current) {
         const limits = resolveControlDistanceLimits({
           starDiveActive,
@@ -114,6 +151,10 @@ export default function CameraPilot({
         });
         controlsRef.current.minDistance = limits.minDistance;
         controlsRef.current.maxDistance = limits.maxDistance;
+      }
+      if (reducedMotion && controlsRef.current) {
+        controlsRef.current.target.copy(targetLook);
+        controlsRef.current.update();
       }
       return;
     }

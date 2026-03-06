@@ -1,3 +1,5 @@
+import { resolvePreviewSeverityColor } from "./previewAccessibility";
+
 const inputStyle = {
   width: "100%",
   borderRadius: 9,
@@ -92,14 +94,7 @@ export default function WorkspaceSidebar({
   onApplyRepair = null,
   repairAuditCount = 0,
 }) {
-  const severityColor =
-    builderSeverity === "critical"
-      ? "#ffb8c8"
-      : builderSeverity === "warn"
-        ? "#ffd7a5"
-        : builderSeverity === "success"
-          ? "#b8ffd8"
-          : "#ddf7ff";
+  const severityColor = resolvePreviewSeverityColor(builderSeverity);
 
   return (
     <aside
@@ -146,6 +141,8 @@ export default function WorkspaceSidebar({
 
       {builderState ? (
         <div
+          role="status"
+          aria-live="polite"
           style={{
             border: "1px solid rgba(108, 206, 240, 0.24)",
             borderRadius: 10,

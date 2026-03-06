@@ -76,6 +76,12 @@ import {
 } from "./planetBuilderFlow";
 import { resolvePlanetMoonCausalGuidance } from "./planetMoonCausalGuidance";
 import { resolveStageZeroVisibility } from "./stageZeroVisibility";
+import {
+  observeReducedMotionPreference,
+  readReducedMotionPreference,
+  resolvePreviewSeverityColor,
+  resolveWorkspaceKeyboardAction,
+} from "./previewAccessibility";
 import { buildContractViolationMessage } from "./workspaceContractExplainability";
 import { readWorkspaceUiState, writeWorkspaceUiState } from "./workspaceUiPersistence";
 import { collectGridColumns, normalizeText, readGridCell, tableDisplayName, valueToLabel } from "./workspaceFormatters";
@@ -257,6 +263,7 @@ export default function UniverseWorkspace({
   const [starProfileDraftKey, setStarProfileDraftKey] = useState("ORIGIN");
   const [starPhysicalProfileDraftKey, setStarPhysicalProfileDraftKey] = useState("BALANCE");
   const [starControlError, setStarControlError] = useState("");
+  const [reducedMotion, setReducedMotion] = useState(() => readReducedMotionPreference());
   const [parserTelemetry, setParserTelemetry] = useState(() => createParserTelemetrySnapshot());
   const [repairSuggestion, setRepairSuggestion] = useState(null);
   const [repairApplyBusy, setRepairApplyBusy] = useState(false);
@@ -322,6 +329,13 @@ export default function UniverseWorkspace({
       quickGridOpen,
     });
   }, [galaxyId, quickGridOpen, selectedTableId, workspaceUiHydrated]);
+
+  useEffect(() => {
+    const unsubscribe = observeReducedMotionPreference((nextValue) => {
+      setReducedMotion(Boolean(nextValue));
+    });
+    return unsubscribe;
+  }, []);
 
   const tableById = useMemo(
     () => new Map((Array.isArray(tables) ? tables : []).map((table) => [String(table.table_id), table])),
@@ -1874,19 +1888,59 @@ export default function UniverseWorkspace({
     starProfileDraftKey,
   ]);
 
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      const action = resolveWorkspaceKeyboardAction(event, {
+        canOpenGrid: Boolean(selectedTableId) && !workspaceInteractionLocked,
+        canOpenStarHeart: true,
+        quickGridOpen,
+        starHeartOpen,
+        stageZeroSetupOpen,
+      });
+      if (!action) return;
+      event.preventDefault();
+      if (action === "open_grid") {
+        setQuickGridOpen(true);
+        return;
+      }
+      if (action === "open_star_heart") {
+        handleOpenStarHeartDashboard();
+        return;
+      }
+      if (action === "close_quick_grid") {
+        setQuickGridOpen(false);
+        return;
+      }
+      if (action === "close_star_heart") {
+        handleCloseStarHeartDashboard();
+        return;
+      }
+      if (action === "close_stage_zero_setup") {
+        setStageZeroSetupOpen(false);
+        setStageZeroDraggedSchemaKey("");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    handleCloseStarHeartDashboard,
+    handleOpenStarHeartDashboard,
+    quickGridOpen,
+    selectedTableId,
+    stageZeroSetupOpen,
+    starHeartOpen,
+    workspaceInteractionLocked,
+  ]);
+
   const selectedTableLabel = selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "";
-  const guidanceSeverityColor =
-    planetMoonGuidance.severity === "critical"
-      ? "#ffb8c8"
-      : planetMoonGuidance.severity === "warn"
-        ? "#ffd7a5"
-        : planetMoonGuidance.severity === "success"
-          ? "#b8ffd8"
-          : "#b9f4ff";
+  const guidanceSeverityColor = resolvePreviewSeverityColor(planetMoonGuidance.severity);
 
   return (
     <main
       ref={workspaceRef}
+      data-testid="workspace-root"
+      data-reduced-motion={reducedMotion ? "true" : "false"}
+      aria-label="Dataverse workspace"
       style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#020205" }}
     >
       <DndContext
@@ -1915,6 +1969,7 @@ export default function UniverseWorkspace({
           builderDropActive={stageZeroDropMode || stageZeroCreating}
           builderDropHover={stageZeroDropHover}
           hideMouseGuide={minimalShell}
+          reducedMotion={reducedMotion}
           onSelectStar={handleStarSelect}
           onOpenStarControlCenter={handleOpenStarHeartDashboard}
           onClearStarFocus={handleClearStarFocus}
@@ -1947,6 +2002,8 @@ export default function UniverseWorkspace({
         {stageZeroUiVisibility.starLockGate ? (
           <section
             data-testid="stage0-star-lock-gate"
+            role="dialog"
+            aria-modal="true"
             style={{
               position: "fixed",
               inset: 0,
@@ -2051,6 +2108,8 @@ export default function UniverseWorkspace({
         {stageZeroUiVisibility.introGate ? (
           <section
             data-testid="stage0-intro-gate"
+            role="dialog"
+            aria-modal="true"
             style={{
               position: "fixed",
               inset: 0,
@@ -2453,6 +2512,8 @@ export default function UniverseWorkspace({
         {stageZeroUiVisibility.missionPanel && (
           <aside
             data-testid="stage0-mission-panel"
+            role="status"
+            aria-live="polite"
             style={{
               position: "fixed",
               left: 12,
