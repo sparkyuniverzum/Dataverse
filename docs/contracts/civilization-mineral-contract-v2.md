@@ -133,6 +133,23 @@ Non-negotiable policy:
    - `X-Dataverse-Canonical-Route: /civilizations`
 5. Alias/canonical parity is mandatory for payload fields, OCC/idempotency behavior, and soft-delete semantics.
 
+### 8.2 Explainability envelope freeze (2026-03-07)
+
+Canonical violation keys:
+1. `rule_id`
+2. `capability_id`
+3. `mineral_key`
+4. `expected_constraint`
+5. `repair_hint`
+
+Compatibility keys (still required during migration window):
+1. `expected_type`
+2. `operator`
+3. `expected_value`
+
+Parity rule:
+- if both canonical and compatibility keys are present, values must be semantically equivalent.
+
 ### 8.1 Backend capability snapshot (as-is, 2026-03-06)
 
 Implemented in `app/api/routers/moons.py`:
@@ -192,6 +209,8 @@ Required UX logic:
 3. Closing grid does not clear selected planet/civilization identity.
 4. Mineral edit operation maps to civilization mutate with explicit mineral keys.
 5. Contract violation response renders deterministic explainability payload.
+6. FE explainability mapper (`frontend/src/components/universe/workspaceContractExplainability.js`) treats
+   `expected_constraint` + `repair_hint` as canonical and derives legacy fields (`expected_type`, `operator`, `expected_value`) only as fallback.
 
 ## 11. Invariants (non-negotiable)
 

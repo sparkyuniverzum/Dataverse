@@ -66,6 +66,8 @@ def test_raise_contract_violation_includes_structured_payload_for_base_contract(
     assert detail["mineral_key"] == "amount"
     assert detail["actual_value"] == "abc"
     assert detail["expected_type"] == "number"
+    assert detail["expected_constraint"] == {"type": "number"}
+    assert detail["repair_hint"] == "Use value compatible with type 'number' for 'amount'."
     assert detail["source"] == "base_contract"
     assert detail["capability_key"] is None
     assert detail["capability_id"] is None
@@ -97,6 +99,8 @@ def test_raise_contract_violation_includes_capability_source() -> None:
     assert detail["mineral_key"] == "state"
     assert detail["operator"] == "=="
     assert detail["expected_value"] == "active"
+    assert detail["expected_constraint"] == {"operator": "==", "value": "active"}
+    assert detail["repair_hint"] == "Adjust 'state' to satisfy '== active'."
     assert detail["rule_id"] == "state-enum"
     assert detail["source"] == "moon_capability"
     assert detail["capability_key"] == "lifecycle-governance"

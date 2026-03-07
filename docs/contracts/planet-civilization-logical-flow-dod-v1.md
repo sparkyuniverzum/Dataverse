@@ -62,10 +62,10 @@ Status legend:
 ### 5.2 Backend readiness
 
 - [x] `SG-LF-04` Canonical route policy confirmed (`/civilizations*` primary, `/moons*` compatibility alias only). Done 2026-03-07; evidence: `docs/contracts/api-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`.
-- [ ] `SG-LF-05` Error envelope freeze approved (`rule_id`, `capability_id`, `mineral_key`, `expected_constraint`, `repair_hint`).
-- [ ] `SG-LF-06` Read-model contract decided for visual builder context (single payload source for planet+moons+civilizations+bonds).
-- [ ] `SG-LF-07` Pre-commit bond validation endpoint decided (`validate/preview` behavior and failure taxonomy).
-- [ ] `SG-LF-08` Moon-impact query decided (which moon/rule affects which minerals/civilizations).
+- [x] `SG-LF-05` Error envelope freeze approved (`rule_id`, `capability_id`, `mineral_key`, `expected_constraint`, `repair_hint`). Done 2026-03-07; evidence: `docs/contracts/api-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `frontend/src/components/universe/workspaceContractExplainability.js`.
+- [x] `SG-LF-06` Read-model contract decided for visual builder context (single payload source for planet+moons+civilizations+bonds). Done 2026-03-07; evidence: `docs/contracts/visual-builder-context-contract-v1.md`.
+- [x] `SG-LF-07` Pre-commit bond validation endpoint decided (`validate/preview` behavior and failure taxonomy). Done 2026-03-07; evidence: `docs/contracts/bond-preview-validate-contract-v1.md`.
+- [x] `SG-LF-08` Moon-impact query decided (which moon/rule affects which minerals/civilizations). Done 2026-03-07; evidence: `docs/contracts/moon-impact-contract-v1.md`.
 
 ### 5.3 Frontend readiness
 

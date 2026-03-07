@@ -15,6 +15,62 @@ from app.services.universe_service import ProjectedAsteroid, derive_table_id, de
 
 class TableContractValidator:
     @staticmethod
+    def _build_expected_constraint(
+        *,
+        reason: str,
+        expected_type: str | None,
+        operator: str | None,
+        expected_value: Any | None,
+    ) -> dict[str, Any] | None:
+        normalized_reason = str(reason or "").strip().lower()
+        normalized_expected_type = str(expected_type or "").strip().lower() or None
+        normalized_operator = str(operator or "").strip() or None
+
+        constraint: dict[str, Any] = {}
+        if normalized_reason in {"required_missing", "required_empty"}:
+            constraint["required"] = True
+            if normalized_reason == "required_empty":
+                constraint["non_empty"] = True
+        if normalized_expected_type:
+            constraint["type"] = normalized_expected_type
+        if normalized_operator:
+            constraint["operator"] = normalized_operator
+        if expected_value is not None:
+            constraint["value"] = expected_value
+        return constraint or None
+
+    @classmethod
+    def _build_repair_hint(
+        cls,
+        *,
+        reason: str,
+        mineral_key: str | None,
+        expected_type: str | None,
+        operator: str | None,
+        expected_value: Any | None,
+    ) -> str | None:
+        field = str(mineral_key or "value").strip() or "value"
+        normalized_reason = str(reason or "").strip().lower()
+        normalized_type = str(expected_type or "").strip().lower()
+        normalized_operator = str(operator or "").strip()
+
+        if normalized_reason in {"required_missing", "required_empty"}:
+            return f"Provide required value for '{field}'."
+        if normalized_reason == "type_mismatch":
+            if normalized_type:
+                return f"Use value compatible with type '{normalized_type}' for '{field}'."
+            return f"Use a valid value type for '{field}'."
+        if normalized_reason == "validator_failed":
+            if normalized_operator:
+                if expected_value is not None:
+                    return f"Adjust '{field}' to satisfy '{normalized_operator} {expected_value}'."
+                return f"Adjust '{field}' to satisfy operator '{normalized_operator}'."
+            return f"Adjust '{field}' to satisfy validation rule."
+        if normalized_reason == "unique_conflict":
+            return f"Use a unique value for '{field}'."
+        return None
+
+    @staticmethod
     def _source_payload(source: dict[str, Any] | None) -> dict[str, Any]:
         source_dict = source if isinstance(source, dict) else {}
         return {
@@ -39,6 +95,19 @@ class TableContractValidator:
         source: dict[str, Any] | None = None,
     ) -> None:
         message = f"Table contract violation [{table_name}]: {message_suffix}"
+        expected_constraint = cls._build_expected_constraint(
+            reason=reason,
+            expected_type=expected_type,
+            operator=operator,
+            expected_value=expected_value,
+        )
+        repair_hint = cls._build_repair_hint(
+            reason=reason,
+            mineral_key=mineral_key,
+            expected_type=expected_type,
+            operator=operator,
+            expected_value=expected_value,
+        )
         detail: dict[str, Any] = {
             "code": "TABLE_CONTRACT_VIOLATION",
             "message": message,
@@ -49,6 +118,8 @@ class TableContractValidator:
             "expected_type": expected_type,
             "operator": operator,
             "expected_value": expected_value,
+            "expected_constraint": expected_constraint,
+            "repair_hint": repair_hint,
             "rule_id": rule_id,
         }
         detail.update(cls._source_payload(source))

@@ -4140,6 +4140,8 @@ def test_contract_violation_explainability_payload_shape(auth_client: tuple[http
     assert detail["actual_value"] == "archived"
     assert detail["operator"] == "=="
     assert detail["expected_value"] == "active"
+    assert detail["expected_constraint"] == {"operator": "==", "value": "active"}
+    assert detail["repair_hint"] == "Adjust 'state' to satisfy '== active'."
     assert detail["rule_id"] == "state-must-be-active"
     assert detail["source"] == "moon_capability"
     assert detail["capability_key"] == "state.guard"

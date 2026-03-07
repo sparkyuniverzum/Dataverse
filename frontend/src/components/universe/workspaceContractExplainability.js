@@ -39,6 +39,34 @@ function normalizeScalar(value) {
   return String(value);
 }
 
+function normalizeExpectedConstraint(value) {
+  const source = toObject(value);
+  if (!source) return null;
+  const normalized = {};
+  const type = toText(source.type);
+  const operator = toText(source.operator);
+  if (type) normalized.type = type;
+  if (operator) normalized.operator = operator;
+  if (Object.prototype.hasOwnProperty.call(source, "value")) {
+    normalized.value = normalizeScalar(source.value);
+  }
+  if (Object.prototype.hasOwnProperty.call(source, "required")) {
+    normalized.required = Boolean(source.required);
+  }
+  if (Object.prototype.hasOwnProperty.call(source, "non_empty")) {
+    normalized.non_empty = Boolean(source.non_empty);
+  }
+  return Object.keys(normalized).length > 0 ? normalized : null;
+}
+
+function buildFallbackExpectedConstraint({ expectedType, operator, expectedValue }) {
+  const normalized = {};
+  if (expectedType) normalized.type = expectedType;
+  if (operator) normalized.operator = operator;
+  if (expectedValue !== null) normalized.value = expectedValue;
+  return Object.keys(normalized).length > 0 ? normalized : null;
+}
+
 function extractDetail(input) {
   const source = toObject(input);
   if (!source) return {};
@@ -78,6 +106,8 @@ export const CONTRACT_VIOLATION_DETAIL_BE_FIELDS = Object.freeze([
   "expected_type",
   "operator",
   "expected_value",
+  "expected_constraint",
+  "repair_hint",
   "rule_id",
   "source",
   "capability_key",
@@ -93,6 +123,8 @@ export const CONTRACT_VIOLATION_DETAIL_FE_USED_FIELDS = Object.freeze([
   "expected_type",
   "operator",
   "expected_value",
+  "expected_constraint",
+  "repair_hint",
   "rule_id",
   "source",
   "capability_key",
@@ -104,6 +136,22 @@ export function explainabilityContractDiff() {
 
 export function normalizeContractViolationDetail(input) {
   const detail = extractDetail(input);
+  const payloadConstraint = normalizeExpectedConstraint(detail.expected_constraint);
+  let expectedType = toText(detail.expected_type);
+  let operator = toText(detail.operator);
+  let expectedValue = normalizeScalar(detail.expected_value);
+  if (!expectedType && payloadConstraint?.type) expectedType = toText(payloadConstraint.type);
+  if (!operator && payloadConstraint?.operator) operator = toText(payloadConstraint.operator);
+  if (expectedValue === null && payloadConstraint && Object.prototype.hasOwnProperty.call(payloadConstraint, "value")) {
+    expectedValue = normalizeScalar(payloadConstraint.value);
+  }
+  const expectedConstraint =
+    payloadConstraint ||
+    buildFallbackExpectedConstraint({
+      expectedType,
+      operator,
+      expectedValue,
+    });
   return {
     code: normalizeCode(detail.code),
     message: toText(detail.message),
@@ -111,9 +159,11 @@ export function normalizeContractViolationDetail(input) {
     reason: normalizeReason(detail.reason),
     mineral_key: toText(detail.mineral_key),
     actual_value: normalizeScalar(detail.actual_value),
-    expected_type: toText(detail.expected_type),
-    operator: toText(detail.operator),
-    expected_value: normalizeScalar(detail.expected_value),
+    expected_type: expectedType,
+    operator,
+    expected_value: expectedValue,
+    expected_constraint: expectedConstraint,
+    repair_hint: toText(detail.repair_hint),
     rule_id: toText(detail.rule_id),
     source: normalizeReason(detail.source),
     capability_key: toText(detail.capability_key),
@@ -142,8 +192,11 @@ export function buildContractViolationMessage(input, { fallbackMessage = "Operac
         ? `${detail.operator} ${formatActualValue(detail.expected_value)}`
         : detail.operator;
     parts.push(`podminka=${operatorPart}`);
+  } else if (detail.expected_constraint?.required) {
+    parts.push(`podminka=required`);
   }
   if (detail.rule_id) parts.push(`rule_id=${detail.rule_id}`);
+  if (detail.repair_hint) parts.push(`oprava=${detail.repair_hint}`);
   if (detail.source === "moon_capability" && detail.capability_key) {
     parts.push(`capability=${detail.capability_key}`);
   }

@@ -283,6 +283,10 @@ Canonical source:
 
 Current status:
 - `SG-LF-04`: `GREEN` (canonical route policy freeze done 2026-03-07)
+- `SG-LF-05`: `GREEN` (error envelope freeze + FE mapping closure done 2026-03-07)
+- `SG-LF-06`: `GREEN` (Visual Builder context contract freeze done 2026-03-07)
+- `SG-LF-07`: `GREEN` (Bond validate/preview contract + reject taxonomy freeze done 2026-03-07)
+- `SG-LF-08`: `GREEN` (Moon-impact query contract freeze done 2026-03-07)
 - remaining `SG-LF-*`: `OPEN`
 - `LF-01` .. `LF-08`: `OPEN`
 

@@ -15,6 +15,31 @@ Date: 2026-02-28 (updated 2026-03-07 for civilization canonical route policy)
 - OCC conflicts (`409`) use unified payload:
   - `{ "detail": { "code": "OCC_CONFLICT", "message": string, "context": string, "entity_id": uuid, "expected_event_seq": int, "current_event_seq": int } }`
 
+## Contract violation error envelope (freeze v1, 2026-03-07)
+
+For `422 TABLE_CONTRACT_VIOLATION`, the API must expose structured `detail` payload:
+1. `code`
+2. `message`
+3. `table_name`
+4. `reason`
+5. `mineral_key`
+6. `actual_value`
+7. `expected_type` (legacy-compatible, optional by reason)
+8. `operator` (legacy-compatible, optional by reason)
+9. `expected_value` (legacy-compatible, optional by reason)
+10. `expected_constraint` (canonical object; optional by reason)
+11. `repair_hint` (canonical user-facing hint, nullable)
+12. `rule_id`
+13. `source`
+14. `capability_key`
+15. `capability_id`
+
+Canonical rule:
+- New clients should treat `expected_constraint` + `repair_hint` as primary explainability contract.
+
+Compatibility rule:
+- `expected_type`, `operator`, `expected_value` remain available during migration and must stay parity-compatible with `expected_constraint` when both are present.
+
 ## Auth
 ### `POST /auth/register`
 - Request: `{ "email": string, "password": string(min 8), "galaxy_name"?: string }`

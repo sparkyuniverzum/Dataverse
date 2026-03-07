@@ -21,6 +21,8 @@ describe("workspaceContractExplainability", () => {
       "expected_type",
       "operator",
       "expected_value",
+      "expected_constraint",
+      "repair_hint",
       "rule_id",
       "source",
       "capability_key",
@@ -35,6 +37,8 @@ describe("workspaceContractExplainability", () => {
       "expected_type",
       "operator",
       "expected_value",
+      "expected_constraint",
+      "repair_hint",
       "rule_id",
       "source",
       "capability_key",
@@ -54,6 +58,8 @@ describe("workspaceContractExplainability", () => {
         actual_value: "archived",
         operator: "==",
         expected_value: "active",
+        expected_constraint: { operator: "==", value: "active" },
+        repair_hint: "Adjust 'state' to satisfy '== active'.",
         rule_id: "state-guard",
         source: "moon_capability",
         capability_key: "cashflow.validation",
@@ -65,10 +71,26 @@ describe("workspaceContractExplainability", () => {
     expect(normalized.reason).toBe("validator_failed");
     expect(normalized.mineral_key).toBe("state");
     expect(normalized.actual_value).toBe("archived");
+    expect(normalized.expected_constraint).toEqual({ operator: "==", value: "active" });
+    expect(normalized.repair_hint).toBe("Adjust 'state' to satisfy '== active'.");
     expect(normalized.rule_id).toBe("state-guard");
     expect(normalized.capability_key).toBe("cashflow.validation");
     expect(normalized.capability_id).toBe("11111111-1111-1111-1111-111111111111");
     expect(isContractViolationDetail({ detail: normalized })).toBe(true);
+  });
+
+  it("derives legacy operator/expected_value fields from canonical expected_constraint", () => {
+    const normalized = normalizeContractViolationDetail({
+      detail: {
+        code: "TABLE_CONTRACT_VIOLATION",
+        reason: "validator_failed",
+        mineral_key: "amount",
+        expected_constraint: { operator: ">", value: 0 },
+      },
+    });
+    expect(normalized.operator).toBe(">");
+    expect(normalized.expected_value).toBe(0);
+    expect(normalized.expected_constraint).toEqual({ operator: ">", value: 0 });
   });
 
   it("builds deterministic operator-facing message for contract violations", () => {
@@ -82,6 +104,7 @@ describe("workspaceContractExplainability", () => {
           actual_value: "archived",
           operator: "==",
           expected_value: "active",
+          repair_hint: "Adjust 'state' to satisfy '== active'.",
           rule_id: "state-guard",
           source: "moon_capability",
           capability_key: "cashflow.validation",
@@ -95,6 +118,7 @@ describe("workspaceContractExplainability", () => {
     expect(message).toContain("hodnota=archived");
     expect(message).toContain("podminka=== active");
     expect(message).toContain("rule_id=state-guard");
+    expect(message).toContain("oprava=Adjust 'state' to satisfy '== active'.");
     expect(message).toContain("capability=cashflow.validation");
   });
 

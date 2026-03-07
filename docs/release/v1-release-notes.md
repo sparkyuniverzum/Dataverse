@@ -173,3 +173,28 @@ Release SHA: `89f4f17`
   - `/moons*` remains compatibility alias with mandatory headers:
     - `X-Dataverse-Deprecated-Alias: true`
     - `X-Dataverse-Canonical-Route: /civilizations`
+- `W0-LF-05` closed (`GREEN`): error envelope freeze for contract violations.
+- Canonical explainability keys are frozen:
+  - `rule_id`, `capability_id`, `mineral_key`, `expected_constraint`, `repair_hint`
+- FE compatibility mapping is implemented in:
+  - `frontend/src/components/universe/workspaceContractExplainability.js`
+- Live API evidence:
+  - `pytest -q tests/test_api_integration.py -k test_contract_violation_explainability_payload_shape` -> `1 passed, 93 deselected` (2026-03-07).
+- `W0-LF-06` closed (`GREEN`): Visual Builder unified context contract decided.
+- Contract artifact:
+  - `docs/contracts/visual-builder-context-contract-v1.md`
+- Decision:
+  - `WorkspaceContextV1` is the canonical FE builder envelope (planet + moon + civilization + bond + star context).
+  - adapter mode from existing endpoints is explicitly defined until dedicated endpoint is implemented.
+- `W0-LF-07` closed (`GREEN`): Bond pre-commit validate/preview contract decided.
+- Contract artifact:
+  - `docs/contracts/bond-preview-validate-contract-v1.md`
+- Decision:
+  - `POST /bonds/validate` is the canonical dry-run decision contract for bond builder.
+  - reject/warn taxonomy is frozen for FE explainability before commit.
+- `W0-LF-08` closed (`GREEN`): Moon-impact query contract decided.
+- Contract artifact:
+  - `docs/contracts/moon-impact-contract-v1.md`
+- Decision:
+  - `GET /planets/{planet_id}/moon-impact` is the canonical impact explainability read path.
+  - impact samples reuse canonical violation keys (`rule_id`, `capability_id`, `expected_constraint`, `repair_hint`).
