@@ -18,7 +18,7 @@ class CivilizationIngestRequest(BaseModel):
 class CivilizationMutateRequest(BaseModel):
     value: Any | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-    expected_event_seq: int = Field(ge=0)
+    expected_event_seq: int | None = Field(default=None, ge=0)
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
@@ -46,8 +46,8 @@ class BondCreateRequest(BaseModel):
     source_civilization_id: uuid.UUID
     target_civilization_id: uuid.UUID
     type: str
-    expected_source_event_seq: int = Field(ge=0)
-    expected_target_event_seq: int = Field(ge=0)
+    expected_source_event_seq: int | None = Field(default=None, ge=0)
+    expected_target_event_seq: int | None = Field(default=None, ge=0)
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
@@ -55,7 +55,7 @@ class BondCreateRequest(BaseModel):
 
 class BondMutateRequest(BaseModel):
     type: str
-    expected_event_seq: int = Field(ge=0)
+    expected_event_seq: int | None = Field(default=None, ge=0)
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
@@ -105,8 +105,6 @@ class BondValidateRequest(BaseModel):
         if operation == "create":
             if self.source_civilization_id is None or self.target_civilization_id is None:
                 raise ValueError("`create` requires source_civilization_id and target_civilization_id")
-            if self.expected_source_event_seq is None or self.expected_target_event_seq is None:
-                raise ValueError("`create` requires expected_source_event_seq and expected_target_event_seq")
             return self
         if operation == "mutate":
             if self.bond_id is None:
