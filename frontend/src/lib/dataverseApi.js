@@ -301,11 +301,12 @@ export function buildMoonMineralMutateUrl(apiBase, moonId, mineralKey) {
   return `${apiBase}/moons/${moonId}/minerals/${encodeURIComponent(String(mineralKey || "").trim())}`;
 }
 
-export function buildMoonExtinguishUrl(apiBase, moonId, { expectedEventSeq = null } = {}) {
-  const url = new URL(`${apiBase}/moons/${moonId}/extinguish`);
-  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
-    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+export function buildMoonExtinguishUrl(apiBase, moonId, { expectedEventSeq } = {}) {
+  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
+    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
   }
+  const url = new URL(`${apiBase}/moons/${moonId}/extinguish`);
+  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
   return url.toString();
 }
 
@@ -346,41 +347,47 @@ export function buildCivilizationMineralMutateUrl(apiBase, civilizationId, miner
   return `${apiBase}/civilizations/${civilizationId}/minerals/${encodeURIComponent(String(mineralKey || "").trim())}`;
 }
 
-export function buildCivilizationExtinguishUrl(apiBase, civilizationId, { expectedEventSeq = null } = {}) {
-  const url = new URL(`${apiBase}/civilizations/${civilizationId}/extinguish`);
-  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
-    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+export function buildCivilizationExtinguishUrl(apiBase, civilizationId, { expectedEventSeq } = {}) {
+  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
+    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
   }
+  const url = new URL(`${apiBase}/civilizations/${civilizationId}/extinguish`);
+  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
   return url.toString();
 }
 
-export function buildAsteroidExtinguishUrl(apiBase, asteroidId, { galaxyId = null, expectedEventSeq = null } = {}) {
+export function buildAsteroidExtinguishUrl(apiBase, asteroidId, { galaxyId = null, expectedEventSeq } = {}) {
+  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
+    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
+  }
   const url = new URL(`${apiBase}/asteroids/${asteroidId}/extinguish`);
   if (galaxyId) {
     url.searchParams.set("galaxy_id", String(galaxyId));
   }
-  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
-    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
-  }
+  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
   return url.toString();
 }
 
-export function buildBondExtinguishUrl(apiBase, bondId, { galaxyId = null, expectedEventSeq = null } = {}) {
+export function buildBondExtinguishUrl(apiBase, bondId, { galaxyId = null, expectedEventSeq } = {}) {
+  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
+    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
+  }
   const url = new URL(`${apiBase}/bonds/${bondId}/extinguish`);
   if (galaxyId) {
     url.searchParams.set("galaxy_id", String(galaxyId));
   }
-  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
-    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
-  }
+  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
   return url.toString();
 }
 
 export function buildPlanetExtinguishUrl(
   apiBase,
   tableId,
-  { galaxyId = null, branchId = null, expectedEventSeq = null } = {}
+  { galaxyId = null, branchId = null, expectedEventSeq } = {}
 ) {
+  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
+    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
+  }
   const url = new URL(`${apiBase}/planets/${tableId}/extinguish`);
   if (galaxyId) {
     url.searchParams.set("galaxy_id", String(galaxyId));
@@ -388,17 +395,16 @@ export function buildPlanetExtinguishUrl(
   if (branchId) {
     url.searchParams.set("branch_id", String(branchId));
   }
-  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
-    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
-  }
+  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
   return url.toString();
 }
 
-export function buildGalaxyExtinguishUrl(apiBase, galaxyId, { expectedEventSeq = null } = {}) {
-  const url = new URL(`${apiBase}/galaxies/${galaxyId}/extinguish`);
-  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
-    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+export function buildGalaxyExtinguishUrl(apiBase, galaxyId, { expectedEventSeq } = {}) {
+  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
+    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
   }
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/extinguish`);
+  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
   return url.toString();
 }
 
