@@ -164,7 +164,6 @@ class BondValidateResponse(BaseModel):
 class ParseCommandRequest(BaseModel):
     text: str | None = None
     query: str | None = None
-    parser_version: str = "v2"
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
@@ -185,12 +184,6 @@ class ParseCommandRequest(BaseModel):
         if text and query and text != query:
             raise ValueError("'text' and 'query' must match when both are provided")
 
-        version = (self.parser_version or "v2").strip().lower()
-        if version not in {"v1", "v2"}:
-            raise ValueError("`parser_version` must be either 'v1' or 'v2'")
-        if self.parser_version != version:
-            self.parser_version = version
-
         return self
 
     @property
@@ -200,11 +193,6 @@ class ParseCommandRequest(BaseModel):
         if self.text:
             return self.text
         return ""
-
-
-class TaskSchema(BaseModel):
-    action: str
-    params: dict[str, Any]
 
 
 class SemanticEffect(BaseModel):
@@ -226,7 +214,7 @@ class SemanticEffect(BaseModel):
 class ParseCommandResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    tasks: list[TaskSchema]
+    tasks: list[dict[str, Any]]
     civilizations: list[CivilizationResponse] = Field(default_factory=list)
     bonds: list[BondResponse] = Field(default_factory=list)
     selected_asteroids: list[CivilizationResponse] = Field(default_factory=list)

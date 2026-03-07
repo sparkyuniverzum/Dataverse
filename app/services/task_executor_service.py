@@ -16,7 +16,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Bond, CivilizationRM, Event
 from app.services.bond_semantics import normalize_bond_type
 from app.services.event_store_service import EventStoreService
-from app.services.parser_service import AtomicTask
+from app.services.parser2.intents import (
+    AddGuardianIntent,
+    AssignAttributeIntent,
+    BulkIntent,
+    CreateLinkIntent,
+    ExtinguishNodeIntent,
+    Intent,
+    NodeSelectorType,
+    SelectNodesIntent,
+    SetFormulaIntent,
+    UpsertNodeIntent,
+)
 from app.services.read_model_projector import ReadModelProjector
 from app.services.table_contract_effective import EffectiveTableContract
 from app.services.task_executor.contract_validation import TableContractValidator
@@ -686,7 +697,7 @@ class TaskExecutorService:
     def _full_preload_plan() -> _PreloadPlan:
         return _PreloadPlan(scope="full")
 
-    def _build_preload_plan(self, *, tasks: list[AtomicTask], branch_id: UUID | None) -> _PreloadPlan:
+    def _build_preload_plan(self, *, tasks: list[Intent], branch_id: UUID | None) -> _PreloadPlan:
         # Branch timelines are reconstructed from events on read, so partial read-model preload is unsafe there.
         if branch_id is not None:
             return self._full_preload_plan()
@@ -695,60 +706,58 @@ class TaskExecutorService:
         bond_ids: set[UUID] = set()
         include_connected_bonds = False
 
+        intents_to_process: list[Intent] = []
         for task in tasks:
-            action = str(task.action or "").strip().upper()
-            params = task.params if isinstance(task.params, dict) else {}
+            if isinstance(task, BulkIntent):
+                intents_to_process.extend(task.intents)
+            else:
+                intents_to_process.append(task)
 
-            if action == "INGEST":
-                # INGEST can start from empty scope; existing row lookup is resolved on-demand by value.
+        for intent in intents_to_process:
+            if isinstance(intent, UpsertNodeIntent):
+                # Upsert by name is fuzzy, but by ID is specific.
+                # However, INGEST logic can start from an empty scope, so we don't need to preload.
                 continue
 
-            if action == "LINK":
-                source_uuid = self._parse_uuid(params.get("source_civilization_id"))
-                target_uuid = self._parse_uuid(params.get("target_civilization_id"))
+            if isinstance(intent, CreateLinkIntent):
+                if intent.source.selector_type != NodeSelectorType.ID or intent.target.selector_type != NodeSelectorType.ID:
+                    return self._full_preload_plan()
+                source_uuid = self._parse_uuid(intent.source.value)
+                target_uuid = self._parse_uuid(intent.target.value)
                 if source_uuid is None or target_uuid is None:
                     return self._full_preload_plan()
                 civilization_ids.add(source_uuid)
                 civilization_ids.add(target_uuid)
                 continue
 
-            if action == "UPDATE_ASTEROID":
-                asteroid_uuid = self._parse_uuid(params.get("civilization_id"))
+            if isinstance(intent, AssignAttributeIntent):
+                if intent.target.selector_type != NodeSelectorType.ID:
+                    return self._full_preload_plan()
+                asteroid_uuid = self._parse_uuid(intent.target.value)
                 if asteroid_uuid is None:
                     return self._full_preload_plan()
                 civilization_ids.add(asteroid_uuid)
                 continue
 
-            if action in {"UPDATE_BOND", "EXTINGUISH_BOND"}:
-                bond_uuid = self._parse_uuid(params.get("bond_id"))
-                if bond_uuid is None:
-                    return self._full_preload_plan()
-                bond_ids.add(bond_uuid)
-                continue
-
-            if action in {"SET_FORMULA", "ADD_GUARDIAN"}:
-                target_uuid = self._parse_uuid(params.get("target"))
+            if isinstance(intent, (SetFormulaIntent, AddGuardianIntent)):
+                # If target is not a UUID, it's a fuzzy name-based target.
+                target_uuid = self._parse_uuid(intent.target)
                 if target_uuid is None:
                     return self._full_preload_plan()
                 civilization_ids.add(target_uuid)
                 continue
 
-            if action in {"DELETE", "EXTINGUISH"}:
-                # Any fuzzy target needs global context.
-                if params.get("target_asteroid") or params.get("target_planet") or params.get("condition"):
+            if isinstance(intent, ExtinguishNodeIntent):
+                if intent.target.selector_type != NodeSelectorType.ID:
                     return self._full_preload_plan()
-
-                asteroid_uuid = self._parse_uuid(params.get("civilization_id") or params.get("atom_id"))
-                if asteroid_uuid is None and params.get("target"):
-                    asteroid_uuid = self._parse_uuid(params.get("target"))
+                asteroid_uuid = self._parse_uuid(intent.target.value)
                 if asteroid_uuid is None:
                     return self._full_preload_plan()
                 civilization_ids.add(asteroid_uuid)
                 include_connected_bonds = True
                 continue
 
-            # Remaining actions currently depend on broader graph context
-            # (SELECT and parser-style fuzzy targeting).
+            # Any other intent, especially SELECT, requires full context.
             return self._full_preload_plan()
 
         return _PreloadPlan(
@@ -1007,7 +1016,7 @@ class TaskExecutorService:
         self,
         *,
         session: AsyncSession,
-        tasks: list[AtomicTask],
+        tasks: list[Intent],
         user_id: UUID,
         galaxy_id: UUID,
         branch_id: UUID | None,
@@ -1031,39 +1040,39 @@ class TaskExecutorService:
         )
         return civilizations, bonds, preload_plan.scope
 
-    async def _handle_ingest_update_family(self, *, task: AtomicTask, ctx: _TaskExecutionContext) -> bool:
+    async def _handle_ingest_update_family(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
         return await handle_ingest_update_family(self, task=task, ctx=ctx)
 
-    async def _handle_link_and_bond_mutation_family(self, *, task: AtomicTask, ctx: _TaskExecutionContext) -> bool:
+    async def _handle_link_and_bond_mutation_family(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
         return await handle_link_and_bond_mutation_family(self, task=task, ctx=ctx)
 
-    async def _handle_extinguish_family(self, *, task: AtomicTask, ctx: _TaskExecutionContext) -> bool:
+    async def _handle_extinguish_family(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
         return await handle_extinguish_family(self, task=task, ctx=ctx)
 
     async def _handle_formula_guardian_select_family(
         self,
         *,
-        task: AtomicTask,
+        task: Intent,
         ctx: _TaskExecutionContext,
     ) -> bool:
         return await handle_formula_guardian_select_family(self, task=task, ctx=ctx)
 
-    async def _dispatch_task_family(self, *, task: AtomicTask, ctx: _TaskExecutionContext) -> bool:
-        if await self._handle_ingest_update_family(task=task, ctx=ctx):
-            return True
-        if await self._handle_link_and_bond_mutation_family(task=task, ctx=ctx):
-            return True
-        if await self._handle_extinguish_family(task=task, ctx=ctx):
-            return True
-        if await self._handle_formula_guardian_select_family(task=task, ctx=ctx):
-            return True
+    async def _dispatch_task_family(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
+        if isinstance(task, (UpsertNodeIntent, AssignAttributeIntent)):
+            return await self._handle_ingest_update_family(task=task, ctx=ctx)
+        if isinstance(task, CreateLinkIntent):
+            return await self._handle_link_and_bond_mutation_family(task=task, ctx=ctx)
+        if isinstance(task, ExtinguishNodeIntent):
+            return await self._handle_extinguish_family(task=task, ctx=ctx)
+        if isinstance(task, (SetFormulaIntent, AddGuardianIntent, SelectNodesIntent)):
+            return await self._handle_formula_guardian_select_family(task=task, ctx=ctx)
         return False
 
     async def execute_tasks(
         self,
         session: AsyncSession,
         *,
-        tasks: list[AtomicTask],
+        tasks: list[Intent],
         user_id: UUID,
         galaxy_id: UUID = DEFAULT_GALAXY_ID,
         branch_id: UUID | None = None,
@@ -1136,11 +1145,19 @@ class TaskExecutorService:
 
             context.append_and_project_event = append_with_tracking
             for task in tasks:
-                if not await self._dispatch_task_family(task=task, ctx=context):
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                        detail=f"Unsupported task action: {task.action}",
-                    )
+                if isinstance(task, BulkIntent):
+                    for sub_intent in task.intents:
+                        if not await self._dispatch_task_family(task=sub_intent, ctx=context):
+                            raise HTTPException(
+                                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                detail=f"Unsupported task action: {sub_intent.kind}",
+                            )
+                else:
+                    if not await self._dispatch_task_family(task=task, ctx=context):
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"Unsupported task action: {task.kind}",
+                        )
 
             # Branch timelines are projected on read by event replay.
             # Main timeline keeps strong read-model consistency within the same transaction.
