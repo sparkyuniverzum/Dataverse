@@ -270,14 +270,30 @@ class UniverseService:
             projection_source = "read_model"
             # Fallback for galaxies not yet backfilled into read model.
             if not active_asteroids and not active_bonds:
-                active_asteroids, active_bonds = await self._project_state_from_events(
-                    session=session,
-                    user_id=user_id,
-                    galaxy_id=galaxy_id,
-                    branch_id=None,
-                    as_of=as_of,
+                # Before falling back, check if the galaxy is truly empty (has no events)
+                # to prevent unnecessary event projections for new, empty galaxies.
+                has_any_events_stmt = (
+                    select(Event.id)
+                    .where(
+                        and_(
+                            Event.user_id == user_id,
+                            Event.galaxy_id == galaxy_id,
+                            Event.branch_id.is_(None),
+                        )
+                    )
+                    .limit(1)
                 )
-                projection_source = "events"
+                has_any_events = (await session.execute(has_any_events_stmt)).scalar_one_or_none() is not None
+
+                if has_any_events:
+                    active_asteroids, active_bonds = await self._project_state_from_events(
+                        session=session,
+                        user_id=user_id,
+                        galaxy_id=galaxy_id,
+                        branch_id=None,
+                        as_of=as_of,
+                    )
+                    projection_source = "events"
         else:
             active_asteroids, active_bonds = await self._project_state_from_events(
                 session=session,
