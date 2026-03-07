@@ -6,8 +6,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.services.parser2.intents import Intent
-
 
 class CivilizationIngestRequest(BaseModel):
     value: Any
@@ -42,6 +40,13 @@ class CivilizationResponse(BaseModel):
     created_at: datetime
     deleted_at: datetime | None
     current_event_seq: int = 0
+
+
+class TaskSchema(BaseModel):
+    action: str
+    target: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    source_text: str
 
 
 class BondCreateRequest(BaseModel):
@@ -166,6 +171,7 @@ class BondValidateResponse(BaseModel):
 class ParseCommandRequest(BaseModel):
     text: str | None = None
     query: str | None = None
+    parser_version: str = "v2"
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
@@ -174,6 +180,7 @@ class ParseCommandRequest(BaseModel):
     def validate_text_or_query(self) -> ParseCommandRequest:
         text = self.text.strip() if isinstance(self.text, str) else None
         query = self.query.strip() if isinstance(self.query, str) else None
+        version = (self.parser_version or "v2").strip().lower()
 
         if text:
             self.text = text
@@ -185,6 +192,12 @@ class ParseCommandRequest(BaseModel):
 
         if text and query and text != query:
             raise ValueError("'text' and 'query' must match when both are provided")
+
+        if version not in {"v1", "v2"}:
+            raise ValueError("`parser_version` must be either 'v1' or 'v2'")
+
+        if self.parser_version != version:
+            self.parser_version = version
 
         return self
 
@@ -216,7 +229,7 @@ class SemanticEffect(BaseModel):
 class ParseCommandResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    tasks: list[dict[str, Any]]
+    tasks: list[TaskSchema]
     civilizations: list[CivilizationResponse] = Field(default_factory=list)
     bonds: list[BondResponse] = Field(default_factory=list)
     selected_asteroids: list[CivilizationResponse] = Field(default_factory=list)
@@ -226,7 +239,7 @@ class ParseCommandResponse(BaseModel):
 
 
 class TaskBatchExecuteRequest(BaseModel):
-    tasks: list[Intent]
+    tasks: list[TaskSchema]
     mode: str = "commit"
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
