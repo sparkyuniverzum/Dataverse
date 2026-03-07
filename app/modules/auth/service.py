@@ -205,7 +205,7 @@ class AuthService:
 
     async def soft_delete_galaxy(
         self, session: AsyncSession, *, user_id: UUID, galaxy_id: UUID, expected_event_seq: int | None
-    ) -> None:
+    ) -> Galaxy:
         """
         Performs a transactionally-safe, cascading soft delete of a galaxy by generating
         a full set of soft-delete events for the galaxy and all its contents.
@@ -254,7 +254,7 @@ class AuthService:
                     payload={"deleted_at": now.isoformat()},
                 )
 
-        # 4. Finally, generate the event for the galaxy itself
+        # 4. Generate the event for the galaxy itself
         await self.event_store.append_event(
             session=session,
             user_id=user_id,
@@ -263,3 +263,9 @@ class AuthService:
             event_type="GALAXY_EXTINGUISHED",
             payload={"deleted_at": now.isoformat()},
         )
+
+        # 5. Perform the final soft-delete on the main galaxy table and return it
+        deleted_galaxy = await self.repository.soft_delete_galaxy(
+            session=session, user_id=user_id, galaxy_id=galaxy_id
+        )
+        return deleted_galaxy
