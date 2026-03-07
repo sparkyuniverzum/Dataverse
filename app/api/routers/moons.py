@@ -318,8 +318,7 @@ async def mutate_moon(
         params["value"] = payload.label
     if metadata_patch:
         params["metadata"] = metadata_patch
-    if payload.expected_event_seq is not None:
-        params["expected_event_seq"] = payload.expected_event_seq
+    params["expected_event_seq"] = payload.expected_event_seq
     tasks = [AtomicTask(action="UPDATE_ASTEROID", params=params)]
 
     async def execute_scoped(_: UUID, __: UUID | None):
@@ -404,8 +403,7 @@ async def mutate_moon_mineral(
         params["metadata_remove"] = [normalized_key]
     else:
         params["metadata"] = {normalized_key: payload.typed_value}
-    if payload.expected_event_seq is not None:
-        params["expected_event_seq"] = payload.expected_event_seq
+    params["expected_event_seq"] = payload.expected_event_seq
     tasks = [AtomicTask(action="UPDATE_ASTEROID", params=params)]
 
     async def execute_scoped(_: UUID, __: UUID | None):
@@ -475,7 +473,7 @@ async def extinguish_moon(
     moon_id: UUID,
     galaxy_id: UUID | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
-    expected_event_seq: int | None = Query(default=None, ge=0),
+    expected_event_seq: int = Query(ge=0),
     idempotency_key: str | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -488,9 +486,7 @@ async def extinguish_moon(
         branch_id=branch_id,
         services=services,
     )
-    params: dict[str, Any] = {"asteroid_id": str(moon_id)}
-    if expected_event_seq is not None:
-        params["expected_event_seq"] = expected_event_seq
+    params: dict[str, Any] = {"asteroid_id": str(moon_id), "expected_event_seq": expected_event_seq}
     tasks = [AtomicTask(action="EXTINGUISH", params=params)]
 
     async def execute_scoped(_: UUID, __: UUID | None) -> MoonExtinguishResponse:
@@ -552,7 +548,7 @@ async def extinguish_civilization(
     civilization_id: UUID,
     galaxy_id: UUID | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
-    expected_event_seq: int | None = Query(default=None, ge=0),
+    expected_event_seq: int = Query(ge=0),
     idempotency_key: str | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),

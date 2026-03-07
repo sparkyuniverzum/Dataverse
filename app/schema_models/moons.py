@@ -28,7 +28,7 @@ class MoonMutateRequest(BaseModel):
     label: Any | None = None
     minerals: dict[str, Any] = Field(default_factory=dict)
     planet_id: uuid.UUID | None = None
-    expected_event_seq: int | None = Field(default=None, ge=0)
+    expected_event_seq: int = Field(ge=0)
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
@@ -45,7 +45,7 @@ class MoonMutateRequest(BaseModel):
 class CivilizationMineralMutateRequest(BaseModel):
     typed_value: Any | None = None
     remove: bool = False
-    expected_event_seq: int | None = Field(default=None, ge=0)
+    expected_event_seq: int = Field(ge=0)
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
