@@ -242,16 +242,16 @@ class CalcEngineService:
 
         active_ids = set(nodes.keys())
         for bond in bonds:
-            source_id = self._to_uuid(getattr(bond, "source_id", None))
-            target_id = self._to_uuid(getattr(bond, "target_id", None))
-            if source_id is None or target_id is None:
+            source_civilization_id = self._to_uuid(getattr(bond, "source_civilization_id", None))
+            target_civilization_id = self._to_uuid(getattr(bond, "target_civilization_id", None))
+            if source_civilization_id is None or target_civilization_id is None:
                 continue
-            if source_id not in active_ids or target_id not in active_ids:
+            if source_civilization_id not in active_ids or target_civilization_id not in active_ids:
                 continue
             bond_type = normalize_bond_type(getattr(bond, "type", "RELATION"))
             if bond_type != "FLOW":
                 continue
-            flow_incoming[target_id].add(source_id)
+            flow_incoming[target_civilization_id].add(source_civilization_id)
 
         cache: dict[tuple[UUID, str], Any] = {}
         error_map: dict[UUID, list[FormulaError]] = {
@@ -333,8 +333,8 @@ class CalcEngineService:
 
             numbers: list[Decimal] = []
             has_circular = False
-            for source_id in sorted(flow_incoming.get(node_id, set()), key=lambda item: str(item)):
-                source_value = resolve_field(source_id, spec.source_attr, next_stack)
+            for source_civilization_id in sorted(flow_incoming.get(node_id, set()), key=lambda item: str(item)):
+                source_value = resolve_field(source_civilization_id, spec.source_attr, next_stack)
                 if source_value == "#CIRC!":
                     has_circular = True
                     continue

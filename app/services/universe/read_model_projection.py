@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Atom, Bond, CalcStateRM, PhysicsStateRM
+from app.models import Bond, CalcStateRM, CivilizationRM, PhysicsStateRM
 from app.services.bond_semantics import normalize_bond_type
 from app.services.calc_service import evaluate_universe
 from app.services.guardian_service import evaluate_guardians
@@ -32,15 +32,15 @@ async def project_state_from_read_model(
     asteroid_rows = list(
         (
             await session.execute(
-                select(Atom)
+                select(CivilizationRM)
                 .where(
                     and_(
-                        Atom.user_id == user_id,
-                        Atom.galaxy_id == galaxy_id,
-                        Atom.is_deleted.is_(False),
+                        CivilizationRM.user_id == user_id,
+                        CivilizationRM.galaxy_id == galaxy_id,
+                        CivilizationRM.is_deleted.is_(False),
                     )
                 )
-                .order_by(Atom.created_at.asc(), Atom.id.asc())
+                .order_by(CivilizationRM.created_at.asc(), CivilizationRM.id.asc())
             )
         )
         .scalars()
@@ -88,15 +88,15 @@ async def project_state_from_read_model(
     active_bonds = [
         ProjectedBond(
             id=bond.id,
-            source_id=bond.source_id,
-            target_id=bond.target_id,
+            source_civilization_id=bond.source_civilization_id,
+            target_civilization_id=bond.target_civilization_id,
             type=normalize_bond_type(bond.type),
             is_deleted=bond.is_deleted,
             created_at=bond.created_at,
             deleted_at=bond.deleted_at,
         )
         for bond in bond_rows
-        if bond.source_id in active_ids and bond.target_id in active_ids
+        if bond.source_civilization_id in active_ids and bond.target_civilization_id in active_ids
     ]
     bond_seq_map = await service._entity_event_seq_map(
         session=session,
@@ -261,8 +261,8 @@ async def enrich_bonds_from_read_models(
         enriched.append(
             {
                 "id": bond.id,
-                "source_id": bond.source_id,
-                "target_id": bond.target_id,
+                "source_civilization_id": bond.source_civilization_id,
+                "target_civilization_id": bond.target_civilization_id,
                 "type": normalize_bond_type(bond.type),
                 "is_deleted": bool(bond.is_deleted),
                 "created_at": bond.created_at,

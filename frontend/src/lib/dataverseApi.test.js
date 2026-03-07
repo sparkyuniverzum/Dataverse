@@ -24,6 +24,8 @@ import {
   buildParserPayload,
   buildTableContractUrl,
   buildTaskBatchPayload,
+  buildCivilizationMutatePayload,
+  buildCivilizationMineralMutatePayload,
   buildMoonCreateUrl,
   buildMoonDetailUrl,
   buildMoonExtinguishUrl,
@@ -320,6 +322,60 @@ describe("io urls", () => {
 
     const galaxyUrl = buildGalaxyExtinguishUrl("http://127.0.0.1:8000", "g-5");
     expect(galaxyUrl).toBe("http://127.0.0.1:8000/galaxies/g-5/extinguish");
+  });
+});
+
+describe("civilization/moon payload builders", () => {
+  it("builds civilization mutate payload with all fields", () => {
+    const payload = buildCivilizationMutatePayload({
+      label: "New Civ",
+      minerals: { amount: 100 },
+      planetId: "p-1",
+      expectedEventSeq: 10.5,
+      idempotencyKey: "key-1",
+      galaxyId: "g-1",
+      branchId: "br-1",
+    });
+    expect(payload).toEqual({
+      label: "New Civ",
+      minerals: { amount: 100 },
+      planet_id: "p-1",
+      expected_event_seq: 10,
+      idempotency_key: "key-1",
+      galaxy_id: "g-1",
+      branch_id: "br-1",
+    });
+  });
+
+  it("builds civilization mutate payload with only a subset of fields", () => {
+    const payload = buildCivilizationMutatePayload({
+      label: "Only Label",
+      expectedEventSeq: 0,
+    });
+    expect(payload).toEqual({
+      label: "Only Label",
+      expected_event_seq: 0,
+    });
+  });
+
+  it("builds mineral mutate payload for update", () => {
+    const payload = buildCivilizationMineralMutatePayload({
+      typedValue: "some_value",
+      expectedEventSeq: 5,
+      idempotencyKey: "key-2",
+      galaxyId: "g-1",
+    });
+    expect(payload).toEqual({
+      typed_value: "some_value",
+      expected_event_seq: 5,
+      idempotency_key: "key-2",
+      galaxy_id: "g-1",
+    });
+  });
+
+  it("builds mineral mutate payload for removal", () => {
+    const payload = buildCivilizationMineralMutatePayload({ remove: true, expectedEventSeq: 6 });
+    expect(payload).toEqual({ remove: true, expected_event_seq: 6 });
   });
 });
 

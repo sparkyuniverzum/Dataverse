@@ -168,13 +168,13 @@ def build_tables_snapshot(
         )
 
     for bond in bonds:
-        source_id = _bond_attr(bond, "source_id")
-        target_id = _bond_attr(bond, "target_id")
-        if not isinstance(source_id, UUID) or not isinstance(target_id, UUID):
+        source_civilization_id = _bond_attr(bond, "source_civilization_id")
+        target_civilization_id = _bond_attr(bond, "target_civilization_id")
+        if not isinstance(source_civilization_id, UUID) or not isinstance(target_civilization_id, UUID):
             continue
 
-        source = asteroid_by_id.get(source_id)
-        target = asteroid_by_id.get(target_id)
+        source = asteroid_by_id.get(source_civilization_id)
+        target = asteroid_by_id.get(target_civilization_id)
         if source is None or target is None:
             continue
 
@@ -189,8 +189,8 @@ def build_tables_snapshot(
         bond_type = normalize_bond_type(_bond_attr(bond, "type"))
         bond_payload = {
             "id": bond_id,
-            "source_id": source_id,
-            "target_id": target_id,
+            "source_civilization_id": source_civilization_id,
+            "target_civilization_id": target_civilization_id,
             "type": bond_type,
         }
         semantics = bond_semantics(bond_type)

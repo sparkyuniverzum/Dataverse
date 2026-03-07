@@ -376,7 +376,11 @@ export function buildBondExtinguishUrl(apiBase, bondId, { galaxyId = null, expec
   return url.toString();
 }
 
-export function buildPlanetExtinguishUrl(apiBase, tableId, { galaxyId = null, branchId = null, expectedEventSeq = null } = {}) {
+export function buildPlanetExtinguishUrl(
+  apiBase,
+  tableId,
+  { galaxyId = null, branchId = null, expectedEventSeq = null } = {}
+) {
   const url = new URL(`${apiBase}/planets/${tableId}/extinguish`);
   if (galaxyId) {
     url.searchParams.set("galaxy_id", String(galaxyId));

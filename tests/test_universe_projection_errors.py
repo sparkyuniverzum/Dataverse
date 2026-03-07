@@ -22,7 +22,11 @@ class _FakeEventStore:
                 branch_id=kwargs.get("branch_id"),
                 entity_id=uuid4(),
                 event_type="BOND_FORMED",
-                payload={"source_id": "not-a-uuid", "target_id": str(uuid4()), "type": "RELATION"},
+                payload={
+                    "source_civilization_id": "not-a-uuid",
+                    "target_civilization_id": str(uuid4()),
+                    "type": "RELATION",
+                },
                 timestamp=datetime.now(UTC),
                 event_seq=1,
             )
@@ -141,8 +145,8 @@ def test_projection_replay_convergence_under_load() -> None:
             "BOND_FORMED",
             bond_id,
             {
-                "source_id": str(asteroid_ids[idx]),
-                "target_id": str(asteroid_ids[idx + 1]),
+                "source_civilization_id": str(asteroid_ids[idx]),
+                "target_civilization_id": str(asteroid_ids[idx + 1]),
                 "type": "RELATION",
             },
         )
@@ -190,16 +194,19 @@ def test_projection_replay_convergence_under_load() -> None:
     for idx, bond_id in bond_ids_by_index.items():
         if bond_id in deleted_bond_ids:
             continue
-        source_id = asteroid_ids[idx]
-        target_id = asteroid_ids[idx + 1]
-        if source_id in expected_active_asteroid_ids and target_id in expected_active_asteroid_ids:
+        source_civilization_id = asteroid_ids[idx]
+        target_civilization_id = asteroid_ids[idx + 1]
+        if (
+            source_civilization_id in expected_active_asteroid_ids
+            and target_civilization_id in expected_active_asteroid_ids
+        ):
             expected_active_bond_ids.add(bond_id)
 
     assert {item.id for item in first_bonds} == expected_active_bond_ids
     assert [item.id for item in first_bonds] == [item.id for item in replay_bonds]
     for bond in first_bonds:
-        assert bond.source_id in expected_active_asteroid_ids
-        assert bond.target_id in expected_active_asteroid_ids
+        assert bond.source_civilization_id in expected_active_asteroid_ids
+        assert bond.target_civilization_id in expected_active_asteroid_ids
 
     table_rows = build_tables_snapshot(
         service,
@@ -214,12 +221,12 @@ def test_projection_replay_convergence_under_load() -> None:
     for table in table_rows:
         for bond in table.get("internal_bonds", []):
             assert UUID(str(bond["id"])) in expected_active_bond_ids
-            assert UUID(str(bond["source_id"])) in expected_active_asteroid_ids
-            assert UUID(str(bond["target_id"])) in expected_active_asteroid_ids
+            assert UUID(str(bond["source_civilization_id"])) in expected_active_asteroid_ids
+            assert UUID(str(bond["target_civilization_id"])) in expected_active_asteroid_ids
         for bond in table.get("external_bonds", []):
             assert UUID(str(bond["id"])) in expected_active_bond_ids
-            assert UUID(str(bond["source_id"])) in expected_active_asteroid_ids
-            assert UUID(str(bond["target_id"])) in expected_active_asteroid_ids
+            assert UUID(str(bond["source_civilization_id"])) in expected_active_asteroid_ids
+            assert UUID(str(bond["target_civilization_id"])) in expected_active_asteroid_ids
 
 
 def test_projection_replay_applies_metadata_remove_patch() -> None:

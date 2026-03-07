@@ -18,8 +18,8 @@ class DummyAtom:
 
 @dataclass
 class DummyBond:
-    source_id: object
-    target_id: object
+    source_civilization_id: object
+    target_civilization_id: object
     type: str
 
 
@@ -78,8 +78,8 @@ def test_evaluate_atoms_uses_flow_bonds_only_for_aggregation() -> None:
         DummyAtom(id=relation_source_id, value="RelationSource", metadata_={"cena": 900}, created_at=now),
     ]
     bonds = [
-        DummyBond(source_id=flow_source_id, target_id=root_id, type="FLOW"),
-        DummyBond(source_id=relation_source_id, target_id=root_id, type="RELATION"),
+        DummyBond(source_civilization_id=flow_source_id, target_civilization_id=root_id, type="FLOW"),
+        DummyBond(source_civilization_id=relation_source_id, target_civilization_id=root_id, type="RELATION"),
     ]
 
     evaluated = service.evaluate_atoms(
@@ -110,8 +110,8 @@ def test_evaluate_atoms_uses_formula_registry_as_primary_source() -> None:
         DummyAtom(id=src_b, value="B", metadata_={"table": table_name, "cena": "30"}, created_at=now),
     ]
     bonds = [
-        DummyBond(source_id=src_a, target_id=root_id, type="FLOW"),
-        DummyBond(source_id=src_b, target_id=root_id, type="FLOW"),
+        DummyBond(source_civilization_id=src_a, target_civilization_id=root_id, type="FLOW"),
+        DummyBond(source_civilization_id=src_b, target_civilization_id=root_id, type="FLOW"),
     ]
     contracts = {
         table_id: {

@@ -97,8 +97,8 @@ def _parallel_link_with_expected_seq(
     *,
     auth_header: str,
     galaxy_id: str,
-    source_id: str,
-    target_id: str,
+    source_civilization_id: str,
+    target_civilization_id: str,
     relation_type: str,
     expected_source_event_seq: int,
     expected_target_event_seq: int,
@@ -115,8 +115,8 @@ def _parallel_link_with_expected_seq(
             response = worker_client.post(
                 "/bonds/link",
                 json={
-                    "source_id": source_id,
-                    "target_id": target_id,
+                    "source_civilization_id": source_civilization_id,
+                    "target_civilization_id": target_civilization_id,
                     "type": relation_type,
                     "expected_source_event_seq": expected_source_event_seq,
                     "expected_target_event_seq": expected_target_event_seq,
@@ -305,8 +305,8 @@ def test_parser_v2_resolves_existing_names_to_ids_without_ingest(auth_client: tu
 
     actions = [task["action"] for task in body["tasks"]]
     assert actions == ["LINK"]
-    assert "source_id" in body["tasks"][0]["params"]
-    assert "target_id" in body["tasks"][0]["params"]
+    assert "source_civilization_id" in body["tasks"][0]["params"]
+    assert "target_civilization_id" in body["tasks"][0]["params"]
     assert body["tasks"][0]["params"]["type"] == "RELATION"
 
 
@@ -347,8 +347,8 @@ def test_parser_v2_contract_gate_accepts_unquoted_uuid_selectors(auth_client: tu
     assert execute.status_code == 200, execute.text
     body = execute.json()
     assert [task["action"] for task in body["tasks"]] == ["LINK"]
-    assert body["tasks"][0]["params"]["source_id"] == left_id
-    assert body["tasks"][0]["params"]["target_id"] == right_id
+    assert body["tasks"][0]["params"]["source_civilization_id"] == left_id
+    assert body["tasks"][0]["params"]["target_civilization_id"] == right_id
 
 
 def test_parser_v2_contract_gate_accepts_unquoted_hyphen_names(auth_client: tuple[httpx.Client, str]) -> None:
@@ -627,7 +627,12 @@ def test_snapshot_excludes_soft_deleted_atoms_and_orphaned_bonds(auth_client: tu
 
     bond = client.post(
         "/bonds/link",
-        json={"source_id": atom_a_id, "target_id": atom_b_id, "type": "REL_TEST", "galaxy_id": galaxy_id},
+        json={
+            "source_civilization_id": atom_a_id,
+            "target_civilization_id": atom_b_id,
+            "type": "REL_TEST",
+            "galaxy_id": galaxy_id,
+        },
     )
     assert bond.status_code == 200, bond.text
     bond_id = bond.json()["id"]
@@ -670,7 +675,12 @@ def test_snapshot_as_of_returns_historical_state(auth_client: tuple[httpx.Client
 
     bond = client.post(
         "/bonds/link",
-        json={"source_id": atom_a_id, "target_id": atom_b_id, "type": "ASOF_REL", "galaxy_id": galaxy_id},
+        json={
+            "source_civilization_id": atom_a_id,
+            "target_civilization_id": atom_b_id,
+            "type": "ASOF_REL",
+            "galaxy_id": galaxy_id,
+        },
     )
     assert bond.status_code == 200, bond.text
     bond_body = bond.json()
@@ -782,7 +792,12 @@ def test_delete_command_soft_deletes_connected_bond_and_returns_bond_id(auth_cli
     atom_b_id = atom_b.json()["id"]
     linked = client.post(
         "/bonds/link",
-        json={"source_id": atom_a_id, "target_id": atom_b_id, "type": "REL_DELETE", "galaxy_id": galaxy_id},
+        json={
+            "source_civilization_id": atom_a_id,
+            "target_civilization_id": atom_b_id,
+            "type": "REL_DELETE",
+            "galaxy_id": galaxy_id,
+        },
     )
     assert linked.status_code == 200, linked.text
     bond_id = linked.json()["id"]
@@ -825,11 +840,21 @@ def test_set_formula_command_is_calculated_in_snapshot_output(auth_client: tuple
 
     link_a = client.post(
         "/bonds/link",
-        json={"source_id": project_id, "target_id": a_id, "type": "RELATION", "galaxy_id": galaxy_id},
+        json={
+            "source_civilization_id": project_id,
+            "target_civilization_id": a_id,
+            "type": "RELATION",
+            "galaxy_id": galaxy_id,
+        },
     )
     link_b = client.post(
         "/bonds/link",
-        json={"source_id": project_id, "target_id": b_id, "type": "RELATION", "galaxy_id": galaxy_id},
+        json={
+            "source_civilization_id": project_id,
+            "target_civilization_id": b_id,
+            "type": "RELATION",
+            "galaxy_id": galaxy_id,
+        },
     )
     assert link_a.status_code == 200, link_a.text
     assert link_b.status_code == 200, link_b.text
@@ -1080,13 +1105,13 @@ def test_link_occ_rejects_stale_expected_source_seq(auth_client: tuple[httpx.Cli
     target = client.post("/asteroids/ingest", json={"value": target_label, "galaxy_id": galaxy_id})
     assert source.status_code == 200, source.text
     assert target.status_code == 200, target.text
-    source_id = source.json()["id"]
-    target_id = target.json()["id"]
-    source_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=source_id)
-    target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_id)
+    source_civilization_id = source.json()["id"]
+    target_civilization_id = target.json()["id"]
+    source_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=source_civilization_id)
+    target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_civilization_id)
 
     source_mutate = client.patch(
-        f"/asteroids/{source_id}/mutate",
+        f"/asteroids/{source_civilization_id}/mutate",
         json={"metadata": {"touch": "new"}, "galaxy_id": galaxy_id},
     )
     assert source_mutate.status_code == 200, source_mutate.text
@@ -1094,8 +1119,8 @@ def test_link_occ_rejects_stale_expected_source_seq(auth_client: tuple[httpx.Cli
     stale_link = client.post(
         "/bonds/link",
         json={
-            "source_id": source_id,
-            "target_id": target_id,
+            "source_civilization_id": source_civilization_id,
+            "target_civilization_id": target_civilization_id,
             "type": "RELATION",
             "expected_source_event_seq": source_seq,
             "expected_target_event_seq": target_seq,
@@ -1992,8 +2017,8 @@ def test_bond_layer_v1_endpoint_returns_flow_quality_metrics(auth_client: tuple[
     assert "type" in row
     assert "directional" in row and isinstance(row["directional"], bool)
     assert row["flow_direction"] in {"source_to_target", "bidirectional"}
-    assert "source_id" in row
-    assert "target_id" in row
+    assert "source_civilization_id" in row
+    assert "target_civilization_id" in row
     assert "source_label" in row
     assert "target_label" in row
     assert "source_table_id" in row
@@ -2810,14 +2835,24 @@ def test_relation_link_reverse_direction_reuses_same_bond(auth_client: tuple[htt
 
     forward = client.post(
         "/bonds/link",
-        json={"source_id": left_id, "target_id": right_id, "type": "RELATION", "galaxy_id": galaxy_id},
+        json={
+            "source_civilization_id": left_id,
+            "target_civilization_id": right_id,
+            "type": "RELATION",
+            "galaxy_id": galaxy_id,
+        },
     )
     assert forward.status_code == 200, forward.text
     bond_id = forward.json()["id"]
 
     reverse = client.post(
         "/bonds/link",
-        json={"source_id": right_id, "target_id": left_id, "type": "RELATION", "galaxy_id": galaxy_id},
+        json={
+            "source_civilization_id": right_id,
+            "target_civilization_id": left_id,
+            "type": "RELATION",
+            "galaxy_id": galaxy_id,
+        },
     )
     assert reverse.status_code == 200, reverse.text
     assert reverse.json()["id"] == bond_id
@@ -2828,7 +2863,7 @@ def test_relation_link_reverse_direction_reuses_same_bond(auth_client: tuple[htt
         bond
         for bond in snapshot.json()["bonds"]
         if str(bond.get("type", "")).upper() == "RELATION"
-        and {bond.get("source_id"), bond.get("target_id")} == {left_id, right_id}
+        and {bond.get("source_civilization_id"), bond.get("target_civilization_id")} == {left_id, right_id}
     ]
     assert len(rel_bonds) == 1
 
@@ -2842,12 +2877,17 @@ def test_link_type_alias_formula_is_normalized_to_flow(auth_client: tuple[httpx.
     target = client.post("/asteroids/ingest", json={"value": target_label, "galaxy_id": galaxy_id})
     assert source.status_code == 200, source.text
     assert target.status_code == 200, target.text
-    source_id = source.json()["id"]
-    target_id = target.json()["id"]
+    source_civilization_id = source.json()["id"]
+    target_civilization_id = target.json()["id"]
 
     linked = client.post(
         "/bonds/link",
-        json={"source_id": source_id, "target_id": target_id, "type": "formula", "galaxy_id": galaxy_id},
+        json={
+            "source_civilization_id": source_civilization_id,
+            "target_civilization_id": target_civilization_id,
+            "type": "formula",
+            "galaxy_id": galaxy_id,
+        },
     )
     assert linked.status_code == 200, linked.text
     body = linked.json()
@@ -2875,16 +2915,16 @@ def test_link_parallel_same_relation_returns_single_bond(auth_client: tuple[http
     target = client.post("/asteroids/ingest", json={"value": target_label, "galaxy_id": galaxy_id})
     assert source.status_code == 200, source.text
     assert target.status_code == 200, target.text
-    source_id = source.json()["id"]
-    target_id = target.json()["id"]
-    source_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=source_id)
-    target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_id)
+    source_civilization_id = source.json()["id"]
+    target_civilization_id = target.json()["id"]
+    source_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=source_civilization_id)
+    target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_civilization_id)
 
     outcomes = _parallel_link_with_expected_seq(
         auth_header=auth_header,
         galaxy_id=galaxy_id,
-        source_id=source_id,
-        target_id=target_id,
+        source_civilization_id=source_civilization_id,
+        target_civilization_id=target_civilization_id,
         relation_type="RELATION",
         expected_source_event_seq=source_seq,
         expected_target_event_seq=target_seq,
@@ -2903,7 +2943,8 @@ def test_link_parallel_same_relation_returns_single_bond(auth_client: tuple[http
         bond
         for bond in snapshot.json()["bonds"]
         if str(bond.get("type", "")).upper() == "RELATION"
-        and {bond.get("source_id"), bond.get("target_id")} == {source_id, target_id}
+        and {bond.get("source_civilization_id"), bond.get("target_civilization_id")}
+        == {source_civilization_id, target_civilization_id}
     ]
     assert len(rel_bonds) == 1
     assert rel_bonds[0]["id"] == bond_id
@@ -2918,12 +2959,17 @@ def test_bond_mutate_replaces_type_and_preserves_single_active_edge(auth_client:
     target = client.post("/asteroids/ingest", json={"value": target_label, "galaxy_id": galaxy_id})
     assert source.status_code == 200, source.text
     assert target.status_code == 200, target.text
-    source_id = source.json()["id"]
-    target_id = target.json()["id"]
+    source_civilization_id = source.json()["id"]
+    target_civilization_id = target.json()["id"]
 
     linked = client.post(
         "/bonds/link",
-        json={"source_id": source_id, "target_id": target_id, "type": "RELATION", "galaxy_id": galaxy_id},
+        json={
+            "source_civilization_id": source_civilization_id,
+            "target_civilization_id": target_civilization_id,
+            "type": "RELATION",
+            "galaxy_id": galaxy_id,
+        },
     )
     assert linked.status_code == 200, linked.text
     original = linked.json()
@@ -2946,7 +2992,12 @@ def test_bond_mutate_replaces_type_and_preserves_single_active_edge(auth_client:
     snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
     assert snapshot.status_code == 200, snapshot.text
     bonds = snapshot.json()["bonds"]
-    active = [bond for bond in bonds if {bond.get("source_id"), bond.get("target_id")} == {source_id, target_id}]
+    active = [
+        bond
+        for bond in bonds
+        if {bond.get("source_civilization_id"), bond.get("target_civilization_id")}
+        == {source_civilization_id, target_civilization_id}
+    ]
     assert len(active) == 1
     assert active[0]["id"] == mutated_body["id"]
     assert active[0]["type"] == "TYPE"
@@ -2961,12 +3012,17 @@ def test_bond_extinguish_soft_deletes_link(auth_client: tuple[httpx.Client, str]
     target = client.post("/asteroids/ingest", json={"value": target_label, "galaxy_id": galaxy_id})
     assert source.status_code == 200, source.text
     assert target.status_code == 200, target.text
-    source_id = source.json()["id"]
-    target_id = target.json()["id"]
+    source_civilization_id = source.json()["id"]
+    target_civilization_id = target.json()["id"]
 
     linked = client.post(
         "/bonds/link",
-        json={"source_id": source_id, "target_id": target_id, "type": "FLOW", "galaxy_id": galaxy_id},
+        json={
+            "source_civilization_id": source_civilization_id,
+            "target_civilization_id": target_civilization_id,
+            "type": "FLOW",
+            "galaxy_id": galaxy_id,
+        },
     )
     assert linked.status_code == 200, linked.text
     body = linked.json()
@@ -3055,8 +3111,8 @@ def test_bridge_integrity_soft_delete_and_replay_convergence(auth_client: tuple[
     linked = client.post(
         "/bonds/link",
         json={
-            "source_id": source_row_id,
-            "target_id": target_row_id,
+            "source_civilization_id": source_row_id,
+            "target_civilization_id": target_row_id,
             "type": "RELATION",
             "galaxy_id": galaxy_id,
         },
@@ -5093,8 +5149,8 @@ def test_planet_stage0_two_planets_validate_star_laws(auth_client: tuple[httpx.C
     linked = client.post(
         "/bonds/link",
         json={
-            "source_id": catalog_moon_id,
-            "target_id": stream_moon_id,
+            "source_civilization_id": catalog_moon_id,
+            "target_civilization_id": stream_moon_id,
             "type": "RELATION",
             "galaxy_id": galaxy_id,
         },
@@ -5243,18 +5299,18 @@ def test_bond_validate_preview_allows_create_and_returns_normalized_payload(
     )
     assert source.status_code == 200, source.text
     assert target.status_code == 200, target.text
-    source_id = source.json()["id"]
-    target_id = target.json()["id"]
+    source_civilization_id = source.json()["id"]
+    target_civilization_id = target.json()["id"]
 
-    source_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=source_id)
-    target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_id)
+    source_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=source_civilization_id)
+    target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_civilization_id)
 
     preview = client.post(
         "/bonds/validate",
         json={
             "operation": "create",
-            "source_civilization_id": source_id,
-            "target_civilization_id": target_id,
+            "source_civilization_id": source_civilization_id,
+            "target_civilization_id": target_civilization_id,
             "type": "RELATION",
             "expected_source_event_seq": source_seq,
             "expected_target_event_seq": target_seq,
@@ -5273,8 +5329,8 @@ def test_bond_validate_preview_allows_create_and_returns_normalized_payload(
     committed = client.post(
         "/bonds/link",
         json={
-            "source_id": source_id,
-            "target_id": target_id,
+            "source_civilization_id": source_civilization_id,
+            "target_civilization_id": target_civilization_id,
             "type": "RELATION",
             "expected_source_event_seq": source_seq,
             "expected_target_event_seq": target_seq,
@@ -5283,8 +5339,8 @@ def test_bond_validate_preview_allows_create_and_returns_normalized_payload(
     )
     assert committed.status_code == 200, committed.text
     committed_body = committed.json()
-    assert committed_body["source_id"] in {source_id, target_id}
-    assert committed_body["target_id"] in {source_id, target_id}
+    assert committed_body["source_civilization_id"] in {source_civilization_id, target_civilization_id}
+    assert committed_body["target_civilization_id"] in {source_civilization_id, target_civilization_id}
     assert committed_body["type"] == "RELATION"
 
 
@@ -5294,14 +5350,14 @@ def test_bond_validate_preview_rejects_same_endpoint_with_structured_reason(
     client, galaxy_id = auth_client
     source = client.post("/asteroids/ingest", json={"value": f"Same-A-{uuid.uuid4().hex[:8]}", "galaxy_id": galaxy_id})
     assert source.status_code == 200, source.text
-    source_id = source.json()["id"]
+    source_civilization_id = source.json()["id"]
 
     preview = client.post(
         "/bonds/validate",
         json={
             "operation": "create",
-            "source_civilization_id": source_id,
-            "target_civilization_id": source_id,
+            "source_civilization_id": source_civilization_id,
+            "target_civilization_id": source_civilization_id,
             "type": "FLOW",
             "galaxy_id": galaxy_id,
         },

@@ -34,13 +34,13 @@ class TargetResolver:
             return None
 
         try:
-            target_id = UUID(target.strip())
+            target_civilization_id = UUID(target.strip())
         except ValueError:
-            target_id = None
+            target_civilization_id = None
 
-        if target_id is not None:
+        if target_civilization_id is not None:
             for asteroid in asteroids:
-                if asteroid.id == target_id:
+                if asteroid.id == target_civilization_id:
                     return asteroid
 
         for asteroid in asteroids:

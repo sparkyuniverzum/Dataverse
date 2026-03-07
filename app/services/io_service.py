@@ -59,8 +59,8 @@ RESERVED_COLUMNS = {
     "value",
     "source",
     "target",
-    "source_id",
-    "target_id",
+    "source_civilization_id",
+    "target_civilization_id",
     "bond_type",
     "type",
 }
@@ -120,22 +120,22 @@ class ImportExportService:
         if not any(row.values()):
             return []
 
-        source_id = row.get("source_id")
-        target_id = row.get("target_id")
+        source_civilization_id = row.get("source_civilization_id")
+        target_civilization_id = row.get("target_civilization_id")
         source = row.get("source")
         target = row.get("target")
         bond_type = row.get("bond_type") or row.get("type") or "RELATION"
 
-        if source_id or target_id or source or target:
-            if source_id and target_id:
-                source_uuid = cls._parse_uuid(source_id)
-                target_uuid = cls._parse_uuid(target_id)
+        if source_civilization_id or target_civilization_id or source or target:
+            if source_civilization_id and target_civilization_id:
+                source_uuid = cls._parse_uuid(source_civilization_id)
+                target_uuid = cls._parse_uuid(target_civilization_id)
                 return [
                     AtomicTask(
                         action="LINK",
                         params={
-                            "source_id": str(source_uuid),
-                            "target_id": str(target_uuid),
+                            "source_civilization_id": str(source_uuid),
+                            "target_civilization_id": str(target_uuid),
                             "type": bond_type,
                         },
                     )
@@ -148,7 +148,10 @@ class ImportExportService:
                     AtomicTask(action="LINK", params={"type": bond_type}),
                 ]
 
-            raise ValueError("Row defines partial bond columns; provide source+target or source_id+target_id")
+            raise ValueError(
+                "Row defines partial bond columns; provide source+target or "
+                "source_civilization_id+target_civilization_id"
+            )
 
         value = row.get("value")
         if not value:
@@ -502,8 +505,8 @@ class ImportExportService:
                 "calculated_values",
                 "active_alerts",
                 "created_at",
-                "source_id",
-                "target_id",
+                "source_civilization_id",
+                "target_civilization_id",
                 "bond_type",
             ]
         )
@@ -548,8 +551,8 @@ class ImportExportService:
                     "",
                     "",
                     bond.created_at.isoformat(),
-                    str(bond.source_id),
-                    str(bond.target_id),
+                    str(bond.source_civilization_id),
+                    str(bond.target_civilization_id),
                     bond.type,
                 ]
             )

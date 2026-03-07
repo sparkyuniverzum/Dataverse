@@ -67,8 +67,8 @@ class ProjectedAsteroid:
 @dataclass
 class ProjectedBond:
     id: UUID
-    source_id: UUID
-    target_id: UUID
+    source_civilization_id: UUID
+    target_civilization_id: UUID
     type: str
     is_deleted: bool
     created_at: datetime

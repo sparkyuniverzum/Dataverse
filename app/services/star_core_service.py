@@ -902,7 +902,13 @@ class StarCoreService:
             if domain:
                 domains.add(domain)
 
-        for key in ("asteroid_id", "source_id", "target_id", "source_asteroid_id", "target_asteroid_id"):
+        for key in (
+            "asteroid_id",
+            "source_civilization_id",
+            "target_civilization_id",
+            "source_asteroid_id",
+            "target_asteroid_id",
+        ):
             asteroid_uuid = cls._parse_uuid_like(payload_dict.get(key))
             if asteroid_uuid is None:
                 continue

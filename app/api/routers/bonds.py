@@ -33,14 +33,16 @@ from app.services.parser_service import AtomicTask
 router = APIRouter(tags=["bonds"])
 
 
-def _canonical_pair(source_id: UUID, target_id: UUID, *, relation_type: str) -> tuple[UUID, UUID]:
+def _canonical_pair(
+    source_civilization_id: UUID, target_civilization_id: UUID, *, relation_type: str
+) -> tuple[UUID, UUID]:
     if normalize_bond_type(relation_type) != "RELATION":
-        return source_id, target_id
-    source_text = str(source_id)
-    target_text = str(target_id)
+        return source_civilization_id, target_civilization_id
+    source_text = str(source_civilization_id)
+    target_text = str(target_civilization_id)
     if source_text <= target_text:
-        return source_id, target_id
-    return target_id, source_id
+        return source_civilization_id, target_civilization_id
+    return target_civilization_id, source_civilization_id
 
 
 def _reason_from_http_exception(exc: HTTPException) -> BondValidateReason:
@@ -88,7 +90,7 @@ def _reason_from_http_exception(exc: HTTPException) -> BondValidateReason:
             context={"status": status_code, "detail": detail},
         )
 
-    if "source_id and target_id must be different" in detail_text:
+    if "source_civilization_id and target_civilization_id must be different" in detail_text:
         return BondValidateReason(
             code="BOND_VALIDATE_SAME_ENDPOINT",
             message="Source and target civilization must be different.",
@@ -181,15 +183,15 @@ async def validate_bond(
                 continue
             if bond_type == "RELATION":
                 candidate_source, candidate_target = _canonical_pair(
-                    bond.source_id,
-                    bond.target_id,
+                    bond.source_civilization_id,
+                    bond.target_civilization_id,
                     relation_type=bond_type,
                 )
                 if candidate_source == normalized_source and candidate_target == normalized_target:
                     existing_bond_id = bond.id
                     break
                 continue
-            if bond.source_id == normalized_source and bond.target_id == normalized_target:
+            if bond.source_civilization_id == normalized_source and bond.target_civilization_id == normalized_target:
                 existing_bond_id = bond.id
                 break
 
@@ -208,8 +210,8 @@ async def validate_bond(
             AtomicTask(
                 action="LINK",
                 params={
-                    "source_id": str(payload.source_civilization_id),
-                    "target_id": str(payload.target_civilization_id),
+                    "source_civilization_id": str(payload.source_civilization_id),
+                    "target_civilization_id": str(payload.target_civilization_id),
                     "type": semantics.bond_type,
                     **(
                         {"expected_source_event_seq": payload.expected_source_event_seq}
@@ -327,8 +329,8 @@ async def link_bond(
         AtomicTask(
             action="LINK",
             params={
-                "source_id": str(payload.source_id),
-                "target_id": str(payload.target_id),
+                "source_civilization_id": str(payload.source_civilization_id),
+                "target_civilization_id": str(payload.target_civilization_id),
                 "type": payload.type,
                 **(
                     {"expected_source_event_seq": payload.expected_source_event_seq}
@@ -366,8 +368,8 @@ async def link_bond(
         endpoint_key="POST:/bonds/link",
         idempotency_key=payload.idempotency_key,
         request_payload={
-            "source_id": str(payload.source_id),
-            "target_id": str(payload.target_id),
+            "source_civilization_id": str(payload.source_civilization_id),
+            "target_civilization_id": str(payload.target_civilization_id),
             "type": payload.type,
             "expected_source_event_seq": payload.expected_source_event_seq,
             "expected_target_event_seq": payload.expected_target_event_seq,

@@ -85,8 +85,8 @@ def test_bridge_maps_assign_attribute_to_ingest_or_update() -> None:
 
 def test_bridge_maps_links_for_name_and_id_selectors() -> None:
     bridge = Parser2ExecutorBridge()
-    source_id = "cfe4b9fd-97d5-4052-a696-976dbd2822af"
-    target_id = "9ae9732f-cb9c-4db2-a3f2-5e7f7cbe93ac"
+    source_civilization_id = "cfe4b9fd-97d5-4052-a696-976dbd2822af"
+    target_civilization_id = "9ae9732f-cb9c-4db2-a3f2-5e7f7cbe93ac"
     envelope = IntentEnvelope(
         intents=[
             CreateLinkIntent(
@@ -95,8 +95,8 @@ def test_bridge_maps_links_for_name_and_id_selectors() -> None:
                 link_type=LinkType.RELATION,
             ),
             CreateLinkIntent(
-                source=NodeSelector(selector_type=NodeSelectorType.ID, value=source_id),
-                target=NodeSelector(selector_type=NodeSelectorType.ID, value=target_id),
+                source=NodeSelector(selector_type=NodeSelectorType.ID, value=source_civilization_id),
+                target=NodeSelector(selector_type=NodeSelectorType.ID, value=target_civilization_id),
                 link_type=LinkType.TYPE,
                 metadata={"origin": "bridge-test"},
             ),
@@ -108,8 +108,8 @@ def test_bridge_maps_links_for_name_and_id_selectors() -> None:
     assert [task.action for task in result.tasks] == ["INGEST", "INGEST", "LINK", "LINK"]
     assert result.tasks[2].params == {"type": "RELATION"}
     assert result.tasks[3].params == {
-        "source_id": source_id,
-        "target_id": target_id,
+        "source_civilization_id": source_civilization_id,
+        "target_civilization_id": target_civilization_id,
         "type": "TYPE",
         "metadata": {"origin": "bridge-test"},
     }

@@ -150,7 +150,7 @@ async def handle_extinguish_family(
                 bond
                 for bond in ctx.bonds_by_id.values()
                 if bond.id not in processed_bond_ids
-                and (bond.source_id == asteroid.id or bond.target_id == asteroid.id)
+                and (bond.source_civilization_id == asteroid.id or bond.target_civilization_id == asteroid.id)
             ]
             for bond in connected_bonds:
                 bond_deleted_event = await ctx.append_and_project_event(
@@ -180,7 +180,7 @@ async def handle_extinguish_family(
         ctx.bonds_by_id = {
             bond_id: bond
             for bond_id, bond in ctx.bonds_by_id.items()
-            if bond.source_id in ctx.asteroids_by_id and bond.target_id in ctx.asteroids_by_id
+            if bond.source_civilization_id in ctx.asteroids_by_id and bond.target_civilization_id in ctx.asteroids_by_id
         }
         return True
 

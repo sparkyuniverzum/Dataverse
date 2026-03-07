@@ -16,12 +16,12 @@ class OccGuards:
         *,
         user_id: UUID,
         galaxy_id: UUID,
-        source_id: UUID,
-        target_id: UUID,
+        source_civilization_id: UUID,
+        target_civilization_id: UUID,
         bond_type: str,
     ) -> int:
         digest = blake2b(
-            f"{user_id}:{galaxy_id}:{source_id}:{target_id}:{bond_type}".encode(),
+            f"{user_id}:{galaxy_id}:{source_civilization_id}:{target_civilization_id}:{bond_type}".encode(),
             digest_size=8,
         ).digest()
         return int.from_bytes(digest, byteorder="big", signed=True)
@@ -123,7 +123,7 @@ class OccGuards:
             )
 
     @staticmethod
-    def canonical_relation_pair(source_id: UUID, target_id: UUID) -> tuple[UUID, UUID]:
-        if source_id.hex <= target_id.hex:
-            return source_id, target_id
-        return target_id, source_id
+    def canonical_relation_pair(source_civilization_id: UUID, target_civilization_id: UUID) -> tuple[UUID, UUID]:
+        if source_civilization_id.hex <= target_civilization_id.hex:
+            return source_civilization_id, target_civilization_id
+        return target_civilization_id, source_civilization_id

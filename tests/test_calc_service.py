@@ -19,8 +19,8 @@ class DummyAtom:
 
 @dataclass
 class DummyBond:
-    source_id: uuid.UUID
-    target_id: uuid.UUID
+    source_civilization_id: uuid.UUID
+    target_civilization_id: uuid.UUID
 
 
 def test_evaluate_universe_sum_and_avg() -> None:
@@ -40,8 +40,8 @@ def test_evaluate_universe_sum_and_avg() -> None:
         DummyAtom(id=task_b_id, value="B", metadata_={"cena": 50}, created_at=now),
     ]
     bonds = [
-        DummyBond(source_id=project_id, target_id=task_a_id),
-        DummyBond(source_id=project_id, target_id=task_b_id),
+        DummyBond(source_civilization_id=project_id, target_civilization_id=task_a_id),
+        DummyBond(source_civilization_id=project_id, target_civilization_id=task_b_id),
     ]
 
     evaluated = evaluate_universe(atoms, bonds)
@@ -67,9 +67,9 @@ def test_evaluate_universe_count_ignores_non_numeric_values() -> None:
         DummyAtom(id=c_id, value="C", metadata_={"cena": 1.5}, created_at=now),
     ]
     bonds = [
-        DummyBond(source_id=root_id, target_id=a_id),
-        DummyBond(source_id=root_id, target_id=b_id),
-        DummyBond(source_id=root_id, target_id=c_id),
+        DummyBond(source_civilization_id=root_id, target_civilization_id=a_id),
+        DummyBond(source_civilization_id=root_id, target_civilization_id=b_id),
+        DummyBond(source_civilization_id=root_id, target_civilization_id=c_id),
     ]
 
     evaluated = evaluate_universe(atoms, bonds)
@@ -89,8 +89,8 @@ def test_evaluate_universe_resolves_recursive_formula_chain() -> None:
         DummyAtom(id=leaf_id, value="Leaf", metadata_={"cena": "8"}, created_at=now),
     ]
     bonds = [
-        DummyBond(source_id=root_id, target_id=mid_id),
-        DummyBond(source_id=mid_id, target_id=leaf_id),
+        DummyBond(source_civilization_id=root_id, target_civilization_id=mid_id),
+        DummyBond(source_civilization_id=mid_id, target_civilization_id=leaf_id),
     ]
 
     evaluated = evaluate_universe(atoms, bonds)
@@ -108,7 +108,7 @@ def test_evaluate_universe_detects_circular_reference() -> None:
         DummyAtom(id=a_id, value="A", metadata_={"x": "=SUM(x)"}, created_at=now),
         DummyAtom(id=b_id, value="B", metadata_={"x": "=SUM(x)"}, created_at=now),
     ]
-    bonds = [DummyBond(source_id=a_id, target_id=b_id)]
+    bonds = [DummyBond(source_civilization_id=a_id, target_civilization_id=b_id)]
 
     evaluated = evaluate_universe(atoms, bonds)
     by_id = {item["id"]: item for item in evaluated}

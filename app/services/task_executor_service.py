@@ -13,7 +13,7 @@ from sqlalchemy import and_, cast, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Atom, Bond, Event
+from app.models import Bond, CivilizationRM, Event
 from app.services.bond_semantics import normalize_bond_type
 from app.services.event_store_service import EventStoreService
 from app.services.parser_service import AtomicTask
@@ -444,15 +444,15 @@ class TaskExecutorService:
         *,
         user_id: UUID,
         galaxy_id: UUID,
-        source_id: UUID,
-        target_id: UUID,
+        source_civilization_id: UUID,
+        target_civilization_id: UUID,
         bond_type: str,
     ) -> int:
         return OccGuards.bond_lock_key(
             user_id=user_id,
             galaxy_id=galaxy_id,
-            source_id=source_id,
-            target_id=target_id,
+            source_civilization_id=source_civilization_id,
+            target_civilization_id=target_civilization_id,
             bond_type=bond_type,
         )
 
@@ -473,8 +473,8 @@ class TaskExecutorService:
     def _to_projected_bond(bond: Bond, *, current_event_seq: int = 0) -> ProjectedBond:
         return ProjectedBond(
             id=bond.id,
-            source_id=bond.source_id,
-            target_id=bond.target_id,
+            source_civilization_id=bond.source_civilization_id,
+            target_civilization_id=bond.target_civilization_id,
             type=normalize_bond_type(bond.type),
             is_deleted=bond.is_deleted,
             created_at=bond.created_at,
@@ -569,8 +569,8 @@ class TaskExecutorService:
         )
 
     @staticmethod
-    def _canonical_relation_pair(source_id: UUID, target_id: UUID) -> tuple[UUID, UUID]:
-        return OccGuards.canonical_relation_pair(source_id, target_id)
+    def _canonical_relation_pair(source_civilization_id: UUID, target_civilization_id: UUID) -> tuple[UUID, UUID]:
+        return OccGuards.canonical_relation_pair(source_civilization_id, target_civilization_id)
 
     @staticmethod
     def _extract_contract_field(*, value: Any, metadata: dict[str, Any], field: str) -> Any:
@@ -675,7 +675,7 @@ class TaskExecutorService:
         merged_bonds = {
             bond_id: bond
             for bond_id, bond in merged_bonds.items()
-            if bond.source_id in merged_asteroids and bond.target_id in merged_asteroids
+            if bond.source_civilization_id in merged_asteroids and bond.target_civilization_id in merged_asteroids
         }
 
         ctx.asteroids_by_id = merged_asteroids
@@ -704,8 +704,8 @@ class TaskExecutorService:
                 continue
 
             if action == "LINK":
-                source_uuid = self._parse_uuid(params.get("source_id"))
-                target_uuid = self._parse_uuid(params.get("target_id"))
+                source_uuid = self._parse_uuid(params.get("source_civilization_id"))
+                target_uuid = self._parse_uuid(params.get("target_civilization_id"))
                 if source_uuid is None or target_uuid is None:
                     return self._full_preload_plan()
                 asteroid_ids.add(source_uuid)
@@ -775,12 +775,12 @@ class TaskExecutorService:
         row = (
             (
                 await session.execute(
-                    select(Atom).where(
+                    select(CivilizationRM).where(
                         and_(
-                            Atom.user_id == user_id,
-                            Atom.galaxy_id == galaxy_id,
-                            Atom.is_deleted.is_(False),
-                            Atom.value == cast(literal(value_json), JSONB),
+                            CivilizationRM.user_id == user_id,
+                            CivilizationRM.galaxy_id == galaxy_id,
+                            CivilizationRM.is_deleted.is_(False),
+                            CivilizationRM.value == cast(literal(value_json), JSONB),
                         )
                     )
                 )
@@ -845,19 +845,19 @@ class TaskExecutorService:
         galaxy_id: UUID,
         plan: _PreloadPlan,
     ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
-        asteroid_rows_by_id: dict[UUID, Atom] = {}
+        asteroid_rows_by_id: dict[UUID, CivilizationRM] = {}
         bond_rows_by_id: dict[UUID, Bond] = {}
 
         if plan.asteroid_ids:
             asteroid_rows = list(
                 (
                     await session.execute(
-                        select(Atom).where(
+                        select(CivilizationRM).where(
                             and_(
-                                Atom.user_id == user_id,
-                                Atom.galaxy_id == galaxy_id,
-                                Atom.is_deleted.is_(False),
-                                Atom.id.in_(plan.asteroid_ids),
+                                CivilizationRM.user_id == user_id,
+                                CivilizationRM.galaxy_id == galaxy_id,
+                                CivilizationRM.is_deleted.is_(False),
+                                CivilizationRM.id.in_(plan.asteroid_ids),
                             )
                         )
                     )
@@ -890,10 +890,20 @@ class TaskExecutorService:
             # For UPDATE_BOND conflict checks we also need sibling active bonds on the same edge pair.
             pair_conditions = []
             for row in primary_bond_rows:
-                source_id = row.source_id
-                target_id = row.target_id
-                pair_conditions.append(and_(Bond.source_id == source_id, Bond.target_id == target_id))
-                pair_conditions.append(and_(Bond.source_id == target_id, Bond.target_id == source_id))
+                source_civilization_id = row.source_civilization_id
+                target_civilization_id = row.target_civilization_id
+                pair_conditions.append(
+                    and_(
+                        Bond.source_civilization_id == source_civilization_id,
+                        Bond.target_civilization_id == target_civilization_id,
+                    )
+                )
+                pair_conditions.append(
+                    and_(
+                        Bond.source_civilization_id == target_civilization_id,
+                        Bond.target_civilization_id == source_civilization_id,
+                    )
+                )
             if pair_conditions:
                 related_bond_rows = list(
                     (
@@ -918,7 +928,7 @@ class TaskExecutorService:
             endpoint_ids = {
                 endpoint_id
                 for row in bond_rows_by_id.values()
-                for endpoint_id in (row.source_id, row.target_id)
+                for endpoint_id in (row.source_civilization_id, row.target_civilization_id)
                 if isinstance(endpoint_id, UUID)
             }
             missing_endpoint_ids = endpoint_ids - set(asteroid_rows_by_id.keys())
@@ -926,12 +936,12 @@ class TaskExecutorService:
                 missing_endpoints = list(
                     (
                         await session.execute(
-                            select(Atom).where(
+                            select(CivilizationRM).where(
                                 and_(
-                                    Atom.user_id == user_id,
-                                    Atom.galaxy_id == galaxy_id,
-                                    Atom.is_deleted.is_(False),
-                                    Atom.id.in_(missing_endpoint_ids),
+                                    CivilizationRM.user_id == user_id,
+                                    CivilizationRM.galaxy_id == galaxy_id,
+                                    CivilizationRM.is_deleted.is_(False),
+                                    CivilizationRM.id.in_(missing_endpoint_ids),
                                 )
                             )
                         )
@@ -953,8 +963,8 @@ class TaskExecutorService:
                                 Bond.galaxy_id == galaxy_id,
                                 Bond.is_deleted.is_(False),
                                 or_(
-                                    Bond.source_id.in_(asteroid_scope_ids),
-                                    Bond.target_id.in_(asteroid_scope_ids),
+                                    Bond.source_civilization_id.in_(asteroid_scope_ids),
+                                    Bond.target_civilization_id.in_(asteroid_scope_ids),
                                 ),
                             )
                         )

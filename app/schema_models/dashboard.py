@@ -115,8 +115,8 @@ class BondSummaryPublic(BaseModel):
     type: str
     directional: bool
     flow_direction: str
-    source_id: uuid.UUID
-    target_id: uuid.UUID
+    source_civilization_id: uuid.UUID
+    target_civilization_id: uuid.UUID
     source_label: str
     target_label: str
     source_table_id: uuid.UUID

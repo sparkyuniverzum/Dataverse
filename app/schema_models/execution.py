@@ -43,8 +43,8 @@ class AsteroidResponse(BaseModel):
 
 
 class BondCreateRequest(BaseModel):
-    source_id: uuid.UUID
-    target_id: uuid.UUID
+    source_civilization_id: uuid.UUID
+    target_civilization_id: uuid.UUID
     type: str
     expected_source_event_seq: int = Field(ge=0)
     expected_target_event_seq: int = Field(ge=0)
@@ -72,8 +72,8 @@ class BondResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: uuid.UUID
-    source_id: uuid.UUID
-    target_id: uuid.UUID
+    source_civilization_id: uuid.UUID
+    target_civilization_id: uuid.UUID
     type: str
     directional: bool = False
     flow_direction: str = "bidirectional"

@@ -98,8 +98,8 @@ class BondDashboardService:
 
         rows: list[dict[str, Any]] = []
         for bond in bonds:
-            source = asteroid_by_id.get(bond.source_id)
-            target = asteroid_by_id.get(bond.target_id)
+            source = asteroid_by_id.get(bond.source_civilization_id)
+            target = asteroid_by_id.get(bond.target_civilization_id)
             if source is None or target is None:
                 continue
 
@@ -125,8 +125,8 @@ class BondDashboardService:
                     "type": bond_type,
                     "directional": directional,
                     "flow_direction": flow_direction,
-                    "source_id": source["id"],
-                    "target_id": target["id"],
+                    "source_civilization_id": source["id"],
+                    "target_civilization_id": target["id"],
                     "source_label": source["label"],
                     "target_label": target["label"],
                     "source_table_id": source["table_id"],

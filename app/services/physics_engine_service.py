@@ -124,7 +124,7 @@ class PhysicsEngineService:
         bonds = list(
             (
                 await session.execute(
-                    select(Bond.id, Bond.source_id, Bond.target_id, Bond.type).where(
+                    select(Bond.id, Bond.source_civilization_id, Bond.target_civilization_id, Bond.type).where(
                         and_(
                             Bond.user_id == user_id,
                             Bond.galaxy_id == galaxy_id,
@@ -137,12 +137,16 @@ class PhysicsEngineService:
 
         degree_by_asteroid: dict[UUID, int] = {asteroid_id: 0 for asteroid_id in asteroid_ids}
         for bond in bonds:
-            source_id = bond.source_id if isinstance(bond.source_id, UUID) else None
-            target_id = bond.target_id if isinstance(bond.target_id, UUID) else None
-            if source_id in degree_by_asteroid:
-                degree_by_asteroid[source_id] += 1
-            if target_id in degree_by_asteroid:
-                degree_by_asteroid[target_id] += 1
+            source_civilization_id = (
+                bond.source_civilization_id if isinstance(bond.source_civilization_id, UUID) else None
+            )
+            target_civilization_id = (
+                bond.target_civilization_id if isinstance(bond.target_civilization_id, UUID) else None
+            )
+            if source_civilization_id in degree_by_asteroid:
+                degree_by_asteroid[source_civilization_id] += 1
+            if target_civilization_id in degree_by_asteroid:
+                degree_by_asteroid[target_civilization_id] += 1
 
         asteroid_state_by_id: dict[UUID, dict[str, float]] = {}
         active_entity_keys: set[tuple[str, UUID]] = set()
@@ -182,28 +186,32 @@ class PhysicsEngineService:
 
         for bond in bonds:
             bond_id = bond.id if isinstance(bond.id, UUID) else None
-            source_id = bond.source_id if isinstance(bond.source_id, UUID) else None
-            target_id = bond.target_id if isinstance(bond.target_id, UUID) else None
-            if bond_id is None or source_id is None or target_id is None:
+            source_civilization_id = (
+                bond.source_civilization_id if isinstance(bond.source_civilization_id, UUID) else None
+            )
+            target_civilization_id = (
+                bond.target_civilization_id if isinstance(bond.target_civilization_id, UUID) else None
+            )
+            if bond_id is None or source_civilization_id is None or target_civilization_id is None:
                 continue
-            if source_id not in asteroid_state_by_id or target_id not in asteroid_state_by_id:
+            if source_civilization_id not in asteroid_state_by_id or target_civilization_id not in asteroid_state_by_id:
                 continue
 
-            source_state = asteroid_state_by_id[source_id]
-            target_state = asteroid_state_by_id[target_id]
+            source_state = asteroid_state_by_id[source_civilization_id]
+            target_state = asteroid_state_by_id[target_civilization_id]
             state = self._derive_bond_state(
                 bond_type=str(bond.type or "RELATION"),
                 source_stress=float(source_state.get("stress_score", 0.0)),
                 target_stress=float(target_state.get("stress_score", 0.0)),
-                source_degree=int(degree_by_asteroid.get(source_id, 0) or 0),
-                target_degree=int(degree_by_asteroid.get(target_id, 0) or 0),
+                source_degree=int(degree_by_asteroid.get(source_civilization_id, 0) or 0),
+                target_degree=int(degree_by_asteroid.get(target_civilization_id, 0) or 0),
             )
             active_entity_keys.add(("bond", bond_id))
             payload = {
                 "entity_kind": "bond",
                 "type": normalize_bond_type(str(bond.type or "RELATION")),
-                "source_id": str(source_id),
-                "target_id": str(target_id),
+                "source_civilization_id": str(source_civilization_id),
+                "target_civilization_id": str(target_civilization_id),
             }
             await self._upsert_state(
                 session=session,

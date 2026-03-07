@@ -53,8 +53,8 @@ def bond_to_response(bond: ProjectedBond | Mapping[str, Any]) -> BondResponse:
         semantics = bond_semantics(bond.get("type", "RELATION"))
         return BondResponse(
             id=bond["id"],
-            source_id=bond["source_id"],
-            target_id=bond["target_id"],
+            source_civilization_id=bond["source_civilization_id"],
+            target_civilization_id=bond["target_civilization_id"],
             type=semantics.bond_type,
             directional=semantics.directional,
             flow_direction=semantics.flow_direction,
@@ -66,8 +66,8 @@ def bond_to_response(bond: ProjectedBond | Mapping[str, Any]) -> BondResponse:
     semantics = bond_semantics(bond.type)
     return BondResponse(
         id=bond.id,
-        source_id=bond.source_id,
-        target_id=bond.target_id,
+        source_civilization_id=bond.source_civilization_id,
+        target_civilization_id=bond.target_civilization_id,
         type=semantics.bond_type,
         directional=semantics.directional,
         flow_direction=semantics.flow_direction,
@@ -195,23 +195,23 @@ def universe_bond_to_snapshot(
     table_index = asteroid_table_index or {}
     if isinstance(bond, Mapping):
         semantics = bond_semantics(bond.get("type", "RELATION"))
-        source_id = bond["source_id"]
-        target_id = bond["target_id"]
+        source_civilization_id = bond["source_civilization_id"]
+        target_civilization_id = bond["target_civilization_id"]
         physics = bond.get("physics", {})
         if not isinstance(physics, dict):
             physics = {}
         source_table_id, source_table_name, source_constellation_name, source_planet_name = table_index.get(
-            source_id,
+            source_civilization_id,
             (DEFAULT_GALAXY_ID, "Unknown", "Unknown", "Unknown"),
         )
         target_table_id, target_table_name, target_constellation_name, target_planet_name = table_index.get(
-            target_id,
+            target_civilization_id,
             (DEFAULT_GALAXY_ID, "Unknown", "Unknown", "Unknown"),
         )
         return UniverseBondSnapshot(
             id=bond["id"],
-            source_id=source_id,
-            target_id=target_id,
+            source_civilization_id=source_civilization_id,
+            target_civilization_id=target_civilization_id,
             type=semantics.bond_type,
             physics=physics,
             directional=semantics.directional,
@@ -228,17 +228,17 @@ def universe_bond_to_snapshot(
         )
     semantics = bond_semantics(bond.type)
     source_table_id, source_table_name, source_constellation_name, source_planet_name = table_index.get(
-        bond.source_id,
+        bond.source_civilization_id,
         (DEFAULT_GALAXY_ID, "Unknown", "Unknown", "Unknown"),
     )
     target_table_id, target_table_name, target_constellation_name, target_planet_name = table_index.get(
-        bond.target_id,
+        bond.target_civilization_id,
         (DEFAULT_GALAXY_ID, "Unknown", "Unknown", "Unknown"),
     )
     return UniverseBondSnapshot(
         id=bond.id,
-        source_id=bond.source_id,
-        target_id=bond.target_id,
+        source_civilization_id=bond.source_civilization_id,
+        target_civilization_id=bond.target_civilization_id,
         type=semantics.bond_type,
         physics={},
         directional=semantics.directional,

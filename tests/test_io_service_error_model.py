@@ -44,11 +44,11 @@ def test_classify_row_failure_http_conflict_uses_domain_code() -> None:
 def test_serialize_row_error_payload_contains_structured_error() -> None:
     failure = ImportExportService._classify_row_failure(ValueError("Invalid UUID: bad"))
     payload = ImportExportService._serialize_row_error_payload(
-        row={"source_id": "bad", "target_id": ""},
+        row={"source_civilization_id": "bad", "target_civilization_id": ""},
         failure=failure,
     )
     parsed = json.loads(payload)
 
-    assert parsed["row"]["source_id"] == "bad"
+    assert parsed["row"]["source_civilization_id"] == "bad"
     assert parsed["error"]["code"] == "ROW_INPUT_INVALID"
     assert "Invalid UUID" in parsed["error"]["message"]

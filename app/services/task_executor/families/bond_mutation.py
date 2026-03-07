@@ -23,23 +23,23 @@ async def handle_link_and_bond_mutation_family(
 ) -> bool:
     action = task.action.upper()
     if action == "LINK":
-        source_id = task.params.get("source_id")
-        target_id = task.params.get("target_id")
-        if source_id is None or target_id is None:
+        source_civilization_id = task.params.get("source_civilization_id")
+        target_civilization_id = task.params.get("target_civilization_id")
+        if source_civilization_id is None or target_civilization_id is None:
             if len(ctx.context_asteroid_ids) < 2:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="LINK task requires source_id/target_id or two previous INGEST tasks",
+                    detail="LINK requires source_civilization_id/target_civilization_id or two INGEST tasks",
                 )
-            source_id = ctx.context_asteroid_ids[-2]
-            target_id = ctx.context_asteroid_ids[-1]
+            source_civilization_id = ctx.context_asteroid_ids[-2]
+            target_civilization_id = ctx.context_asteroid_ids[-1]
 
-        source_uuid = UUID(str(source_id))
-        target_uuid = UUID(str(target_id))
+        source_uuid = UUID(str(source_civilization_id))
+        target_uuid = UUID(str(target_civilization_id))
         if source_uuid == target_uuid:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="source_id and target_id must be different",
+                detail="source_civilization_id and target_civilization_id must be different",
             )
         if source_uuid not in ctx.asteroids_by_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source asteroid not found")
@@ -83,8 +83,12 @@ async def handle_link_and_bond_mutation_family(
                 for bond in ctx.bonds_by_id.values()
                 if str(bond.type or "").upper() == bond_type
                 and (
-                    (bond.source_id == source_uuid and bond.target_id == target_uuid)
-                    or (is_relation and bond.source_id == target_uuid and bond.target_id == source_uuid)
+                    (bond.source_civilization_id == source_uuid and bond.target_civilization_id == target_uuid)
+                    or (
+                        is_relation
+                        and bond.source_civilization_id == target_uuid
+                        and bond.target_civilization_id == source_uuid
+                    )
                 )
             ),
             None,
@@ -97,7 +101,11 @@ async def handle_link_and_bond_mutation_family(
                 reason="Existing bond already satisfies the semantic link request.",
                 task_action=action,
                 rule_id="sem.link.reuse",
-                inputs={"source_id": source_uuid, "target_id": target_uuid, "type": bond_type},
+                inputs={
+                    "source_civilization_id": source_uuid,
+                    "target_civilization_id": target_uuid,
+                    "type": bond_type,
+                },
                 outputs={"bond_id": existing_bond.id, "created": False},
             )
             return True
@@ -105,8 +113,8 @@ async def handle_link_and_bond_mutation_family(
         lock_key = self._bond_lock_key(
             user_id=ctx.user_id,
             galaxy_id=ctx.galaxy_id,
-            source_id=source_uuid,
-            target_id=target_uuid,
+            source_civilization_id=source_uuid,
+            target_civilization_id=target_uuid,
             bond_type=bond_type,
         )
         await ctx.session.execute(sql_text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
@@ -121,15 +129,15 @@ async def handle_link_and_bond_mutation_family(
             bond_match_predicate = and_(
                 bond_match_predicate,
                 or_(
-                    and_(Bond.source_id == source_uuid, Bond.target_id == target_uuid),
-                    and_(Bond.source_id == target_uuid, Bond.target_id == source_uuid),
+                    and_(Bond.source_civilization_id == source_uuid, Bond.target_civilization_id == target_uuid),
+                    and_(Bond.source_civilization_id == target_uuid, Bond.target_civilization_id == source_uuid),
                 ),
             )
         else:
             bond_match_predicate = and_(
                 bond_match_predicate,
-                Bond.source_id == source_uuid,
-                Bond.target_id == target_uuid,
+                Bond.source_civilization_id == source_uuid,
+                Bond.target_civilization_id == target_uuid,
             )
 
         persisted_bond = (await ctx.session.execute(select(Bond).where(bond_match_predicate))).scalar_one_or_none()
@@ -148,8 +156,8 @@ async def handle_link_and_bond_mutation_family(
 
         bond_id = uuid4()
         bond_payload = {
-            "source_id": str(source_uuid),
-            "target_id": str(target_uuid),
+            "source_civilization_id": str(source_uuid),
+            "target_civilization_id": str(target_uuid),
             "type": bond_type,
         }
         raw_bond_metadata = task.params.get("metadata")
@@ -163,8 +171,8 @@ async def handle_link_and_bond_mutation_family(
         )
         bond = ProjectedBond(
             id=bond_id,
-            source_id=source_uuid,
-            target_id=target_uuid,
+            source_civilization_id=source_uuid,
+            target_civilization_id=target_uuid,
             type=bond_type,
             is_deleted=False,
             created_at=bond_event.timestamp,
@@ -179,7 +187,7 @@ async def handle_link_and_bond_mutation_family(
             reason="New semantic bond was created.",
             task_action=action,
             rule_id="sem.link.create",
-            inputs={"source_id": source_uuid, "target_id": target_uuid, "type": bond_type},
+            inputs={"source_civilization_id": source_uuid, "target_civilization_id": target_uuid, "type": bond_type},
             outputs={"bond_id": bond.id, "created": True},
         )
         return True
@@ -230,8 +238,8 @@ async def handle_link_and_bond_mutation_family(
             )
             return True
 
-        source_uuid = bond.source_id
-        target_uuid = bond.target_id
+        source_uuid = bond.source_civilization_id
+        target_uuid = bond.target_civilization_id
         next_is_relation = next_type == "RELATION"
         if next_is_relation:
             source_uuid, target_uuid = self._canonical_relation_pair(source_uuid, target_uuid)
@@ -243,8 +251,15 @@ async def handle_link_and_bond_mutation_family(
                 if candidate.id != bond.id
                 and normalize_bond_type(candidate.type) == next_type
                 and (
-                    (candidate.source_id == source_uuid and candidate.target_id == target_uuid)
-                    or (next_is_relation and candidate.source_id == target_uuid and candidate.target_id == source_uuid)
+                    (
+                        candidate.source_civilization_id == source_uuid
+                        and candidate.target_civilization_id == target_uuid
+                    )
+                    or (
+                        next_is_relation
+                        and candidate.source_civilization_id == target_uuid
+                        and candidate.target_civilization_id == source_uuid
+                    )
                 )
             ),
             None,
@@ -276,15 +291,15 @@ async def handle_link_and_bond_mutation_family(
             entity_id=new_bond_id,
             event_type="BOND_FORMED",
             payload={
-                "source_id": str(source_uuid),
-                "target_id": str(target_uuid),
+                "source_civilization_id": str(source_uuid),
+                "target_civilization_id": str(target_uuid),
                 "type": next_type,
             },
         )
         new_bond = ProjectedBond(
             id=new_bond_id,
-            source_id=source_uuid,
-            target_id=target_uuid,
+            source_civilization_id=source_uuid,
+            target_civilization_id=target_uuid,
             type=next_type,
             is_deleted=False,
             created_at=formed_event.timestamp,
@@ -300,7 +315,11 @@ async def handle_link_and_bond_mutation_family(
             task_action=action,
             rule_id="sem.bond.retype",
             inputs={"bond_id": bond.id, "from_type": current_type, "to_type": next_type},
-            outputs={"bond_id": new_bond.id, "source_id": source_uuid, "target_id": target_uuid},
+            outputs={
+                "bond_id": new_bond.id,
+                "source_civilization_id": source_uuid,
+                "target_civilization_id": target_uuid,
+            },
         )
         return True
 

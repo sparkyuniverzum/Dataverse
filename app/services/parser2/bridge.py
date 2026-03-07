@@ -263,11 +263,15 @@ class Parser2ExecutorBridge:
             return
 
         if source.selector_type == NodeSelectorType.ID and target.selector_type == NodeSelectorType.ID:
-            source_id = self._validate_uuid_selector(selector=source, errors=errors)
-            target_id = self._validate_uuid_selector(selector=target, errors=errors)
-            if source_id is None or target_id is None:
+            source_civilization_id = self._validate_uuid_selector(selector=source, errors=errors)
+            target_civilization_id = self._validate_uuid_selector(selector=target, errors=errors)
+            if source_civilization_id is None or target_civilization_id is None:
                 return
-            link_params = {"source_id": source_id, "target_id": target_id, "type": link_type.value}
+            link_params = {
+                "source_civilization_id": source_civilization_id,
+                "target_civilization_id": target_civilization_id,
+                "type": link_type.value,
+            }
             if metadata:
                 link_params["metadata"] = dict(metadata)
             tasks.append(AtomicTask(action="LINK", params=link_params))

@@ -336,12 +336,12 @@ class GalaxyActivityRM(Base):
     )
 
 
-class Atom(Base):
-    __tablename__ = "atoms"
+class CivilizationRM(Base):
+    __tablename__ = "civilization_rm"
     __table_args__ = (
         CheckConstraint(
             "((is_deleted = FALSE AND deleted_at IS NULL) OR (is_deleted = TRUE AND deleted_at IS NOT NULL))",
-            name="atoms_soft_delete_chk",
+            name="civilization_rm_soft_delete_chk",
         ),
     )
 
@@ -386,7 +386,7 @@ class Atom(Base):
 class Bond(Base):
     __tablename__ = "bonds"
     __table_args__ = (
-        CheckConstraint("source_id <> target_id", name="bonds_no_delete_chk"),
+        CheckConstraint("source_civilization_id <> target_civilization_id", name="bonds_no_delete_chk"),
         CheckConstraint(
             "((is_deleted = FALSE AND deleted_at IS NULL) OR (is_deleted = TRUE AND deleted_at IS NOT NULL))",
             name="bonds_soft_delete_chk",
@@ -395,8 +395,8 @@ class Bond(Base):
             "ux_bonds_active_relation",
             "user_id",
             "galaxy_id",
-            "source_id",
-            "target_id",
+            "source_civilization_id",
+            "target_civilization_id",
             "type",
             unique=True,
             postgresql_where=text("is_deleted = FALSE"),
@@ -420,14 +420,14 @@ class Bond(Base):
         nullable=False,
         index=True,
     )
-    source_id: Mapped[uuid.UUID] = mapped_column(
+    source_civilization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("atoms.id"),
+        ForeignKey("civilization_rm.id"),
         nullable=False,
     )
-    target_id: Mapped[uuid.UUID] = mapped_column(
+    target_civilization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("atoms.id"),
+        ForeignKey("civilization_rm.id"),
         nullable=False,
     )
     type: Mapped[str] = mapped_column(nullable=False)

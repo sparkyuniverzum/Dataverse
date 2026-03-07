@@ -556,8 +556,8 @@ class PresetBundleService:
                 AtomicTask(
                     action="LINK",
                     params={
-                        "source_id": str(refs[bond.source_ref]),
-                        "target_id": str(refs[bond.target_ref]),
+                        "source_civilization_id": str(refs[bond.source_ref]),
+                        "target_civilization_id": str(refs[bond.target_ref]),
                         "type": bond.bond_type,
                     },
                 )

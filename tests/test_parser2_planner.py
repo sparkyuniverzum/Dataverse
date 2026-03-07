@@ -135,9 +135,9 @@ def test_planner_reports_reference_operand_error_for_non_assignment() -> None:
 
 def test_planner_treats_uuid_literal_as_id_selector_without_upsert() -> None:
     planner = Parser2SemanticPlanner()
-    source_id = "cfe4b9fd-97d5-4052-a696-976dbd2822af"
-    target_id = "2c4a713f-0f3d-47d1-8e38-6aa4492f0ec3"
-    result = planner.plan_text(f'"{source_id}" + "{target_id}"')
+    source_civilization_id = "cfe4b9fd-97d5-4052-a696-976dbd2822af"
+    target_civilization_id = "2c4a713f-0f3d-47d1-8e38-6aa4492f0ec3"
+    result = planner.plan_text(f'"{source_civilization_id}" + "{target_civilization_id}"')
 
     assert result.errors == []
     assert result.envelope is not None
@@ -150,9 +150,9 @@ def test_planner_treats_uuid_literal_as_id_selector_without_upsert() -> None:
 
 def test_planner_treats_unquoted_uuid_literal_as_id_selector_without_upsert() -> None:
     planner = Parser2SemanticPlanner()
-    source_id = "63b9d570-5ef6-47eb-8bf4-70bcdb6db95b"
-    target_id = "2c4a713f-0f3d-47d1-8e38-6aa4492f0ec3"
-    result = planner.plan_text(f"{source_id} + {target_id}")
+    source_civilization_id = "63b9d570-5ef6-47eb-8bf4-70bcdb6db95b"
+    target_civilization_id = "2c4a713f-0f3d-47d1-8e38-6aa4492f0ec3"
+    result = planner.plan_text(f"{source_civilization_id} + {target_civilization_id}")
 
     assert result.errors == []
     assert result.envelope is not None
@@ -165,8 +165,8 @@ def test_planner_treats_unquoted_uuid_literal_as_id_selector_without_upsert() ->
 
 def test_planner_can_produce_mixed_selectors_for_bridge_validation() -> None:
     planner = Parser2SemanticPlanner()
-    source_id = "63b9d570-5ef6-47eb-8bf4-70bcdb6db95b"
-    result = planner.plan_text(f'"{source_id}" + Projekt')
+    source_civilization_id = "63b9d570-5ef6-47eb-8bf4-70bcdb6db95b"
+    result = planner.plan_text(f'"{source_civilization_id}" + Projekt')
 
     assert result.errors == []
     assert result.envelope is not None

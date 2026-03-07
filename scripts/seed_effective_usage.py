@@ -11,7 +11,7 @@ from uuid import UUID
 from sqlalchemy import and_, select
 
 from app.db import AsyncSessionLocal
-from app.models import Atom, Galaxy, User
+from app.models import CivilizationRM, Galaxy, User
 from app.services.auth_service import AuthService
 from app.services.parser_service import AtomicTask
 from app.services.task_executor_service import TaskExecutorService
@@ -166,16 +166,16 @@ async def ingest_moon(
 
     row = (
         await session.execute(
-            select(Atom)
+            select(CivilizationRM)
             .where(
                 and_(
-                    Atom.user_id == user_id,
-                    Atom.galaxy_id == galaxy_id,
-                    Atom.is_deleted.is_(False),
-                    Atom.value == value,
+                    CivilizationRM.user_id == user_id,
+                    CivilizationRM.galaxy_id == galaxy_id,
+                    CivilizationRM.is_deleted.is_(False),
+                    CivilizationRM.value == value,
                 )
             )
-            .order_by(Atom.created_at.desc())
+            .order_by(CivilizationRM.created_at.desc())
             .limit(1)
         )
     ).scalar_one_or_none()
@@ -210,8 +210,8 @@ async def seed_effective_usage() -> None:
                         AtomicTask(
                             action="LINK",
                             params={
-                                "source_id": str(moon_ids[source_label]),
-                                "target_id": str(moon_ids[target_label]),
+                                "source_civilization_id": str(moon_ids[source_label]),
+                                "target_civilization_id": str(moon_ids[target_label]),
                                 "type": "FLOW",
                             },
                         )
@@ -228,8 +228,8 @@ async def seed_effective_usage() -> None:
                         AtomicTask(
                             action="LINK",
                             params={
-                                "source_id": str(moon_ids[source_label]),
-                                "target_id": str(moon_ids[target_label]),
+                                "source_civilization_id": str(moon_ids[source_label]),
+                                "target_civilization_id": str(moon_ids[target_label]),
                                 "type": "RELATION",
                             },
                         )

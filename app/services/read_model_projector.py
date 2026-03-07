@@ -10,7 +10,7 @@ from sqlalchemy import and_, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Atom, Bond, Event, GalaxyActivityRM, GalaxyHealthRM, GalaxySummaryRM
+from app.models import Bond, CivilizationRM, Event, GalaxyActivityRM, GalaxyHealthRM, GalaxySummaryRM
 from app.services.calc_engine_service import CalcEngineService
 from app.services.guardian_service import evaluate_guardians
 from app.services.physics_engine_service import PhysicsEngineService
@@ -31,8 +31,8 @@ class AsteroidValueUpdatedPayload(BaseModel):
 
 
 class BondFormedPayload(BaseModel):
-    source_id: UUID
-    target_id: UUID
+    source_civilization_id: UUID
+    target_civilization_id: UUID
     type: str = "RELATION"
 
 
@@ -343,11 +343,11 @@ class ReadModelProjector:
         atoms = list(
             (
                 await session.execute(
-                    select(Atom).where(
+                    select(CivilizationRM).where(
                         and_(
-                            Atom.user_id == user_id,
-                            Atom.galaxy_id == galaxy_id,
-                            Atom.is_deleted.is_(False),
+                            CivilizationRM.user_id == user_id,
+                            CivilizationRM.galaxy_id == galaxy_id,
+                            CivilizationRM.is_deleted.is_(False),
                         )
                     )
                 )
@@ -371,7 +371,11 @@ class ReadModelProjector:
             .scalars()
             .all()
         )
-        active_bonds = [bond for bond in bonds if bond.source_id in active_ids and bond.target_id in active_ids]
+        active_bonds = [
+            bond
+            for bond in bonds
+            if bond.source_civilization_id in active_ids and bond.target_civilization_id in active_ids
+        ]
 
         table_names = [
             self._derive_table_name(
@@ -505,7 +509,7 @@ class ReadModelProjector:
         payload: AsteroidCreatedPayload,
         happened_at: datetime,
     ) -> None:
-        stmt = insert(Atom).values(
+        stmt = insert(CivilizationRM).values(
             id=asteroid_id,
             user_id=user_id,
             galaxy_id=galaxy_id,
@@ -516,7 +520,7 @@ class ReadModelProjector:
             deleted_at=None,
         )
         stmt = stmt.on_conflict_do_update(
-            index_elements=[Atom.id],
+            index_elements=[CivilizationRM.id],
             set_={
                 "user_id": user_id,
                 "galaxy_id": galaxy_id,
@@ -548,12 +552,12 @@ class ReadModelProjector:
 
         locked_atom = (
             await session.execute(
-                select(Atom)
+                select(CivilizationRM)
                 .where(
                     and_(
-                        Atom.id == asteroid_id,
-                        Atom.user_id == user_id,
-                        Atom.galaxy_id == galaxy_id,
+                        CivilizationRM.id == asteroid_id,
+                        CivilizationRM.user_id == user_id,
+                        CivilizationRM.galaxy_id == galaxy_id,
                     )
                 )
                 .with_for_update()
@@ -578,13 +582,13 @@ class ReadModelProjector:
         happened_at: datetime,
     ) -> None:
         await session.execute(
-            update(Atom)
+            update(CivilizationRM)
             .where(
                 and_(
-                    Atom.id == asteroid_id,
-                    Atom.user_id == user_id,
-                    Atom.galaxy_id == galaxy_id,
-                    Atom.is_deleted.is_(False),
+                    CivilizationRM.id == asteroid_id,
+                    CivilizationRM.user_id == user_id,
+                    CivilizationRM.galaxy_id == galaxy_id,
+                    CivilizationRM.is_deleted.is_(False),
                 )
             )
             .values(is_deleted=True, deleted_at=happened_at)
@@ -597,7 +601,7 @@ class ReadModelProjector:
                     Bond.user_id == user_id,
                     Bond.galaxy_id == galaxy_id,
                     Bond.is_deleted.is_(False),
-                    (Bond.source_id == asteroid_id) | (Bond.target_id == asteroid_id),
+                    (Bond.source_civilization_id == asteroid_id) | (Bond.target_civilization_id == asteroid_id),
                 )
             )
             .values(is_deleted=True, deleted_at=happened_at)
@@ -613,13 +617,13 @@ class ReadModelProjector:
         payload: AsteroidValueUpdatedPayload,
     ) -> None:
         await session.execute(
-            update(Atom)
+            update(CivilizationRM)
             .where(
                 and_(
-                    Atom.id == asteroid_id,
-                    Atom.user_id == user_id,
-                    Atom.galaxy_id == galaxy_id,
-                    Atom.is_deleted.is_(False),
+                    CivilizationRM.id == asteroid_id,
+                    CivilizationRM.user_id == user_id,
+                    CivilizationRM.galaxy_id == galaxy_id,
+                    CivilizationRM.is_deleted.is_(False),
                 )
             )
             .values(value=payload.value)
@@ -639,8 +643,8 @@ class ReadModelProjector:
             id=bond_id,
             user_id=user_id,
             galaxy_id=galaxy_id,
-            source_id=payload.source_id,
-            target_id=payload.target_id,
+            source_civilization_id=payload.source_civilization_id,
+            target_civilization_id=payload.target_civilization_id,
             type=payload.type,
             is_deleted=False,
             created_at=happened_at,

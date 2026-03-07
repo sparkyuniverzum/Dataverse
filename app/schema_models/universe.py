@@ -296,8 +296,8 @@ def asteroid_snapshot_to_moon_row(snapshot: UniverseAsteroidSnapshot) -> MoonRow
 
 class UniverseBondSnapshot(BaseModel):
     id: uuid.UUID
-    source_id: uuid.UUID
-    target_id: uuid.UUID
+    source_civilization_id: uuid.UUID
+    target_civilization_id: uuid.UUID
     type: str
     physics: dict[str, Any] = Field(default_factory=dict)
     directional: bool = False
@@ -328,8 +328,8 @@ class UniverseTableMemberSnapshot(BaseModel):
 
 class UniverseTableBondSnapshot(BaseModel):
     id: uuid.UUID
-    source_id: uuid.UUID
-    target_id: uuid.UUID
+    source_civilization_id: uuid.UUID
+    target_civilization_id: uuid.UUID
     type: str
     directional: bool = False
     flow_direction: str = "bidirectional"

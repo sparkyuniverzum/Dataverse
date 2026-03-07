@@ -72,17 +72,17 @@ def apply_event(
 
     if event.event_type == "BOND_FORMED":
         try:
-            source_id = UUID(str(payload["source_id"]))
-            target_id = UUID(str(payload["target_id"]))
+            source_civilization_id = UUID(str(payload["source_civilization_id"]))
+            target_civilization_id = UUID(str(payload["target_civilization_id"]))
         except (KeyError, TypeError, ValueError) as exc:
             raise ProjectionPayloadError(
                 event=event,
-                reason="BOND_FORMED payload must include valid source_id and target_id UUIDs",
+                reason="BOND_FORMED payload must include valid source_civilization_id and target_civilization_id UUIDs",
             ) from exc
         bonds_by_id[event.entity_id] = ProjectedBond(
             id=event.entity_id,
-            source_id=source_id,
-            target_id=target_id,
+            source_civilization_id=source_civilization_id,
+            target_civilization_id=target_civilization_id,
             type=normalize_bond_type(payload.get("type", "RELATION")),
             is_deleted=False,
             created_at=event.timestamp,
@@ -145,7 +145,9 @@ async def project_state_from_events(
     active_bonds = [
         bond
         for bond in bonds_by_id.values()
-        if not bond.is_deleted and bond.source_id in active_ids and bond.target_id in active_ids
+        if not bond.is_deleted
+        and bond.source_civilization_id in active_ids
+        and bond.target_civilization_id in active_ids
     ]
     active_bonds.sort(key=lambda item: (item.created_at, str(item.id)))
     return active_asteroids, active_bonds
@@ -214,7 +216,9 @@ async def project_state_from_branch(
     active_bonds = [
         bond
         for bond in bonds_by_id.values()
-        if not bond.is_deleted and bond.source_id in active_ids and bond.target_id in active_ids
+        if not bond.is_deleted
+        and bond.source_civilization_id in active_ids
+        and bond.target_civilization_id in active_ids
     ]
     active_bonds.sort(key=lambda item: (item.created_at, str(item.id)))
     return active_asteroids, active_bonds

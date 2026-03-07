@@ -26,7 +26,7 @@ def _metadata_from_atom(atom: Any) -> dict[str, Any]:
 def _to_number(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return float(value)
     if isinstance(value, str):
         cleaned = value.strip().replace("\u00a0", "").replace(" ", "").replace(",", ".")
@@ -75,12 +75,12 @@ def evaluate_universe(atoms: list[Any], bonds: list[Any]) -> list[dict[str, Any]
 
     adjacency_list: dict[Any, set[Any]] = {}
     for bond in bonds:
-        source_id = _get_field(bond, "source_id")
-        target_id = _get_field(bond, "target_id")
-        if source_id is None or target_id is None:
+        source_civilization_id = _get_field(bond, "source_civilization_id")
+        target_civilization_id = _get_field(bond, "target_civilization_id")
+        if source_civilization_id is None or target_civilization_id is None:
             continue
-        adjacency_list.setdefault(source_id, set()).add(target_id)
-        adjacency_list.setdefault(target_id, set()).add(source_id)
+        adjacency_list.setdefault(source_civilization_id, set()).add(target_civilization_id)
+        adjacency_list.setdefault(target_civilization_id, set()).add(source_civilization_id)
 
     resolved_cache: dict[tuple[Any, str], Any] = {}
 
