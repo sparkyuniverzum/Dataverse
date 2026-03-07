@@ -109,11 +109,14 @@ class AuthRepository:
         return auth_session
 
     async def get_auth_session(
-        self, session: AsyncSession, *, session_id: UUID, include_revoked: bool = False
+        self, session: AsyncSession, *, session_id: UUID, include_inactive: bool = False
     ) -> AuthSession | None:
         stmt = select(AuthSession).where(AuthSession.id == session_id)
-        if not include_revoked:
-            stmt = stmt.where(AuthSession.revoked_at.is_(None))
+        if not include_inactive:
+            stmt = stmt.where(
+                AuthSession.revoked_at.is_(None),
+                AuthSession.deleted_at.is_(None),
+            )
         return (await session.execute(stmt)).scalar_one_or_none()
 
     async def get_active_auth_session(
@@ -127,6 +130,7 @@ class AuthRepository:
                         AuthSession.id == session_id,
                         AuthSession.user_id == user_id,
                         AuthSession.revoked_at.is_(None),
+                        AuthSession.deleted_at.is_(None),
                         AuthSession.refresh_expires_at > now,
                     )
                 )
@@ -140,7 +144,7 @@ class AuthRepository:
         session_id: UUID,
         revoked_reason: str,
     ) -> AuthSession | None:
-        auth_session = await self.get_auth_session(session=session, session_id=session_id, include_revoked=True)
+        auth_session = await self.get_auth_session(session=session, session_id=session_id, include_inactive=True)
         if auth_session is None:
             return None
         if auth_session.revoked_at is None:
