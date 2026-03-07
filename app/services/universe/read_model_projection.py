@@ -281,19 +281,12 @@ async def enrich_main_timeline_from_read_models(
     galaxy_id: UUID,
     active_asteroids: list[ProjectedAsteroid],
     active_bonds: list[ProjectedBond],
-) -> list[dict[str, Any]] | None:
+) -> list[dict[str, Any]]:
     if not active_asteroids:
         return []
 
-    has_formula_metadata = any(
-        isinstance(value, str) and value.strip().startswith("=")
-        for civilization in active_asteroids
-        for value in (civilization.metadata if isinstance(civilization.metadata, dict) else {}).values()
-    )
-    has_non_flow_bonds = any(normalize_bond_type(bond.type) != "FLOW" for bond in active_bonds)
-    # Keep legacy V1 semantics for relation-driven formulas until calc read model reaches parity.
-    if has_formula_metadata and has_non_flow_bonds:
-        return None
+    # Fallback for legacy formulas has been removed.
+    # The new calculation engine is now responsible for all formula evaluations.
 
     civilization_ids = {civilization.id for civilization in active_asteroids}
     calc_by_id = await _load_calc_state_by_civilization_id(
@@ -302,9 +295,8 @@ async def enrich_main_timeline_from_read_models(
         galaxy_id=galaxy_id,
         civilization_ids=civilization_ids,
     )
-    # Require full calc coverage to avoid mixed semantics in one snapshot.
-    if len(calc_by_id) < len(civilization_ids):
-        return None
+    # Fallback for incomplete calc state has been removed.
+    # Civilizations without a calc state will be processed with empty calculated values.
     physics_by_id = await _load_physics_state_by_civilization_id(
         session,
         user_id=user_id,
@@ -314,16 +306,9 @@ async def enrich_main_timeline_from_read_models(
 
     enriched: list[dict[str, Any]] = []
     for civilization in active_asteroids:
-        calc_state = calc_by_id.get(civilization.id)
-        if calc_state is None:
-            return None
-        # Guard against stale calc projections right after writes.
-        # If calc source seq lags behind civilization event seq, fallback universe
-        # projection preserves write-after-read consistency for metadata facts.
-        calc_source_seq = int(calc_state.get("source_event_seq", 0) or 0)
-        asteroid_event_seq = int(getattr(civilization, "current_event_seq", 0) or 0)
-        if calc_source_seq < asteroid_event_seq:
-            return None
+        calc_state = calc_by_id.get(civilization.id) or {}
+        # Fallback for stale calc state (race condition) has been removed.
+        # The system will now display potentially stale data until the read model catches up.
         calculated_values = calc_state.get("calculated_values", {})
         if not isinstance(calculated_values, dict):
             calculated_values = {}

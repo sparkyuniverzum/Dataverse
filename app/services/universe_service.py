@@ -196,7 +196,7 @@ class UniverseService:
         galaxy_id: UUID,
         active_asteroids: list[ProjectedAsteroid],
         active_bonds: list[ProjectedBond],
-    ) -> list[dict[str, Any]] | None:
+    ) -> list[dict[str, Any]]:
         return await enrich_main_timeline_from_read_models(
             session,
             user_id=user_id,
@@ -300,14 +300,13 @@ class UniverseService:
                 active_asteroids=active_asteroids,
                 active_bonds=active_bonds,
             )
-            if main_enriched is not None:
-                bond_enriched = await self._enrich_bonds_from_read_models(
-                    session,
-                    user_id=user_id,
-                    galaxy_id=galaxy_id,
-                    active_bonds=active_bonds,
-                )
-                return main_enriched, bond_enriched
+            bond_enriched = await self._enrich_bonds_from_read_models(
+                session,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+                active_bonds=active_bonds,
+            )
+            return main_enriched, bond_enriched
 
         return evaluate_fallback_universe(
             galaxy_id=galaxy_id,
