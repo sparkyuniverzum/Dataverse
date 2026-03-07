@@ -164,6 +164,21 @@ Release SHA: `89f4f17`
     - `frontend/src/components/universe/cameraPilotMath.test.js`
 
 ## Logical flow Wave 0 addendum (2026-03-07)
+- `W0-LF-01` closed (`GREEN`): canonical glossary freeze approved.
+- Artifact:
+  - `docs/contracts/planet-civilization-glossary-v1.md`
+- Decision:
+  - Planet/Moon/Civilization/Mineral/Bond vocabulary is frozen with anti-confusion mapping and mineral coupling rules.
+- `W0-LF-02` closed (`GREEN`): UX intent freeze approved.
+- Artifact:
+  - `docs/contracts/planet-civilization-ux-intent-v1.md`
+- Decision:
+  - discoverability/inspectability/explainability scenarios and acceptance checklist are frozen for implementation.
+- `W0-LF-03` closed (`GREEN`): success metrics and thresholds approved.
+- Artifact:
+  - metrics section in `docs/contracts/planet-civilization-ux-intent-v1.md`
+- Decision:
+  - `LF-M01..LF-M06` are the canonical logical-flow success metrics for Wave 1+.
 - `W0-LF-04` closed (`GREEN`): canonical row route policy is frozen.
 - Contract updates:
   - `docs/contracts/api-v1.md`
@@ -198,3 +213,43 @@ Release SHA: `89f4f17`
 - Decision:
   - `GET /planets/{planet_id}/moon-impact` is the canonical impact explainability read path.
   - impact samples reuse canonical violation keys (`rule_id`, `capability_id`, `expected_constraint`, `repair_hint`).
+- `W0-LF-09` closed (`GREEN`): Visual Builder state machine contract decided.
+- Contract artifact:
+  - `docs/contracts/visual-builder-state-machine-v1.md`
+- Decision:
+  - one canonical machine covers navigation, bond draft/preview, builder flow, and recover semantics.
+- `W0-LF-10` closed (`GREEN`): Inspector IA contract decided.
+- Contract artifact:
+  - `docs/contracts/inspector-ia-contract-v1.md`
+- Decision:
+  - inspector precedence and required field/action inventory are frozen for Planet/Moon/Civilization/Bond inspectors.
+- `W0-LF-11` closed (`GREEN`): persistence scope and resume safety contract decided.
+- Contract artifact:
+  - `docs/contracts/visual-builder-state-machine-v1.md`
+- Decision:
+  - persisted keys and invalid-state recovery fallback are explicitly frozen.
+- `W0-LF-12` closed (`GREEN`): feature-flag rollout plan decided.
+- Contract artifact:
+  - `docs/release/planet-civilization-feature-flag-rollout-v1.md`
+- Decision:
+  - phased rollout + promotion gates + rollback matrix are frozen for `moon_discovery_v1`, `bond_builder_v1`, `cross_planet_guard_v1`.
+- `W0-LF-13` closed (`GREEN`): test matrix skeleton and placeholders committed.
+- Artifacts:
+  - `docs/contracts/planet-civilization-test-matrix-v1.md`
+  - `tests/test_planet_civilization_lf_matrix_placeholder.py`
+  - `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js`
+  - `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs`
+- `W0-LF-14` closed (`GREEN`): deterministic two-planet fixtures committed.
+- Artifacts:
+  - `tests/fixtures/planet_civilization/compatible_cross_planet_bond.json`
+  - `tests/fixtures/planet_civilization/incompatible_cross_planet_bond.json`
+  - `tests/fixtures/planet_civilization/README.md`
+- `W0-LF-15` closed (`GREEN`): telemetry schema contract decided.
+- Artifact:
+  - `docs/contracts/planet-civilization-telemetry-v1.md`
+- `W0-LF-16` closed (`GREEN`): logical-flow rollback policy decided.
+- Artifacts:
+  - `docs/release/planet-civilization-logical-flow-rollback-v1.md`
+  - `docs/release/v1-rollout-runbook.md` (logical-flow operations reference)
+- Wave 0 readiness closure:
+  - all `W0-LF-01..16` and `SG-LF-01..16` are `GREEN` as of 2026-03-07.

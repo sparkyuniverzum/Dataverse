@@ -287,11 +287,21 @@ Current status:
 - `SG-LF-06`: `GREEN` (Visual Builder context contract freeze done 2026-03-07)
 - `SG-LF-07`: `GREEN` (Bond validate/preview contract + reject taxonomy freeze done 2026-03-07)
 - `SG-LF-08`: `GREEN` (Moon-impact query contract freeze done 2026-03-07)
-- remaining `SG-LF-*`: `OPEN`
+- `SG-LF-09`: `GREEN` (Visual Builder state machine contract freeze done 2026-03-07)
+- `SG-LF-10`: `GREEN` (Inspector IA contract freeze done 2026-03-07)
+- `SG-LF-11`: `GREEN` (Persistence scope + resume safety contract freeze done 2026-03-07)
+- `SG-LF-12`: `GREEN` (Feature-flag rollout plan freeze done 2026-03-07)
+- `SG-LF-13`: `GREEN` (Test matrix skeleton + placeholders done 2026-03-07)
+- `SG-LF-14`: `GREEN` (Deterministic two-planet fixtures done 2026-03-07)
+- `SG-LF-15`: `GREEN` (Telemetry schema freeze done 2026-03-07)
+- `SG-LF-16`: `GREEN` (Rollback policy freeze done 2026-03-07)
+- `SG-LF-01`: `GREEN` (Vocabulary freeze approved 2026-03-07; `docs/contracts/planet-civilization-glossary-v1.md`)
+- `SG-LF-02`: `GREEN` (UX intent freeze approved 2026-03-07; `docs/contracts/planet-civilization-ux-intent-v1.md`)
+- `SG-LF-03`: `GREEN` (Success metrics freeze approved 2026-03-07; `LF-M01..LF-M06` thresholds in `docs/contracts/planet-civilization-ux-intent-v1.md`)
 - `LF-01` .. `LF-08`: `OPEN`
 
 TODO synchronization:
-- [x] `PM-P6-LF-01`: synchronize readiness status (`SG-LF-01` .. `SG-LF-16`) into this backlog snapshot (first sync: `SG-LF-04` marked `GREEN`, 2026-03-07).
+- [x] `PM-P6-LF-01`: synchronize readiness status (`SG-LF-01` .. `SG-LF-16`) into this backlog snapshot (full sync complete on 2026-03-07; all `SG-LF-01..16` are `GREEN`).
 - [ ] `PM-P6-LF-02`: add FE gate inventory for `LF-01` .. `LF-05`.
 - [ ] `PM-P6-LF-03`: add BE gate inventory for `LF-04`, `LF-06`, `LF-07`.
 - [ ] `PM-P6-LF-04`: add staging smoke inventory for moon-inspection, mineral-repair, cross-planet-preview flows.

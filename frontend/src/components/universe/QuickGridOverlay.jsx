@@ -49,6 +49,86 @@ const hudButtonStyle = {
   cursor: "pointer",
 };
 
+function safeJson(value) {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value ?? "");
+  }
+}
+
+function shortValue(value, max = 56) {
+  if (value === null) return "null";
+  if (typeof value === "undefined") return "undefined";
+  const text =
+    typeof value === "string"
+      ? value
+      : typeof value === "number" || typeof value === "boolean"
+        ? String(value)
+        : safeJson(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1)}…`;
+}
+
+function normalizeLifecycle(selectedRow) {
+  if (!selectedRow || typeof selectedRow !== "object") {
+    return {
+      state: "UNKNOWN",
+      healthScore: "n/a",
+      violationCount: 0,
+      eventSeq: "n/a",
+      archived: false,
+    };
+  }
+  const archived = selectedRow.is_deleted === true;
+  const state = String(selectedRow.state || (archived ? "ARCHIVED" : "ACTIVE")).toUpperCase();
+  return {
+    state,
+    healthScore: Number.isFinite(Number(selectedRow.health_score)) ? Number(selectedRow.health_score) : "n/a",
+    violationCount: Number.isFinite(Number(selectedRow.violation_count)) ? Number(selectedRow.violation_count) : 0,
+    eventSeq: Number.isFinite(Number(selectedRow.current_event_seq)) ? Number(selectedRow.current_event_seq) : "n/a",
+    archived,
+  };
+}
+
+function collectMineralEntries(selectedRow) {
+  if (!selectedRow || typeof selectedRow !== "object") return [];
+  const facts = Array.isArray(selectedRow.facts) ? selectedRow.facts : [];
+  const metadata =
+    selectedRow.metadata && typeof selectedRow.metadata === "object" && !Array.isArray(selectedRow.metadata)
+      ? selectedRow.metadata
+      : {};
+  const byKey = new Map();
+
+  facts.forEach((fact) => {
+    const key = String(fact?.key || "").trim();
+    if (!key) return;
+    const errors = Array.isArray(fact?.errors) ? fact.errors : [];
+    byKey.set(key, {
+      key,
+      source: String(fact?.source || "facts"),
+      valueType: String(fact?.value_type || typeof fact?.typed_value || "unknown"),
+      valuePreview: shortValue(fact?.typed_value),
+      status: String(fact?.status || (errors.length ? "invalid" : "valid")),
+      errorsCount: errors.length,
+    });
+  });
+
+  Object.entries(metadata).forEach(([key, value]) => {
+    if (byKey.has(key)) return;
+    byKey.set(key, {
+      key,
+      source: "metadata",
+      valueType: typeof value,
+      valuePreview: shortValue(value),
+      status: "valid",
+      errorsCount: 0,
+    });
+  });
+
+  return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
 export default function QuickGridOverlay({
   open,
   selectedTable,
@@ -77,6 +157,8 @@ export default function QuickGridOverlay({
     () => tableRows.find((row) => String(row.id) === String(selectedAsteroidId || "")) || null,
     [selectedAsteroidId, tableRows]
   );
+  const selectedLifecycle = useMemo(() => normalizeLifecycle(selectedRow), [selectedRow]);
+  const selectedMinerals = useMemo(() => collectMineralEntries(selectedRow), [selectedRow]);
 
   useEffect(() => {
     if (!open) return;
@@ -115,7 +197,7 @@ export default function QuickGridOverlay({
         boxShadow: "0 0 30px rgba(34, 136, 188, 0.24)",
         padding: 12,
         display: "grid",
-        gridTemplateRows: "auto auto auto auto auto 1fr",
+        gridTemplateRows: "auto auto auto auto auto auto auto 1fr",
         gap: 10,
       }}
     >
@@ -146,6 +228,30 @@ export default function QuickGridOverlay({
           <button type="button" onClick={onClose} data-testid="quick-grid-close-button" style={ghostButtonStyle}>
             3D Vesmír
           </button>
+        </div>
+      </div>
+
+      <div
+        data-testid="quick-grid-semantic-legend"
+        style={{
+          border: "1px solid rgba(96, 186, 220, 0.24)",
+          borderRadius: 10,
+          background: "rgba(6, 18, 30, 0.58)",
+          padding: "7px 8px",
+          display: "grid",
+          gap: 6,
+        }}
+      >
+        <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+          SEMANTIC LEGEND
+        </div>
+        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82, lineHeight: "var(--dv-lh-base)" }}>
+          Civilizace = zivotni cyklus entity (stav, health, event seq). Nerost = atomicka typed hodnota uvnitr
+          civilizace.
+        </div>
+        <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.74 }}>
+          Workflow nerostu: <strong>UPSERT</strong> (ulozit) / <strong>REPAIR</strong> (guided oprava) /{" "}
+          <strong>REMOVE_SOFT</strong> (prazdna hodnota).
         </div>
       </div>
 
@@ -272,7 +378,7 @@ export default function QuickGridOverlay({
         <input
           value={metadataValue}
           onChange={(event) => setMetadataValue(event.target.value)}
-          placeholder={selectedRow ? "Hodnota (prázdné = odebrat)" : "Vyber civilizaci v tabulce..."}
+          placeholder={selectedRow ? "Hodnota (prazdne = remove_soft)" : "Vyber civilizaci v tabulce..."}
           style={inputStyle}
           disabled={busy || !selectedRow}
         />
@@ -291,11 +397,81 @@ export default function QuickGridOverlay({
         </button>
       </div>
 
-      {pendingRowsCount ? (
-        <div style={{ ...hudBadgeStyle, width: "fit-content", fontSize: "var(--dv-fs-xs)" }}>
-          pending radky {pendingRowsCount}
+      <div
+        data-testid="quick-grid-civilization-inspector"
+        style={{
+          border: "1px solid rgba(96, 186, 220, 0.24)",
+          borderRadius: 10,
+          background: "rgba(6, 18, 30, 0.58)",
+          padding: "8px 9px",
+          display: "grid",
+          gap: 7,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>pending radky {pendingRowsCount || 0}</span>
+          <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
+            vybrana civilizace {selectedRow ? "ano" : "ne"}
+          </span>
         </div>
-      ) : null}
+        {!selectedRow ? (
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.74 }}>
+            Vyber civilizaci v tabulce. Inspector pak oddeli lifecycle vs nerosty.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div
+              data-testid="quick-grid-lifecycle-panel"
+              style={{
+                border: "1px solid rgba(95, 183, 218, 0.22)",
+                borderRadius: 8,
+                background: "rgba(6, 16, 28, 0.64)",
+                padding: "7px 8px",
+                display: "grid",
+                gap: 4,
+              }}
+            >
+              <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+                CIVILIZATION LIFECYCLE
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
+                state: <strong>{selectedLifecycle.state}</strong>
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.8 }}>
+                health: {selectedLifecycle.healthScore} | violations: {selectedLifecycle.violationCount}
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.74 }}>
+                event_seq: {selectedLifecycle.eventSeq} | archived: {selectedLifecycle.archived ? "yes" : "no"}
+              </div>
+            </div>
+            <div
+              data-testid="quick-grid-mineral-panel"
+              style={{
+                border: "1px solid rgba(95, 183, 218, 0.22)",
+                borderRadius: 8,
+                background: "rgba(6, 16, 28, 0.64)",
+                padding: "7px 8px",
+                display: "grid",
+                gap: 4,
+              }}
+            >
+              <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+                MINERAL FACTS
+              </div>
+              {selectedMinerals.length ? (
+                selectedMinerals.slice(0, 8).map((mineral) => (
+                  <div key={mineral.key} style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
+                    {mineral.key}: <strong>{mineral.valuePreview}</strong> ({mineral.valueType}) [{mineral.status}]
+                    {mineral.errorsCount ? ` errors=${mineral.errorsCount}` : ""}
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>Nerosty zatim nejsou k dispozici.</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div
         style={{

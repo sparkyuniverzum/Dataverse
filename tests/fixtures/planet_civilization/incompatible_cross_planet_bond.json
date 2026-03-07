@@ -1,0 +1,47 @@
+{
+  "fixture_id": "pc-lf14-incompatible-001",
+  "galaxy_name": "LF14 Incompatible Galaxy",
+  "planets": [
+    {
+      "planet_key": "finance",
+      "planet_name": "Finance > Cashflow",
+      "archetype": "catalog",
+      "civilizations": [
+        {
+          "civilization_key": "invoice-2",
+          "label": "Invoice 2",
+          "minerals": {
+            "entity_id": "invoice-2",
+            "state": "active",
+            "amount": 300
+          }
+        }
+      ]
+    },
+    {
+      "planet_key": "restricted",
+      "planet_name": "Restricted > Vault",
+      "archetype": "junction",
+      "civilizations": [
+        {
+          "civilization_key": "vault-1",
+          "label": "Vault 1",
+          "minerals": {
+            "entity_id": "vault-1",
+            "state": "active",
+            "access_mode": "sealed"
+          }
+        }
+      ]
+    }
+  ],
+  "candidate_bond": {
+    "source": "finance.invoice-2",
+    "target": "restricted.vault-1",
+    "type": "FLOW"
+  },
+  "expected_result": {
+    "decision": "REJECT",
+    "reject_code": "BOND_VALIDATE_CROSS_PLANET_FORBIDDEN"
+  }
+}

@@ -1,9 +1,9 @@
 # Planet/Civilization Logical Flow DoD v1
 
-Status: active (implementation not started)
+Status: active (readiness gates green; implementation eligible)
 Date: 2026-03-07
 Owner: Core BE/FE architecture
-Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `docs/contracts/api-v1.md`, `docs/FRONTEND_UX_ARCHITECTURE.md`, `docs/contracts/planet-civilization-logical-flow-wave0-execution-v1.md`
+Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `docs/contracts/api-v1.md`, `docs/FRONTEND_UX_ARCHITECTURE.md`, `docs/contracts/planet-civilization-logical-flow-wave0-execution-v1.md`, `docs/contracts/planet-civilization-glossary-v1.md`, `docs/contracts/planet-civilization-ux-intent-v1.md`
 
 ## 1. Purpose
 
@@ -55,9 +55,9 @@ Status legend:
 
 ### 5.1 Product and domain readiness
 
-- [ ] `SG-LF-01` Vocabulary freeze approved (Planet/Moon/Civilization/Mineral/Bond glossary with examples).
-- [ ] `SG-LF-02` UX intent freeze approved (discoverability + inspectability + explainability).
-- [ ] `SG-LF-03` Success metrics agreed (time-to-first-moon-open, bond create success rate, explainability usage rate).
+- [x] `SG-LF-01` Vocabulary freeze approved (Planet/Moon/Civilization/Mineral/Bond glossary with examples). Done 2026-03-07; evidence: `docs/contracts/planet-civilization-glossary-v1.md`.
+- [x] `SG-LF-02` UX intent freeze approved (discoverability + inspectability + explainability). Done 2026-03-07; evidence: `docs/contracts/planet-civilization-ux-intent-v1.md`.
+- [x] `SG-LF-03` Success metrics agreed (time-to-first-moon-open, bond create success rate, explainability usage rate). Done 2026-03-07; evidence: metrics section in `docs/contracts/planet-civilization-ux-intent-v1.md`.
 
 ### 5.2 Backend readiness
 
@@ -69,20 +69,21 @@ Status legend:
 
 ### 5.3 Frontend readiness
 
-- [ ] `SG-LF-09` State machine spec approved (states, transitions, guards, recover actions).
-- [ ] `SG-LF-10` Inspector IA approved (`Planet Inspector`, `Moon Inspector`, `Civilization Inspector`, `Bond Inspector`).
-- [ ] `SG-LF-11` Persistence scope approved (selected planet/moon/civilization and safe resume behavior).
-- [ ] `SG-LF-12` Feature flag plan approved for incremental rollout (`moon_discovery_v1`, `bond_builder_v1`, `cross_planet_guard_v1`).
+- [x] `SG-LF-09` State machine spec approved (states, transitions, guards, recover actions). Done 2026-03-07; evidence: `docs/contracts/visual-builder-state-machine-v1.md`.
+- [x] `SG-LF-10` Inspector IA approved (`Planet Inspector`, `Moon Inspector`, `Civilization Inspector`, `Bond Inspector`). Done 2026-03-07; evidence: `docs/contracts/inspector-ia-contract-v1.md`.
+- [x] `SG-LF-11` Persistence scope approved (selected planet/moon/civilization and safe resume behavior). Done 2026-03-07; evidence: `docs/contracts/visual-builder-state-machine-v1.md`.
+- [x] `SG-LF-12` Feature flag plan approved for incremental rollout (`moon_discovery_v1`, `bond_builder_v1`, `cross_planet_guard_v1`). Done 2026-03-07; evidence: `docs/release/planet-civilization-feature-flag-rollout-v1.md`.
 
 ### 5.4 QA and operations readiness
 
-- [ ] `SG-LF-13` Test matrix skeleton committed (BE integration + FE unit + FE e2e staging).
-- [ ] `SG-LF-14` Two-planet deterministic fixtures prepared (compatible and incompatible bond scenarios).
-- [ ] `SG-LF-15` Telemetry schema approved (`moon_opened`, `moon_rule_failed`, `bond_preview_rejected`, `cross_planet_blocked`).
-- [ ] `SG-LF-16` Release rollback policy approved (flag-level rollback without schema rollback).
+- [x] `SG-LF-13` Test matrix skeleton committed (BE integration + FE unit + FE e2e staging). Done 2026-03-07; evidence: `docs/contracts/planet-civilization-test-matrix-v1.md`, `tests/test_planet_civilization_lf_matrix_placeholder.py`, `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js`, `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs`.
+- [x] `SG-LF-14` Two-planet deterministic fixtures prepared (compatible and incompatible bond scenarios). Done 2026-03-07; evidence: `tests/fixtures/planet_civilization/`.
+- [x] `SG-LF-15` Telemetry schema approved (`moon_opened`, `moon_rule_failed`, `bond_preview_rejected`, `cross_planet_blocked`). Done 2026-03-07; evidence: `docs/contracts/planet-civilization-telemetry-v1.md`.
+- [x] `SG-LF-16` Release rollback policy approved (flag-level rollback without schema rollback). Done 2026-03-07; evidence: `docs/release/planet-civilization-logical-flow-rollback-v1.md`, `docs/release/v1-rollout-runbook.md`.
 
 Start condition:
 - Implementation begins only when `SG-LF-01` .. `SG-LF-16` are `GREEN`.
+- All `SG-LF-01` .. `SG-LF-16` are `GREEN` as of 2026-03-07.
 
 ## 6. Definition of Done (closure gate)
 

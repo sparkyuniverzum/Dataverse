@@ -64,6 +64,74 @@ const hudBadgeStyle = {
   lineHeight: "var(--dv-lh-compact)",
 };
 
+function truncateValue(value, max = 48) {
+  if (value === null) return "null";
+  if (typeof value === "undefined") return "undefined";
+  const asText =
+    typeof value === "string"
+      ? value
+      : typeof value === "number" || typeof value === "boolean"
+        ? String(value)
+        : JSON.stringify(value);
+  if (asText.length <= max) return asText;
+  return `${asText.slice(0, max - 1)}…`;
+}
+
+function deriveMoonInspector(selectedMoon) {
+  if (!selectedMoon || typeof selectedMoon !== "object") {
+    return {
+      state: "UNKNOWN",
+      violationCount: 0,
+      impactedMinerals: [],
+      activeRules: [],
+    };
+  }
+  const facts = Array.isArray(selectedMoon.facts) ? selectedMoon.facts : [];
+  const metadata =
+    selectedMoon.metadata && typeof selectedMoon.metadata === "object" && !Array.isArray(selectedMoon.metadata)
+      ? selectedMoon.metadata
+      : {};
+  const state = String(selectedMoon.state || (selectedMoon.is_deleted ? "ARCHIVED" : "ACTIVE")).toUpperCase();
+  const explicitViolationCount = Number.isFinite(Number(selectedMoon.violation_count))
+    ? Number(selectedMoon.violation_count)
+    : null;
+
+  const impactedMinerals = [];
+  const activeRules = [];
+  let derivedViolations = 0;
+
+  facts.forEach((fact) => {
+    const mineralKey = String(fact?.key || "").trim();
+    const errors = Array.isArray(fact?.errors) ? fact.errors : [];
+    const isInvalid = String(fact?.status || "").toLowerCase() === "invalid" || errors.length > 0;
+    if (isInvalid && mineralKey) {
+      impactedMinerals.push(`${mineralKey}:${truncateValue(fact?.typed_value)}`);
+      derivedViolations += Math.max(1, errors.length);
+    }
+    errors.forEach((error) => {
+      const ruleId = String(error?.rule_id || error?.code || "").trim();
+      if (ruleId) {
+        activeRules.push(ruleId);
+      }
+    });
+  });
+
+  if (!impactedMinerals.length) {
+    Object.keys(metadata)
+      .slice(0, 4)
+      .forEach((key) => {
+        impactedMinerals.push(`${key}:${truncateValue(metadata[key])}`);
+      });
+  }
+
+  return {
+    state,
+    violationCount: explicitViolationCount === null ? derivedViolations : explicitViolationCount,
+    impactedMinerals: [...new Set(impactedMinerals)].slice(0, 6),
+    activeRules: [...new Set(activeRules)].slice(0, 4),
+  };
+}
+
 export default function WorkspaceSidebar({
   galaxy,
   branches = [],
@@ -77,7 +145,10 @@ export default function WorkspaceSidebar({
   selectedTableId,
   selectedTableLabel,
   selectedAsteroidLabel,
+  moonRows = [],
+  selectedMoonId = "",
   onSelectTable,
+  onSelectMoon = null,
   onOpenGrid,
   onRefresh,
   onOpenStarHeart,
@@ -95,6 +166,12 @@ export default function WorkspaceSidebar({
   repairAuditCount = 0,
 }) {
   const severityColor = resolvePreviewSeverityColor(builderSeverity);
+  const safeMoonRows = Array.isArray(moonRows) ? moonRows : [];
+  const selectedMoon =
+    safeMoonRows.find((row) => String(row?.id || "") === String(selectedMoonId || "")) ||
+    safeMoonRows.find((row) => String(row?.value || "") === String(selectedAsteroidLabel || "")) ||
+    null;
+  const moonInspector = deriveMoonInspector(selectedMoon);
 
   return (
     <aside
@@ -213,6 +290,93 @@ export default function WorkspaceSidebar({
       {selectedAsteroidLabel ? (
         <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
           Vybrany mesic: <strong>{selectedAsteroidLabel}</strong>
+        </div>
+      ) : null}
+      {selectedTableId ? (
+        <div
+          style={{
+            border: "1px solid rgba(108, 206, 240, 0.24)",
+            borderRadius: 10,
+            background: "rgba(6, 18, 30, 0.56)",
+            padding: "8px 9px",
+            display: "grid",
+            gap: 6,
+          }}
+        >
+          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+            MOON ORBIT
+          </div>
+          <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>
+            Mesice kolem planety: <strong>{safeMoonRows.length}</strong> | 1 klik = Moon Inspector
+          </div>
+          {safeMoonRows.length ? (
+            <div
+              data-testid="moon-orbit-list"
+              style={{ display: "grid", gap: 5, maxHeight: 156, overflow: "auto", paddingRight: 2 }}
+            >
+              {safeMoonRows.map((moon) => {
+                const moonId = String(moon?.id || "").trim();
+                const selected = moonId && moonId === String(selectedMoonId || "");
+                const label = String(moon?.value || moonId || "Mesic");
+                return (
+                  <button
+                    key={moonId || label}
+                    type="button"
+                    data-testid={`moon-orbit-item-${moonId || "unknown"}`}
+                    onClick={() => {
+                      if (typeof onSelectMoon === "function") {
+                        onSelectMoon(moonId);
+                      }
+                    }}
+                    style={{
+                      border: selected ? "1px solid rgba(121, 224, 255, 0.64)" : "1px solid rgba(113, 202, 234, 0.3)",
+                      background: selected
+                        ? "linear-gradient(120deg, rgba(34, 127, 168, 0.74), rgba(76, 195, 230, 0.34))"
+                        : "rgba(7, 18, 32, 0.86)",
+                      color: "#d7f7ff",
+                      borderRadius: 9,
+                      padding: "6px 8px",
+                      fontSize: "var(--dv-fs-xs)",
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.68 }}>Planeta zatim nema civilizacni mesice.</div>
+          )}
+          {selectedMoon ? (
+            <div
+              data-testid="moon-inspector-card"
+              style={{
+                border: "1px solid rgba(104, 196, 228, 0.24)",
+                borderRadius: 9,
+                background: "rgba(7, 20, 34, 0.74)",
+                padding: "7px 8px",
+                display: "grid",
+                gap: 4,
+              }}
+            >
+              <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>
+                MOON INSPECTOR
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
+                Stav: <strong>{moonInspector.state}</strong> | violations:{" "}
+                <strong>{moonInspector.violationCount}</strong>
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
+                Nerosty pod vlivem:{" "}
+                {moonInspector.impactedMinerals.length ? moonInspector.impactedMinerals.join(", ") : "n/a"}
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.74 }}>
+                Aktivni pravidla: {moonInspector.activeRules.length ? moonInspector.activeRules.join(", ") : "n/a"}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

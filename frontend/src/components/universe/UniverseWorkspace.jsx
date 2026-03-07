@@ -2659,7 +2659,12 @@ export default function UniverseWorkspace({
           selectedTableId={selectedTableId}
           selectedTableLabel={selectedTableLabel}
           selectedAsteroidLabel={selectedAsteroidLabel}
+          moonRows={tableRows}
+          selectedMoonId={selectedAsteroidId}
           onSelectTable={(tableId) => handlePlanetSelect(tableId, { source: "sidebar" })}
+          onSelectMoon={(moonId) => {
+            setSelectedAsteroidId(String(moonId || ""));
+          }}
           onOpenGrid={() => setQuickGridOpen(true)}
           onRefresh={() => {
             void refreshProjection();

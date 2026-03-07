@@ -1,0 +1,47 @@
+{
+  "fixture_id": "pc-lf14-compatible-001",
+  "galaxy_name": "LF14 Compatible Galaxy",
+  "planets": [
+    {
+      "planet_key": "finance",
+      "planet_name": "Finance > Cashflow",
+      "archetype": "catalog",
+      "civilizations": [
+        {
+          "civilization_key": "invoice-1",
+          "label": "Invoice 1",
+          "minerals": {
+            "entity_id": "invoice-1",
+            "state": "active",
+            "amount": 1200
+          }
+        }
+      ]
+    },
+    {
+      "planet_key": "operations",
+      "planet_name": "Operations > Worklog",
+      "archetype": "catalog",
+      "civilizations": [
+        {
+          "civilization_key": "shift-1",
+          "label": "Shift 1",
+          "minerals": {
+            "entity_id": "shift-1",
+            "state": "active",
+            "hours": 8
+          }
+        }
+      ]
+    }
+  ],
+  "candidate_bond": {
+    "source": "finance.invoice-1",
+    "target": "operations.shift-1",
+    "type": "RELATION"
+  },
+  "expected_result": {
+    "decision": "ALLOW",
+    "reject_code": null
+  }
+}

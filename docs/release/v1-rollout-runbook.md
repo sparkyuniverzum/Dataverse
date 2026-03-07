@@ -63,3 +63,13 @@ If release validation fails:
 - Gate: `make v1-release-full` passed
 - Release tag: `v1.0.1`
 - Release SHA: `89f4f17`
+
+## 9. Logical flow feature-flag operations (2026-03-07)
+
+For Planet/Civilization logical-flow rollout and rollback procedures, use:
+- `docs/release/planet-civilization-feature-flag-rollout-v1.md`
+- `docs/release/planet-civilization-logical-flow-rollback-v1.md`
+
+Operational rule:
+1. Execute phase promotions only after promotion-gate checks are green.
+2. On incident, apply flag rollback first (before broader release rollback).
