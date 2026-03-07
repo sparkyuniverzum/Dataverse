@@ -108,8 +108,13 @@ class AuthRepository:
         await session.refresh(auth_session)
         return auth_session
 
-    async def get_auth_session(self, session: AsyncSession, *, session_id: UUID) -> AuthSession | None:
-        return (await session.execute(select(AuthSession).where(AuthSession.id == session_id))).scalar_one_or_none()
+    async def get_auth_session(
+        self, session: AsyncSession, *, session_id: UUID, include_revoked: bool = False
+    ) -> AuthSession | None:
+        stmt = select(AuthSession).where(AuthSession.id == session_id)
+        if not include_revoked:
+            stmt = stmt.where(AuthSession.revoked_at.is_(None))
+        return (await session.execute(stmt)).scalar_one_or_none()
 
     async def get_active_auth_session(
         self, session: AsyncSession, *, session_id: UUID, user_id: UUID
@@ -135,7 +140,7 @@ class AuthRepository:
         session_id: UUID,
         revoked_reason: str,
     ) -> AuthSession | None:
-        auth_session = await self.get_auth_session(session=session, session_id=session_id)
+        auth_session = await self.get_auth_session(session=session, session_id=session_id, include_revoked=True)
         if auth_session is None:
             return None
         if auth_session.revoked_at is None:
