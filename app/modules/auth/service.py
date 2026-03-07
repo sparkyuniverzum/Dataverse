@@ -204,7 +204,7 @@ class AuthService:
         return await self.repository.create_galaxy(session=session, user_id=user_id, name=normalized)
 
     async def soft_delete_galaxy(
-        self, session: AsyncSession, *, user_id: UUID, galaxy_id: UUID, expected_event_seq: int | None
+        self, session: AsyncSession, *, user_id: UUID, galaxy_id: UUID, expected_event_seq: int
     ) -> Galaxy:
         """
         Performs a transactionally-safe, cascading soft delete of a galaxy by generating
