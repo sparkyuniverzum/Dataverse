@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -21,7 +21,9 @@ from app.modules.auth.security import (
     utc_now,
     verify_password,
 )
+from app.services.event_store_service import EventStoreService
 from app.services.task_executor.occ_guards import OccGuards
+from app.services.universe_service import UniverseService
 
 
 @dataclass(frozen=True)
@@ -38,8 +40,16 @@ class AuthResult:
 
 
 class AuthService:
-    def __init__(self, *, repository: AuthRepository | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        repository: AuthRepository | None = None,
+        event_store: EventStoreService | None = None,
+        universe_service: UniverseService | None = None,
+    ) -> None:
         self.repository = repository or AuthRepository()
+        self.event_store = event_store or EventStoreService()
+        self.universe_service = universe_service or UniverseService()
 
     @staticmethod
     def normalize_email(email: str) -> str:
@@ -195,7 +205,12 @@ class AuthService:
 
     async def soft_delete_galaxy(
         self, session: AsyncSession, *, user_id: UUID, galaxy_id: UUID, expected_event_seq: int | None
-    ) -> Galaxy:
+    ) -> None:
+        """
+        Performs a transactionally-safe, cascading soft delete of a galaxy by generating
+        a full set of soft-delete events for the galaxy and all its contents.
+        """
+        # 1. Enforce OCC lock to prevent race conditions
         await OccGuards.enforce_expected_entity_event_seq(
             session=session,
             user_id=user_id,
@@ -205,4 +220,46 @@ class AuthService:
             expected_event_seq=expected_event_seq,
             context="extinguish_galaxy",
         )
-        return await self.repository.soft_delete_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)
+
+        # 2. Load the full state of the galaxy to find all active entities
+        active_asteroids, active_bonds = await self.universe_service.project_state(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            apply_calculations=False,  # We don't need expensive calculations, just the entities
+        )
+
+        now = datetime.now(UTC)
+
+        # 3. Generate soft-delete events for all related entities (bonds first)
+        for bond in active_bonds:
+            if not bond.is_deleted:
+                await self.event_store.append_event(
+                    session=session,
+                    user_id=user_id,
+                    galaxy_id=galaxy_id,
+                    entity_id=bond.id,
+                    event_type="BOND_SOFT_DELETED",
+                    payload={"deleted_at": now.isoformat()},
+                )
+
+        for asteroid in active_asteroids:
+            if not asteroid.is_deleted:
+                await self.event_store.append_event(
+                    session=session,
+                    user_id=user_id,
+                    galaxy_id=galaxy_id,
+                    entity_id=asteroid.id,
+                    event_type="CIVILIZATION_SOFT_DELETED",
+                    payload={"deleted_at": now.isoformat()},
+                )
+
+        # 4. Finally, generate the event for the galaxy itself
+        await self.event_store.append_event(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            entity_id=galaxy_id,
+            event_type="GALAXY_EXTINGUISHED",
+            payload={"deleted_at": now.isoformat()},
+        )
