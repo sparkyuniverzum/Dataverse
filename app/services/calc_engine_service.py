@@ -220,8 +220,8 @@ class CalcEngineService:
         flow_incoming: dict[UUID, set[UUID]] = defaultdict(set)
 
         for atom in atoms:
-            asteroid_id = self._to_uuid(getattr(atom, "id", None))
-            if asteroid_id is None:
+            civilization_id = self._to_uuid(getattr(atom, "id", None))
+            if civilization_id is None:
                 continue
             metadata = getattr(atom, "metadata_", {})
             metadata_dict = metadata if isinstance(metadata, dict) else {}
@@ -230,8 +230,8 @@ class CalcEngineService:
             table_id = derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
 
             registry_formulas, registry_errors = self._registry_formulas_for_table(contracts.get(table_id))
-            nodes[asteroid_id] = {
-                "id": asteroid_id,
+            nodes[civilization_id] = {
+                "id": civilization_id,
                 "value": value,
                 "metadata": dict(metadata_dict),
                 "created_at": getattr(atom, "created_at", None),
@@ -379,21 +379,21 @@ class CalcEngineService:
     @classmethod
     def build_calc_rows(cls, evaluated_atoms: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
-        for asteroid in evaluated_atoms:
-            asteroid_id = cls._to_uuid(asteroid.get("id"))
-            if asteroid_id is None:
+        for civilization in evaluated_atoms:
+            civilization_id = cls._to_uuid(civilization.get("id"))
+            if civilization_id is None:
                 continue
 
-            calculated_values = asteroid.get("calculated_values")
+            calculated_values = civilization.get("calculated_values")
             if not isinstance(calculated_values, dict):
                 calculated_values = {}
-            calc_errors = asteroid.get("calc_errors")
+            calc_errors = civilization.get("calc_errors")
             if not isinstance(calc_errors, list):
                 calc_errors = []
 
             rows.append(
                 {
-                    "asteroid_id": asteroid_id,
+                    "civilization_id": civilization_id,
                     "calculated_values": dict(calculated_values),
                     "calc_errors": [item for item in calc_errors if isinstance(item, dict)],
                     "error_count": len([item for item in calc_errors if isinstance(item, dict)]),
@@ -410,7 +410,7 @@ class CalcEngineService:
         galaxy_id: UUID,
         source_event_seq: int,
         evaluated_atoms: Iterable[Mapping[str, Any]],
-        active_asteroid_ids: set[UUID],
+        active_civilization_ids: set[UUID],
     ) -> None:
         now = datetime.now(UTC)
         normalized_source_seq = max(0, int(source_event_seq))
@@ -420,7 +420,7 @@ class CalcEngineService:
             stmt = insert(CalcStateRM).values(
                 user_id=user_id,
                 galaxy_id=galaxy_id,
-                asteroid_id=row["asteroid_id"],
+                civilization_id=row["civilization_id"],
                 source_event_seq=normalized_source_seq,
                 engine_version=self.engine_version,
                 calculated_values=row["calculated_values"],
@@ -431,7 +431,7 @@ class CalcEngineService:
                 deleted_at=None,
             )
             stmt = stmt.on_conflict_do_update(
-                index_elements=[CalcStateRM.user_id, CalcStateRM.galaxy_id, CalcStateRM.asteroid_id],
+                index_elements=[CalcStateRM.user_id, CalcStateRM.galaxy_id, CalcStateRM.civilization_id],
                 set_={
                     "source_event_seq": normalized_source_seq,
                     "engine_version": self.engine_version,
@@ -445,12 +445,12 @@ class CalcEngineService:
             )
             await session.execute(stmt)
 
-        if active_asteroid_ids:
+        if active_civilization_ids:
             stale_where = and_(
                 CalcStateRM.user_id == user_id,
                 CalcStateRM.galaxy_id == galaxy_id,
                 CalcStateRM.deleted_at.is_(None),
-                CalcStateRM.asteroid_id.notin_(active_asteroid_ids),
+                CalcStateRM.civilization_id.notin_(active_civilization_ids),
             )
         else:
             stale_where = and_(
@@ -482,10 +482,10 @@ class CalcEngineService:
     ) -> list[dict[str, Any]]:
         atom_list = list(atoms)
         bond_list = list(bonds)
-        active_asteroid_ids = {
-            asteroid_id
-            for asteroid_id in (self._to_uuid(getattr(atom, "id", None)) for atom in atom_list)
-            if asteroid_id is not None
+        active_civilization_ids = {
+            civilization_id
+            for civilization_id in (self._to_uuid(getattr(atom, "id", None)) for atom in atom_list)
+            if civilization_id is not None
         }
 
         table_ids: set[UUID] = set()
@@ -515,7 +515,7 @@ class CalcEngineService:
             galaxy_id=galaxy_id,
             source_event_seq=source_event_seq,
             evaluated_atoms=evaluated,
-            active_asteroid_ids=active_asteroid_ids,
+            active_civilization_ids=active_civilization_ids,
         )
 
         return evaluated

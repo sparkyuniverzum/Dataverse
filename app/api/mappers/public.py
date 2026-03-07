@@ -73,7 +73,7 @@ def galaxy_health_to_public(health) -> GalaxyHealthPublic:
         user_id=health.user_id,
         galaxy_id=health.galaxy_id,
         guardian_rules_count=health.guardian_rules_count,
-        alerted_asteroids_count=health.alerted_asteroids_count,
+        alerted_civilizations_count=health.alerted_civilizations_count,
         circular_fields_count=health.circular_fields_count,
         quality_score=health.quality_score,
         status=health.status,
@@ -281,7 +281,7 @@ def planet_summary_to_public(item: Mapping[str, Any]) -> PlanetSummaryPublic:
 
 def moon_summary_to_public(item: Mapping[str, Any]) -> MoonSummaryPublic:
     return MoonSummaryPublic(
-        asteroid_id=item["asteroid_id"],
+        civilization_id=item["civilization_id"],
         label=str(item.get("label") or ""),
         table_id=item["table_id"],
         table_name=str(item.get("table_name") or "Uncategorized"),

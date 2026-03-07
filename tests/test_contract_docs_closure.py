@@ -37,9 +37,9 @@ def test_contract_closure_docs_exist_with_required_sections() -> None:
         ],
         "docs/contracts/civilization-contract-v1.md": [
             "## 3. Lifecycle API surface",
-            "POST /asteroids/ingest",
-            "PATCH /asteroids/{asteroid_id}/mutate",
-            "PATCH /asteroids/{asteroid_id}/extinguish",
+            "POST /civilizations/ingest",
+            "PATCH /civilizations/{civilization_id}/mutate",
+            "PATCH /civilizations/{civilization_id}/extinguish",
         ],
         "docs/contracts/mineral-contract-v1.md": [
             "## 3. Validation and typing contract",

@@ -49,21 +49,21 @@ async def universe_snapshot(
         as_of=as_of,
     )
 
-    asteroid_snapshots = [
-        universe_asteroid_to_snapshot(asteroid, galaxy_id=target_galaxy_id) for asteroid in active_asteroids
+    civilization_snapshots = [
+        universe_asteroid_to_snapshot(civilization, galaxy_id=target_galaxy_id) for civilization in active_asteroids
     ]
     table_index: dict[UUID, tuple[UUID, str, str, str]] = {
-        asteroid.id: (
-            asteroid.table_id,
-            asteroid.table_name,
-            asteroid.constellation_name,
-            asteroid.planet_name,
+        civilization.id: (
+            civilization.table_id,
+            civilization.table_name,
+            civilization.constellation_name,
+            civilization.planet_name,
         )
-        for asteroid in asteroid_snapshots
+        for civilization in civilization_snapshots
     }
 
     return UniverseSnapshotResponse(
-        asteroids=asteroid_snapshots,
+        civilizations=civilization_snapshots,
         bonds=[
             universe_bond_to_snapshot(
                 bond,

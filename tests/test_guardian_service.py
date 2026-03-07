@@ -8,10 +8,10 @@ from app.services.guardian_service import evaluate_guardians
 
 
 def test_evaluate_guardians_activates_alerts_from_calculated_values() -> None:
-    asteroid_id = uuid.uuid4()
-    asteroids = [
+    civilization_id = uuid.uuid4()
+    civilizations = [
         {
-            "id": asteroid_id,
+            "id": civilization_id,
             "value": "Projekt",
             "metadata": {
                 "_guardians": [
@@ -23,20 +23,20 @@ def test_evaluate_guardians_activates_alerts_from_calculated_values() -> None:
         }
     ]
 
-    evaluated = evaluate_guardians(asteroids)
+    evaluated = evaluate_guardians(civilizations)
     assert evaluated[0]["active_alerts"] == ["color_red", "pulse"]
 
 
 def test_evaluate_guardians_keeps_empty_alerts_for_non_matching_rules() -> None:
-    asteroid_id = uuid.uuid4()
-    asteroids = [
+    civilization_id = uuid.uuid4()
+    civilizations = [
         {
-            "id": asteroid_id,
+            "id": civilization_id,
             "value": "Projekt",
             "metadata": {"_guardians": [{"field": "celkem", "operator": ">", "threshold": 2000, "action": "hide"}]},
             "calculated_values": {"celkem": 1200},
         }
     ]
 
-    evaluated = evaluate_guardians(asteroids)
+    evaluated = evaluate_guardians(civilizations)
     assert evaluated[0]["active_alerts"] == []

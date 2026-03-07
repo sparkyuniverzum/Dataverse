@@ -9,7 +9,7 @@ _ALLOWED_OPERATORS = {">", "<", "==", ">=", "<="}
 def _to_number(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return float(value)
     if isinstance(value, str):
         cleaned = value.strip().replace("\u00a0", "").replace(" ", "").replace(",", ".")
@@ -48,11 +48,11 @@ def _compare(left: Any, operator: str, right: Any) -> bool:
 def evaluate_guardians(asteroids_snapshot: list[dict[str, Any]]) -> list[dict[str, Any]]:
     evaluated: list[dict[str, Any]] = []
 
-    for asteroid in asteroids_snapshot:
-        if not isinstance(asteroid, Mapping):
+    for civilization in asteroids_snapshot:
+        if not isinstance(civilization, Mapping):
             continue
 
-        asteroid_out = dict(asteroid)
+        asteroid_out = dict(civilization)
         metadata = asteroid_out.get("metadata")
         if not isinstance(metadata, dict):
             metadata = {}

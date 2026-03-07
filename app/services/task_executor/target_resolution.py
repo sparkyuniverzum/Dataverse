@@ -26,7 +26,7 @@ class TargetResolver:
     @classmethod
     def find_asteroid_by_target(
         cls,
-        asteroids: list[ProjectedAsteroid],
+        civilizations: list[ProjectedAsteroid],
         target: str,
     ) -> ProjectedAsteroid | None:
         normalized = target.strip().lower()
@@ -39,23 +39,23 @@ class TargetResolver:
             target_civilization_id = None
 
         if target_civilization_id is not None:
-            for asteroid in asteroids:
-                if asteroid.id == target_civilization_id:
-                    return asteroid
+            for civilization in civilizations:
+                if civilization.id == target_civilization_id:
+                    return civilization
 
-        for asteroid in asteroids:
-            if cls.value_to_text(asteroid.value).strip().lower() == normalized:
-                return asteroid
+        for civilization in civilizations:
+            if cls.value_to_text(civilization.value).strip().lower() == normalized:
+                return civilization
 
-        for asteroid in asteroids:
-            if normalized in cls.value_to_text(asteroid.value).lower():
-                return asteroid
+        for civilization in civilizations:
+            if normalized in cls.value_to_text(civilization.value).lower():
+                return civilization
         return None
 
     @classmethod
     def resolve_single_asteroid_by_target(
         cls,
-        asteroids: list[ProjectedAsteroid],
+        civilizations: list[ProjectedAsteroid],
         target: str,
     ) -> ProjectedAsteroid | None:
         normalized = str(target or "").strip()
@@ -64,15 +64,13 @@ class TargetResolver:
 
         target_uuid = cls.parse_uuid(normalized)
         if target_uuid is not None:
-            for asteroid in asteroids:
-                if asteroid.id == target_uuid:
-                    return asteroid
+            for civilization in civilizations:
+                if civilization.id == target_uuid:
+                    return civilization
             return None
 
         lowered = normalized.lower()
-        exact_matches = [
-            asteroid for asteroid in asteroids if cls.value_to_text(asteroid.value).strip().lower() == lowered
-        ]
+        exact_matches = [c for c in civilizations if cls.value_to_text(c.value).strip().lower() == lowered]
         if len(exact_matches) == 1:
             return exact_matches[0]
         if len(exact_matches) > 1:
@@ -81,7 +79,7 @@ class TargetResolver:
                 detail=f"Ambiguous target '{target}' (multiple exact matches)",
             )
 
-        contains_matches = [asteroid for asteroid in asteroids if lowered in cls.value_to_text(asteroid.value).lower()]
+        contains_matches = [c for c in civilizations if lowered in cls.value_to_text(c.value).lower()]
         if len(contains_matches) == 1:
             return contains_matches[0]
         if len(contains_matches) > 1:
@@ -94,18 +92,18 @@ class TargetResolver:
     @classmethod
     def find_asteroids_by_target(
         cls,
-        asteroids: list[ProjectedAsteroid],
+        civilizations: list[ProjectedAsteroid],
         target: str,
         condition: str | None,
     ) -> list[ProjectedAsteroid]:
         target_norm = target.strip().lower()
         condition_norm = condition.strip().lower() if condition else None
         selected: list[ProjectedAsteroid] = []
-        for asteroid in asteroids:
-            label = cls.value_to_text(asteroid.value).lower()
+        for civilization in civilizations:
+            label = cls.value_to_text(civilization.value).lower()
             if target_norm not in label:
                 continue
             if condition_norm and condition_norm not in label:
                 continue
-            selected.append(asteroid)
+            selected.append(civilization)
         return selected

@@ -264,7 +264,7 @@ def derive_civilization_health(
     return state, int(health_score), int(violation_count), last_violation_at
 
 
-def asteroid_snapshot_to_moon_row(snapshot: UniverseAsteroidSnapshot) -> MoonRowContract:
+def civilization_snapshot_to_moon_row(snapshot: UniverseAsteroidSnapshot) -> MoonRowContract:
     label = str(snapshot.value) if snapshot.value is not None else str(snapshot.id)
     facts = build_moon_facts(
         value=snapshot.value,
@@ -316,7 +316,7 @@ class UniverseBondSnapshot(BaseModel):
 class UniverseSnapshotResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    asteroids: list[UniverseAsteroidSnapshot] = Field(default_factory=list)
+    civilizations: list[UniverseAsteroidSnapshot] = Field(default_factory=list)
     bonds: list[UniverseBondSnapshot] = Field(default_factory=list)
 
 

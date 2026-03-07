@@ -104,7 +104,7 @@ class PhysicsEngineService:
             (
                 await session.execute(
                     select(
-                        CalcStateRM.asteroid_id,
+                        CalcStateRM.civilization_id,
                         CalcStateRM.error_count,
                         CalcStateRM.circular_fields_count,
                         CalcStateRM.calculated_values,
@@ -119,7 +119,7 @@ class PhysicsEngineService:
             ).all()
         )
 
-        asteroid_ids = {row.asteroid_id for row in calc_rows if isinstance(row.asteroid_id, UUID)}
+        civilization_ids = {row.civilization_id for row in calc_rows if isinstance(row.civilization_id, UUID)}
 
         bonds = list(
             (
@@ -135,7 +135,7 @@ class PhysicsEngineService:
             ).all()
         )
 
-        degree_by_asteroid: dict[UUID, int] = {asteroid_id: 0 for asteroid_id in asteroid_ids}
+        degree_by_asteroid: dict[UUID, int] = {civilization_id: 0 for civilization_id in civilization_ids}
         for bond in bonds:
             source_civilization_id = (
                 bond.source_civilization_id if isinstance(bond.source_civilization_id, UUID) else None
@@ -152,22 +152,22 @@ class PhysicsEngineService:
         active_entity_keys: set[tuple[str, UUID]] = set()
 
         for row in calc_rows:
-            asteroid_id = row.asteroid_id if isinstance(row.asteroid_id, UUID) else None
-            if asteroid_id is None:
+            civilization_id = row.civilization_id if isinstance(row.civilization_id, UUID) else None
+            if civilization_id is None:
                 continue
             state = self._derive_asteroid_state(
                 error_count=int(row.error_count or 0),
                 circular_fields_count=int(row.circular_fields_count or 0),
-                bond_degree=int(degree_by_asteroid.get(asteroid_id, 0) or 0),
+                bond_degree=int(degree_by_asteroid.get(civilization_id, 0) or 0),
             )
-            asteroid_state_by_id[asteroid_id] = state
-            active_entity_keys.add(("asteroid", asteroid_id))
+            asteroid_state_by_id[civilization_id] = state
+            active_entity_keys.add(("civilization", civilization_id))
 
             payload = {
-                "entity_kind": "asteroid",
+                "entity_kind": "civilization",
                 "error_count": int(row.error_count or 0),
                 "circular_fields_count": int(row.circular_fields_count or 0),
-                "bond_degree": int(degree_by_asteroid.get(asteroid_id, 0) or 0),
+                "bond_degree": int(degree_by_asteroid.get(civilization_id, 0) or 0),
                 "calculated_values_keys": sorted(list((row.calculated_values or {}).keys()))
                 if isinstance(row.calculated_values, dict)
                 else [],
@@ -176,8 +176,8 @@ class PhysicsEngineService:
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
-                entity_kind="asteroid",
-                entity_id=asteroid_id,
+                entity_kind="civilization",
+                entity_id=civilization_id,
                 source_event_seq=normalized_source_seq,
                 factors=state,
                 payload=payload,

@@ -35,7 +35,7 @@ class ConstellationDashboardService:
             branch_id=branch_id,
             as_of=as_of,
         )
-        asteroids, _ = await self.universe_service.snapshot(
+        civilizations, _ = await self.universe_service.snapshot(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
@@ -108,17 +108,17 @@ class ConstellationDashboardService:
         alerts_by_constellation: dict[str, int] = defaultdict(int)
         circular_by_constellation: dict[str, int] = defaultdict(int)
 
-        for asteroid in asteroids:
-            if not isinstance(asteroid, dict):
-                metadata = getattr(asteroid, "metadata", None)
-                value = getattr(asteroid, "value", None)
+        for civilization in civilizations:
+            if not isinstance(civilization, dict):
+                metadata = getattr(civilization, "metadata", None)
+                value = getattr(civilization, "value", None)
                 calculated_values = {}
                 active_alerts = []
             else:
-                metadata = asteroid.get("metadata")
-                value = asteroid.get("value")
-                calculated_values = asteroid.get("calculated_values")
-                active_alerts = asteroid.get("active_alerts")
+                metadata = civilization.get("metadata")
+                value = civilization.get("value")
+                calculated_values = civilization.get("calculated_values")
+                active_alerts = civilization.get("active_alerts")
 
             metadata_dict = metadata if isinstance(metadata, dict) else {}
             table_name = derive_table_name(value=value, metadata=metadata_dict)

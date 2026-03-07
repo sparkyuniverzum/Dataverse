@@ -45,13 +45,13 @@ def test_build_calc_rows_extracts_values_and_circular_count() -> None:
         ]
     )
 
-    by_id = {row["asteroid_id"]: row for row in rows}
+    by_id = {row["civilization_id"]: row for row in rows}
     assert by_id[a_id]["circular_fields_count"] == 1
     assert by_id[a_id]["calculated_values"]["sum"] == 150
     assert by_id[b_id]["circular_fields_count"] == 0
 
 
-def test_build_calc_rows_skips_invalid_asteroid_id() -> None:
+def test_build_calc_rows_skips_invalid_civilization_id() -> None:
     rows = CalcEngineService.build_calc_rows(
         [
             {"id": "not-a-uuid", "calculated_values": {"x": 1}},

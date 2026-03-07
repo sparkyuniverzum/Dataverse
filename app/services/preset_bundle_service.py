@@ -441,7 +441,7 @@ class PresetBundleService:
         branch_id: UUID | None,
         moon_plans: list[BundleMoonPlan],
     ) -> dict[str, UUID]:
-        asteroids, _ = await self.universe_service.snapshot(
+        civilizations, _ = await self.universe_service.snapshot(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
@@ -449,23 +449,23 @@ class PresetBundleService:
             as_of=None,
         )
         by_key: dict[tuple[UUID, str], list[UUID]] = {}
-        for asteroid in asteroids:
-            if isinstance(asteroid, dict):
-                asteroid_id = asteroid.get("id")
-                value = asteroid.get("value")
-                metadata = asteroid.get("metadata") if isinstance(asteroid.get("metadata"), dict) else {}
-            elif isinstance(asteroid, ProjectedAsteroid):
-                asteroid_id = asteroid.id
-                value = asteroid.value
-                metadata = asteroid.metadata if isinstance(asteroid.metadata, dict) else {}
+        for civilization in civilizations:
+            if isinstance(civilization, dict):
+                civilization_id = civilization.get("id")
+                value = civilization.get("value")
+                metadata = civilization.get("metadata") if isinstance(civilization.get("metadata"), dict) else {}
+            elif isinstance(civilization, ProjectedAsteroid):
+                civilization_id = civilization.id
+                value = civilization.value
+                metadata = civilization.metadata if isinstance(civilization.metadata, dict) else {}
             else:
                 continue
-            if not isinstance(asteroid_id, UUID):
+            if not isinstance(civilization_id, UUID):
                 continue
             table_name = derive_table_name(value=value, metadata=metadata)
             table_id = derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
             token = (table_id, self._normalize_text(value))
-            by_key.setdefault(token, []).append(asteroid_id)
+            by_key.setdefault(token, []).append(civilization_id)
 
         refs: dict[str, UUID] = {}
         for moon_plan in moon_plans:
@@ -494,11 +494,11 @@ class PresetBundleService:
         for item in [first, second]:
             if item is None:
                 continue
-            merged.asteroids.extend(item.asteroids)
+            merged.civilizations.extend(item.civilizations)
             merged.bonds.extend(item.bonds)
             merged.selected_asteroids.extend(item.selected_asteroids)
             merged.extinguished_asteroids.extend(item.extinguished_asteroids)
-            merged.extinguished_asteroid_ids.extend(item.extinguished_asteroid_ids)
+            merged.extinguished_civilization_ids.extend(item.extinguished_civilization_ids)
             merged.extinguished_bond_ids.extend(item.extinguished_bond_ids)
             merged.semantic_effects.extend(item.semantic_effects)
         return merged

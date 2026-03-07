@@ -14,7 +14,7 @@ def test_tables_snapshot_uses_manual_visual_position_when_present() -> None:
     tables = build_tables_snapshot(
         service,
         galaxy_id=galaxy_id,
-        asteroids=[],
+        civilizations=[],
         bonds=[],
         contract_hints={
             table_id: {
@@ -43,7 +43,7 @@ def test_tables_snapshot_falls_back_to_derived_sector_when_manual_missing() -> N
     tables = build_tables_snapshot(
         service,
         galaxy_id=galaxy_id,
-        asteroids=[],
+        civilizations=[],
         bonds=[],
         contract_hints={
             table_id: {

@@ -42,46 +42,46 @@ def build_tables_snapshot(
     service: UniverseService,
     *,
     galaxy_id: UUID,
-    asteroids: list[ProjectedAsteroid | dict[str, Any]],
+    civilizations: list[ProjectedAsteroid | dict[str, Any]],
     bonds: list[ProjectedBond | dict[str, Any]],
     contract_hints: Mapping[UUID, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     asteroid_rows: list[dict[str, Any]] = []
-    for asteroid in asteroids:
-        if isinstance(asteroid, Mapping):
-            asteroid_id = asteroid.get("id")
-            if not isinstance(asteroid_id, UUID):
+    for civilization in civilizations:
+        if isinstance(civilization, Mapping):
+            civilization_id = civilization.get("id")
+            if not isinstance(civilization_id, UUID):
                 continue
-            metadata = asteroid.get("metadata", {})
+            metadata = civilization.get("metadata", {})
             metadata_dict = metadata if isinstance(metadata, dict) else {}
-            table_name_raw = asteroid.get("table_name")
+            table_name_raw = civilization.get("table_name")
             table_name = (
                 normalize_table_name(table_name_raw)
                 if isinstance(table_name_raw, str)
-                else derive_table_name(value=asteroid.get("value"), metadata=metadata_dict)
+                else derive_table_name(value=civilization.get("value"), metadata=metadata_dict)
             )
-            table_id = asteroid.get("table_id")
+            table_id = civilization.get("table_id")
             table_uuid = (
                 table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
             )
             asteroid_rows.append(
                 {
-                    "id": asteroid_id,
-                    "value": asteroid.get("value"),
+                    "id": civilization_id,
+                    "value": civilization.get("value"),
                     "metadata": metadata_dict,
-                    "created_at": asteroid.get("created_at"),
+                    "created_at": civilization.get("created_at"),
                     "table_name": table_name,
                     "table_id": table_uuid,
                 }
             )
-        elif isinstance(asteroid, ProjectedAsteroid):
-            table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+        elif isinstance(civilization, ProjectedAsteroid):
+            table_name = derive_table_name(value=civilization.value, metadata=civilization.metadata)
             asteroid_rows.append(
                 {
-                    "id": asteroid.id,
-                    "value": asteroid.value,
-                    "metadata": asteroid.metadata,
-                    "created_at": asteroid.created_at,
+                    "id": civilization.id,
+                    "value": civilization.value,
+                    "metadata": civilization.metadata,
+                    "created_at": civilization.created_at,
                     "table_name": table_name,
                     "table_id": derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
                 }

@@ -41,11 +41,11 @@ def test_bridge_maps_name_upsert_to_ingest() -> None:
 
 def test_bridge_maps_id_upsert_to_update_only_with_metadata() -> None:
     bridge = Parser2ExecutorBridge()
-    asteroid_id = "63b9d570-5ef6-47eb-8bf4-70bcdb6db95b"
+    civilization_id = "63b9d570-5ef6-47eb-8bf4-70bcdb6db95b"
     envelope = IntentEnvelope(
         intents=[
             UpsertNodeIntent(
-                node=NodeSelector(selector_type=NodeSelectorType.ID, value=asteroid_id),
+                node=NodeSelector(selector_type=NodeSelectorType.ID, value=civilization_id),
                 metadata={"status": "active"},
             )
         ]
@@ -55,12 +55,12 @@ def test_bridge_maps_id_upsert_to_update_only_with_metadata() -> None:
     assert result.errors == []
     assert len(result.tasks) == 1
     assert result.tasks[0].action == "UPDATE_ASTEROID"
-    assert result.tasks[0].params == {"asteroid_id": asteroid_id, "metadata": {"status": "active"}}
+    assert result.tasks[0].params == {"civilization_id": civilization_id, "metadata": {"status": "active"}}
 
 
 def test_bridge_maps_assign_attribute_to_ingest_or_update() -> None:
     bridge = Parser2ExecutorBridge()
-    asteroid_id = "2c4a713f-0f3d-47d1-8e38-6aa4492f0ec3"
+    civilization_id = "2c4a713f-0f3d-47d1-8e38-6aa4492f0ec3"
     envelope = IntentEnvelope(
         intents=[
             AssignAttributeIntent(
@@ -69,7 +69,7 @@ def test_bridge_maps_assign_attribute_to_ingest_or_update() -> None:
                 value=50000,
             ),
             AssignAttributeIntent(
-                target=NodeSelector(selector_type=NodeSelectorType.ID, value=asteroid_id),
+                target=NodeSelector(selector_type=NodeSelectorType.ID, value=civilization_id),
                 field="state",
                 value="ok",
             ),
@@ -80,7 +80,7 @@ def test_bridge_maps_assign_attribute_to_ingest_or_update() -> None:
     assert result.errors == []
     assert [task.action for task in result.tasks] == ["INGEST", "UPDATE_ASTEROID"]
     assert result.tasks[0].params == {"value": "Erik", "metadata": {"salary": 50000}}
-    assert result.tasks[1].params == {"asteroid_id": asteroid_id, "metadata": {"state": "ok"}}
+    assert result.tasks[1].params == {"civilization_id": civilization_id, "metadata": {"state": "ok"}}
 
 
 def test_bridge_maps_links_for_name_and_id_selectors() -> None:
@@ -134,11 +134,11 @@ def test_bridge_maps_flow_to_flow_link() -> None:
 
 def test_bridge_maps_extinguish_for_name_and_id() -> None:
     bridge = Parser2ExecutorBridge()
-    asteroid_id = "f6e91fd3-5a7d-44d0-99d7-d57af877d4ea"
+    civilization_id = "f6e91fd3-5a7d-44d0-99d7-d57af877d4ea"
     envelope = IntentEnvelope(
         intents=[
             ExtinguishNodeIntent(target=NodeSelector(selector_type=NodeSelectorType.NAME, value="Legacy")),
-            ExtinguishNodeIntent(target=NodeSelector(selector_type=NodeSelectorType.ID, value=asteroid_id)),
+            ExtinguishNodeIntent(target=NodeSelector(selector_type=NodeSelectorType.ID, value=civilization_id)),
         ]
     )
 
@@ -146,7 +146,7 @@ def test_bridge_maps_extinguish_for_name_and_id() -> None:
     assert result.errors == []
     assert [task.action for task in result.tasks] == ["DELETE", "EXTINGUISH"]
     assert result.tasks[0].params == {"target": "Legacy"}
-    assert result.tasks[1].params == {"asteroid_id": asteroid_id}
+    assert result.tasks[1].params == {"civilization_id": civilization_id}
 
 
 def test_bridge_maps_select_formula_and_guardian_intents() -> None:

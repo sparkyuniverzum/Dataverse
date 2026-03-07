@@ -17,9 +17,9 @@ from app.services.universe.event_projection import (
     project_state_from_events,
 )
 from app.services.universe.read_model_projection import (
-    _load_calc_state_by_asteroid_id as rm_load_calc_state_by_asteroid_id,
-    _load_physics_state_by_asteroid_id as rm_load_physics_state_by_asteroid_id,
+    _load_calc_state_by_civilization_id as rm_load_calc_state_by_civilization_id,
     _load_physics_state_by_bond_id as rm_load_physics_state_by_bond_id,
+    _load_physics_state_by_civilization_id as rm_load_physics_state_by_civilization_id,
     enrich_bonds_from_read_models,
     enrich_main_timeline_from_read_models,
     evaluate_fallback_universe,
@@ -122,34 +122,34 @@ class UniverseService:
             galaxy_id=galaxy_id,
         )
 
-    async def _load_calc_state_by_asteroid_id(
+    async def _load_calc_state_by_civilization_id(
         self,
         session: AsyncSession,
         *,
         user_id: UUID,
         galaxy_id: UUID,
-        asteroid_ids: set[UUID],
+        civilization_ids: set[UUID],
     ) -> dict[UUID, dict[str, Any]]:
-        return await rm_load_calc_state_by_asteroid_id(
+        return await rm_load_calc_state_by_civilization_id(
             session,
             user_id=user_id,
             galaxy_id=galaxy_id,
-            asteroid_ids=asteroid_ids,
+            civilization_ids=civilization_ids,
         )
 
-    async def _load_physics_state_by_asteroid_id(
+    async def _load_physics_state_by_civilization_id(
         self,
         session: AsyncSession,
         *,
         user_id: UUID,
         galaxy_id: UUID,
-        asteroid_ids: set[UUID],
+        civilization_ids: set[UUID],
     ) -> dict[UUID, dict[str, Any]]:
-        return await rm_load_physics_state_by_asteroid_id(
+        return await rm_load_physics_state_by_civilization_id(
             session,
             user_id=user_id,
             galaxy_id=galaxy_id,
-            asteroid_ids=asteroid_ids,
+            civilization_ids=civilization_ids,
         )
 
     async def _load_physics_state_by_bond_id(
@@ -336,7 +336,7 @@ class UniverseService:
         branch_id: UUID | None = None,
         as_of: datetime | None = None,
     ) -> list[dict[str, Any]]:
-        asteroids, bonds = await self.snapshot(
+        civilizations, bonds = await self.snapshot(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
@@ -350,7 +350,7 @@ class UniverseService:
         return build_tables_snapshot(
             self,
             galaxy_id=galaxy_id,
-            asteroids=asteroids,
+            civilizations=civilizations,
             bonds=bonds,
             contract_hints=contract_hints,
         )

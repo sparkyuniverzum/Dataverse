@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.schema_models.auth_onboarding import GalaxyPublic, OnboardingMachinePublic, OnboardingPublic
 from app.schema_models.branch_contracts import BranchPublic
 from app.schema_models.dashboard import MoonSummaryPublic
-from app.schema_models.execution import AsteroidResponse
+from app.schema_models.execution import CivilizationResponse
 from app.schema_models.universe import MineralFact, MoonRowContract, UniverseAsteroidSnapshot, UniverseTableSnapshot
 
 
@@ -58,7 +58,7 @@ def test_galaxy_workspace_public_shapes_are_frozen() -> None:
 
 
 def test_civilization_moon_mineral_payload_shapes_are_frozen() -> None:
-    assert _fields(AsteroidResponse) == [
+    assert _fields(CivilizationResponse) == [
         "id",
         "value",
         "metadata",
@@ -111,7 +111,7 @@ def test_civilization_moon_mineral_payload_shapes_are_frozen() -> None:
         "facts",
     ]
     assert _fields(MoonSummaryPublic) == [
-        "asteroid_id",
+        "civilization_id",
         "label",
         "table_id",
         "table_name",

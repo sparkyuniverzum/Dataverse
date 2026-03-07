@@ -9,9 +9,9 @@ from app.services.parser2 import SnapshotSemanticResolver
 from app.services.universe_service import ProjectedAsteroid
 
 
-def _asteroid(asteroid_id: str, value: object) -> ProjectedAsteroid:
+def _asteroid(civilization_id: str, value: object) -> ProjectedAsteroid:
     return ProjectedAsteroid(
-        id=UUID(asteroid_id),
+        id=UUID(civilization_id),
         value=value,
         metadata={},
         is_deleted=False,

@@ -178,14 +178,14 @@ class Parser2ExecutorBridge:
             return
 
         if selector.selector_type == NodeSelectorType.ID:
-            asteroid_id = self._validate_uuid_selector(selector=selector, errors=errors)
-            if asteroid_id is None:
+            civilization_id = self._validate_uuid_selector(selector=selector, errors=errors)
+            if civilization_id is None:
                 return
             if intent.metadata:
                 tasks.append(
                     AtomicTask(
                         action="UPDATE_ASTEROID",
-                        params={"asteroid_id": asteroid_id, "metadata": dict(intent.metadata)},
+                        params={"civilization_id": civilization_id, "metadata": dict(intent.metadata)},
                     )
                 )
             return
@@ -219,13 +219,13 @@ class Parser2ExecutorBridge:
             return
 
         if selector.selector_type == NodeSelectorType.ID:
-            asteroid_id = self._validate_uuid_selector(selector=selector, errors=errors)
-            if asteroid_id is None:
+            civilization_id = self._validate_uuid_selector(selector=selector, errors=errors)
+            if civilization_id is None:
                 return
             tasks.append(
                 AtomicTask(
                     action="UPDATE_ASTEROID",
-                    params={"asteroid_id": asteroid_id, "metadata": metadata},
+                    params={"civilization_id": civilization_id, "metadata": metadata},
                 )
             )
             return
@@ -297,10 +297,10 @@ class Parser2ExecutorBridge:
             return
 
         if selector.selector_type == NodeSelectorType.ID:
-            asteroid_id = self._validate_uuid_selector(selector=selector, errors=errors)
-            if asteroid_id is None:
+            civilization_id = self._validate_uuid_selector(selector=selector, errors=errors)
+            if civilization_id is None:
                 return
-            tasks.append(AtomicTask(action="EXTINGUISH", params={"asteroid_id": asteroid_id}))
+            tasks.append(AtomicTask(action="EXTINGUISH", params={"civilization_id": civilization_id}))
             return
 
         errors.append(

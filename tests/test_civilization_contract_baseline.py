@@ -9,7 +9,7 @@ from fastapi.routing import APIRoute
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.main import app
-from app.schema_models.execution import AsteroidIngestRequest, AsteroidMutateRequest, AsteroidResponse
+from app.schema_models.execution import CivilizationIngestRequest, CivilizationMutateRequest, CivilizationResponse
 from app.schema_models.universe import UniverseAsteroidSnapshot
 
 
@@ -41,9 +41,9 @@ def _registered_http_signatures() -> set[str]:
 
 def test_civilization_contract_baseline_matches_backend_schema_models() -> None:
     source = _load_baseline()["source_of_truth"]
-    assert _model_fields(AsteroidIngestRequest) == source["asteroid_ingest_request"]["be_fields"]
-    assert _model_fields(AsteroidMutateRequest) == source["asteroid_mutate_request"]["be_fields"]
-    assert _model_fields(AsteroidResponse) == source["asteroid_response"]["be_fields"]
+    assert _model_fields(CivilizationIngestRequest) == source["asteroid_ingest_request"]["be_fields"]
+    assert _model_fields(CivilizationMutateRequest) == source["asteroid_mutate_request"]["be_fields"]
+    assert _model_fields(CivilizationResponse) == source["asteroid_response"]["be_fields"]
     assert _model_fields(UniverseAsteroidSnapshot) == source["civilization_snapshot_row"]["be_fields"]
 
 

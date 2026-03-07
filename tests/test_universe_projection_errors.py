@@ -90,7 +90,7 @@ def test_projection_replay_convergence_under_load() -> None:
     base_ts = datetime(2026, 3, 6, 12, 0, 0, tzinfo=UTC)
 
     events: list[SimpleNamespace] = []
-    asteroid_ids: list[UUID] = [uuid4() for _ in range(asteroid_count)]
+    civilization_ids: list[UUID] = [uuid4() for _ in range(asteroid_count)]
     bond_ids_by_index: dict[int, UUID] = {}
     deleted_bond_ids: set[UUID] = set()
     sequence = 0
@@ -112,10 +112,10 @@ def test_projection_replay_convergence_under_load() -> None:
             )
         )
 
-    for idx, asteroid_id in enumerate(asteroid_ids):
+    for idx, civilization_id in enumerate(civilization_ids):
         append_event(
             "ASTEROID_CREATED",
-            asteroid_id,
+            civilization_id,
             {
                 "value": f"LoadRow-{idx}",
                 "metadata": {
@@ -128,13 +128,13 @@ def test_projection_replay_convergence_under_load() -> None:
         if idx % 2 == 0:
             append_event(
                 "METADATA_UPDATED",
-                asteroid_id,
+                civilization_id,
                 {"metadata": {"batch": idx % 7, "kind": "replay-load"}},
             )
         if idx % 3 == 0:
             append_event(
                 "ASTEROID_VALUE_UPDATED",
-                asteroid_id,
+                civilization_id,
                 {"value": f"LoadRow-{idx}-v2"},
             )
 
@@ -145,8 +145,8 @@ def test_projection_replay_convergence_under_load() -> None:
             "BOND_FORMED",
             bond_id,
             {
-                "source_civilization_id": str(asteroid_ids[idx]),
-                "target_civilization_id": str(asteroid_ids[idx + 1]),
+                "source_civilization_id": str(civilization_ids[idx]),
+                "target_civilization_id": str(civilization_ids[idx + 1]),
                 "type": "RELATION",
             },
         )
@@ -154,11 +154,11 @@ def test_projection_replay_convergence_under_load() -> None:
             append_event("BOND_SOFT_DELETED", bond_id, {})
             deleted_bond_ids.add(bond_id)
 
-    deleted_asteroid_ids: set[UUID] = set()
-    for idx, asteroid_id in enumerate(asteroid_ids):
+    deleted_civilization_ids: set[UUID] = set()
+    for idx, civilization_id in enumerate(civilization_ids):
         if idx % 5 == 0:
-            append_event("ASTEROID_SOFT_DELETED", asteroid_id, {})
-            deleted_asteroid_ids.add(asteroid_id)
+            append_event("ASTEROID_SOFT_DELETED", civilization_id, {})
+            deleted_civilization_ids.add(civilization_id)
 
     assert len(events) >= 1000
 
@@ -182,11 +182,11 @@ def test_projection_replay_convergence_under_load() -> None:
         )
     )
 
-    expected_active_asteroid_ids = {
-        asteroid_id for asteroid_id in asteroid_ids if asteroid_id not in deleted_asteroid_ids
+    expected_active_civilization_ids = {
+        civilization_id for civilization_id in civilization_ids if civilization_id not in deleted_civilization_ids
     }
-    assert len(first_asteroids) == len(expected_active_asteroid_ids)
-    assert {item.id for item in first_asteroids} == expected_active_asteroid_ids
+    assert len(first_asteroids) == len(expected_active_civilization_ids)
+    assert {item.id for item in first_asteroids} == expected_active_civilization_ids
     assert [item.id for item in first_asteroids] == [item.id for item in replay_asteroids]
     assert [item.current_event_seq for item in first_asteroids] == [item.current_event_seq for item in replay_asteroids]
 
@@ -194,45 +194,45 @@ def test_projection_replay_convergence_under_load() -> None:
     for idx, bond_id in bond_ids_by_index.items():
         if bond_id in deleted_bond_ids:
             continue
-        source_civilization_id = asteroid_ids[idx]
-        target_civilization_id = asteroid_ids[idx + 1]
+        source_civilization_id = civilization_ids[idx]
+        target_civilization_id = civilization_ids[idx + 1]
         if (
-            source_civilization_id in expected_active_asteroid_ids
-            and target_civilization_id in expected_active_asteroid_ids
+            source_civilization_id in expected_active_civilization_ids
+            and target_civilization_id in expected_active_civilization_ids
         ):
             expected_active_bond_ids.add(bond_id)
 
     assert {item.id for item in first_bonds} == expected_active_bond_ids
     assert [item.id for item in first_bonds] == [item.id for item in replay_bonds]
     for bond in first_bonds:
-        assert bond.source_civilization_id in expected_active_asteroid_ids
-        assert bond.target_civilization_id in expected_active_asteroid_ids
+        assert bond.source_civilization_id in expected_active_civilization_ids
+        assert bond.target_civilization_id in expected_active_civilization_ids
 
     table_rows = build_tables_snapshot(
         service,
         galaxy_id=galaxy_id,
-        asteroids=first_asteroids,
+        civilizations=first_asteroids,
         bonds=first_bonds,
         contract_hints={},
     )
     table_member_ids = {UUID(str(member["id"])) for table in table_rows for member in (table.get("members") or [])}
-    assert table_member_ids == expected_active_asteroid_ids
+    assert table_member_ids == expected_active_civilization_ids
 
     for table in table_rows:
         for bond in table.get("internal_bonds", []):
             assert UUID(str(bond["id"])) in expected_active_bond_ids
-            assert UUID(str(bond["source_civilization_id"])) in expected_active_asteroid_ids
-            assert UUID(str(bond["target_civilization_id"])) in expected_active_asteroid_ids
+            assert UUID(str(bond["source_civilization_id"])) in expected_active_civilization_ids
+            assert UUID(str(bond["target_civilization_id"])) in expected_active_civilization_ids
         for bond in table.get("external_bonds", []):
             assert UUID(str(bond["id"])) in expected_active_bond_ids
-            assert UUID(str(bond["source_civilization_id"])) in expected_active_asteroid_ids
-            assert UUID(str(bond["target_civilization_id"])) in expected_active_asteroid_ids
+            assert UUID(str(bond["source_civilization_id"])) in expected_active_civilization_ids
+            assert UUID(str(bond["target_civilization_id"])) in expected_active_civilization_ids
 
 
 def test_projection_replay_applies_metadata_remove_patch() -> None:
     user_id = uuid4()
     galaxy_id = uuid4()
-    asteroid_id = uuid4()
+    civilization_id = uuid4()
     base_ts = datetime(2026, 3, 6, 12, 30, 0, tzinfo=UTC)
     events = [
         SimpleNamespace(
@@ -240,7 +240,7 @@ def test_projection_replay_applies_metadata_remove_patch() -> None:
             user_id=user_id,
             galaxy_id=galaxy_id,
             branch_id=None,
-            entity_id=asteroid_id,
+            entity_id=civilization_id,
             event_type="ASTEROID_CREATED",
             payload={
                 "value": "Metadata remove seed",
@@ -259,7 +259,7 @@ def test_projection_replay_applies_metadata_remove_patch() -> None:
             user_id=user_id,
             galaxy_id=galaxy_id,
             branch_id=None,
-            entity_id=asteroid_id,
+            entity_id=civilization_id,
             event_type="METADATA_UPDATED",
             payload={"metadata": {}, "metadata_remove": ["segment"]},
             timestamp=base_ts + timedelta(milliseconds=1),
@@ -267,7 +267,7 @@ def test_projection_replay_applies_metadata_remove_patch() -> None:
         ),
     ]
     service = UniverseService(event_store=_ReplayLoadEventStore(events))
-    asteroids, bonds = asyncio.run(
+    civilizations, bonds = asyncio.run(
         service._project_state_from_events(
             session=None,
             user_id=user_id,
@@ -277,9 +277,9 @@ def test_projection_replay_applies_metadata_remove_patch() -> None:
         )
     )
     assert bonds == []
-    assert len(asteroids) == 1
-    asteroid = asteroids[0]
-    assert asteroid.id == asteroid_id
-    assert asteroid.current_event_seq == 2
-    assert asteroid.metadata.get("state") == "active"
-    assert "segment" not in asteroid.metadata
+    assert len(civilizations) == 1
+    civilization = civilizations[0]
+    assert civilization.id == civilization_id
+    assert civilization.current_event_seq == 2
+    assert civilization.metadata.get("state") == "active"
+    assert "segment" not in civilization.metadata

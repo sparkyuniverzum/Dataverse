@@ -294,7 +294,7 @@ class TableContractValidator:
         *,
         session: AsyncSession,
         galaxy_id: UUID,
-        asteroid_id: UUID | None,
+        civilization_id: UUID | None,
         value: Any,
         metadata: dict[str, Any],
         asteroids_by_id: dict[UUID, ProjectedAsteroid],
@@ -414,7 +414,7 @@ class TableContractValidator:
             )
 
             for other in asteroids_by_id.values():
-                if asteroid_id is not None and other.id == asteroid_id:
+                if civilization_id is not None and other.id == civilization_id:
                     continue
 
                 other_table_name = derive_table_name(value=other.value, metadata=other.metadata)

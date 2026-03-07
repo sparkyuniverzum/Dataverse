@@ -34,7 +34,7 @@ class PlanetDashboardService:
             branch_id=branch_id,
             as_of=as_of,
         )
-        asteroids, _ = await self.universe_service.snapshot(
+        civilizations, _ = await self.universe_service.snapshot(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
@@ -87,22 +87,22 @@ class PlanetDashboardService:
         alerts_by_table: dict[str, int] = defaultdict(int)
         circular_by_table: dict[str, int] = defaultdict(int)
 
-        for asteroid in asteroids:
-            if isinstance(asteroid, dict):
-                asteroid_id = str(asteroid.get("id") or "")
-                metadata = asteroid.get("metadata")
-                calculated_values = asteroid.get("calculated_values")
-                active_alerts = asteroid.get("active_alerts")
+        for civilization in civilizations:
+            if isinstance(civilization, dict):
+                civilization_id = str(civilization.get("id") or "")
+                metadata = civilization.get("metadata")
+                calculated_values = civilization.get("calculated_values")
+                active_alerts = civilization.get("active_alerts")
             else:
-                asteroid_id = str(getattr(asteroid, "id", "") or "")
-                metadata = getattr(asteroid, "metadata", None)
-                calculated_values = getattr(asteroid, "calculated_values", None)
-                active_alerts = getattr(asteroid, "active_alerts", None)
+                civilization_id = str(getattr(civilization, "id", "") or "")
+                metadata = getattr(civilization, "metadata", None)
+                calculated_values = getattr(civilization, "calculated_values", None)
+                active_alerts = getattr(civilization, "active_alerts", None)
 
-            if not asteroid_id:
+            if not civilization_id:
                 continue
 
-            table_id = asteroid_to_table_id.get(asteroid_id)
+            table_id = asteroid_to_table_id.get(civilization_id)
             if not table_id:
                 continue
 

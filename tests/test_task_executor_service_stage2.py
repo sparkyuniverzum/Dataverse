@@ -16,20 +16,20 @@ from app.services.task_executor_service import (
 from app.services.universe_service import ProjectedAsteroid
 
 
-def _context(*, asteroids: list[ProjectedAsteroid] | None = None) -> _TaskExecutionContext:
+def _context(*, civilizations: list[ProjectedAsteroid] | None = None) -> _TaskExecutionContext:
     async def _append_and_project_event(
         *, entity_id, event_type, payload
     ):  # pragma: no cover - should not be called in these tests
         raise AssertionError(f"Unexpected event append: {event_type} {entity_id}")
 
-    asteroid_map = {asteroid.id: asteroid for asteroid in (asteroids or [])}
+    asteroid_map = {civilization.id: civilization for civilization in (civilizations or [])}
     return _TaskExecutionContext(
         session=None,  # type: ignore[arg-type]
         user_id=uuid4(),
         galaxy_id=uuid4(),
         branch_id=None,
         result=TaskExecutionResult(),
-        context_asteroid_ids=[],
+        context_civilization_ids=[],
         asteroids_by_id=asteroid_map,
         bonds_by_id={},
         contract_cache={},
@@ -53,21 +53,21 @@ def _asteroid(*, value: str, metadata: dict | None = None) -> ProjectedAsteroid:
 def test_handle_ingest_update_family_ingest_reuses_existing_asteroid() -> None:
     service = TaskExecutorService()
     existing = _asteroid(value="Material")
-    ctx = _context(asteroids=[existing])
+    ctx = _context(civilizations=[existing])
     task = AtomicTask(action="INGEST", params={"value": "Material", "metadata": {}})
 
     handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
 
     assert handled is True
-    assert len(ctx.result.asteroids) == 1
-    assert ctx.result.asteroids[0].id == existing.id
-    assert ctx.context_asteroid_ids == [existing.id]
+    assert len(ctx.result.civilizations) == 1
+    assert ctx.result.civilizations[0].id == existing.id
+    assert ctx.context_civilization_ids == [existing.id]
 
 
 def test_handle_ingest_update_family_ingest_does_not_reuse_existing_from_other_table() -> None:
     service = TaskExecutorService()
     existing = _asteroid(value="Material", metadata={"table": "Sklad > Material"})
-    ctx = _context(asteroids=[existing])
+    ctx = _context(civilizations=[existing])
     task = AtomicTask(action="INGEST", params={"value": "Material", "metadata": {"table": "Finance > Material"}})
 
     async def _append_and_project_event(*, entity_id, event_type, payload):  # noqa: ANN001
@@ -84,11 +84,11 @@ def test_handle_ingest_update_family_ingest_does_not_reuse_existing_from_other_t
     handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
 
     assert handled is True
-    assert len(ctx.result.asteroids) == 1
-    created = ctx.result.asteroids[0]
+    assert len(ctx.result.civilizations) == 1
+    created = ctx.result.civilizations[0]
     assert created.id != existing.id
     assert created.metadata.get("table") == "Finance > Material"
-    assert ctx.context_asteroid_ids == [created.id]
+    assert ctx.context_civilization_ids == [created.id]
     codes = [str(item.get("code")) for item in ctx.result.semantic_effects]
     assert "MOON_UPSERTED" in codes
     assert "PLANET_INFERRED" in codes
@@ -100,7 +100,7 @@ def test_handle_ingest_update_family_ingest_does_not_reuse_existing_from_other_t
 
 def test_handle_link_and_bond_mutation_family_requires_context_for_link() -> None:
     service = TaskExecutorService()
-    ctx = _context(asteroids=[])
+    ctx = _context(civilizations=[])
     task = AtomicTask(action="LINK", params={})
 
     with pytest.raises(HTTPException) as exc:
@@ -112,7 +112,7 @@ def test_handle_link_and_bond_mutation_family_requires_context_for_link() -> Non
 
 def test_handle_extinguish_family_rejects_invalid_bond_id() -> None:
     service = TaskExecutorService()
-    ctx = _context(asteroids=[])
+    ctx = _context(civilizations=[])
     task = AtomicTask(action="EXTINGUISH_BOND", params={"bond_id": "not-a-uuid"})
 
     with pytest.raises(HTTPException) as exc:
@@ -126,7 +126,7 @@ def test_handle_formula_guardian_select_family_selects_by_target_substring() -> 
     service = TaskExecutorService()
     first = _asteroid(value="pipeline")
     second = _asteroid(value="trade")
-    ctx = _context(asteroids=[first, second])
+    ctx = _context(civilizations=[first, second])
     task = AtomicTask(action="SELECT", params={"target": "pipe"})
 
     handled = asyncio.run(service._handle_formula_guardian_select_family(task=task, ctx=ctx))
@@ -140,7 +140,7 @@ def test_build_preload_plan_partial_for_id_only_tasks() -> None:
     source_civilization_id = uuid4()
     target_civilization_id = uuid4()
     bond_id = uuid4()
-    asteroid_id = uuid4()
+    civilization_id = uuid4()
     tasks = [
         AtomicTask(
             action="LINK",
@@ -151,20 +151,20 @@ def test_build_preload_plan_partial_for_id_only_tasks() -> None:
             },
         ),
         AtomicTask(action="EXTINGUISH_BOND", params={"bond_id": str(bond_id)}),
-        AtomicTask(action="UPDATE_ASTEROID", params={"asteroid_id": str(asteroid_id), "metadata": {"x": 1}}),
-        AtomicTask(action="SET_FORMULA", params={"target": str(asteroid_id), "field": "f", "formula": "=1"}),
+        AtomicTask(action="UPDATE_ASTEROID", params={"civilization_id": str(civilization_id), "metadata": {"x": 1}}),
+        AtomicTask(action="SET_FORMULA", params={"target": str(civilization_id), "field": "f", "formula": "=1"}),
         AtomicTask(
             action="ADD_GUARDIAN",
-            params={"target": str(asteroid_id), "field": "f", "operator": ">", "threshold": 1, "action": "alert"},
+            params={"target": str(civilization_id), "field": "f", "operator": ">", "threshold": 1, "action": "alert"},
         ),
     ]
 
     plan = service._build_preload_plan(tasks=tasks, branch_id=None)
 
     assert plan.scope == "partial"
-    assert source_civilization_id in plan.asteroid_ids
-    assert target_civilization_id in plan.asteroid_ids
-    assert asteroid_id in plan.asteroid_ids
+    assert source_civilization_id in plan.civilization_ids
+    assert target_civilization_id in plan.civilization_ids
+    assert civilization_id in plan.civilization_ids
     assert bond_id in plan.bond_ids
     assert plan.include_connected_bonds is False
 
@@ -176,20 +176,20 @@ def test_build_preload_plan_partial_for_ingest_only_batch() -> None:
     plan = service._build_preload_plan(tasks=tasks, branch_id=None)
 
     assert plan.scope == "partial"
-    assert plan.asteroid_ids == frozenset()
+    assert plan.civilization_ids == frozenset()
     assert plan.bond_ids == frozenset()
     assert plan.include_connected_bonds is False
 
 
 def test_build_preload_plan_partial_for_explicit_extinguish() -> None:
     service = TaskExecutorService()
-    asteroid_id = uuid4()
-    tasks = [AtomicTask(action="EXTINGUISH", params={"asteroid_id": str(asteroid_id)})]
+    civilization_id = uuid4()
+    tasks = [AtomicTask(action="EXTINGUISH", params={"civilization_id": str(civilization_id)})]
 
     plan = service._build_preload_plan(tasks=tasks, branch_id=None)
 
     assert plan.scope == "partial"
-    assert asteroid_id in plan.asteroid_ids
+    assert civilization_id in plan.civilization_ids
     assert plan.include_connected_bonds is True
 
 
@@ -212,7 +212,7 @@ def test_build_preload_plan_falls_back_for_fuzzy_or_branch_tasks() -> None:
 def test_handle_ingest_update_family_partial_scope_reuses_existing_from_db_lookup() -> None:
     service = TaskExecutorService()
     existing = _asteroid(value="Material")
-    ctx = _context(asteroids=[])
+    ctx = _context(civilizations=[])
     ctx.preload_scope = "partial"
     task = AtomicTask(action="INGEST", params={"value": "Material", "metadata": {}})
 
@@ -225,15 +225,15 @@ def test_handle_ingest_update_family_partial_scope_reuses_existing_from_db_looku
     handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
 
     assert handled is True
-    assert len(ctx.result.asteroids) == 1
-    assert ctx.result.asteroids[0].id == existing.id
-    assert ctx.context_asteroid_ids == [existing.id]
+    assert len(ctx.result.civilizations) == 1
+    assert ctx.result.civilizations[0].id == existing.id
+    assert ctx.context_civilization_ids == [existing.id]
     assert existing.id in ctx.asteroids_by_id
 
 
 def test_load_auto_semantic_rules_reads_from_physics_defaults_registry() -> None:
     service = TaskExecutorService()
-    asteroid = _asteroid(value="Alice", metadata={"table": "General > People"})
+    civilization = _asteroid(value="Alice", metadata={"table": "General > People"})
 
     fake_contract = type(
         "Contract",
@@ -265,7 +265,7 @@ def test_load_auto_semantic_rules_reads_from_physics_defaults_registry() -> None
         service._load_auto_semantic_rules_for_asteroid(
             session=object(),  # type: ignore[arg-type]
             galaxy_id=uuid4(),
-            asteroid=asteroid,
+            civilization=civilization,
             contract_cache={},
         )
     )
@@ -276,7 +276,7 @@ def test_load_auto_semantic_rules_reads_from_physics_defaults_registry() -> None
 
 def test_handle_ingest_update_family_applies_auto_semantic_reclassification() -> None:
     service = TaskExecutorService()
-    ctx = _context(asteroids=[])
+    ctx = _context(civilizations=[])
     task = AtomicTask(
         action="INGEST", params={"value": "Alice", "metadata": {"table": "General > People", "role": "employee"}}
     )
@@ -309,8 +309,8 @@ def test_handle_ingest_update_family_applies_auto_semantic_reclassification() ->
     handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
 
     assert handled is True
-    assert len(ctx.result.asteroids) == 1
-    created = ctx.result.asteroids[0]
+    assert len(ctx.result.civilizations) == 1
+    created = ctx.result.civilizations[0]
     assert created.metadata.get("table") == "HR > Zamestnanci"
     assert created.metadata.get("table_name") == "HR > Zamestnanci"
     confidence_by_code = {str(item.get("code")): str(item.get("confidence")) for item in ctx.result.semantic_effects}
@@ -323,7 +323,7 @@ def test_handle_ingest_update_family_applies_auto_semantic_reclassification() ->
 
 def test_record_semantic_effect_confidence_policy_sets_high_and_medium_defaults() -> None:
     service = TaskExecutorService()
-    ctx = _context(asteroids=[])
+    ctx = _context(civilizations=[])
 
     service._record_semantic_effect(
         ctx=ctx,

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from app.api.routers.asteroids import router as asteroids_router
 from app.api.routers.bonds import router as bonds_router
 from app.api.routers.branches import router as branches_router
 from app.api.routers.capabilities import router as capabilities_router
+from app.api.routers.civilizations import router as asteroids_router
 from app.api.routers.contracts import router as contracts_router
 from app.api.routers.galaxies import router as galaxies_router
 from app.api.routers.io import router as io_router

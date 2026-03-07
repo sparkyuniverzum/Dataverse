@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.mappers.execution import asteroid_to_response, universe_asteroid_to_snapshot
+from app.api.mappers.execution import civilization_to_response, universe_asteroid_to_snapshot
 from app.api.runtime import (
     get_service_container,
     resolve_scope_for_user,
@@ -18,14 +18,14 @@ from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
     FACT_RESERVED_METADATA_KEYS,
-    AsteroidResponse,
     CivilizationMineralMutateRequest,
+    CivilizationResponse,
     MoonCreateRequest,
     MoonExtinguishResponse,
     MoonListResponse,
     MoonMutateRequest,
     MoonRowContract,
-    asteroid_snapshot_to_moon_row,
+    civilization_snapshot_to_moon_row,
 )
 from app.services.parser_service import AtomicTask
 
@@ -34,10 +34,10 @@ router = APIRouter(tags=["moons"])
 
 def _moon_row_from_source(source: Any, *, galaxy_id: UUID) -> MoonRowContract:
     snapshot = universe_asteroid_to_snapshot(source, galaxy_id=galaxy_id)
-    return asteroid_snapshot_to_moon_row(snapshot)
+    return civilization_snapshot_to_moon_row(snapshot)
 
 
-def _moon_row_from_asteroid_response(response: AsteroidResponse, *, galaxy_id: UUID) -> MoonRowContract:
+def _moon_row_from_asteroid_response(response: CivilizationResponse, *, galaxy_id: UUID) -> MoonRowContract:
     return _moon_row_from_source(
         {
             "id": response.id,
@@ -83,17 +83,19 @@ async def _load_active_moon_row(
     branch_id: UUID | None,
     moon_id: UUID,
 ) -> MoonRowContract:
-    asteroids, _ = await services.universe_service.snapshot(
+    civilizations, _ = await services.universe_service.snapshot(
         session=session,
         user_id=current_user.id,
         galaxy_id=galaxy_id,
         branch_id=branch_id,
     )
-    for asteroid in asteroids:
-        asteroid_id = asteroid.get("id") if isinstance(asteroid, dict) else getattr(asteroid, "id", None)
-        if str(asteroid_id or "") != str(moon_id):
+    for civilization in civilizations:
+        civilization_id = (
+            civilization.get("id") if isinstance(civilization, dict) else getattr(civilization, "id", None)
+        )
+        if str(civilization_id or "") != str(moon_id):
             continue
-        return _moon_row_from_source(asteroid, galaxy_id=galaxy_id)
+        return _moon_row_from_source(civilization, galaxy_id=galaxy_id)
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Moon not found")
 
 
@@ -128,15 +130,15 @@ async def list_moons(
         branch_id=branch_id,
         services=services,
     )
-    asteroids, _ = await services.universe_service.snapshot(
+    civilizations, _ = await services.universe_service.snapshot(
         session=session,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
         branch_id=target_branch_id,
     )
     items: list[MoonRowContract] = []
-    for asteroid in asteroids:
-        moon_row = _moon_row_from_source(asteroid, galaxy_id=target_galaxy_id)
+    for civilization in civilizations:
+        moon_row = _moon_row_from_source(civilization, galaxy_id=target_galaxy_id)
         if planet_id is not None and moon_row.planet_id != planet_id:
             continue
         items.append(moon_row)
@@ -244,9 +246,9 @@ async def create_moon(
             branch_id=target_branch_id,
             manage_transaction=False,
         )
-        if not execution.asteroids:
+        if not execution.civilizations:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Moon ingest failed")
-        return asteroid_to_response(execution.asteroids[0])
+        return civilization_to_response(execution.civilizations[0])
 
     created = await run_scoped_idempotent(
         session=session,
@@ -262,7 +264,7 @@ async def create_moon(
             "minerals": payload.minerals,
         },
         execute=execute_scoped,
-        replay_loader=AsteroidResponse.model_validate,
+        replay_loader=CivilizationResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Moon ingest failed",
         resolved_scope=(target_galaxy_id, target_branch_id),
@@ -313,7 +315,7 @@ async def mutate_moon(
         metadata_patch["table"] = target_table_name
         metadata_patch["table_id"] = str(payload.planet_id)
 
-    params: dict[str, Any] = {"asteroid_id": str(moon_id)}
+    params: dict[str, Any] = {"civilization_id": str(moon_id)}
     if payload.label is not None:
         params["value"] = payload.label
     if metadata_patch:
@@ -330,10 +332,10 @@ async def mutate_moon(
             branch_id=target_branch_id,
             manage_transaction=False,
         )
-        if not execution.asteroids:
+        if not execution.civilizations:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Moon not found")
-        mutated = next((asteroid for asteroid in execution.asteroids if asteroid.id == moon_id), execution.asteroids[0])
-        return asteroid_to_response(mutated)
+        mutated = next((c for c in execution.civilizations if c.id == moon_id), execution.civilizations[0])
+        return civilization_to_response(mutated)
 
     mutated = await run_scoped_idempotent(
         session=session,
@@ -351,7 +353,7 @@ async def mutate_moon(
             "expected_event_seq": payload.expected_event_seq,
         },
         execute=execute_scoped,
-        replay_loader=AsteroidResponse.model_validate,
+        replay_loader=CivilizationResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Moon not found",
         empty_response_status=status.HTTP_404_NOT_FOUND,
@@ -398,7 +400,7 @@ async def mutate_moon_mineral(
         services=services,
     )
     normalized_key = _normalize_mineral_key(mineral_key)
-    params: dict[str, Any] = {"asteroid_id": str(moon_id)}
+    params: dict[str, Any] = {"civilization_id": str(moon_id)}
     if payload.remove:
         params["metadata_remove"] = [normalized_key]
     else:
@@ -415,10 +417,10 @@ async def mutate_moon_mineral(
             branch_id=target_branch_id,
             manage_transaction=False,
         )
-        if not execution.asteroids:
+        if not execution.civilizations:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Moon not found")
-        mutated = next((asteroid for asteroid in execution.asteroids if asteroid.id == moon_id), execution.asteroids[0])
-        return asteroid_to_response(mutated)
+        mutated = next((c for c in execution.civilizations if c.id == moon_id), execution.civilizations[0])
+        return civilization_to_response(mutated)
 
     mutated = await run_scoped_idempotent(
         session=session,
@@ -436,7 +438,7 @@ async def mutate_moon_mineral(
             "expected_event_seq": payload.expected_event_seq,
         },
         execute=execute_scoped,
-        replay_loader=AsteroidResponse.model_validate,
+        replay_loader=CivilizationResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Moon not found",
         empty_response_status=status.HTTP_404_NOT_FOUND,
@@ -486,7 +488,7 @@ async def extinguish_moon(
         branch_id=branch_id,
         services=services,
     )
-    params: dict[str, Any] = {"asteroid_id": str(moon_id), "expected_event_seq": expected_event_seq}
+    params: dict[str, Any] = {"civilization_id": str(moon_id), "expected_event_seq": expected_event_seq}
     tasks = [AtomicTask(action="EXTINGUISH", params=params)]
 
     async def execute_scoped(_: UUID, __: UUID | None) -> MoonExtinguishResponse:
@@ -498,10 +500,10 @@ async def extinguish_moon(
             branch_id=target_branch_id,
             manage_transaction=False,
         )
-        if moon_id not in execution.extinguished_asteroid_ids:
+        if moon_id not in execution.extinguished_civilization_ids:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Moon not found")
         deleted_asteroid = next(
-            (asteroid for asteroid in execution.extinguished_asteroids if asteroid.id == moon_id),
+            (civilization for civilization in execution.extinguished_asteroids if civilization.id == moon_id),
             None,
         )
         if deleted_asteroid is None:

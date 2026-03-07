@@ -28,7 +28,7 @@ class MoonDashboardService:
         branch_id: UUID | None = None,
         as_of: datetime | None = None,
     ) -> list[dict[str, Any]]:
-        asteroids, _ = await self.universe_service.snapshot(
+        civilizations, _ = await self.universe_service.snapshot(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
@@ -37,31 +37,31 @@ class MoonDashboardService:
         )
 
         rows: list[dict[str, Any]] = []
-        for asteroid in asteroids:
-            if isinstance(asteroid, dict):
-                asteroid_id = asteroid.get("id")
-                value = asteroid.get("value")
-                metadata = asteroid.get("metadata")
-                created_at = asteroid.get("created_at")
-                calculated_values = asteroid.get("calculated_values")
-                active_alerts = asteroid.get("active_alerts")
-                table_name = asteroid.get("table_name")
-                constellation_name = asteroid.get("constellation_name")
-                planet_name = asteroid.get("planet_name")
-                table_id = asteroid.get("table_id")
+        for civilization in civilizations:
+            if isinstance(civilization, dict):
+                civilization_id = civilization.get("id")
+                value = civilization.get("value")
+                metadata = civilization.get("metadata")
+                created_at = civilization.get("created_at")
+                calculated_values = civilization.get("calculated_values")
+                active_alerts = civilization.get("active_alerts")
+                table_name = civilization.get("table_name")
+                constellation_name = civilization.get("constellation_name")
+                planet_name = civilization.get("planet_name")
+                table_id = civilization.get("table_id")
             else:
-                asteroid_id = getattr(asteroid, "id", None)
-                value = getattr(asteroid, "value", None)
-                metadata = getattr(asteroid, "metadata", None)
-                created_at = getattr(asteroid, "created_at", None)
-                calculated_values = getattr(asteroid, "calculated_values", None)
-                active_alerts = getattr(asteroid, "active_alerts", None)
-                table_name = getattr(asteroid, "table_name", None)
-                constellation_name = getattr(asteroid, "constellation_name", None)
-                planet_name = getattr(asteroid, "planet_name", None)
-                table_id = getattr(asteroid, "table_id", None)
+                civilization_id = getattr(civilization, "id", None)
+                value = getattr(civilization, "value", None)
+                metadata = getattr(civilization, "metadata", None)
+                created_at = getattr(civilization, "created_at", None)
+                calculated_values = getattr(civilization, "calculated_values", None)
+                active_alerts = getattr(civilization, "active_alerts", None)
+                table_name = getattr(civilization, "table_name", None)
+                constellation_name = getattr(civilization, "constellation_name", None)
+                planet_name = getattr(civilization, "planet_name", None)
+                table_id = getattr(civilization, "table_id", None)
 
-            if asteroid_id is None:
+            if civilization_id is None:
                 continue
 
             metadata_dict = metadata if isinstance(metadata, dict) else {}
@@ -111,7 +111,7 @@ class MoonDashboardService:
 
             rows.append(
                 {
-                    "asteroid_id": asteroid_id,
+                    "civilization_id": civilization_id,
                     "label": str(value) if value is not None else "",
                     "table_id": resolved_table_id,
                     "table_name": resolved_table_name,

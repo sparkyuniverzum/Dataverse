@@ -44,7 +44,7 @@ class ReadModelProjector:
 
     Concurrency:
     - UPSERT (`INSERT ... ON CONFLICT`) is used for create/form events so replays are idempotent.
-    - `SELECT ... FOR UPDATE` is used for metadata patches to serialize concurrent updates on one asteroid row
+    - `SELECT ... FOR UPDATE` is used for metadata patches to serialize concurrent updates on one civilization row
     and avoid lost updates while still keeping one DB transaction boundary.
     """
 
@@ -121,7 +121,7 @@ class ReadModelProjector:
                 session=session,
                 user_id=event.user_id,
                 galaxy_id=event.galaxy_id,
-                asteroid_id=event.entity_id,
+                civilization_id=event.entity_id,
                 payload=created_payload,
                 happened_at=event.timestamp,
             )
@@ -136,7 +136,7 @@ class ReadModelProjector:
                 session=session,
                 user_id=event.user_id,
                 galaxy_id=event.galaxy_id,
-                asteroid_id=event.entity_id,
+                civilization_id=event.entity_id,
                 payload=metadata_payload,
             )
             projected = True
@@ -151,7 +151,7 @@ class ReadModelProjector:
                     session=session,
                     user_id=event.user_id,
                     galaxy_id=event.galaxy_id,
-                    asteroid_id=event.entity_id,
+                    civilization_id=event.entity_id,
                     payload=value_payload,
                 )
                 projected = True
@@ -161,7 +161,7 @@ class ReadModelProjector:
                 session=session,
                 user_id=event.user_id,
                 galaxy_id=event.galaxy_id,
-                asteroid_id=event.entity_id,
+                civilization_id=event.entity_id,
                 happened_at=event.timestamp,
             )
             projected = True
@@ -423,16 +423,16 @@ class ReadModelProjector:
         guarded = evaluate_guardians(evaluated)
 
         circular_fields_count = 0
-        alerted_asteroids_count = 0
-        for asteroid in guarded:
-            calculated = asteroid.get("calculated_values", {})
+        alerted_civilizations_count = 0
+        for civilization in guarded:
+            calculated = civilization.get("calculated_values", {})
             if isinstance(calculated, dict):
                 circular_fields_count += sum(1 for value in calculated.values() if value == "#CIRC!")
-            alerts = asteroid.get("active_alerts", [])
+            alerts = civilization.get("active_alerts", [])
             if isinstance(alerts, list) and alerts:
-                alerted_asteroids_count += 1
+                alerted_civilizations_count += 1
 
-        quality_penalty = circular_fields_count * 15 + alerted_asteroids_count * 8
+        quality_penalty = circular_fields_count * 15 + alerted_civilizations_count * 8
         quality_score = max(0, 100 - quality_penalty)
         status = "GREEN"
         if quality_score < 60:
@@ -469,7 +469,7 @@ class ReadModelProjector:
             user_id=user_id,
             galaxy_id=galaxy_id,
             guardian_rules_count=guardian_rules_count,
-            alerted_asteroids_count=alerted_asteroids_count,
+            alerted_civilizations_count=alerted_civilizations_count,
             circular_fields_count=circular_fields_count,
             quality_score=quality_score,
             status=status,
@@ -479,7 +479,7 @@ class ReadModelProjector:
             index_elements=[GalaxyHealthRM.user_id, GalaxyHealthRM.galaxy_id],
             set_={
                 "guardian_rules_count": guardian_rules_count,
-                "alerted_asteroids_count": alerted_asteroids_count,
+                "alerted_civilizations_count": alerted_civilizations_count,
                 "circular_fields_count": circular_fields_count,
                 "quality_score": quality_score,
                 "status": status,
@@ -505,12 +505,12 @@ class ReadModelProjector:
         session: AsyncSession,
         user_id: UUID,
         galaxy_id: UUID,
-        asteroid_id: UUID,
+        civilization_id: UUID,
         payload: AsteroidCreatedPayload,
         happened_at: datetime,
     ) -> None:
         stmt = insert(CivilizationRM).values(
-            id=asteroid_id,
+            id=civilization_id,
             user_id=user_id,
             galaxy_id=galaxy_id,
             value=payload.value,
@@ -538,7 +538,7 @@ class ReadModelProjector:
         session: AsyncSession,
         user_id: UUID,
         galaxy_id: UUID,
-        asteroid_id: UUID,
+        civilization_id: UUID,
         payload: MetadataUpdatedPayload,
     ) -> None:
         metadata_patch = payload.metadata if isinstance(payload.metadata, dict) else {}
@@ -555,7 +555,7 @@ class ReadModelProjector:
                 select(CivilizationRM)
                 .where(
                     and_(
-                        CivilizationRM.id == asteroid_id,
+                        CivilizationRM.id == civilization_id,
                         CivilizationRM.user_id == user_id,
                         CivilizationRM.galaxy_id == galaxy_id,
                     )
@@ -578,14 +578,14 @@ class ReadModelProjector:
         session: AsyncSession,
         user_id: UUID,
         galaxy_id: UUID,
-        asteroid_id: UUID,
+        civilization_id: UUID,
         happened_at: datetime,
     ) -> None:
         await session.execute(
             update(CivilizationRM)
             .where(
                 and_(
-                    CivilizationRM.id == asteroid_id,
+                    CivilizationRM.id == civilization_id,
                     CivilizationRM.user_id == user_id,
                     CivilizationRM.galaxy_id == galaxy_id,
                     CivilizationRM.is_deleted.is_(False),
@@ -601,7 +601,7 @@ class ReadModelProjector:
                     Bond.user_id == user_id,
                     Bond.galaxy_id == galaxy_id,
                     Bond.is_deleted.is_(False),
-                    (Bond.source_civilization_id == asteroid_id) | (Bond.target_civilization_id == asteroid_id),
+                    (Bond.source_civilization_id == civilization_id) | (Bond.target_civilization_id == civilization_id),
                 )
             )
             .values(is_deleted=True, deleted_at=happened_at)
@@ -613,14 +613,14 @@ class ReadModelProjector:
         session: AsyncSession,
         user_id: UUID,
         galaxy_id: UUID,
-        asteroid_id: UUID,
+        civilization_id: UUID,
         payload: AsteroidValueUpdatedPayload,
     ) -> None:
         await session.execute(
             update(CivilizationRM)
             .where(
                 and_(
-                    CivilizationRM.id == asteroid_id,
+                    CivilizationRM.id == civilization_id,
                     CivilizationRM.user_id == user_id,
                     CivilizationRM.galaxy_id == galaxy_id,
                     CivilizationRM.is_deleted.is_(False),

@@ -7,7 +7,7 @@ from app.schemas import TaskBatchExecuteRequest
 
 
 def test_task_batch_request_defaults_to_commit_mode() -> None:
-    payload = TaskBatchExecuteRequest(tasks=[{"action": "UPDATE_ASTEROID", "params": {"asteroid_id": "x"}}])
+    payload = TaskBatchExecuteRequest(tasks=[{"action": "UPDATE_ASTEROID", "params": {"civilization_id": "x"}}])
     assert payload.mode == "commit"
 
 

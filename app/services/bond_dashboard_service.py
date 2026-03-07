@@ -29,7 +29,7 @@ class BondDashboardService:
         branch_id: UUID | None = None,
         as_of: datetime | None = None,
     ) -> list[dict[str, Any]]:
-        asteroids, bonds = await self.universe_service.snapshot(
+        civilizations, bonds = await self.universe_service.snapshot(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
@@ -38,29 +38,29 @@ class BondDashboardService:
         )
 
         asteroid_by_id: dict[UUID, dict[str, Any]] = {}
-        for asteroid in asteroids:
-            if isinstance(asteroid, dict):
-                asteroid_id = asteroid.get("id")
-                value = asteroid.get("value")
-                metadata = asteroid.get("metadata")
-                calculated_values = asteroid.get("calculated_values")
-                active_alerts = asteroid.get("active_alerts")
-                table_name = asteroid.get("table_name")
-                table_id = asteroid.get("table_id")
-                constellation_name = asteroid.get("constellation_name")
-                planet_name = asteroid.get("planet_name")
+        for civilization in civilizations:
+            if isinstance(civilization, dict):
+                civilization_id = civilization.get("id")
+                value = civilization.get("value")
+                metadata = civilization.get("metadata")
+                calculated_values = civilization.get("calculated_values")
+                active_alerts = civilization.get("active_alerts")
+                table_name = civilization.get("table_name")
+                table_id = civilization.get("table_id")
+                constellation_name = civilization.get("constellation_name")
+                planet_name = civilization.get("planet_name")
             else:
-                asteroid_id = getattr(asteroid, "id", None)
-                value = getattr(asteroid, "value", None)
-                metadata = getattr(asteroid, "metadata", None)
-                calculated_values = getattr(asteroid, "calculated_values", None)
-                active_alerts = getattr(asteroid, "active_alerts", None)
-                table_name = getattr(asteroid, "table_name", None)
-                table_id = getattr(asteroid, "table_id", None)
-                constellation_name = getattr(asteroid, "constellation_name", None)
-                planet_name = getattr(asteroid, "planet_name", None)
+                civilization_id = getattr(civilization, "id", None)
+                value = getattr(civilization, "value", None)
+                metadata = getattr(civilization, "metadata", None)
+                calculated_values = getattr(civilization, "calculated_values", None)
+                active_alerts = getattr(civilization, "active_alerts", None)
+                table_name = getattr(civilization, "table_name", None)
+                table_id = getattr(civilization, "table_id", None)
+                constellation_name = getattr(civilization, "constellation_name", None)
+                planet_name = getattr(civilization, "planet_name", None)
 
-            if not isinstance(asteroid_id, UUID):
+            if not isinstance(civilization_id, UUID):
                 continue
 
             metadata_dict = metadata if isinstance(metadata, dict) else {}
@@ -85,8 +85,8 @@ class BondDashboardService:
                 resolved_constellation = resolved_constellation or fallback_constellation
                 resolved_planet = resolved_planet or fallback_planet
 
-            asteroid_by_id[asteroid_id] = {
-                "id": asteroid_id,
+            asteroid_by_id[civilization_id] = {
+                "id": civilization_id,
                 "label": str(value) if value is not None else "",
                 "table_id": resolved_table_id,
                 "table_name": resolved_table_name,

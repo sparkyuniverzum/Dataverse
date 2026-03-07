@@ -455,7 +455,7 @@ class StarCoreService:
         if not tables:
             return {"as_of_event_seq": int(latest_event_seq), "items": []}
 
-        asteroid_ids: set[UUID] = set()
+        civilization_ids: set[UUID] = set()
         table_member_ids: dict[UUID, list[UUID]] = {}
         for table in tables:
             if not isinstance(table, dict):
@@ -470,7 +470,7 @@ class StarCoreService:
                 member_id = member.get("id")
                 if isinstance(member_id, UUID):
                     member_ids.append(member_id)
-                    asteroid_ids.add(member_id)
+                    civilization_ids.add(member_id)
             table_member_ids[table_id_raw] = member_ids
 
         if not table_member_ids:
@@ -483,9 +483,9 @@ class StarCoreService:
                         and_(
                             PhysicsStateRM.user_id == user_id,
                             PhysicsStateRM.galaxy_id == galaxy_id,
-                            PhysicsStateRM.entity_kind == "asteroid",
+                            PhysicsStateRM.entity_kind == "civilization",
                             PhysicsStateRM.deleted_at.is_(None),
-                            PhysicsStateRM.entity_id.in_(asteroid_ids if asteroid_ids else {UUID(int=0)}),
+                            PhysicsStateRM.entity_id.in_(civilization_ids if civilization_ids else {UUID(int=0)}),
                         )
                     )
                 )
@@ -493,7 +493,7 @@ class StarCoreService:
             .scalars()
             .all()
         )
-        physics_by_asteroid_id = {row.entity_id: row for row in physics_rows if isinstance(row.entity_id, UUID)}
+        physics_by_civilization_id = {row.entity_id: row for row in physics_rows if isinstance(row.entity_id, UUID)}
 
         items: list[dict[str, Any]] = []
         for table_id, members in table_member_ids.items():
@@ -508,8 +508,8 @@ class StarCoreService:
                 accumulator_stress = 0.0
                 accumulator_corrosion = 0.0
                 source_event_seq = 0
-                for asteroid_id in members:
-                    state = physics_by_asteroid_id.get(asteroid_id)
+                for civilization_id in members:
+                    state = physics_by_civilization_id.get(civilization_id)
                     if state is None:
                         continue
                     pulse_factor = float(getattr(state, "pulse_factor", 1.0) or 1.0)
@@ -903,11 +903,11 @@ class StarCoreService:
                 domains.add(domain)
 
         for key in (
-            "asteroid_id",
+            "civilization_id",
             "source_civilization_id",
             "target_civilization_id",
-            "source_asteroid_id",
-            "target_asteroid_id",
+            "source_civilization_id",
+            "target_civilization_id",
         ):
             asteroid_uuid = cls._parse_uuid_like(payload_dict.get(key))
             if asteroid_uuid is None:

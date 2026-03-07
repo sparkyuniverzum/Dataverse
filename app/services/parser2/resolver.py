@@ -7,7 +7,7 @@ from app.services.universe_service import ProjectedAsteroid
 
 class SnapshotSemanticResolver(SemanticResolver):
     """
-    Resolver backed by current projected asteroid state for a given galaxy/branch.
+    Resolver backed by current projected civilization state for a given galaxy/branch.
 
     Resolution strategy:
     1) case-insensitive exact label match
@@ -15,13 +15,13 @@ class SnapshotSemanticResolver(SemanticResolver):
     Ambiguous matches return None to avoid accidental mis-resolution.
     """
 
-    def __init__(self, asteroids: list[ProjectedAsteroid]) -> None:
+    def __init__(self, civilizations: list[ProjectedAsteroid]) -> None:
         self._exact: dict[str, list[NodeSelector]] = {}
         self._contains_source: list[tuple[str, NodeSelector]] = []
 
-        for asteroid in asteroids:
-            selector = NodeSelector(selector_type=NodeSelectorType.ID, value=str(asteroid.id))
-            label = self._value_to_text(asteroid.value).strip()
+        for civilization in civilizations:
+            selector = NodeSelector(selector_type=NodeSelectorType.ID, value=str(civilization.id))
+            label = self._value_to_text(civilization.value).strip()
             if not label:
                 continue
             normalized = label.lower()

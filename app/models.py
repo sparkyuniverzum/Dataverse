@@ -203,7 +203,7 @@ class GalaxyHealthRM(Base):
         primary_key=True,
     )
     guardian_rules_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
-    alerted_asteroids_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    alerted_civilizations_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     circular_fields_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     quality_score: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("100"))
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'GREEN'"))
@@ -228,9 +228,9 @@ class CalcStateRM(Base):
         ForeignKey("galaxies.id"),
         primary_key=True,
     )
-    asteroid_id: Mapped[uuid.UUID] = mapped_column(
+    civilization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("atoms.id"),
+        ForeignKey("civilization_rm.id"),
         primary_key=True,
     )
     source_event_seq: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"), index=True)

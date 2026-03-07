@@ -10,8 +10,8 @@ from app.schemas import (
     FactStatus,
     FactValueType,
     UniverseAsteroidSnapshot,
-    asteroid_snapshot_to_moon_row,
     build_moon_facts,
+    civilization_snapshot_to_moon_row,
     derive_civilization_health,
     infer_fact_value_type,
 )
@@ -60,7 +60,7 @@ def test_build_moon_facts_keeps_metadata_source_when_calculated_key_collides() -
     assert by_key["vat"].readonly is True
 
 
-def test_asteroid_snapshot_to_moon_row_projects_canonical_shape() -> None:
+def test_civilization_snapshot_to_moon_row_projects_canonical_shape() -> None:
     snapshot = UniverseAsteroidSnapshot(
         id=uuid.uuid4(),
         value="Hrebiky",
@@ -75,7 +75,7 @@ def test_asteroid_snapshot_to_moon_row_projects_canonical_shape() -> None:
         current_event_seq=7,
     )
 
-    row = asteroid_snapshot_to_moon_row(snapshot)
+    row = civilization_snapshot_to_moon_row(snapshot)
 
     assert row.moon_id == snapshot.id
     assert row.planet_id == snapshot.table_id

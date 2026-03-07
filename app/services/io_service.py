@@ -486,7 +486,7 @@ class ImportExportService:
         branch_id: UUID | None,
         as_of: datetime | None,
     ) -> str:
-        asteroids, bonds = await self.universe_service.snapshot(
+        civilizations, bonds = await self.universe_service.snapshot(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
@@ -511,25 +511,25 @@ class ImportExportService:
             ]
         )
 
-        for asteroid in asteroids:
-            if isinstance(asteroid, dict):
-                asteroid_id = asteroid.get("id")
-                value = asteroid.get("value")
-                metadata = asteroid.get("metadata", {})
-                calculated_values = asteroid.get("calculated_values", {})
-                alerts = asteroid.get("active_alerts", [])
-                created_at = asteroid.get("created_at")
+        for civilization in civilizations:
+            if isinstance(civilization, dict):
+                civilization_id = civilization.get("id")
+                value = civilization.get("value")
+                metadata = civilization.get("metadata", {})
+                calculated_values = civilization.get("calculated_values", {})
+                alerts = civilization.get("active_alerts", [])
+                created_at = civilization.get("created_at")
             else:
-                asteroid_id = asteroid.id
-                value = asteroid.value
-                metadata = asteroid.metadata
+                civilization_id = civilization.id
+                value = civilization.value
+                metadata = civilization.metadata
                 calculated_values = {}
                 alerts = []
-                created_at = asteroid.created_at
+                created_at = civilization.created_at
             writer.writerow(
                 [
-                    "asteroid",
-                    str(asteroid_id),
+                    "civilization",
+                    str(civilization_id),
                     value,
                     json.dumps(metadata, ensure_ascii=False, sort_keys=True),
                     json.dumps(calculated_values, ensure_ascii=False, sort_keys=True),

@@ -161,8 +161,8 @@ async def ingest_moon(
         galaxy_id=galaxy_id,
         manage_transaction=False,
     )
-    if result.asteroids:
-        return result.asteroids[-1].id
+    if result.civilizations:
+        return result.civilizations[-1].id
 
     row = (
         await session.execute(

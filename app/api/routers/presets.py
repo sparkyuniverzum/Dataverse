@@ -209,7 +209,7 @@ async def apply_preset_bundle(
 
         execution_summary: PresetBundleExecutionPublic | None = None
         if execution is not None:
-            touched_moons = len({item.id for item in execution.asteroids})
+            touched_moons = len({item.id for item in execution.civilizations})
             execution_summary = PresetBundleExecutionPublic(
                 task_count=executed_task_count,
                 touched_moons=touched_moons,

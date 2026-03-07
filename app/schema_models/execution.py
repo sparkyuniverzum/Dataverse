@@ -7,7 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class AsteroidIngestRequest(BaseModel):
+class CivilizationIngestRequest(BaseModel):
     value: Any
     metadata: dict[str, Any] = Field(default_factory=dict)
     idempotency_key: str | None = None
@@ -15,7 +15,7 @@ class AsteroidIngestRequest(BaseModel):
     branch_id: uuid.UUID | None = None
 
 
-class AsteroidMutateRequest(BaseModel):
+class CivilizationMutateRequest(BaseModel):
     value: Any | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     expected_event_seq: int = Field(ge=0)
@@ -24,13 +24,13 @@ class AsteroidMutateRequest(BaseModel):
     branch_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def validate_has_patch(self) -> AsteroidMutateRequest:
+    def validate_has_patch(self) -> CivilizationMutateRequest:
         if self.value is None and not self.metadata:
             raise ValueError("Provide either 'value' or non-empty 'metadata'")
         return self
 
 
-class AsteroidResponse(BaseModel):
+class CivilizationResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: uuid.UUID
@@ -229,10 +229,10 @@ class ParseCommandResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tasks: list[TaskSchema]
-    asteroids: list[AsteroidResponse] = Field(default_factory=list)
+    civilizations: list[CivilizationResponse] = Field(default_factory=list)
     bonds: list[BondResponse] = Field(default_factory=list)
-    selected_asteroids: list[AsteroidResponse] = Field(default_factory=list)
-    extinguished_asteroid_ids: list[uuid.UUID] = Field(default_factory=list)
+    selected_asteroids: list[CivilizationResponse] = Field(default_factory=list)
+    extinguished_civilization_ids: list[uuid.UUID] = Field(default_factory=list)
     extinguished_bond_ids: list[uuid.UUID] = Field(default_factory=list)
     semantic_effects: list[SemanticEffect] = Field(default_factory=list)
 

@@ -41,11 +41,11 @@ from app.services.universe_service import (
 
 @dataclass
 class TaskExecutionResult:
-    asteroids: list[ProjectedAsteroid] = field(default_factory=list)
+    civilizations: list[ProjectedAsteroid] = field(default_factory=list)
     bonds: list[ProjectedBond] = field(default_factory=list)
     selected_asteroids: list[ProjectedAsteroid] = field(default_factory=list)
     extinguished_asteroids: list[ProjectedAsteroid] = field(default_factory=list)
-    extinguished_asteroid_ids: list[UUID] = field(default_factory=list)
+    extinguished_civilization_ids: list[UUID] = field(default_factory=list)
     extinguished_bond_ids: list[UUID] = field(default_factory=list)
     semantic_effects: list[dict[str, Any]] = field(default_factory=list)
 
@@ -57,7 +57,7 @@ class _TaskExecutionContext:
     galaxy_id: UUID
     branch_id: UUID | None
     result: TaskExecutionResult
-    context_asteroid_ids: list[UUID]
+    context_civilization_ids: list[UUID]
     asteroids_by_id: dict[UUID, ProjectedAsteroid]
     bonds_by_id: dict[UUID, ProjectedBond]
     contract_cache: dict[UUID, EffectiveTableContract | None]
@@ -69,7 +69,7 @@ class _TaskExecutionContext:
 @dataclass(frozen=True)
 class _PreloadPlan:
     scope: str
-    asteroid_ids: frozenset[UUID] = frozenset()
+    civilization_ids: frozenset[UUID] = frozenset()
     bond_ids: frozenset[UUID] = frozenset()
     include_connected_bonds: bool = False
 
@@ -259,12 +259,12 @@ class TaskExecutorService:
         *,
         session: AsyncSession,
         galaxy_id: UUID,
-        asteroid: ProjectedAsteroid,
+        civilization: ProjectedAsteroid,
         contract_cache: dict[UUID, EffectiveTableContract | None],
     ) -> list[dict[str, Any]]:
         if session is None:
             return []
-        table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+        table_name = derive_table_name(value=civilization.value, metadata=civilization.metadata)
         table_id = derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
         contract = await self._load_latest_table_contract(
             session=session,
@@ -306,7 +306,7 @@ class TaskExecutorService:
         self,
         *,
         ctx: _TaskExecutionContext,
-        asteroid: ProjectedAsteroid,
+        civilization: ProjectedAsteroid,
         trigger_action: str,
     ) -> None:
         # Stage 1 automation: contract-driven table bucketing.
@@ -327,13 +327,13 @@ class TaskExecutorService:
             rules = await self._load_auto_semantic_rules_for_asteroid(
                 session=ctx.session,
                 galaxy_id=ctx.galaxy_id,
-                asteroid=asteroid,
+                civilization=civilization,
                 contract_cache=ctx.contract_cache,
             )
             if not rules:
                 return
 
-            before_table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+            before_table_name = derive_table_name(value=civilization.value, metadata=civilization.metadata)
             before_table_id = derive_table_id(galaxy_id=ctx.galaxy_id, table_name=before_table_name)
             active_table_ids_before = {
                 self._projected_table_id_for_value(
@@ -355,9 +355,9 @@ class TaskExecutorService:
                 if not field:
                     continue
                 if field == "value":
-                    field_value = asteroid.value
+                    field_value = civilization.value
                 else:
-                    field_value = asteroid.metadata.get(field)
+                    field_value = civilization.metadata.get(field)
                 if not self._semantic_rule_matches_value(rule=rule, value=field_value):
                     continue
 
@@ -370,32 +370,32 @@ class TaskExecutorService:
                     continue
 
                 metadata_patch = {}
-                if asteroid.metadata.get("table") != target_table_name:
+                if civilization.metadata.get("table") != target_table_name:
                     metadata_patch["table"] = target_table_name
-                if asteroid.metadata.get("table_name") != target_table_name:
+                if civilization.metadata.get("table_name") != target_table_name:
                     metadata_patch["table_name"] = target_table_name
                 if not metadata_patch:
                     continue
 
-                next_metadata = {**asteroid.metadata, **metadata_patch}
+                next_metadata = {**civilization.metadata, **metadata_patch}
                 await self._validate_table_contract_write(
                     session=ctx.session,
                     galaxy_id=ctx.galaxy_id,
-                    asteroid_id=asteroid.id,
-                    value=asteroid.value,
+                    civilization_id=civilization.id,
+                    value=civilization.value,
                     metadata=next_metadata,
                     asteroids_by_id=ctx.asteroids_by_id,
                     contract_cache=ctx.contract_cache,
                     execution_context=ctx,
                 )
                 metadata_event = await ctx.append_and_project_event(
-                    entity_id=asteroid.id,
+                    entity_id=civilization.id,
                     event_type="METADATA_UPDATED",
                     payload={"metadata": metadata_patch},
                 )
-                asteroid.current_event_seq = int(metadata_event.event_seq)
-                asteroid.metadata = next_metadata
-                after_table_name = derive_table_name(value=asteroid.value, metadata=asteroid.metadata)
+                civilization.current_event_seq = int(metadata_event.event_seq)
+                civilization.metadata = next_metadata
+                after_table_name = derive_table_name(value=civilization.value, metadata=civilization.metadata)
                 after_table_id = derive_table_id(galaxy_id=ctx.galaxy_id, table_name=after_table_name)
                 after_constellation_name, after_planet_name = split_constellation_and_planet_name(after_table_name)
                 self._record_semantic_effect(
@@ -405,14 +405,14 @@ class TaskExecutorService:
                     task_action=trigger_action,
                     rule_id=str(rule.get("id") or "sem.auto.bucket_by_metadata_value"),
                     inputs={
-                        "asteroid_id": asteroid.id,
+                        "civilization_id": civilization.id,
                         "field": field,
                         "value": field_value,
                         "from_table_name": before_table_name,
                         "to_table_name": after_table_name,
                     },
                     outputs={
-                        "asteroid_id": asteroid.id,
+                        "civilization_id": civilization.id,
                         "from_table_id": before_table_id,
                         "to_table_id": after_table_id,
                         "constellation_name": after_constellation_name,
@@ -488,17 +488,17 @@ class TaskExecutorService:
 
     @staticmethod
     def _find_asteroid_by_target(
-        asteroids: list[ProjectedAsteroid],
+        civilizations: list[ProjectedAsteroid],
         target: str,
     ) -> ProjectedAsteroid | None:
-        return TargetResolver.find_asteroid_by_target(asteroids, target)
+        return TargetResolver.find_asteroid_by_target(civilizations, target)
 
     @staticmethod
     def _resolve_single_asteroid_by_target(
-        asteroids: list[ProjectedAsteroid],
+        civilizations: list[ProjectedAsteroid],
         target: str,
     ) -> ProjectedAsteroid | None:
-        return TargetResolver.resolve_single_asteroid_by_target(asteroids, target)
+        return TargetResolver.resolve_single_asteroid_by_target(civilizations, target)
 
     @staticmethod
     def _parse_uuid(value: object) -> UUID | None:
@@ -520,12 +520,12 @@ class TaskExecutorService:
 
     @staticmethod
     def _find_asteroids_by_target(
-        asteroids: list[ProjectedAsteroid],
+        civilizations: list[ProjectedAsteroid],
         target: str,
         condition: str | None,
     ) -> list[ProjectedAsteroid]:
         return TargetResolver.find_asteroids_by_target(
-            asteroids=asteroids,
+            civilizations=civilizations,
             target=target,
             condition=condition,
         )
@@ -621,7 +621,7 @@ class TaskExecutorService:
         *,
         session: AsyncSession,
         galaxy_id: UUID,
-        asteroid_id: UUID | None,
+        civilization_id: UUID | None,
         value: Any,
         metadata: dict[str, Any],
         asteroids_by_id: dict[UUID, ProjectedAsteroid],
@@ -646,7 +646,7 @@ class TaskExecutorService:
         await self.contract_validator.validate_write(
             session=session,
             galaxy_id=galaxy_id,
-            asteroid_id=asteroid_id,
+            civilization_id=civilization_id,
             value=value,
             metadata=metadata,
             asteroids_by_id=current_asteroids_by_id,
@@ -665,8 +665,8 @@ class TaskExecutorService:
         )
         merged_asteroids: dict[UUID, ProjectedAsteroid] = {item.id: item for item in active_asteroids}
         merged_asteroids.update(ctx.asteroids_by_id)
-        for asteroid_id in ctx.result.extinguished_asteroid_ids:
-            merged_asteroids.pop(asteroid_id, None)
+        for civilization_id in ctx.result.extinguished_civilization_ids:
+            merged_asteroids.pop(civilization_id, None)
 
         merged_bonds: dict[UUID, ProjectedBond] = {item.id: item for item in active_bonds}
         merged_bonds.update(ctx.bonds_by_id)
@@ -691,7 +691,7 @@ class TaskExecutorService:
         if branch_id is not None:
             return self._full_preload_plan()
 
-        asteroid_ids: set[UUID] = set()
+        civilization_ids: set[UUID] = set()
         bond_ids: set[UUID] = set()
         include_connected_bonds = False
 
@@ -708,15 +708,15 @@ class TaskExecutorService:
                 target_uuid = self._parse_uuid(params.get("target_civilization_id"))
                 if source_uuid is None or target_uuid is None:
                     return self._full_preload_plan()
-                asteroid_ids.add(source_uuid)
-                asteroid_ids.add(target_uuid)
+                civilization_ids.add(source_uuid)
+                civilization_ids.add(target_uuid)
                 continue
 
             if action == "UPDATE_ASTEROID":
-                asteroid_uuid = self._parse_uuid(params.get("asteroid_id"))
+                asteroid_uuid = self._parse_uuid(params.get("civilization_id"))
                 if asteroid_uuid is None:
                     return self._full_preload_plan()
-                asteroid_ids.add(asteroid_uuid)
+                civilization_ids.add(asteroid_uuid)
                 continue
 
             if action in {"UPDATE_BOND", "EXTINGUISH_BOND"}:
@@ -730,7 +730,7 @@ class TaskExecutorService:
                 target_uuid = self._parse_uuid(params.get("target"))
                 if target_uuid is None:
                     return self._full_preload_plan()
-                asteroid_ids.add(target_uuid)
+                civilization_ids.add(target_uuid)
                 continue
 
             if action in {"DELETE", "EXTINGUISH"}:
@@ -738,12 +738,12 @@ class TaskExecutorService:
                 if params.get("target_asteroid") or params.get("target_planet") or params.get("condition"):
                     return self._full_preload_plan()
 
-                asteroid_uuid = self._parse_uuid(params.get("asteroid_id") or params.get("atom_id"))
+                asteroid_uuid = self._parse_uuid(params.get("civilization_id") or params.get("atom_id"))
                 if asteroid_uuid is None and params.get("target"):
                     asteroid_uuid = self._parse_uuid(params.get("target"))
                 if asteroid_uuid is None:
                     return self._full_preload_plan()
-                asteroid_ids.add(asteroid_uuid)
+                civilization_ids.add(asteroid_uuid)
                 include_connected_bonds = True
                 continue
 
@@ -753,7 +753,7 @@ class TaskExecutorService:
 
         return _PreloadPlan(
             scope="partial",
-            asteroid_ids=frozenset(asteroid_ids),
+            civilization_ids=frozenset(civilization_ids),
             bond_ids=frozenset(bond_ids),
             include_connected_bonds=include_connected_bonds,
         )
@@ -848,7 +848,7 @@ class TaskExecutorService:
         asteroid_rows_by_id: dict[UUID, CivilizationRM] = {}
         bond_rows_by_id: dict[UUID, Bond] = {}
 
-        if plan.asteroid_ids:
+        if plan.civilization_ids:
             asteroid_rows = list(
                 (
                     await session.execute(
@@ -857,7 +857,7 @@ class TaskExecutorService:
                                 CivilizationRM.user_id == user_id,
                                 CivilizationRM.galaxy_id == galaxy_id,
                                 CivilizationRM.is_deleted.is_(False),
-                                CivilizationRM.id.in_(plan.asteroid_ids),
+                                CivilizationRM.id.in_(plan.civilization_ids),
                             )
                         )
                     )
@@ -985,7 +985,7 @@ class TaskExecutorService:
             entity_ids=entity_ids,
         )
 
-        asteroids = [
+        civilizations = [
             ProjectedAsteroid(
                 id=row.id,
                 value=row.value,
@@ -1001,7 +1001,7 @@ class TaskExecutorService:
             self._to_projected_bond(row, current_event_seq=event_seq_map.get(row.id, 0))
             for row in bond_rows_by_id.values()
         ]
-        return asteroids, bonds
+        return civilizations, bonds
 
     async def _load_initial_context_state(
         self,
@@ -1014,22 +1014,22 @@ class TaskExecutorService:
     ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond], str]:
         preload_plan = self._build_preload_plan(tasks=tasks, branch_id=branch_id)
         if preload_plan.scope == "partial":
-            asteroids, bonds = await self._load_partial_main_state(
+            civilizations, bonds = await self._load_partial_main_state(
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
                 plan=preload_plan,
             )
-            return asteroids, bonds, preload_plan.scope
+            return civilizations, bonds, preload_plan.scope
 
-        asteroids, bonds = await self.universe_service.project_state(
+        civilizations, bonds = await self.universe_service.project_state(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
             branch_id=branch_id,
             apply_calculations=False,
         )
-        return asteroids, bonds, preload_plan.scope
+        return civilizations, bonds, preload_plan.scope
 
     async def _handle_ingest_update_family(self, *, task: AtomicTask, ctx: _TaskExecutionContext) -> bool:
         return await handle_ingest_update_family(self, task=task, ctx=ctx)
@@ -1116,7 +1116,7 @@ class TaskExecutorService:
                 galaxy_id=galaxy_id,
                 branch_id=branch_id,
                 result=result,
-                context_asteroid_ids=[],
+                context_civilization_ids=[],
                 asteroids_by_id={a.id: a for a in active_asteroids},
                 bonds_by_id={b.id: b for b in active_bonds},
                 contract_cache={},

@@ -25,7 +25,7 @@ async def handle_formula_guardian_select_family(
                 detail="SELECT task requires target_asteroid",
             )
         selected = self._find_asteroids_by_target(
-            asteroids=list(ctx.asteroids_by_id.values()),
+            civilizations=list(ctx.asteroids_by_id.values()),
             target=str(target),
             condition=(str(task.params["condition"]) if task.params.get("condition") else None),
         )
@@ -46,7 +46,7 @@ async def handle_formula_guardian_select_family(
         if target_asteroid is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Target asteroid not found",
+                detail="Target civilization not found",
             )
         expected_event_seq = self._parse_expected_event_seq(
             task.params.get("expected_event_seq"),
@@ -69,7 +69,7 @@ async def handle_formula_guardian_select_family(
             await self._validate_table_contract_write(
                 session=ctx.session,
                 galaxy_id=ctx.galaxy_id,
-                asteroid_id=target_asteroid.id,
+                civilization_id=target_asteroid.id,
                 value=target_asteroid.value,
                 metadata=next_metadata,
                 asteroids_by_id=ctx.asteroids_by_id,
@@ -89,10 +89,10 @@ async def handle_formula_guardian_select_family(
                 reason="Formula metadata was assigned to moon field.",
                 task_action=action,
                 rule_id="sem.formula.assign",
-                inputs={"asteroid_id": target_asteroid.id, "field": field_name, "formula": formula_value},
-                outputs={"asteroid_id": target_asteroid.id, "field": field_name},
+                inputs={"civilization_id": target_asteroid.id, "field": field_name, "formula": formula_value},
+                outputs={"civilization_id": target_asteroid.id, "field": field_name},
             )
-        ctx.result.asteroids.append(target_asteroid)
+        ctx.result.civilizations.append(target_asteroid)
         return True
 
     if action == "ADD_GUARDIAN":
@@ -118,7 +118,7 @@ async def handle_formula_guardian_select_family(
         if target_asteroid is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Target asteroid not found",
+                detail="Target civilization not found",
             )
         expected_event_seq = self._parse_expected_event_seq(
             task.params.get("expected_event_seq"),
@@ -167,7 +167,7 @@ async def handle_formula_guardian_select_family(
             await self._validate_table_contract_write(
                 session=ctx.session,
                 galaxy_id=ctx.galaxy_id,
-                asteroid_id=target_asteroid.id,
+                civilization_id=target_asteroid.id,
                 value=target_asteroid.value,
                 metadata=next_metadata,
                 asteroids_by_id=ctx.asteroids_by_id,
@@ -192,15 +192,15 @@ async def handle_formula_guardian_select_family(
                 task_action=action,
                 rule_id="sem.guardian.attach",
                 inputs={
-                    "asteroid_id": target_asteroid.id,
+                    "civilization_id": target_asteroid.id,
                     "field": new_rule["field"],
                     "operator": new_rule["operator"],
                     "threshold": new_rule["threshold"],
                     "action": new_rule["action"],
                 },
-                outputs={"asteroid_id": target_asteroid.id, "guardians_count": len(guardian_rules)},
+                outputs={"civilization_id": target_asteroid.id, "guardians_count": len(guardian_rules)},
             )
-        ctx.result.asteroids.append(target_asteroid)
+        ctx.result.civilizations.append(target_asteroid)
         return True
 
     return False

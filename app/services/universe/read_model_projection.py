@@ -48,16 +48,16 @@ async def project_state_from_read_model(
     )
     active_asteroids = [
         ProjectedAsteroid(
-            id=asteroid.id,
-            value=asteroid.value,
-            metadata=asteroid.metadata_ if isinstance(asteroid.metadata_, dict) else {},
-            is_deleted=asteroid.is_deleted,
-            created_at=asteroid.created_at,
-            deleted_at=asteroid.deleted_at,
+            id=civilization.id,
+            value=civilization.value,
+            metadata=civilization.metadata_ if isinstance(civilization.metadata_, dict) else {},
+            is_deleted=civilization.is_deleted,
+            created_at=civilization.created_at,
+            deleted_at=civilization.deleted_at,
         )
-        for asteroid in asteroid_rows
+        for civilization in asteroid_rows
     ]
-    active_ids = {asteroid.id for asteroid in active_asteroids}
+    active_ids = {civilization.id for civilization in active_asteroids}
     asteroid_seq_map = await service._entity_event_seq_map(
         session=session,
         user_id=user_id,
@@ -65,8 +65,8 @@ async def project_state_from_read_model(
         branch_id=None,
         entity_ids=[item.id for item in active_asteroids],
     )
-    for asteroid in active_asteroids:
-        asteroid.current_event_seq = asteroid_seq_map.get(asteroid.id, 0)
+    for civilization in active_asteroids:
+        civilization.current_event_seq = asteroid_seq_map.get(civilization.id, 0)
 
     bond_rows = list(
         (
@@ -110,14 +110,14 @@ async def project_state_from_read_model(
     return active_asteroids, active_bonds
 
 
-async def _load_calc_state_by_asteroid_id(
+async def _load_calc_state_by_civilization_id(
     session: AsyncSession,
     *,
     user_id: UUID,
     galaxy_id: UUID,
-    asteroid_ids: set[UUID],
+    civilization_ids: set[UUID],
 ) -> dict[UUID, dict[str, Any]]:
-    if not asteroid_ids:
+    if not civilization_ids:
         return {}
     rows = list(
         (
@@ -127,7 +127,7 @@ async def _load_calc_state_by_asteroid_id(
                         CalcStateRM.user_id == user_id,
                         CalcStateRM.galaxy_id == galaxy_id,
                         CalcStateRM.deleted_at.is_(None),
-                        CalcStateRM.asteroid_id.in_(asteroid_ids),
+                        CalcStateRM.civilization_id.in_(civilization_ids),
                     )
                 )
             )
@@ -136,7 +136,7 @@ async def _load_calc_state_by_asteroid_id(
         .all()
     )
     return {
-        row.asteroid_id: {
+        row.civilization_id: {
             "calculated_values": row.calculated_values if isinstance(row.calculated_values, dict) else {},
             "calc_errors": row.calc_errors if isinstance(row.calc_errors, list) else [],
             "error_count": int(row.error_count or 0),
@@ -145,18 +145,18 @@ async def _load_calc_state_by_asteroid_id(
             "engine_version": str(row.engine_version or ""),
         }
         for row in rows
-        if isinstance(row.asteroid_id, UUID)
+        if isinstance(row.civilization_id, UUID)
     }
 
 
-async def _load_physics_state_by_asteroid_id(
+async def _load_physics_state_by_civilization_id(
     session: AsyncSession,
     *,
     user_id: UUID,
     galaxy_id: UUID,
-    asteroid_ids: set[UUID],
+    civilization_ids: set[UUID],
 ) -> dict[UUID, dict[str, Any]]:
-    if not asteroid_ids:
+    if not civilization_ids:
         return {}
     rows = list(
         (
@@ -165,9 +165,9 @@ async def _load_physics_state_by_asteroid_id(
                     and_(
                         PhysicsStateRM.user_id == user_id,
                         PhysicsStateRM.galaxy_id == galaxy_id,
-                        PhysicsStateRM.entity_kind == "asteroid",
+                        PhysicsStateRM.entity_kind == "civilization",
                         PhysicsStateRM.deleted_at.is_(None),
-                        PhysicsStateRM.entity_id.in_(asteroid_ids),
+                        PhysicsStateRM.entity_id.in_(civilization_ids),
                     )
                 )
             )
@@ -287,58 +287,58 @@ async def enrich_main_timeline_from_read_models(
 
     has_formula_metadata = any(
         isinstance(value, str) and value.strip().startswith("=")
-        for asteroid in active_asteroids
-        for value in (asteroid.metadata if isinstance(asteroid.metadata, dict) else {}).values()
+        for civilization in active_asteroids
+        for value in (civilization.metadata if isinstance(civilization.metadata, dict) else {}).values()
     )
     has_non_flow_bonds = any(normalize_bond_type(bond.type) != "FLOW" for bond in active_bonds)
     # Keep legacy V1 semantics for relation-driven formulas until calc read model reaches parity.
     if has_formula_metadata and has_non_flow_bonds:
         return None
 
-    asteroid_ids = {asteroid.id for asteroid in active_asteroids}
-    calc_by_id = await _load_calc_state_by_asteroid_id(
+    civilization_ids = {civilization.id for civilization in active_asteroids}
+    calc_by_id = await _load_calc_state_by_civilization_id(
         session,
         user_id=user_id,
         galaxy_id=galaxy_id,
-        asteroid_ids=asteroid_ids,
+        civilization_ids=civilization_ids,
     )
     # Require full calc coverage to avoid mixed semantics in one snapshot.
-    if len(calc_by_id) < len(asteroid_ids):
+    if len(calc_by_id) < len(civilization_ids):
         return None
-    physics_by_id = await _load_physics_state_by_asteroid_id(
+    physics_by_id = await _load_physics_state_by_civilization_id(
         session,
         user_id=user_id,
         galaxy_id=galaxy_id,
-        asteroid_ids=asteroid_ids,
+        civilization_ids=civilization_ids,
     )
 
     enriched: list[dict[str, Any]] = []
-    for asteroid in active_asteroids:
-        calc_state = calc_by_id.get(asteroid.id)
+    for civilization in active_asteroids:
+        calc_state = calc_by_id.get(civilization.id)
         if calc_state is None:
             return None
         # Guard against stale calc projections right after writes.
-        # If calc source seq lags behind asteroid event seq, fallback universe
+        # If calc source seq lags behind civilization event seq, fallback universe
         # projection preserves write-after-read consistency for metadata facts.
         calc_source_seq = int(calc_state.get("source_event_seq", 0) or 0)
-        asteroid_event_seq = int(getattr(asteroid, "current_event_seq", 0) or 0)
+        asteroid_event_seq = int(getattr(civilization, "current_event_seq", 0) or 0)
         if calc_source_seq < asteroid_event_seq:
             return None
         calculated_values = calc_state.get("calculated_values", {})
         if not isinstance(calculated_values, dict):
             calculated_values = {}
-        raw_metadata = asteroid.metadata if isinstance(asteroid.metadata, dict) else {}
+        raw_metadata = civilization.metadata if isinstance(civilization.metadata, dict) else {}
         # Keep V1 snapshot behavior: metadata fields are projected to resolved values.
         projected_metadata = dict(raw_metadata)
         for key, value in calculated_values.items():
             if key in projected_metadata:
                 projected_metadata[key] = value
-        table_name = derive_table_name(value=asteroid.value, metadata=projected_metadata)
+        table_name = derive_table_name(value=civilization.value, metadata=projected_metadata)
         constellation_name, planet_name = split_constellation_and_planet_name(table_name)
         enriched.append(
             {
-                "id": asteroid.id,
-                "value": asteroid.value,
+                "id": civilization.id,
+                "value": civilization.value,
                 "metadata": projected_metadata,
                 "calculated_values": dict(calculated_values),
                 "calc_errors": calc_state.get("calc_errors", []),
@@ -346,9 +346,9 @@ async def enrich_main_timeline_from_read_models(
                 "table_id": derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
                 "constellation_name": constellation_name,
                 "planet_name": planet_name,
-                "physics": physics_by_id.get(asteroid.id, {}),
-                "created_at": asteroid.created_at,
-                "current_event_seq": int(getattr(asteroid, "current_event_seq", 0) or 0),
+                "physics": physics_by_id.get(civilization.id, {}),
+                "created_at": civilization.created_at,
+                "current_event_seq": int(getattr(civilization, "current_event_seq", 0) or 0),
             }
         )
 
@@ -364,30 +364,30 @@ def evaluate_fallback_universe(
     evaluated = evaluate_universe(
         [
             {
-                "id": asteroid.id,
-                "value": asteroid.value,
-                "metadata": asteroid.metadata,
-                "created_at": asteroid.created_at,
-                "current_event_seq": int(getattr(asteroid, "current_event_seq", 0) or 0),
+                "id": civilization.id,
+                "value": civilization.value,
+                "metadata": civilization.metadata,
+                "created_at": civilization.created_at,
+                "current_event_seq": int(getattr(civilization, "current_event_seq", 0) or 0),
             }
-            for asteroid in active_asteroids
+            for civilization in active_asteroids
         ],
         active_bonds,
     )
-    seq_index = {asteroid.id: int(getattr(asteroid, "current_event_seq", 0) or 0) for asteroid in active_asteroids}
+    seq_index = {c.id: int(getattr(c, "current_event_seq", 0) or 0) for c in active_asteroids}
     enriched: list[dict[str, Any]] = []
-    for asteroid in evaluated:
-        metadata = asteroid.get("metadata", {})
+    for civilization in evaluated:
+        metadata = civilization.get("metadata", {})
         if not isinstance(metadata, dict):
             metadata = {}
-        table_name = derive_table_name(value=asteroid.get("value"), metadata=metadata)
+        table_name = derive_table_name(value=civilization.get("value"), metadata=metadata)
         enriched.append(
             {
-                **asteroid,
+                **civilization,
                 "metadata": metadata,
                 "table_name": table_name,
                 "table_id": derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
-                "current_event_seq": seq_index.get(asteroid.get("id"), 0),
+                "current_event_seq": seq_index.get(civilization.get("id"), 0),
             }
         )
 

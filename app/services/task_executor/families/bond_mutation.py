@@ -26,13 +26,13 @@ async def handle_link_and_bond_mutation_family(
         source_civilization_id = task.params.get("source_civilization_id")
         target_civilization_id = task.params.get("target_civilization_id")
         if source_civilization_id is None or target_civilization_id is None:
-            if len(ctx.context_asteroid_ids) < 2:
+            if len(ctx.context_civilization_ids) < 2:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="LINK requires source_civilization_id/target_civilization_id or two INGEST tasks",
                 )
-            source_civilization_id = ctx.context_asteroid_ids[-2]
-            target_civilization_id = ctx.context_asteroid_ids[-1]
+            source_civilization_id = ctx.context_civilization_ids[-2]
+            target_civilization_id = ctx.context_civilization_ids[-1]
 
         source_uuid = UUID(str(source_civilization_id))
         target_uuid = UUID(str(target_civilization_id))
@@ -42,9 +42,9 @@ async def handle_link_and_bond_mutation_family(
                 detail="source_civilization_id and target_civilization_id must be different",
             )
         if source_uuid not in ctx.asteroids_by_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source asteroid not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source civilization not found")
         if target_uuid not in ctx.asteroids_by_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target asteroid not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target civilization not found")
 
         expected_source_event_seq = self._parse_expected_event_seq(
             task.params.get("expected_source_event_seq"),

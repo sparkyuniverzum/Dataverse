@@ -37,37 +37,37 @@ def apply_event(
         return
 
     if event.event_type == "METADATA_UPDATED":
-        asteroid = asteroids_by_id.get(event.entity_id)
-        if asteroid is None:
+        civilization = asteroids_by_id.get(event.entity_id)
+        if civilization is None:
             return
         metadata_patch = payload.get("metadata", {})
         metadata_remove = payload.get("metadata_remove", [])
         if isinstance(metadata_patch, dict):
-            asteroid.metadata = {**asteroid.metadata, **metadata_patch}
+            civilization.metadata = {**civilization.metadata, **metadata_patch}
         if isinstance(metadata_remove, list):
             for item in metadata_remove:
                 key = str(item or "").strip()
                 if not key:
                     continue
-                asteroid.metadata.pop(key, None)
-        asteroid.current_event_seq = int(event.event_seq)
+                civilization.metadata.pop(key, None)
+        civilization.current_event_seq = int(event.event_seq)
         return
 
     if event.event_type == "ASTEROID_VALUE_UPDATED":
-        asteroid = asteroids_by_id.get(event.entity_id)
-        if asteroid is None:
+        civilization = asteroids_by_id.get(event.entity_id)
+        if civilization is None:
             return
-        asteroid.value = payload.get("value")
-        asteroid.current_event_seq = int(event.event_seq)
+        civilization.value = payload.get("value")
+        civilization.current_event_seq = int(event.event_seq)
         return
 
     if event.event_type == "ASTEROID_SOFT_DELETED":
-        asteroid = asteroids_by_id.get(event.entity_id)
-        if asteroid is None:
+        civilization = asteroids_by_id.get(event.entity_id)
+        if civilization is None:
             return
-        asteroid.is_deleted = True
-        asteroid.deleted_at = event.timestamp
-        asteroid.current_event_seq = int(event.event_seq)
+        civilization.is_deleted = True
+        civilization.deleted_at = event.timestamp
+        civilization.current_event_seq = int(event.event_seq)
         return
 
     if event.event_type == "BOND_FORMED":

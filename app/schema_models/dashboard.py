@@ -22,7 +22,7 @@ class GalaxyHealthPublic(BaseModel):
     user_id: uuid.UUID
     galaxy_id: uuid.UUID
     guardian_rules_count: int
-    alerted_asteroids_count: int
+    alerted_civilizations_count: int
     circular_fields_count: int
     quality_score: int
     status: str
@@ -90,7 +90,7 @@ class PlanetSummaryResponse(BaseModel):
 
 
 class MoonSummaryPublic(BaseModel):
-    asteroid_id: uuid.UUID
+    civilization_id: uuid.UUID
     label: str
     table_id: uuid.UUID
     table_name: str

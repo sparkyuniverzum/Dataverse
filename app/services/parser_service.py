@@ -381,7 +381,7 @@ class ParserService:
         # Fallback: single atom ingest with optional metadata.
         value, metadata = self._parse_atom_token(normalized)
         if not value:
-            return ParseResult(tasks=[], errors=["Missing asteroid value."])
+            return ParseResult(tasks=[], errors=["Missing civilization value."])
         return ParseResult(
             tasks=[AtomicTask(action="INGEST", params={"value": value, "metadata": metadata})],
             errors=[],
