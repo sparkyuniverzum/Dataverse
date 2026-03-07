@@ -181,6 +181,7 @@ export default function StarHeartDashboard({
 
   return (
     <div
+      data-testid="star-heart-dashboard-overlay"
       style={{
         ...overlayStyle,
         opacity: visible ? 1 : 0,
@@ -189,6 +190,7 @@ export default function StarHeartDashboard({
       }}
     >
       <section
+        data-testid="star-heart-dashboard"
         style={{
           ...shellStyle,
           opacity: visible ? 1 : 0,
@@ -208,7 +210,7 @@ export default function StarHeartDashboard({
               <strong>{activePhysicalProfileKey}</strong> v{physicalProfileVersion} | lock <strong>{lockStatus}</strong>
             </div>
           </div>
-          <button type="button" onClick={onClose} style={ghostButtonStyle}>
+          <button type="button" onClick={onClose} data-testid="star-heart-close-button" style={ghostButtonStyle}>
             Zpet do vesmiru
           </button>
         </div>
@@ -351,6 +353,7 @@ export default function StarHeartDashboard({
               type="button"
               onClick={onApplyProfileLock}
               disabled={isLocked || applyBusy}
+              data-testid="star-heart-apply-lock-button"
               style={{
                 ...ctaButtonStyle,
                 opacity: isLocked ? 0.55 : 1,

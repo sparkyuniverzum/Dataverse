@@ -30,11 +30,12 @@ import {
   buildCivilizationWriteRouteCandidates,
   shouldFallbackToMoonAlias,
 } from "../../lib/civilizationRuntimeRouteGate";
+import { resolveCivilizationSelectionPatch } from "../../lib/civilizationWorkspaceSelectionGate";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import LinkHoverTooltip from "./LinkHoverTooltip";
 import { resolveEntityLaws, resolveLinkLaws, resolveStarCoreProfile } from "./lawResolver";
 import QuickGridOverlay from "./QuickGridOverlay";
-import { mergeMetadataValue } from "./rowWriteUtils";
+import { mergeMetadataValue, parseMetadataLiteral } from "./rowWriteUtils";
 import StarHeartDashboard from "./StarHeartDashboard";
 import UniverseCanvas from "./UniverseCanvas";
 import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
@@ -74,6 +75,14 @@ import {
   resolvePlanetBuilderRecoveryState,
   resolvePlanetBuilderState,
 } from "./planetBuilderFlow";
+import { resolvePlanetMoonCausalGuidance } from "./planetMoonCausalGuidance";
+import { resolveStageZeroVisibility } from "./stageZeroVisibility";
+import {
+  observeReducedMotionPreference,
+  readReducedMotionPreference,
+  resolvePreviewSeverityColor,
+  resolveWorkspaceKeyboardAction,
+} from "./previewAccessibility";
 import { buildContractViolationMessage } from "./workspaceContractExplainability";
 import { readWorkspaceUiState, writeWorkspaceUiState } from "./workspaceUiPersistence";
 import { collectGridColumns, normalizeText, readGridCell, tableDisplayName, valueToLabel } from "./workspaceFormatters";
@@ -115,6 +124,7 @@ function StageZeroDraggablePlanetCard({ disabled = false }) {
 
   return (
     <button
+      data-testid="stage0-draggable-planet-card"
       ref={setNodeRef}
       type="button"
       {...attributes}
@@ -151,6 +161,7 @@ function StageZeroDropZone({ active = false }) {
   return (
     <div
       ref={setNodeRef}
+      data-testid="stage0-drop-zone"
       data-stage-zero-drop-zone="true"
       style={{
         position: "fixed",
@@ -253,6 +264,7 @@ export default function UniverseWorkspace({
   const [starProfileDraftKey, setStarProfileDraftKey] = useState("ORIGIN");
   const [starPhysicalProfileDraftKey, setStarPhysicalProfileDraftKey] = useState("BALANCE");
   const [starControlError, setStarControlError] = useState("");
+  const [reducedMotion, setReducedMotion] = useState(() => readReducedMotionPreference());
   const [parserTelemetry, setParserTelemetry] = useState(() => createParserTelemetrySnapshot());
   const [repairSuggestion, setRepairSuggestion] = useState(null);
   const [repairApplyBusy, setRepairApplyBusy] = useState(false);
@@ -319,20 +331,55 @@ export default function UniverseWorkspace({
     });
   }, [galaxyId, quickGridOpen, selectedTableId, workspaceUiHydrated]);
 
+  useEffect(() => {
+    const unsubscribe = observeReducedMotionPreference((nextValue) => {
+      setReducedMotion(Boolean(nextValue));
+    });
+    return unsubscribe;
+  }, []);
+
   const tableById = useMemo(
     () => new Map((Array.isArray(tables) ? tables : []).map((table) => [String(table.table_id), table])),
     [tables]
   );
   const starPolicyLocked = String(starPolicy?.lock_status || "").toLowerCase() === "locked";
   const hasPlanets = tables.length > 0;
-  const stageZeroActive = !hasPlanets;
+  const stageZeroActive = !hasPlanets || stageZeroSetupOpen;
   const stageZeroRequiresStarLock = stageZeroActive && !starPolicyLocked;
   const stageZeroBuilderOpen =
     stageZeroActive &&
     !stageZeroRequiresStarLock &&
     (stageZeroFlow === STAGE_ZERO_FLOW.BLUEPRINT || stageZeroFlow === STAGE_ZERO_FLOW.BUILDING) &&
-    !stageZeroCreating;
+    !stageZeroCreating &&
+    !stageZeroSetupOpen;
   const stageZeroDropMode = stageZeroBuilderOpen && stageZeroDragging;
+  const stageZeroUiVisibility = useMemo(
+    () =>
+      resolveStageZeroVisibility({
+        stageZeroActive,
+        stageZeroRequiresStarLock,
+        stageZeroFlow,
+        stageZeroSetupOpen,
+        stageZeroBuilderOpen,
+        stageZeroDropMode,
+        stageZeroCreating,
+      }),
+    [
+      stageZeroActive,
+      stageZeroBuilderOpen,
+      stageZeroCreating,
+      stageZeroDropMode,
+      stageZeroFlow,
+      stageZeroRequiresStarLock,
+      stageZeroSetupOpen,
+    ]
+  );
+  const workspaceInteractionLocked =
+    stageZeroActive &&
+    (stageZeroUiVisibility.canvasInteractionLocked ||
+      stageZeroSetupOpen ||
+      stageZeroBuilderOpen ||
+      stageZeroCommitBusy);
   const stageZeroSchemaSummary = useMemo(
     () => summarizeStageZeroSchemaDraft(stageZeroSchemaDraft),
     [stageZeroSchemaDraft]
@@ -424,6 +471,10 @@ export default function UniverseWorkspace({
   }, [selectedTableId, tableById, tables]);
 
   useEffect(() => {
+    const waitingForProjectionBootstrap = stageZeroActive && quickGridOpen && loading;
+    if (waitingForProjectionBootstrap) {
+      return;
+    }
     if (!stageZeroActive) {
       setStageZeroDragging(false);
       setStageZeroDropHover(false);
@@ -449,7 +500,7 @@ export default function UniverseWorkspace({
     if (stageZeroFlow === STAGE_ZERO_FLOW.COMPLETE) {
       setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
     }
-  }, [quickGridOpen, stageZeroActive, stageZeroFlow, stageZeroRequiresStarLock]);
+  }, [loading, quickGridOpen, stageZeroActive, stageZeroFlow, stageZeroRequiresStarLock]);
 
   const asteroidById = useMemo(
     () => new Map((Array.isArray(snapshot.asteroids) ? snapshot.asteroids : []).map((item) => [String(item.id), item])),
@@ -761,6 +812,14 @@ export default function UniverseWorkspace({
     () => (selectedTableId ? tableById.get(String(selectedTableId)) || null : null),
     [selectedTableId, tableById]
   );
+  const selectedTableNode = useMemo(
+    () => (selectedTableId ? tableNodeById.get(String(selectedTableId)) || null : null),
+    [selectedTableId, tableNodeById]
+  );
+  const selectedAsteroidNode = useMemo(
+    () => (selectedAsteroidId ? asteroidNodeById.get(String(selectedAsteroidId)) || null : null),
+    [asteroidNodeById, selectedAsteroidId]
+  );
 
   const tableRows = useMemo(() => {
     if (!selectedTableId) return [];
@@ -784,6 +843,38 @@ export default function UniverseWorkspace({
     const asteroid = asteroidById.get(String(selectedAsteroidId));
     return asteroid ? valueToLabel(asteroid.value) : "";
   }, [asteroidById, selectedAsteroidId]);
+  const planetMoonGuidance = useMemo(
+    () =>
+      resolvePlanetMoonCausalGuidance({
+        planetBuilderNarrative,
+        stageZeroActive,
+        stageZeroSetupOpen,
+        stageZeroPresetSelected,
+        stageZeroSchemaSummary,
+        stageZeroAllSchemaStepsDone,
+        stageZeroCommitBusy,
+        quickGridOpen,
+        selectedTable,
+        selectedPlanetNode: selectedTableNode,
+        selectedMoonNode: selectedAsteroidNode,
+        selectedMoonLabel: selectedAsteroidLabel,
+        stageZeroStepDefinitions: STAGE_ZERO_CASHFLOW_STEPS,
+      }),
+    [
+      planetBuilderNarrative,
+      quickGridOpen,
+      selectedAsteroidLabel,
+      selectedAsteroidNode,
+      selectedTable,
+      selectedTableNode,
+      stageZeroActive,
+      stageZeroAllSchemaStepsDone,
+      stageZeroCommitBusy,
+      stageZeroPresetSelected,
+      stageZeroSchemaSummary,
+      stageZeroSetupOpen,
+    ]
+  );
 
   const level = selectedTableId ? 3 : 2;
   const parserExecutionMode = PARSER_EXECUTION_MODE;
@@ -1596,33 +1687,67 @@ export default function UniverseWorkspace({
         ? Number(asteroid.current_event_seq)
         : null;
       const currentMetadata = asteroid?.metadata && typeof asteroid.metadata === "object" ? asteroid.metadata : {};
-      const nextMetadata = mergeMetadataValue(currentMetadata, metadataKey, rawValue);
+      const parsedMineralValue = parseMetadataLiteral(rawValue);
+      const removeRequested = typeof parsedMineralValue === "undefined";
+      if (removeRequested && !Object.prototype.hasOwnProperty.call(currentMetadata, metadataKey)) {
+        return true;
+      }
 
       setBusy(true);
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "metadata" }));
       clearRuntimeIssue();
       try {
-        const mutatePayload = {
-          minerals: nextMetadata,
+        const mineralMutatePayload = {
+          remove: removeRequested,
           galaxy_id: galaxyId,
-          idempotency_key: nextIdempotencyKey("metadata"),
+          idempotency_key: nextIdempotencyKey("mineral"),
           ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
         };
-        const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
-          operation: "mutate",
+        if (!removeRequested) {
+          mineralMutatePayload.typed_value = parsedMineralValue;
+        }
+
+        const [primaryMineralUrl, legacyMineralUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
+          operation: "mutate_mineral",
           civilizationId: targetId,
+          mineralKey: metadataKey,
         });
-        let response = await apiFetch(primaryMutateUrl, {
+        let response = await apiFetch(primaryMineralUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(mutatePayload),
+          body: JSON.stringify(mineralMutatePayload),
         });
         if (shouldFallbackToMoonAlias(response.status)) {
-          response = await apiFetch(legacyMutateUrl, {
+          response = await apiFetch(legacyMineralUrl, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mineralMutatePayload),
+          });
+        }
+        if (shouldFallbackToMoonAlias(response.status)) {
+          const nextMetadata = mergeMetadataValue(currentMetadata, metadataKey, rawValue);
+          const mutatePayload = {
+            minerals: nextMetadata,
+            galaxy_id: galaxyId,
+            idempotency_key: nextIdempotencyKey("metadata-fallback"),
+            ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
+          };
+          const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
+            operation: "mutate",
+            civilizationId: targetId,
+          });
+          response = await apiFetch(primaryMutateUrl, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(mutatePayload),
           });
+          if (shouldFallbackToMoonAlias(response.status)) {
+            response = await apiFetch(legacyMutateUrl, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(mutatePayload),
+            });
+          }
         }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Nerost se nepodarilo ulozit: ${response.status}`);
@@ -1754,6 +1879,20 @@ export default function UniverseWorkspace({
   const handleClearStarFocus = useCallback(() => {
     setStarControlPhase((prev) => (prev === STAR_CONTROL_PHASE.STAR_FOCUSED ? STAR_CONTROL_PHASE.IDLE : prev));
   }, []);
+  const handlePlanetSelect = useCallback(
+    (tableId, { source = "programmatic" } = {}) => {
+      const selectionPatch = resolveCivilizationSelectionPatch({
+        source,
+        tableId,
+        interactionLocked: workspaceInteractionLocked,
+        previousQuickGridOpen: quickGridOpen,
+      });
+      setSelectedTableId(selectionPatch.selectedTableId);
+      setSelectedAsteroidId(selectionPatch.selectedAsteroidId);
+      setQuickGridOpen(selectionPatch.quickGridOpen);
+    },
+    [quickGridOpen, workspaceInteractionLocked]
+  );
 
   const handleApplyStarProfileLock = useCallback(async () => {
     if (!galaxyId) return;
@@ -1802,11 +1941,59 @@ export default function UniverseWorkspace({
     starProfileDraftKey,
   ]);
 
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      const action = resolveWorkspaceKeyboardAction(event, {
+        canOpenGrid: Boolean(selectedTableId) && !workspaceInteractionLocked,
+        canOpenStarHeart: true,
+        quickGridOpen,
+        starHeartOpen,
+        stageZeroSetupOpen,
+      });
+      if (!action) return;
+      event.preventDefault();
+      if (action === "open_grid") {
+        setQuickGridOpen(true);
+        return;
+      }
+      if (action === "open_star_heart") {
+        handleOpenStarHeartDashboard();
+        return;
+      }
+      if (action === "close_quick_grid") {
+        setQuickGridOpen(false);
+        return;
+      }
+      if (action === "close_star_heart") {
+        handleCloseStarHeartDashboard();
+        return;
+      }
+      if (action === "close_stage_zero_setup") {
+        setStageZeroSetupOpen(false);
+        setStageZeroDraggedSchemaKey("");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    handleCloseStarHeartDashboard,
+    handleOpenStarHeartDashboard,
+    quickGridOpen,
+    selectedTableId,
+    stageZeroSetupOpen,
+    starHeartOpen,
+    workspaceInteractionLocked,
+  ]);
+
   const selectedTableLabel = selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "";
+  const guidanceSeverityColor = resolvePreviewSeverityColor(planetMoonGuidance.severity);
 
   return (
     <main
       ref={workspaceRef}
+      data-testid="workspace-root"
+      data-reduced-motion={reducedMotion ? "true" : "false"}
+      aria-label="Dataverse workspace"
       style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#020205" }}
     >
       <DndContext
@@ -1835,13 +2022,11 @@ export default function UniverseWorkspace({
           builderDropActive={stageZeroDropMode || stageZeroCreating}
           builderDropHover={stageZeroDropHover}
           hideMouseGuide={minimalShell}
+          reducedMotion={reducedMotion}
           onSelectStar={handleStarSelect}
           onOpenStarControlCenter={handleOpenStarHeartDashboard}
           onClearStarFocus={handleClearStarFocus}
-          onSelectTable={(tableId) => {
-            setSelectedTableId(String(tableId || ""));
-            setSelectedAsteroidId("");
-          }}
+          onSelectTable={(tableId) => handlePlanetSelect(tableId, { source: "canvas" })}
           onSelectAsteroid={(asteroidId) => {
             setSelectedAsteroidId(String(asteroidId || ""));
           }}
@@ -1862,10 +2047,13 @@ export default function UniverseWorkspace({
           onLeaveLink={() => setHoveredLink(null)}
           onSelectLink={() => {}}
         />
-        <StageZeroDropZone active={stageZeroDropMode || stageZeroCreating} />
+        <StageZeroDropZone active={stageZeroUiVisibility.dropZone} />
 
-        {stageZeroRequiresStarLock ? (
+        {stageZeroUiVisibility.starLockGate ? (
           <section
+            data-testid="stage0-star-lock-gate"
+            role="dialog"
+            aria-modal="true"
             style={{
               position: "fixed",
               inset: 0,
@@ -1949,6 +2137,7 @@ export default function UniverseWorkspace({
                 <button
                   type="button"
                   onClick={handleOpenStarHeartDashboard}
+                  data-testid="stage0-open-star-heart-button"
                   style={{
                     border: "1px solid rgba(255, 205, 121, 0.52)",
                     background: "linear-gradient(120deg, #ffb457, #ffd27a)",
@@ -1966,8 +2155,11 @@ export default function UniverseWorkspace({
           </section>
         ) : null}
 
-        {stageZeroActive && !stageZeroRequiresStarLock && stageZeroFlow === STAGE_ZERO_FLOW.INTRO ? (
+        {stageZeroUiVisibility.introGate ? (
           <section
+            data-testid="stage0-intro-gate"
+            role="dialog"
+            aria-modal="true"
             style={{
               position: "fixed",
               inset: 0,
@@ -2007,6 +2199,7 @@ export default function UniverseWorkspace({
                   if (!runBuilderGuard(PLANET_BUILDER_ACTION.OPEN_BLUEPRINT, { schemaComplete: false })) return;
                   setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT);
                 }}
+                data-testid="stage0-open-blueprint-button"
                 style={{
                   border: "1px solid rgba(114, 219, 252, 0.5)",
                   background: "linear-gradient(120deg, #21bbea, #44d8ff)",
@@ -2024,8 +2217,9 @@ export default function UniverseWorkspace({
           </section>
         ) : null}
 
-        {stageZeroBuilderOpen ? (
+        {stageZeroUiVisibility.blueprintPanel ? (
           <aside
+            data-testid="stage0-blueprint-panel"
             style={{
               position: "fixed",
               left: 12,
@@ -2053,7 +2247,7 @@ export default function UniverseWorkspace({
           </aside>
         ) : null}
 
-        {stageZeroCreating ? (
+        {stageZeroUiVisibility.creatingBanner ? (
           <div
             style={{
               position: "fixed",
@@ -2073,8 +2267,9 @@ export default function UniverseWorkspace({
           </div>
         ) : null}
 
-        {stageZeroSetupOpen && selectedTableId ? (
+        {stageZeroUiVisibility.setupPanel && selectedTableId ? (
           <aside
+            data-testid="stage0-setup-panel"
             style={{
               position: "fixed",
               right: 12,
@@ -2110,6 +2305,7 @@ export default function UniverseWorkspace({
                       <button
                         key={preset.key}
                         type="button"
+                        data-testid={`stage0-preset-${preset.key}`}
                         onClick={() => {
                           if (locked) return;
                           if (!runBuilderGuard(PLANET_BUILDER_ACTION.SELECT_PRESET)) return;
@@ -2172,6 +2368,7 @@ export default function UniverseWorkspace({
                       <button
                         key={`tray-${step.key}`}
                         type="button"
+                        data-testid={`stage0-tray-${step.key}`}
                         draggable={unlocked && !done}
                         onDragStart={(event) => {
                           if (!unlocked || done) return;
@@ -2262,6 +2459,7 @@ export default function UniverseWorkspace({
                       </div>
                       <button
                         type="button"
+                        data-testid={`stage0-schema-add-${step.key}`}
                         onClick={() => handleStageZeroSchemaStep(step.key)}
                         disabled={!unlocked || done}
                         style={{
@@ -2317,6 +2515,7 @@ export default function UniverseWorkspace({
                     </div>
                     <button
                       type="button"
+                      data-testid="stage0-ignite-core-button"
                       onClick={() => {
                         void handleStageZeroCommitPreset();
                       }}
@@ -2360,8 +2559,11 @@ export default function UniverseWorkspace({
           </aside>
         ) : null}
 
-        {stageZeroActive && (
+        {stageZeroUiVisibility.missionPanel && (
           <aside
+            data-testid="stage0-mission-panel"
+            role="status"
+            aria-live="polite"
             style={{
               position: "fixed",
               left: 12,
@@ -2382,14 +2584,17 @@ export default function UniverseWorkspace({
             <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
               PLANET BUILDER MISSION
             </div>
-            <div style={{ fontSize: "var(--dv-fs-sm)" }}>
+            <div data-testid="stage0-mission-state" style={{ fontSize: "var(--dv-fs-sm)" }}>
               Stav: <strong>{planetBuilderState}</strong>
             </div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", color: guidanceSeverityColor }}>
+              <strong>{planetMoonGuidance.title}</strong>
+            </div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9, lineHeight: "var(--dv-lh-base)" }}>
-              {planetBuilderNarrative.why}
+              {planetMoonGuidance.why}
             </div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, lineHeight: "var(--dv-lh-base)" }}>
-              {planetBuilderNarrative.action}
+              {planetMoonGuidance.action}
             </div>
             <div style={{ display: "grid", gap: 4 }}>
               {planetBuilderChecklist.map((item) => (
@@ -2454,10 +2659,7 @@ export default function UniverseWorkspace({
           selectedTableId={selectedTableId}
           selectedTableLabel={selectedTableLabel}
           selectedAsteroidLabel={selectedAsteroidLabel}
-          onSelectTable={(tableId) => {
-            setSelectedTableId(tableId);
-            setSelectedAsteroidId("");
-          }}
+          onSelectTable={(tableId) => handlePlanetSelect(tableId, { source: "sidebar" })}
           onOpenGrid={() => setQuickGridOpen(true)}
           onRefresh={() => {
             void refreshProjection();
@@ -2465,9 +2667,12 @@ export default function UniverseWorkspace({
           onOpenStarHeart={handleOpenStarHeartDashboard}
           onBackToGalaxies={onBackToGalaxies}
           onLogout={onLogout}
+          interactionLocked={workspaceInteractionLocked}
           builderState={planetBuilderState}
-          builderWhy={planetBuilderNarrative.why}
-          builderAction={planetBuilderNarrative.action}
+          builderTitle={planetMoonGuidance.title}
+          builderWhy={planetMoonGuidance.why}
+          builderAction={planetMoonGuidance.action}
+          builderSeverity={planetMoonGuidance.severity}
           repairSuggestion={repairSuggestion}
           repairApplyBusy={repairApplyBusy}
           onApplyRepair={() => {

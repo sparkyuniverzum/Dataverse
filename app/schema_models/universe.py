@@ -48,6 +48,13 @@ class FactStatus(StrEnum):
     INVALID = "invalid"
 
 
+class CivilizationState(StrEnum):
+    ACTIVE = "ACTIVE"
+    WARNING = "WARNING"
+    ANOMALY = "ANOMALY"
+    ARCHIVED = "ARCHIVED"
+
+
 class MineralFact(BaseModel):
     key: str
     typed_value: Any = None
@@ -67,6 +74,10 @@ class MoonRowContract(BaseModel):
     planet_name: str
     created_at: datetime
     current_event_seq: int = 0
+    state: CivilizationState = CivilizationState.ACTIVE
+    health_score: int = Field(default=100, ge=0, le=100)
+    violation_count: int = Field(default=0, ge=0)
+    last_violation_at: datetime | None = None
     active_alerts: list[str] = Field(default_factory=list)
     facts: list[MineralFact] = Field(default_factory=list)
 
@@ -214,8 +225,58 @@ def build_moon_facts(
     return facts
 
 
+def derive_civilization_health(
+    *,
+    facts: list[MineralFact] | None,
+    created_at: datetime | None,
+    is_deleted: bool = False,
+) -> tuple[CivilizationState, int, int, datetime | None]:
+    fact_rows = facts if isinstance(facts, list) else []
+    critical_violations = 0
+    warning_violations = 0
+    for fact in fact_rows:
+        status = str(getattr(fact, "status", FactStatus.VALID)).strip().lower()
+        has_errors = bool(getattr(fact, "errors", []))
+        if status == FactStatus.INVALID.value or has_errors:
+            critical_violations += 1
+            continue
+        if status == FactStatus.HOLOGRAM.value:
+            warning_violations += 1
+
+    violation_count = critical_violations + warning_violations
+    if is_deleted:
+        state = CivilizationState.ARCHIVED
+    elif critical_violations > 0:
+        state = CivilizationState.ANOMALY
+    elif warning_violations > 0:
+        state = CivilizationState.WARNING
+    else:
+        state = CivilizationState.ACTIVE
+
+    if state == CivilizationState.ARCHIVED:
+        health_score = 0
+    else:
+        # Deterministic penalty budget: critical violations are weighted higher than warning/hologram ones.
+        penalty = critical_violations * 35 + warning_violations * 15
+        health_score = max(0, 100 - penalty)
+
+    last_violation_at = created_at if violation_count > 0 else None
+    return state, int(health_score), int(violation_count), last_violation_at
+
+
 def asteroid_snapshot_to_moon_row(snapshot: UniverseAsteroidSnapshot) -> MoonRowContract:
     label = str(snapshot.value) if snapshot.value is not None else str(snapshot.id)
+    facts = build_moon_facts(
+        value=snapshot.value,
+        metadata=snapshot.metadata,
+        calculated_values=snapshot.calculated_values,
+        calc_errors=snapshot.calc_errors,
+    )
+    state, health_score, violation_count, last_violation_at = derive_civilization_health(
+        facts=facts,
+        created_at=snapshot.created_at,
+        is_deleted=False,
+    )
     return MoonRowContract(
         moon_id=snapshot.id,
         label=label,
@@ -224,13 +285,12 @@ def asteroid_snapshot_to_moon_row(snapshot: UniverseAsteroidSnapshot) -> MoonRow
         planet_name=snapshot.planet_name,
         created_at=snapshot.created_at,
         current_event_seq=snapshot.current_event_seq,
+        state=state,
+        health_score=health_score,
+        violation_count=violation_count,
+        last_violation_at=last_violation_at,
         active_alerts=[str(item) for item in snapshot.active_alerts],
-        facts=build_moon_facts(
-            value=snapshot.value,
-            metadata=snapshot.metadata,
-            calculated_values=snapshot.calculated_values,
-            calc_errors=snapshot.calc_errors,
-        ),
+        facts=facts,
     )
 
 

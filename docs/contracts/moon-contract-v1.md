@@ -61,6 +61,7 @@ Transitional runtime alias (row lifecycle, backward compatibility):
 - `GET /moons/{moon_id}`
 - `POST /moons`
 - `PATCH /moons/{moon_id}/mutate`
+- `PATCH /moons/{moon_id}/minerals/{mineral_key}`
 - `PATCH /moons/{moon_id}/extinguish`
 
 Canonical row API (implemented, naming-aligned):
@@ -68,6 +69,7 @@ Canonical row API (implemented, naming-aligned):
 - `GET /civilizations/{civilization_id}`
 - `POST /civilizations`
 - `PATCH /civilizations/{civilization_id}/mutate`
+- `PATCH /civilizations/{civilization_id}/minerals/{mineral_key}`
 - `PATCH /civilizations/{civilization_id}/extinguish`
 
 ## 6. Invariants

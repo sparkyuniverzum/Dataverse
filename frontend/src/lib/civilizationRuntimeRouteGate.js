@@ -1,9 +1,11 @@
 import {
   buildCivilizationCreateUrl,
   buildCivilizationExtinguishUrl,
+  buildCivilizationMineralMutateUrl,
   buildCivilizationMutateUrl,
   buildMoonCreateUrl,
   buildMoonExtinguishUrl,
+  buildMoonMineralMutateUrl,
   buildMoonMutateUrl,
 } from "./dataverseApi";
 
@@ -32,7 +34,10 @@ export function shouldFallbackToMoonAlias(statusCode) {
   return Number.isInteger(status) && FALLBACK_STATUS_SET.has(status);
 }
 
-export function buildCivilizationWriteRouteCandidates(apiBase, { operation, civilizationId = null } = {}) {
+export function buildCivilizationWriteRouteCandidates(
+  apiBase,
+  { operation, civilizationId = null, mineralKey = null } = {}
+) {
   const normalizedOperation = normalizeOperation(operation);
   if (normalizedOperation === "create") {
     return [buildCivilizationCreateUrl(apiBase), buildMoonCreateUrl(apiBase)];
@@ -44,6 +49,17 @@ export function buildCivilizationWriteRouteCandidates(apiBase, { operation, civi
   if (normalizedOperation === "extinguish") {
     const id = normalizeCivilizationId(civilizationId);
     return [buildCivilizationExtinguishUrl(apiBase, id), buildMoonExtinguishUrl(apiBase, id)];
+  }
+  if (normalizedOperation === "mutate_mineral") {
+    const id = normalizeCivilizationId(civilizationId);
+    const normalizedMineralKey = String(mineralKey || "").trim();
+    if (!normalizedMineralKey) {
+      throw new Error("mineral_key is required for mutate_mineral route candidates");
+    }
+    return [
+      buildCivilizationMineralMutateUrl(apiBase, id, normalizedMineralKey),
+      buildMoonMineralMutateUrl(apiBase, id, normalizedMineralKey),
+    ];
   }
   throw new Error(`Unsupported civilization write operation '${normalizedOperation}'`);
 }

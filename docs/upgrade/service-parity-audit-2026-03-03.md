@@ -112,6 +112,11 @@ Definition of done:
 - Same API response shape.
 - Simpler code path with one failure finalization function.
 
+Status (2026-03-06):
+- in progress
+- typed `ImportRowFailure` classification is implemented, but broad fallback `except Exception` still exists in `app/services/io_service.py`.
+- row failure handling helpers exist, but the path is not yet reduced to one explicit exception classification branch.
+
 ### Stage 1D: Shared galaxy scope resolver
 
 Deliverables:
@@ -134,12 +139,16 @@ Deliverables:
 Definition of done:
 - No deprecation warnings in targeted service test suite.
 
-## Recommended execution order
+Status (2026-03-06):
+- in progress
+- `status.HTTP_422_UNPROCESSABLE_ENTITY` still appears in `app/services/star_core_service.py`.
+- full migration to `status.HTTP_422_UNPROCESSABLE_CONTENT` is not complete yet.
 
-1. Stage 1D (scope cleanup)
+## Recommended execution order (remaining)
+
+1. Stage 1E (422 constant migration)
+2. Stage 1C (import error path hardening)
 
 Reasoning:
-- 1E+1C are low-risk and clean up diagnostics first.
-- 1B improves parser-facing write latency immediately.
-- 1A is most important semantically, but touches read contracts and should land with dedicated tests.
-- 1D is structural cleanup after behavior-critical changes are stable.
+- 1E+1C are low-risk and close current documentation-vs-runtime drift first.
+- 1A/1B/1D are already marked as implemented in this audit baseline.

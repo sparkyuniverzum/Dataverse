@@ -474,7 +474,10 @@ export default function GalaxySelector3D({
   const canCreate = !busy && Boolean(String(newGalaxyName || "").trim());
 
   return (
-    <main style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#02050c" }}>
+    <main
+      data-testid="galaxy-gate-screen"
+      style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#02050c" }}
+    >
       <Canvas
         camera={{ position: [0, 42, 250], fov: 56, near: 0.1, far: 4500 }}
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
@@ -520,6 +523,7 @@ export default function GalaxySelector3D({
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
             <input
               ref={firstRunNameInputRef}
+              data-testid="galaxy-create-input"
               value={newGalaxyName}
               onChange={(event) => onNameChange(event.target.value)}
               onKeyDown={(event) => {
@@ -531,7 +535,13 @@ export default function GalaxySelector3D({
               placeholder="Nazev workspace (napr. Finance 2026)"
               style={inputStyle}
             />
-            <button type="button" onClick={onCreate} disabled={!canCreate} style={actionButtonStyle}>
+            <button
+              type="button"
+              onClick={onCreate}
+              disabled={!canCreate}
+              data-testid="galaxy-create-submit"
+              style={actionButtonStyle}
+            >
               Vytvorit a vstoupit
             </button>
           </div>
@@ -540,7 +550,7 @@ export default function GalaxySelector3D({
             <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
               Obnovit
             </button>
-            <button type="button" onClick={onLogout} style={ghostButtonStyle}>
+            <button type="button" onClick={onLogout} data-testid="auth-logout-button" style={ghostButtonStyle}>
               Logout
             </button>
           </div>
@@ -612,12 +622,19 @@ export default function GalaxySelector3D({
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
             <input
+              data-testid="galaxy-launch-input"
               value={newGalaxyName}
               onChange={(event) => onNameChange(event.target.value)}
               placeholder="Nova galaxie (napr. Finance-Q2)"
               style={inputStyle}
             />
-            <button type="button" onClick={onCreate} disabled={busy || !newGalaxyName.trim()} style={actionButtonStyle}>
+            <button
+              type="button"
+              onClick={onCreate}
+              disabled={busy || !newGalaxyName.trim()}
+              data-testid="galaxy-launch-submit"
+              style={actionButtonStyle}
+            >
               ↗ Launch
             </button>
           </div>
@@ -627,6 +644,7 @@ export default function GalaxySelector3D({
               type="button"
               onClick={() => candidateGalaxyId && onSelect(candidateGalaxyId)}
               disabled={!candidateGalaxyId}
+              data-testid="galaxy-enter-button"
               style={actionButtonStyle}
             >
               Vstoupit
@@ -634,7 +652,7 @@ export default function GalaxySelector3D({
             <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
               Obnovit
             </button>
-            <button type="button" onClick={onLogout} style={ghostButtonStyle}>
+            <button type="button" onClick={onLogout} data-testid="auth-logout-button" style={ghostButtonStyle}>
               Logout
             </button>
           </div>

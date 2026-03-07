@@ -81,6 +81,10 @@ describe("moonContract FE freeze gate", () => {
       "planet_name",
       "created_at",
       "current_event_seq",
+      "state",
+      "health_score",
+      "violation_count",
+      "last_violation_at",
       "active_alerts",
       "facts",
     ]);

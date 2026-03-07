@@ -12,6 +12,25 @@ if TYPE_CHECKING:
     from app.services.task_executor_service import TaskExecutorService, _TaskExecutionContext
 
 
+def _normalize_metadata_remove(raw_value: object) -> list[str]:
+    if raw_value is None:
+        return []
+    if not isinstance(raw_value, list):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="`metadata_remove` must be a list of keys",
+        )
+    keys: list[str] = []
+    seen: set[str] = set()
+    for item in raw_value:
+        key = str(item or "").strip()
+        if not key or key in seen:
+            continue
+        keys.append(key)
+        seen.add(key)
+    return keys
+
+
 async def handle_ingest_update_family(
     self: TaskExecutorService,
     *,
@@ -294,6 +313,19 @@ async def handle_ingest_update_family(
             if metadata_update:
                 next_metadata = {**next_metadata, **metadata_update}
                 has_change = True
+        else:
+            metadata_update = {}
+
+        metadata_remove = _normalize_metadata_remove(task.params.get("metadata_remove"))
+        removed_metadata_keys: list[str] = []
+        if metadata_remove:
+            for key in metadata_remove:
+                if key not in next_metadata:
+                    continue
+                del next_metadata[key]
+                removed_metadata_keys.append(key)
+            if removed_metadata_keys:
+                has_change = True
 
         if not has_change:
             raise HTTPException(
@@ -325,11 +357,14 @@ async def handle_ingest_update_family(
             metadata_update = {
                 key: value for key, value in next_metadata.items() if asteroid.metadata.get(key) != value
             }
-            if metadata_update:
+            if metadata_update or removed_metadata_keys:
+                metadata_payload: dict[str, object] = {"metadata": metadata_update}
+                if removed_metadata_keys:
+                    metadata_payload["metadata_remove"] = removed_metadata_keys
                 metadata_event = await ctx.append_and_project_event(
                     entity_id=asteroid.id,
                     event_type="METADATA_UPDATED",
-                    payload={"metadata": metadata_update},
+                    payload=metadata_payload,
                 )
                 asteroid.current_event_seq = int(metadata_event.event_seq)
                 asteroid.metadata = next_metadata

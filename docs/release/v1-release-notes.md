@@ -98,3 +98,67 @@ Release SHA: `89f4f17`
   - Playwright browser smoke gate is now green (`PM-P4-03`).
 - P4 closure:
   - all `PM-P4-*` gates are green (interactive harness + component harness + browser smoke).
+- P5 kickoff:
+  - real auth bootstrap helper (`PM-P5-01`) and real auth/session lifecycle smoke (`PM-P5-02`) are implemented.
+
+## Planet Builder UX flow P5 closure addendum (2026-03-06)
+- `PM-P5-03` closed:
+  - real workspace bootstrap path is covered in browser smoke (first-run create and rerun enter paths).
+- `PM-P5-04` closed:
+  - real `star lock -> first planet wizard -> grid convergence` path is covered in browser smoke.
+- Gate evidence:
+  - `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs`
+  - `npm --prefix frontend run test:e2e:workspace-starlock`
+  - `./scripts/staging_workspace_starlock_wizard_grid_smoke.sh`
+
+## Planet+Moon v3 P6 reconciliation addendum (2026-03-06)
+- Local FE gate sweep for current P6 scope is green:
+  - `cd frontend && npm test -- src/components/universe/planetPhysicsParity.test.js src/lib/hierarchy_layout.test.js src/components/universe/scene/physicsSystem.test.js src/components/universe/projectionConvergenceGate.test.js src/components/universe/workspaceContractExplainability.test.js src/components/universe/planetBuilderFlow.test.js src/components/universe/planetBuilderWizardPanel.component.test.jsx src/components/universe/accessibilityPreview.test.jsx src/components/universe/scene/performanceBudget.test.js src/components/universe/workspaceUiPersistence.test.js` -> `10 files, 40 tests passed`.
+- Staging gate artifacts added for preview layer:
+  - `frontend/e2e/staging/planet-moon-preview.smoke.spec.mjs`
+  - `frontend/e2e/staging/accessibility-preview.smoke.spec.mjs`
+  - `frontend/e2e/staging/preview-performance.smoke.spec.mjs`
+  - `./scripts/staging_planet_moon_preview_smoke.sh`
+  - `./scripts/staging_accessibility_preview_smoke.sh`
+  - `./scripts/staging_preview_performance_smoke.sh`
+- P6 remains open and is tracked as partial closure:
+  - open gaps: `PM-P6-01` (live API execution evidence for dedicated BE parity gate), `PM-P6-03` (live API execution evidence for dedicated BE lifecycle gate).
+- Canonical P6 state is maintained in:
+  - `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`
+  - `docs/contracts/planet-moon-dod-v3.md`
+
+## Planet+Moon v3 P6 evidence sync addendum (2026-03-07)
+- `PM-P6-07A` / `CMV2-07` staging evidence executed:
+  - `npm --prefix frontend run test:e2e:workspace-starlock`
+  - result: `1 passed (2.2m)` for `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs`.
+- `PM-P6-01A` dedicated BE parity gate added:
+  - `tests/test_api_integration.py::test_planet_preview_payload_parity_v1`
+  - local verification in this environment:
+    - `ruff check tests/test_api_integration.py` -> passed
+    - `python -m py_compile tests/test_api_integration.py` -> passed
+    - `pytest -q tests/test_api_integration.py -k test_planet_preview_payload_parity_v1` -> skipped when API server is unavailable
+- `PM-P6-03A` dedicated BE preview lifecycle gate added:
+  - `tests/test_api_integration.py::test_planet_moon_preview_convergence_lifecycle_v1`
+  - local verification in this environment:
+    - `ruff check tests/test_api_integration.py` -> passed
+    - `python -m py_compile tests/test_api_integration.py` -> passed
+    - `pytest -q tests/test_api_integration.py -k "test_planet_moon_preview_convergence_lifecycle_v1 or test_planet_preview_payload_parity_v1 or test_civilization_mineral_edit_mutate_facts_convergence_v1"` -> `3 skipped` when API server is unavailable
+- `PM-P6-04A` staging evidence:
+  - `npm --prefix frontend run test:e2e:planet-moon-preview`
+  - first run timeout (`180000ms`), immediate rerun passed: `1 passed (1.8m)`.
+- `PM-P6-08A` staging evidence:
+  - `npm --prefix frontend run test:e2e:accessibility-preview` -> `1 passed (3.6m)`.
+- `PM-P6-09A` staging evidence:
+  - `npm --prefix frontend run test:e2e:preview-performance` -> `1 passed (1.9m)`.
+- `PM-P6-10B` staging evidence:
+  - `npm --prefix frontend run test:e2e:workspace-resume-preview` -> passed (`1 passed`, `2.3m`) on 2026-03-07 after resume-flow fixes.
+  - applied fixes:
+    - `frontend/src/hooks/useGalaxyGate.js`: do not wipe selected galaxy during auth bootstrap loading.
+    - `frontend/src/components/universe/UniverseWorkspace.jsx`: preserve restored quick-grid-open state while projection data is still loading.
+- `PM-P6-05B` staging evidence:
+  - `npm --prefix frontend run test:e2e:camera-focus-flow` -> passed (`1 passed`, `3.1m`) on 2026-03-07.
+  - `./scripts/staging_camera_focus_flow_smoke.sh` -> `PASS`.
+  - gate artifacts:
+    - `frontend/e2e/staging/camera-focus-flow.smoke.spec.mjs`
+    - `frontend/src/components/universe/CameraPilot.test.jsx`
+    - `frontend/src/components/universe/cameraPilotMath.test.js`

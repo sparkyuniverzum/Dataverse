@@ -99,6 +99,7 @@ export default function QuickGridOverlay({
 
   return (
     <section
+      data-testid="quick-grid-overlay"
       style={{
         position: "fixed",
         left: "50%",
@@ -142,7 +143,7 @@ export default function QuickGridOverlay({
           <button type="button" style={{ ...hudButtonStyle, background: "rgba(14, 40, 62, 0.92)" }}>
             Grid
           </button>
-          <button type="button" onClick={onClose} style={ghostButtonStyle}>
+          <button type="button" onClick={onClose} data-testid="quick-grid-close-button" style={ghostButtonStyle}>
             3D Vesmír
           </button>
         </div>
@@ -166,8 +167,12 @@ export default function QuickGridOverlay({
           placeholder="Filtr radku a bunek..."
           style={inputStyle}
         />
-        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>sloupce {gridColumns.length}</span>
-        <span style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>write {busy ? "..." : "ready"}</span>
+        <span data-testid="quick-grid-columns-badge" style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
+          sloupce {gridColumns.length}
+        </span>
+        <span data-testid="quick-grid-write-badge" style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
+          write {busy ? "..." : "ready"}
+        </span>
       </div>
 
       <div
@@ -331,7 +336,12 @@ export default function QuickGridOverlay({
             {gridFilteredRows.map((row) => {
               const rowPendingOp = pendingRowOps[String(row.id)] || null;
               return (
-                <tr key={String(row.id)} onClick={() => onSelectRow?.(String(row.id))} style={{ cursor: "pointer" }}>
+                <tr
+                  key={String(row.id)}
+                  data-testid="quick-grid-row"
+                  onClick={() => onSelectRow?.(String(row.id))}
+                  style={{ cursor: "pointer" }}
+                >
                   {gridColumns.map((column, index) => (
                     <td
                       key={`${row.id}:${column}`}

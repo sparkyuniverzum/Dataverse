@@ -23,6 +23,7 @@ class AsteroidCreatedPayload(BaseModel):
 
 class MetadataUpdatedPayload(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata_remove: list[str] = Field(default_factory=list)
 
 
 class AsteroidValueUpdatedPayload(BaseModel):
@@ -257,11 +258,12 @@ class ReadModelProjector:
     def _metadata_update_may_skip_rollups(
         *,
         metadata_patch: dict[str, Any],
+        metadata_remove: list[str],
         bonds_count: int,
         formula_fields_count: int,
         guardian_rules_count: int,
     ) -> bool:
-        if not metadata_patch:
+        if not metadata_patch and not metadata_remove:
             return True
         if bonds_count > 0 or formula_fields_count > 0 or guardian_rules_count > 0:
             return False
@@ -272,6 +274,10 @@ class ReadModelProjector:
             if normalized_key in structural_keys:
                 return False
             if isinstance(value, str) and value.strip().startswith("="):
+                return False
+        for key in metadata_remove:
+            normalized_key = str(key).strip().lower()
+            if normalized_key in structural_keys:
                 return False
         return True
 
@@ -287,6 +293,13 @@ class ReadModelProjector:
         metadata_patch = payload.get("metadata")
         if not isinstance(metadata_patch, dict):
             metadata_patch = {}
+        metadata_remove_raw = payload.get("metadata_remove")
+        metadata_remove: list[str] = []
+        if isinstance(metadata_remove_raw, list):
+            for item in metadata_remove_raw:
+                key = str(item or "").strip()
+                if key:
+                    metadata_remove.append(key)
 
         summary = (
             await session.execute(
@@ -313,6 +326,7 @@ class ReadModelProjector:
 
         return self._metadata_update_may_skip_rollups(
             metadata_patch=metadata_patch,
+            metadata_remove=metadata_remove,
             bonds_count=int(summary.bonds_count or 0),
             formula_fields_count=int(summary.formula_fields_count or 0),
             guardian_rules_count=int(health.guardian_rules_count or 0),
@@ -523,7 +537,13 @@ class ReadModelProjector:
         asteroid_id: UUID,
         payload: MetadataUpdatedPayload,
     ) -> None:
-        if not payload.metadata:
+        metadata_patch = payload.metadata if isinstance(payload.metadata, dict) else {}
+        metadata_remove: list[str] = []
+        for item in payload.metadata_remove:
+            key = str(item or "").strip()
+            if key:
+                metadata_remove.append(key)
+        if not metadata_patch and not metadata_remove:
             return
 
         locked_atom = (
@@ -543,7 +563,10 @@ class ReadModelProjector:
             return
 
         current_metadata = locked_atom.metadata_ if isinstance(locked_atom.metadata_, dict) else {}
-        locked_atom.metadata_ = {**current_metadata, **payload.metadata}
+        next_metadata = {**current_metadata, **metadata_patch}
+        for key in metadata_remove:
+            next_metadata.pop(key, None)
+        locked_atom.metadata_ = next_metadata
 
     async def _project_asteroid_soft_deleted(
         self,

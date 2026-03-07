@@ -12,6 +12,7 @@ export function SourceCoreStar({
   onOpenControlCenter,
   isFocused = false,
   isControlCenterOpen = false,
+  reducedMotion = false,
 }) {
   const coreRef = useRef(null);
   const auraRef = useRef(null);
@@ -65,6 +66,28 @@ export function SourceCoreStar({
     const wave = (Math.sin(t * pulseSpeed) + 1) / 2;
     const focusBoost = isFocused || isControlCenterOpen ? 0.07 : 0;
     const scale = 1 + wave * 0.05 + burst * 0.16 + focusBoost;
+
+    if (reducedMotion) {
+      if (coreRef.current) {
+        const staticScale = 1 + (isFocused || isControlCenterOpen ? 0.05 : 0);
+        coreRef.current.scale.setScalar(staticScale);
+        coreRef.current.rotation.x = 0;
+      }
+      if (auraRef.current) {
+        auraRef.current.material.opacity = clamp(0.22 + (isFocused ? 0.08 : 0), 0.18, 0.36);
+      }
+      if (ringARef.current) {
+        ringARef.current.material.opacity = clamp(0.36 + (isFocused ? 0.16 : 0), 0.3, 0.62);
+      }
+      if (ringBRef.current) {
+        ringBRef.current.material.opacity = clamp(0.26 + (isControlCenterOpen ? 0.14 : 0), 0.2, 0.52);
+      }
+      if (lightRef.current) {
+        lightRef.current.intensity = 6.4 + (isFocused ? 1.2 : 0) + (isControlCenterOpen ? 0.8 : 0);
+        lightRef.current.distance = 560 + domainActivity * 280;
+      }
+      return;
+    }
 
     if (coreRef.current) {
       coreRef.current.scale.setScalar(scale);

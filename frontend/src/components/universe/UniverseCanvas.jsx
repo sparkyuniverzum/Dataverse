@@ -37,6 +37,7 @@ export default function UniverseCanvas({
   builderDropActive = false,
   builderDropHover = false,
   hideMouseGuide = false,
+  reducedMotion = false,
   onSelectStar,
   onOpenStarControlCenter,
   onClearStarFocus,
@@ -188,17 +189,20 @@ export default function UniverseCanvas({
         <directionalLight position={[240, 220, 200]} intensity={1.1} color="#b5e8ff" />
         <directionalLight position={[-220, -120, -180]} intensity={0.38} color="#6fa5ff" />
 
-        <Stars radius={2200} depth={900} count={8200} factor={8} saturation={0} fade speed={0.1} />
+        <Stars radius={2200} depth={900} count={8200} factor={8} saturation={0} fade speed={reducedMotion ? 0 : 0.1} />
         <SourceCoreStar
           starCore={starCore}
           isFocused={starFocused}
           isControlCenterOpen={starControlOpen}
+          reducedMotion={reducedMotion}
           onSelectStar={onSelectStar}
           onOpenControlCenter={onOpenStarControlCenter}
         />
-        <CommandMeteors enabled />
+        <CommandMeteors enabled={!reducedMotion} reducedMotion={reducedMotion} />
         {level < 3
-          ? constellationClusters.map((cluster) => <ConstellationHalo key={cluster.id} cluster={cluster} />)
+          ? constellationClusters.map((cluster) => (
+              <ConstellationHalo key={cluster.id} cluster={cluster} reducedMotion={reducedMotion} />
+            ))
           : null}
 
         {level < 3
@@ -257,6 +261,7 @@ export default function UniverseCanvas({
             key={node.id}
             node={node}
             selected={node.id === selectedTableId}
+            reducedMotion={reducedMotion}
             onPointerDownNode={beginNodeDrag}
             onPointerUpNode={endNodeDrag}
             onSelectNode={(current) => onSelectTable(current.id)}
@@ -285,6 +290,7 @@ export default function UniverseCanvas({
                 key={node.id}
                 node={node}
                 selected={node.id === selectedAsteroidId}
+                reducedMotion={reducedMotion}
                 onPointerDownNode={beginNodeDrag}
                 onPointerUpNode={endNodeDrag}
                 onSelectNode={(current) => onSelectAsteroid(current.id)}
@@ -319,7 +325,12 @@ export default function UniverseCanvas({
         ) : null}
 
         <EffectComposer>
-          <Bloom intensity={0.62} luminanceThreshold={0.1} luminanceSmoothing={0.34} mipmapBlur />
+          <Bloom
+            intensity={reducedMotion ? 0.26 : 0.62}
+            luminanceThreshold={0.1}
+            luminanceSmoothing={0.34}
+            mipmapBlur={!reducedMotion}
+          />
         </EffectComposer>
 
         <OrbitControls
@@ -341,6 +352,7 @@ export default function UniverseCanvas({
           focusOffset={cameraFocusOffset}
           microNudgeKey={cameraMicroNudgeKey}
           starDiveActive={starDiveActive}
+          reducedMotion={reducedMotion}
           focusKey={`${level}:${selectedTableId || "-"}:${selectedAsteroidId || "-"}:${starDiveActive ? "star" : "space"}`}
         />
       </Canvas>

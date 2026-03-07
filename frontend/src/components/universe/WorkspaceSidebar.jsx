@@ -1,3 +1,5 @@
+import { resolvePreviewSeverityColor } from "./previewAccessibility";
+
 const inputStyle = {
   width: "100%",
   borderRadius: 9,
@@ -81,14 +83,19 @@ export default function WorkspaceSidebar({
   onOpenStarHeart,
   onBackToGalaxies,
   onLogout,
+  interactionLocked = false,
   builderState = "",
+  builderTitle = "",
   builderWhy = "",
   builderAction = "",
+  builderSeverity = "info",
   repairSuggestion = null,
   repairApplyBusy = false,
   onApplyRepair = null,
   repairAuditCount = 0,
 }) {
+  const severityColor = resolvePreviewSeverityColor(builderSeverity);
+
   return (
     <aside
       style={{
@@ -134,6 +141,8 @@ export default function WorkspaceSidebar({
 
       {builderState ? (
         <div
+          role="status"
+          aria-live="polite"
           style={{
             border: "1px solid rgba(108, 206, 240, 0.24)",
             borderRadius: 10,
@@ -149,6 +158,11 @@ export default function WorkspaceSidebar({
           <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>
             Stav: <strong>{builderState}</strong>
           </div>
+          {builderTitle ? (
+            <div style={{ fontSize: "var(--dv-fs-xs)", color: severityColor }}>
+              <strong>{builderTitle}</strong>
+            </div>
+          ) : null}
           {builderWhy ? (
             <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76, lineHeight: "var(--dv-lh-base)" }}>
               {builderWhy}
@@ -162,7 +176,12 @@ export default function WorkspaceSidebar({
         </div>
       ) : null}
 
-      <button type="button" onClick={onOpenStarHeart} style={actionButtonStyle}>
+      <button
+        type="button"
+        onClick={onOpenStarHeart}
+        data-testid="workspace-open-star-heart-button"
+        style={actionButtonStyle}
+      >
         Vstoupit do srdce hvezdy
       </button>
 
@@ -174,7 +193,7 @@ export default function WorkspaceSidebar({
           value={selectedTableId}
           onChange={(event) => onSelectTable(String(event.target.value || ""))}
           style={selectStyle}
-          disabled={!tableNodes.length}
+          disabled={!tableNodes.length || interactionLocked}
         >
           {tableNodes.length ? (
             tableNodes.map((node) => (
@@ -198,7 +217,13 @@ export default function WorkspaceSidebar({
       ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-        <button type="button" onClick={onOpenGrid} disabled={!selectedTableId} style={actionButtonStyle}>
+        <button
+          type="button"
+          onClick={onOpenGrid}
+          disabled={!selectedTableId || interactionLocked}
+          data-testid="workspace-open-grid-button"
+          style={actionButtonStyle}
+        >
           Otevrit grid
         </button>
         <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
@@ -210,6 +235,7 @@ export default function WorkspaceSidebar({
         <button
           type="button"
           onClick={onLogout}
+          data-testid="auth-logout-button"
           style={{ ...ghostButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
         >
           Logout

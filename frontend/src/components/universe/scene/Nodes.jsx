@@ -132,6 +132,7 @@ function buildConstellationVisual(node) {
 export function TableNode({
   node,
   selected,
+  reducedMotion = false,
   onPointerDownNode,
   onPointerUpNode,
   onSelectNode,
@@ -141,10 +142,7 @@ export function TableNode({
 }) {
   const groupRef = useRef(null);
   const previewRef = useRef(null);
-  const visual = useMemo(
-    () => buildConstellationVisual(node),
-    [node.id, node.entityName, node.memberCount, node.radius, node.label]
-  );
+  const visual = useMemo(() => buildConstellationVisual(node), [node]);
   const targetScaleRef = useRef(selected ? 1.16 : 1);
   const v1Style = resolvePlanetV1Style(node.v1);
   const physics = node.physics || FALLBACK_NODE_PHYSICS;
@@ -188,6 +186,16 @@ export function TableNode({
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
+    if (reducedMotion) {
+      const staticScale = selected ? 1.1 : 1;
+      groupRef.current.scale.set(staticScale, staticScale, staticScale);
+      groupRef.current.rotation.x = 0;
+      groupRef.current.rotation.z = 0;
+      if (previewRef.current) {
+        previewRef.current.rotation.x = 0;
+      }
+      return;
+    }
     const pulseMultiplier = phaseVisual.pulseMultiplier;
     targetScaleRef.current = (selected ? 1.16 + stress * 0.05 : 1 + stress * 0.08) * (1 + (pulseMultiplier - 1) * 0.05);
     const nextScale = THREE.MathUtils.damp(groupRef.current.scale.x, targetScaleRef.current, 7, delta);
@@ -382,6 +390,7 @@ export function TableNode({
 export function AsteroidNode({
   node,
   selected,
+  reducedMotion = false,
   onPointerDownNode,
   onPointerUpNode,
   onSelectNode,
@@ -415,6 +424,11 @@ export function AsteroidNode({
 
   useFrame((state, delta) => {
     if (!groupRef.current) return;
+    if (reducedMotion) {
+      const staticScale = selected ? 1.06 : 1;
+      groupRef.current.scale.set(staticScale, staticScale, staticScale);
+      return;
+    }
     const wave = Math.sin(state.clock.elapsedTime * (0.9 + pulseFactor * 0.64) * phaseVisual.pulseMultiplier + phase);
     const targetScale = (selected ? 1.08 : 1) + wave * 0.028 * (0.3 + stress * 0.7);
     const nextScale = THREE.MathUtils.damp(groupRef.current.scale.x, targetScale, 7, delta);

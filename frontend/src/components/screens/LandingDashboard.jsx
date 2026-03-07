@@ -296,6 +296,7 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
             <button
               type="button"
               onClick={() => setMode("login")}
+              data-testid="auth-mode-login"
               style={{
                 borderRadius: 10,
                 border: "1px solid rgba(118, 216, 250, 0.42)",
@@ -310,6 +311,7 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
             <button
               type="button"
               onClick={() => setMode("register")}
+              data-testid="auth-mode-register"
               style={{
                 borderRadius: 10,
                 border: "1px solid rgba(118, 216, 250, 0.42)",
@@ -333,6 +335,7 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
               onChange={(event) => setEmail(event.target.value)}
               required
               placeholder="jmeno@firma.com"
+              data-testid="auth-email-input"
               style={inputStyle}
             />
           </label>
@@ -347,13 +350,14 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
               onChange={(event) => setPassword(event.target.value)}
               required
               placeholder="********"
+              data-testid="auth-password-input"
               style={inputStyle}
             />
           </label>
 
           {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffabc3" }}>{error}</div> : null}
 
-          <button type="submit" disabled={busy} style={ctaStyle(busy)}>
+          <button type="submit" disabled={busy} data-testid="auth-submit-button" style={ctaStyle(busy)}>
             {busy ? "Navazuji spojeni..." : mode === "login" ? "Vstoupit do Galaxie" : "Iniciovat Hvezdu"}
           </button>
 

@@ -42,6 +42,24 @@ class MoonMutateRequest(BaseModel):
         return self
 
 
+class CivilizationMineralMutateRequest(BaseModel):
+    typed_value: Any | None = None
+    remove: bool = False
+    expected_event_seq: int | None = Field(default=None, ge=0)
+    idempotency_key: str | None = None
+    galaxy_id: uuid.UUID | None = None
+    branch_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_patch(self) -> CivilizationMineralMutateRequest:
+        typed_value_explicit = "typed_value" in self.model_fields_set
+        if self.remove and typed_value_explicit:
+            raise ValueError("Provide either `remove=true` or `typed_value`, not both")
+        if not self.remove and not typed_value_explicit:
+            raise ValueError("Provide `typed_value` or set `remove=true`")
+        return self
+
+
 class MoonListResponse(BaseModel):
     items: list[MoonRowContract] = Field(default_factory=list)
 

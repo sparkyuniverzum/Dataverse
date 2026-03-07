@@ -103,6 +103,10 @@ def test_civilization_moon_mineral_payload_shapes_are_frozen() -> None:
         "planet_name",
         "created_at",
         "current_event_seq",
+        "state",
+        "health_score",
+        "violation_count",
+        "last_violation_at",
         "active_alerts",
         "facts",
     ]
