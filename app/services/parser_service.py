@@ -140,7 +140,10 @@ class ParserService:
     def _detect_missing_colon_for_known_verb(self, normalized: str) -> str | None:
         if ":" in normalized:
             return None
-        first_word = normalized.split(maxsplit=1)[0].strip().lower()
+        parts = normalized.split(maxsplit=1)
+        if not parts:
+            return None
+        first_word = parts[0].strip().lower()
         if first_word in self.requires_colon_verbs:
             return f"Missing ':' after command verb '{first_word}'."
         return None
