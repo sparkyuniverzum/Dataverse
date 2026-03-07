@@ -5,8 +5,17 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import BondBuilderPanel from "./BondBuilderPanel";
 import QuickGridOverlay from "./QuickGridOverlay";
 import WorkspaceSidebar from "./WorkspaceSidebar";
+import {
+  evaluateBondFlowTransition,
+  resolveNavigationState,
+  resolveVisualBuilderState,
+  VISUAL_BUILDER_BOND_STATE,
+  VISUAL_BUILDER_EVENT,
+  VISUAL_BUILDER_NAV_STATE,
+} from "./visualBuilderStateMachine";
 
 afterEach(() => {
   cleanup();
@@ -217,8 +226,129 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
     expect(screen.getByTestId("quick-grid-civilization-inspector").textContent).toContain("state: ANOMALY");
   });
 
-  it.skip("LF-04 bond builder gate placeholder", () => {});
-  it.skip("LF-05 state machine gate placeholder", () => {});
+  it("LF-04 bond builder: preview gate blocks commit on REJECT and allows commit on ALLOW", async () => {
+    const user = userEvent.setup();
+    const onPreview = vi.fn();
+    const onCommit = vi.fn();
+
+    const { rerender } = render(
+      React.createElement(BondBuilderPanel, {
+        open: true,
+        visualBuilderState: "NAV_PLANET_FOCUSED",
+        options: [
+          { id: "moon-1", label: "Moon 1" },
+          { id: "moon-2", label: "Moon 2" },
+        ],
+        selectedAsteroidId: "moon-1",
+        bondState: VISUAL_BUILDER_BOND_STATE.BOND_PREVIEW,
+        sourceId: "moon-1",
+        targetId: "moon-2",
+        bondType: "RELATION",
+        preview: {
+          decision: "REJECT",
+          blocking: true,
+          reasons: [{ code: "BOND_VALIDATE_SAME_ENDPOINT", severity: "error", blocking: true, message: "blocked" }],
+        },
+        previewBusy: false,
+        commitBusy: false,
+        onStartDraft: () => {},
+        onSourceChange: () => {},
+        onTargetChange: () => {},
+        onTypeChange: () => {},
+        onRequestPreview: onPreview,
+        onCommit,
+        onCancel: () => {},
+      })
+    );
+
+    expect(screen.getByTestId("bond-commit-button").hasAttribute("disabled")).toBe(true);
+    await user.click(screen.getByTestId("bond-preview-button"));
+    expect(onPreview).toHaveBeenCalledTimes(1);
+
+    rerender(
+      React.createElement(BondBuilderPanel, {
+        open: true,
+        visualBuilderState: "NAV_PLANET_FOCUSED",
+        options: [
+          { id: "moon-1", label: "Moon 1" },
+          { id: "moon-2", label: "Moon 2" },
+        ],
+        selectedAsteroidId: "moon-1",
+        bondState: VISUAL_BUILDER_BOND_STATE.BOND_PREVIEW,
+        sourceId: "moon-1",
+        targetId: "moon-2",
+        bondType: "RELATION",
+        preview: {
+          decision: "ALLOW",
+          blocking: false,
+          reasons: [],
+        },
+        previewBusy: false,
+        commitBusy: false,
+        onStartDraft: () => {},
+        onSourceChange: () => {},
+        onTargetChange: () => {},
+        onTypeChange: () => {},
+        onRequestPreview: onPreview,
+        onCommit,
+        onCancel: () => {},
+      })
+    );
+
+    expect(screen.getByTestId("bond-commit-button").hasAttribute("disabled")).toBe(false);
+    await user.click(screen.getByTestId("bond-commit-button"));
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("LF-05 state machine: enforces deterministic bond transitions and priority resolution", () => {
+    const start = evaluateBondFlowTransition({
+      state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
+      event: VISUAL_BUILDER_EVENT.START_BOND_DRAFT,
+      payload: { sourceId: "moon-1" },
+    });
+    expect(start.allowed).toBe(true);
+    expect(start.next_state).toBe(VISUAL_BUILDER_BOND_STATE.BOND_DRAFT_SOURCE);
+
+    const target = evaluateBondFlowTransition({
+      state: start.next_state,
+      event: VISUAL_BUILDER_EVENT.SELECT_BOND_TARGET,
+      payload: { sourceId: "moon-1", targetId: "moon-2" },
+    });
+    expect(target.allowed).toBe(true);
+    expect(target.next_state).toBe(VISUAL_BUILDER_BOND_STATE.BOND_DRAFT_TARGET);
+
+    const previewRequest = evaluateBondFlowTransition({
+      state: target.next_state,
+      event: VISUAL_BUILDER_EVENT.REQUEST_BOND_PREVIEW,
+      payload: { sourceId: "moon-1", targetId: "moon-2", type: "FLOW" },
+    });
+    expect(previewRequest.allowed).toBe(true);
+    expect(previewRequest.next_state).toBe(VISUAL_BUILDER_BOND_STATE.BOND_PREVIEW);
+
+    const commitGuard = evaluateBondFlowTransition({
+      state: previewRequest.next_state,
+      event: VISUAL_BUILDER_EVENT.CONFIRM_BOND_COMMIT,
+      payload: { previewDecision: "REJECT", previewBlocking: true },
+    });
+    expect(commitGuard.allowed).toBe(false);
+    expect(commitGuard.reason).toBe("preview_not_committable");
+
+    const nav = resolveNavigationState({
+      selectedTableId: "table-1",
+      selectedAsteroidId: "moon-1",
+      quickGridOpen: false,
+    });
+    expect(nav).toBe(VISUAL_BUILDER_NAV_STATE.NAV_MOON_FOCUSED);
+    expect(
+      resolveVisualBuilderState({
+        loading: false,
+        runtimeError: "",
+        navigationState: nav,
+        bondState: VISUAL_BUILDER_BOND_STATE.BOND_PREVIEW,
+      })
+    ).toBe(VISUAL_BUILDER_BOND_STATE.BOND_PREVIEW);
+  });
+
   it.skip("LF-06 cross-planet gate placeholder", () => {});
   it.skip("LF-07 replay parity gate placeholder", () => {});
   it.skip("LF-08 accessibility/performance gate placeholder", () => {});

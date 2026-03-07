@@ -18,6 +18,7 @@ import {
   buildStarCorePolicyLockUrl,
   buildTableContractUrl,
   isOccConflictError,
+  normalizeBondType,
 } from "../../lib/dataverseApi";
 import {
   buildExtinguishMoonCommand,
@@ -40,6 +41,7 @@ import StarHeartDashboard from "./StarHeartDashboard";
 import UniverseCanvas from "./UniverseCanvas";
 import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
 import WorkspaceSidebar from "./WorkspaceSidebar";
+import BondBuilderPanel from "./BondBuilderPanel";
 import { buildStageZeroPlanetName, mapDropPointToPlanetPosition } from "./stageZeroUtils";
 import {
   STAGE_ZERO_CASHFLOW_STEPS,
@@ -86,6 +88,14 @@ import {
 import { buildContractViolationMessage } from "./workspaceContractExplainability";
 import { readWorkspaceUiState, writeWorkspaceUiState } from "./workspaceUiPersistence";
 import { collectGridColumns, normalizeText, readGridCell, tableDisplayName, valueToLabel } from "./workspaceFormatters";
+import {
+  buildVisualBuilderTransitionMessage,
+  evaluateBondFlowTransition,
+  resolveNavigationState,
+  resolveVisualBuilderState,
+  VISUAL_BUILDER_BOND_STATE,
+  VISUAL_BUILDER_EVENT,
+} from "./visualBuilderStateMachine";
 
 const DEFAULT_CAMERA_STATE = {
   position: [0, 120, 340],
@@ -256,6 +266,16 @@ export default function UniverseWorkspace({
   const [selectedTableId, setSelectedTableId] = useState("");
   const [selectedAsteroidId, setSelectedAsteroidId] = useState("");
   const [linkDraft, setLinkDraft] = useState(null);
+  const [bondDraft, setBondDraft] = useState({
+    state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
+    sourceId: "",
+    targetId: "",
+    type: "RELATION",
+    preview: null,
+    lastValidState: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
+  });
+  const [bondPreviewBusy, setBondPreviewBusy] = useState(false);
+  const [bondCommitBusy, setBondCommitBusy] = useState(false);
   const [hoveredLink, setHoveredLink] = useState(null);
 
   const [quickGridOpen, setQuickGridOpen] = useState(false);
@@ -299,6 +319,16 @@ export default function UniverseWorkspace({
     setQuickGridOpen(Boolean(persistedUiState.quickGridOpen));
     setGridSearchQuery("");
     setLinkDraft(null);
+    setBondDraft({
+      state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
+      sourceId: "",
+      targetId: "",
+      type: "RELATION",
+      preview: null,
+      lastValidState: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
+    });
+    setBondPreviewBusy(false);
+    setBondCommitBusy(false);
     setHoveredLink(null);
     setStarControlPhase(STAR_CONTROL_PHASE.IDLE);
     setStarProfileDraftKey("ORIGIN");
@@ -843,6 +873,35 @@ export default function UniverseWorkspace({
     const asteroid = asteroidById.get(String(selectedAsteroidId));
     return asteroid ? valueToLabel(asteroid.value) : "";
   }, [asteroidById, selectedAsteroidId]);
+  const bondDraftOptions = useMemo(
+    () =>
+      tableRows.map((row) => ({
+        id: String(row?.id || ""),
+        label: valueToLabel(row?.value),
+      })),
+    [tableRows]
+  );
+  const visualBuilderNavigationState = useMemo(
+    () =>
+      resolveNavigationState({
+        selectedTableId,
+        selectedAsteroidId,
+        selectedCivilizationId: selectedAsteroidId,
+        quickGridOpen,
+      }),
+    [quickGridOpen, selectedAsteroidId, selectedTableId]
+  );
+  const visualBuilderState = useMemo(
+    () =>
+      resolveVisualBuilderState({
+        loading,
+        runtimeError: error,
+        navigationState: visualBuilderNavigationState,
+        bondState: bondDraft.state,
+        planetBuilderState,
+      }),
+    [bondDraft.state, error, loading, planetBuilderState, visualBuilderNavigationState]
+  );
   const planetMoonGuidance = useMemo(
     () =>
       resolvePlanetMoonCausalGuidance({
@@ -902,6 +961,152 @@ export default function UniverseWorkspace({
     },
     [appendRepairAudit, setRuntimeError]
   );
+  const resetBondDraft = useCallback(() => {
+    setBondDraft({
+      state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
+      sourceId: "",
+      targetId: "",
+      type: "RELATION",
+      preview: null,
+      lastValidState: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
+    });
+    setBondPreviewBusy(false);
+    setBondCommitBusy(false);
+  }, []);
+  const applyBondTransition = useCallback(
+    (event, payload = {}, updater = null) => {
+      const result = evaluateBondFlowTransition({
+        state: bondDraft.state,
+        event,
+        payload: {
+          sourceId: payload?.sourceId ?? bondDraft.sourceId,
+          targetId: payload?.targetId ?? bondDraft.targetId,
+          type: payload?.type ?? bondDraft.type,
+          previewDecision: payload?.previewDecision ?? bondDraft.preview?.decision,
+          previewBlocking: payload?.previewBlocking ?? bondDraft.preview?.blocking,
+          converged: payload?.converged ?? false,
+        },
+      });
+      if (!result.allowed) {
+        setRuntimeError(buildVisualBuilderTransitionMessage(result));
+        return false;
+      }
+      setBondDraft((prev) => {
+        const nextState = String(result.next_state || prev.state);
+        const shouldRefreshLastValid =
+          nextState !== VISUAL_BUILDER_BOND_STATE.BOND_BLOCKED &&
+          nextState !== VISUAL_BUILDER_BOND_STATE.BOND_COMMITTING;
+        const baseNext = {
+          ...prev,
+          state: nextState,
+          ...(shouldRefreshLastValid ? { lastValidState: nextState } : {}),
+        };
+        return typeof updater === "function" ? updater(baseNext, prev) : baseNext;
+      });
+      return true;
+    },
+    [
+      bondDraft.preview?.blocking,
+      bondDraft.preview?.decision,
+      bondDraft.sourceId,
+      bondDraft.state,
+      bondDraft.targetId,
+      bondDraft.type,
+      setRuntimeError,
+    ]
+  );
+  const handleStartBondDraft = useCallback(
+    (sourceId) => {
+      const nextSourceId = String(sourceId || "").trim();
+      if (!nextSourceId) return;
+      const startResult = evaluateBondFlowTransition({
+        state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
+        event: VISUAL_BUILDER_EVENT.START_BOND_DRAFT,
+        payload: { sourceId: nextSourceId },
+      });
+      if (!startResult.allowed) {
+        setRuntimeError(buildVisualBuilderTransitionMessage(startResult));
+        return;
+      }
+      clearRuntimeIssue();
+      setBondDraft({
+        state: startResult.next_state,
+        sourceId: nextSourceId,
+        targetId: "",
+        type: normalizeBondType(bondDraft.type || "RELATION"),
+        preview: null,
+        lastValidState: startResult.next_state,
+      });
+    },
+    [bondDraft.type, clearRuntimeIssue, setRuntimeError]
+  );
+  const handleSelectBondTarget = useCallback(
+    (targetId) => {
+      const nextTargetId = String(targetId || "").trim();
+      clearRuntimeIssue();
+      applyBondTransition(
+        VISUAL_BUILDER_EVENT.SELECT_BOND_TARGET,
+        { sourceId: bondDraft.sourceId, targetId: nextTargetId },
+        (next) => ({
+          ...next,
+          targetId: nextTargetId,
+          preview: null,
+        })
+      );
+    },
+    [applyBondTransition, bondDraft.sourceId, clearRuntimeIssue]
+  );
+  const handleSelectBondType = useCallback((nextType) => {
+    setBondDraft((prev) => ({
+      ...prev,
+      type: normalizeBondType(nextType || "RELATION"),
+      preview: null,
+    }));
+  }, []);
+  const primeBondDraftFromLink = useCallback(
+    (payload) => {
+      const sourceId = String(payload?.sourceId || "").trim();
+      const targetId = String(payload?.targetId || "").trim();
+      if (!sourceId || !targetId) return;
+      const startResult = evaluateBondFlowTransition({
+        state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
+        event: VISUAL_BUILDER_EVENT.START_BOND_DRAFT,
+        payload: { sourceId },
+      });
+      if (!startResult.allowed) {
+        setRuntimeError(buildVisualBuilderTransitionMessage(startResult));
+        return;
+      }
+      const targetResult = evaluateBondFlowTransition({
+        state: startResult.next_state,
+        event: VISUAL_BUILDER_EVENT.SELECT_BOND_TARGET,
+        payload: { sourceId, targetId },
+      });
+      if (!targetResult.allowed) {
+        setRuntimeError(buildVisualBuilderTransitionMessage(targetResult));
+        return;
+      }
+      clearRuntimeIssue();
+      setBondDraft({
+        state: targetResult.next_state,
+        sourceId,
+        targetId,
+        type: "RELATION",
+        preview: null,
+        lastValidState: targetResult.next_state,
+      });
+    },
+    [clearRuntimeIssue, setRuntimeError]
+  );
+  useEffect(() => {
+    if (bondDraft.state === VISUAL_BUILDER_BOND_STATE.BOND_IDLE) return;
+    const rowIds = new Set(tableRows.map((row) => String(row?.id || "")));
+    const hasSource = rowIds.has(String(bondDraft.sourceId || ""));
+    const hasTarget = !bondDraft.targetId || rowIds.has(String(bondDraft.targetId || ""));
+    if (!hasSource || !hasTarget) {
+      resetBondDraft();
+    }
+  }, [bondDraft.sourceId, bondDraft.state, bondDraft.targetId, resetBondDraft, tableRows]);
   const runBuilderGuard = useCallback(
     (action, { schemaComplete = stageZeroAllSchemaStepsDone } = {}) => {
       const result = evaluatePlanetBuilderTransition({
@@ -1258,6 +1463,7 @@ export default function UniverseWorkspace({
     async (payload) => {
       if (!galaxyId || !payload?.sourceId || !payload?.targetId) return;
       if (String(payload.sourceId) === String(payload.targetId)) return;
+      const normalizedBondType = normalizeBondType(payload?.type || "RELATION");
 
       const sourceAsteroid = asteroidById.get(String(payload.sourceId));
       const targetAsteroid = asteroidById.get(String(payload.targetId));
@@ -1275,18 +1481,21 @@ export default function UniverseWorkspace({
       setBusy(true);
       clearRuntimeIssue();
       try {
-        const parserCommand = buildLinkMoonsCommand({
-          sourceId: payload.sourceId,
-          targetId: payload.targetId,
-        });
-        if (parserCommand) {
+        const parserCommand =
+          normalizedBondType === "RELATION"
+            ? buildLinkMoonsCommand({
+                sourceId: payload.sourceId,
+                targetId: payload.targetId,
+              })
+            : "";
+        if (parserCommand && normalizedBondType === "RELATION") {
           parserAttempted = true;
           try {
             await executeParserCommand(parserCommand);
             trackParserAttempt({ action: "LINK", parserOk: true });
             parserTelemetryRecorded = true;
             await refreshProjection({ silent: true });
-            return;
+            return true;
           } catch (parserError) {
             parserFailure = parserError;
             if (parserExecutionMode.link) {
@@ -1302,7 +1511,7 @@ export default function UniverseWorkspace({
           body: JSON.stringify({
             source_id: payload.sourceId,
             target_id: payload.targetId,
-            type: "RELATION",
+            type: normalizedBondType,
             galaxy_id: galaxyId,
             idempotency_key: nextIdempotencyKey("link"),
             ...(expectedSourceEventSeq !== null ? { expected_source_event_seq: expectedSourceEventSeq } : {}),
@@ -1323,6 +1532,7 @@ export default function UniverseWorkspace({
           parserTelemetryRecorded = true;
         }
         await refreshProjection({ silent: true });
+        return true;
       } catch (createError) {
         if (parserAttempted && !parserTelemetryRecorded) {
           trackParserAttempt({
@@ -1343,6 +1553,7 @@ export default function UniverseWorkspace({
             operation: "link",
           });
         }
+        return false;
       } finally {
         setBusy(false);
       }
@@ -1359,6 +1570,150 @@ export default function UniverseWorkspace({
       trackParserAttempt,
     ]
   );
+  const handleRequestBondPreview = useCallback(async () => {
+    if (!galaxyId) return;
+    const sourceId = String(bondDraft.sourceId || "").trim();
+    const targetId = String(bondDraft.targetId || "").trim();
+    const bondType = normalizeBondType(bondDraft.type || "RELATION");
+    if (!sourceId || !targetId) return;
+    if (
+      !applyBondTransition(VISUAL_BUILDER_EVENT.REQUEST_BOND_PREVIEW, {
+        sourceId,
+        targetId,
+        type: bondType,
+      })
+    ) {
+      return;
+    }
+
+    setBondPreviewBusy(true);
+    clearRuntimeIssue();
+    try {
+      const sourceAsteroid = asteroidById.get(sourceId);
+      const targetAsteroid = asteroidById.get(targetId);
+      const expectedSourceEventSeq = Number.isInteger(sourceAsteroid?.current_event_seq)
+        ? Number(sourceAsteroid.current_event_seq)
+        : null;
+      const expectedTargetEventSeq = Number.isInteger(targetAsteroid?.current_event_seq)
+        ? Number(targetAsteroid.current_event_seq)
+        : null;
+      const response = await apiFetch(`${API_BASE}/bonds/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "create",
+          source_civilization_id: sourceId,
+          target_civilization_id: targetId,
+          type: bondType,
+          galaxy_id: galaxyId,
+          ...(expectedSourceEventSeq !== null ? { expected_source_event_seq: expectedSourceEventSeq } : {}),
+          ...(expectedTargetEventSeq !== null ? { expected_target_event_seq: expectedTargetEventSeq } : {}),
+        }),
+      });
+      if (!response.ok) {
+        throw await apiErrorFromResponse(response, `Bond preview selhal: ${response.status}`);
+      }
+      const previewPayload = await response.json().catch(() => ({}));
+      const previewDecision = String(previewPayload?.decision || "").toUpperCase();
+      const previewBlocking = Boolean(previewPayload?.blocking);
+      const applied = applyBondTransition(
+        VISUAL_BUILDER_EVENT.APPLY_BOND_PREVIEW_RESULT,
+        {
+          previewDecision,
+          previewBlocking,
+        },
+        (next) => ({
+          ...next,
+          preview: previewPayload,
+        })
+      );
+      if (!applied) return;
+      if (previewDecision === "REJECT" || previewBlocking) {
+        const firstReason = Array.isArray(previewPayload?.reasons) ? previewPayload.reasons[0] : null;
+        setRuntimeError(String(firstReason?.message || "Bond preview operation blocked by validation rules."));
+      }
+    } catch (previewError) {
+      reportContractViolationWithRepair(previewError, {
+        fallbackMessage: previewError?.message || "Bond preview selhal.",
+        operation: "bond_preview",
+      });
+      setBondDraft((prev) => ({
+        ...prev,
+        state: VISUAL_BUILDER_BOND_STATE.BOND_BLOCKED,
+      }));
+    } finally {
+      setBondPreviewBusy(false);
+    }
+  }, [
+    applyBondTransition,
+    asteroidById,
+    bondDraft.sourceId,
+    bondDraft.targetId,
+    bondDraft.type,
+    clearRuntimeIssue,
+    galaxyId,
+    reportContractViolationWithRepair,
+    setRuntimeError,
+  ]);
+  const handleCommitBondDraft = useCallback(async () => {
+    const sourceId = String(bondDraft.sourceId || "").trim();
+    const targetId = String(bondDraft.targetId || "").trim();
+    const bondType = normalizeBondType(bondDraft.type || "RELATION");
+    const previewDecision = String(bondDraft.preview?.decision || "").toUpperCase();
+    const previewBlocking = Boolean(bondDraft.preview?.blocking);
+    if (
+      !applyBondTransition(VISUAL_BUILDER_EVENT.CONFIRM_BOND_COMMIT, {
+        sourceId,
+        targetId,
+        type: bondType,
+        previewDecision,
+        previewBlocking,
+      })
+    ) {
+      return;
+    }
+
+    setBondCommitBusy(true);
+    const committed = await handleCreateLink({
+      sourceId,
+      targetId,
+      type: bondType,
+    });
+    if (!committed) {
+      setBondDraft((prev) => ({
+        ...prev,
+        state: VISUAL_BUILDER_BOND_STATE.BOND_BLOCKED,
+      }));
+      setBondCommitBusy(false);
+      return;
+    }
+    const applied = applyBondTransition(
+      VISUAL_BUILDER_EVENT.RUNTIME_REFRESH,
+      {
+        converged: true,
+      },
+      (next) => ({
+        ...next,
+      })
+    );
+    if (!applied) {
+      setBondCommitBusy(false);
+      return;
+    }
+    setBondCommitBusy(false);
+    setTimeout(() => {
+      resetBondDraft();
+    }, 200);
+  }, [
+    applyBondTransition,
+    bondDraft.preview?.blocking,
+    bondDraft.preview?.decision,
+    bondDraft.sourceId,
+    bondDraft.targetId,
+    bondDraft.type,
+    handleCreateLink,
+    resetBondDraft,
+  ]);
 
   const handleCreateRow = useCallback(
     async (value) => {
@@ -2040,7 +2395,7 @@ export default function UniverseWorkspace({
           }
           onLinkComplete={(payload) => {
             setLinkDraft(null);
-            void handleCreateLink(payload);
+            primeBondDraftFromLink(payload);
           }}
           onLinkCancel={() => setLinkDraft(null)}
           onHoverLink={setHoveredLink}
@@ -2645,6 +3000,31 @@ export default function UniverseWorkspace({
             ) : null}
           </aside>
         )}
+
+        <BondBuilderPanel
+          open={Boolean(selectedTableId)}
+          visualBuilderState={visualBuilderState}
+          options={bondDraftOptions}
+          selectedAsteroidId={selectedAsteroidId}
+          bondState={bondDraft.state}
+          sourceId={bondDraft.sourceId}
+          targetId={bondDraft.targetId}
+          bondType={bondDraft.type}
+          preview={bondDraft.preview}
+          previewBusy={bondPreviewBusy}
+          commitBusy={bondCommitBusy}
+          onStartDraft={handleStartBondDraft}
+          onSourceChange={handleStartBondDraft}
+          onTargetChange={handleSelectBondTarget}
+          onTypeChange={handleSelectBondType}
+          onRequestPreview={() => {
+            void handleRequestBondPreview();
+          }}
+          onCommit={() => {
+            void handleCommitBondDraft();
+          }}
+          onCancel={resetBondDraft}
+        />
 
         <WorkspaceSidebar
           galaxy={galaxy}

@@ -5227,3 +5227,89 @@ def test_presets_catalog_reflects_stage_unlocks(auth_client: tuple[httpx.Client,
     assert by_key["simple_crm"]["locked_by_stage"] >= 2
     assert by_key["simple_crm"]["is_unlocked"] is False
     assert isinstance(by_key["simple_crm"]["lock_reason"], str) and by_key["simple_crm"]["lock_reason"]
+
+
+def test_bond_validate_preview_allows_create_and_returns_normalized_payload(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
+    client, galaxy_id = auth_client
+    source = client.post(
+        "/asteroids/ingest",
+        json={"value": f"Preview-A-{uuid.uuid4().hex[:8]}", "galaxy_id": galaxy_id},
+    )
+    target = client.post(
+        "/asteroids/ingest",
+        json={"value": f"Preview-B-{uuid.uuid4().hex[:8]}", "galaxy_id": galaxy_id},
+    )
+    assert source.status_code == 200, source.text
+    assert target.status_code == 200, target.text
+    source_id = source.json()["id"]
+    target_id = target.json()["id"]
+
+    source_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=source_id)
+    target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_id)
+
+    preview = client.post(
+        "/bonds/validate",
+        json={
+            "operation": "create",
+            "source_civilization_id": source_id,
+            "target_civilization_id": target_id,
+            "type": "RELATION",
+            "expected_source_event_seq": source_seq,
+            "expected_target_event_seq": target_seq,
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body["decision"] in {"ALLOW", "WARN"}
+    assert body["accepted"] is True
+    assert body["blocking"] is False
+    assert body["normalized"]["type"] == "RELATION"
+    assert isinstance(body.get("preview"), dict)
+    assert isinstance(body.get("reasons"), list)
+
+    committed = client.post(
+        "/bonds/link",
+        json={
+            "source_id": source_id,
+            "target_id": target_id,
+            "type": "RELATION",
+            "expected_source_event_seq": source_seq,
+            "expected_target_event_seq": target_seq,
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert committed.status_code == 200, committed.text
+    committed_body = committed.json()
+    assert committed_body["source_id"] in {source_id, target_id}
+    assert committed_body["target_id"] in {source_id, target_id}
+    assert committed_body["type"] == "RELATION"
+
+
+def test_bond_validate_preview_rejects_same_endpoint_with_structured_reason(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
+    client, galaxy_id = auth_client
+    source = client.post("/asteroids/ingest", json={"value": f"Same-A-{uuid.uuid4().hex[:8]}", "galaxy_id": galaxy_id})
+    assert source.status_code == 200, source.text
+    source_id = source.json()["id"]
+
+    preview = client.post(
+        "/bonds/validate",
+        json={
+            "operation": "create",
+            "source_civilization_id": source_id,
+            "target_civilization_id": source_id,
+            "type": "FLOW",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body["decision"] == "REJECT"
+    assert body["accepted"] is False
+    assert body["blocking"] is True
+    reason_codes = {item.get("code") for item in body.get("reasons", []) if isinstance(item, dict)}
+    assert "BOND_VALIDATE_SAME_ENDPOINT" in reason_codes
