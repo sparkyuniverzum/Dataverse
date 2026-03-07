@@ -177,11 +177,6 @@ async def handle_extinguish_family(
 
             ctx.asteroids_by_id.pop(civilization.id, None)
 
-        ctx.bonds_by_id = {
-            bond_id: bond
-            for bond_id, bond in ctx.bonds_by_id.items()
-            if bond.source_civilization_id in ctx.asteroids_by_id and bond.target_civilization_id in ctx.asteroids_by_id
-        }
         return True
 
     return False
