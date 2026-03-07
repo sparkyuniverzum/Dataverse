@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Bond, CalcStateRM, CivilizationRM, PhysicsStateRM
 from app.services.bond_semantics import normalize_bond_type
-from app.services.calc_service import evaluate_universe
 from app.services.guardian_service import evaluate_guardians
 from app.services.universe.types import (
     ProjectedAsteroid,
@@ -338,43 +337,3 @@ async def enrich_main_timeline_from_read_models(
         )
 
     return evaluate_guardians(enriched)
-
-
-def evaluate_fallback_universe(
-    *,
-    galaxy_id: UUID,
-    active_asteroids: list[ProjectedAsteroid],
-    active_bonds: list[ProjectedBond],
-) -> tuple[list[dict[str, Any]], list[ProjectedBond]]:
-    evaluated = evaluate_universe(
-        [
-            {
-                "id": civilization.id,
-                "value": civilization.value,
-                "metadata": civilization.metadata,
-                "created_at": civilization.created_at,
-                "current_event_seq": int(getattr(civilization, "current_event_seq", 0) or 0),
-            }
-            for civilization in active_asteroids
-        ],
-        active_bonds,
-    )
-    seq_index = {c.id: int(getattr(c, "current_event_seq", 0) or 0) for c in active_asteroids}
-    enriched: list[dict[str, Any]] = []
-    for civilization in evaluated:
-        metadata = civilization.get("metadata", {})
-        if not isinstance(metadata, dict):
-            metadata = {}
-        table_name = derive_table_name(value=civilization.get("value"), metadata=metadata)
-        enriched.append(
-            {
-                **civilization,
-                "metadata": metadata,
-                "table_name": table_name,
-                "table_id": derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
-                "current_event_seq": seq_index.get(civilization.get("id"), 0),
-            }
-        )
-
-    guarded = evaluate_guardians(enriched)
-    return guarded, active_bonds

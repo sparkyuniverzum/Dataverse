@@ -22,7 +22,6 @@ from app.services.universe.read_model_projection import (
     _load_physics_state_by_civilization_id as rm_load_physics_state_by_civilization_id,
     enrich_bonds_from_read_models,
     enrich_main_timeline_from_read_models,
-    evaluate_fallback_universe,
     project_state_from_read_model,
 )
 from app.services.universe.tables_snapshot import build_tables_snapshot
@@ -292,27 +291,22 @@ class UniverseService:
         if not apply_calculations:
             return active_asteroids, active_bonds
 
-        if projection_source == "read_model":
-            main_enriched = await self._enrich_main_timeline_from_read_models(
-                session,
-                user_id=user_id,
-                galaxy_id=galaxy_id,
-                active_asteroids=active_asteroids,
-                active_bonds=active_bonds,
-            )
-            bond_enriched = await self._enrich_bonds_from_read_models(
-                session,
-                user_id=user_id,
-                galaxy_id=galaxy_id,
-                active_bonds=active_bonds,
-            )
-            return main_enriched, bond_enriched
-
-        return evaluate_fallback_universe(
+        # The logic is now unified. Both read_model and event-based projections
+        # will use the same enrichment process powered by the new calculation engine services.
+        main_enriched = await self._enrich_main_timeline_from_read_models(
+            session,
+            user_id=user_id,
             galaxy_id=galaxy_id,
             active_asteroids=active_asteroids,
             active_bonds=active_bonds,
         )
+        bond_enriched = await self._enrich_bonds_from_read_models(
+            session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            active_bonds=active_bonds,
+        )
+        return main_enriched, bond_enriched
 
     async def snapshot(
         self,
