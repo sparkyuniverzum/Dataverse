@@ -30,11 +30,12 @@ import {
   buildCivilizationWriteRouteCandidates,
   shouldFallbackToMoonAlias,
 } from "../../lib/civilizationRuntimeRouteGate";
+import { resolveCivilizationSelectionPatch } from "../../lib/civilizationWorkspaceSelectionGate";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import LinkHoverTooltip from "./LinkHoverTooltip";
 import { resolveEntityLaws, resolveLinkLaws, resolveStarCoreProfile } from "./lawResolver";
 import QuickGridOverlay from "./QuickGridOverlay";
-import { mergeMetadataValue } from "./rowWriteUtils";
+import { mergeMetadataValue, parseMetadataLiteral } from "./rowWriteUtils";
 import StarHeartDashboard from "./StarHeartDashboard";
 import UniverseCanvas from "./UniverseCanvas";
 import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
@@ -470,6 +471,10 @@ export default function UniverseWorkspace({
   }, [selectedTableId, tableById, tables]);
 
   useEffect(() => {
+    const waitingForProjectionBootstrap = stageZeroActive && quickGridOpen && loading;
+    if (waitingForProjectionBootstrap) {
+      return;
+    }
     if (!stageZeroActive) {
       setStageZeroDragging(false);
       setStageZeroDropHover(false);
@@ -495,7 +500,7 @@ export default function UniverseWorkspace({
     if (stageZeroFlow === STAGE_ZERO_FLOW.COMPLETE) {
       setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
     }
-  }, [quickGridOpen, stageZeroActive, stageZeroFlow, stageZeroRequiresStarLock]);
+  }, [loading, quickGridOpen, stageZeroActive, stageZeroFlow, stageZeroRequiresStarLock]);
 
   const asteroidById = useMemo(
     () => new Map((Array.isArray(snapshot.asteroids) ? snapshot.asteroids : []).map((item) => [String(item.id), item])),
@@ -1682,33 +1687,67 @@ export default function UniverseWorkspace({
         ? Number(asteroid.current_event_seq)
         : null;
       const currentMetadata = asteroid?.metadata && typeof asteroid.metadata === "object" ? asteroid.metadata : {};
-      const nextMetadata = mergeMetadataValue(currentMetadata, metadataKey, rawValue);
+      const parsedMineralValue = parseMetadataLiteral(rawValue);
+      const removeRequested = typeof parsedMineralValue === "undefined";
+      if (removeRequested && !Object.prototype.hasOwnProperty.call(currentMetadata, metadataKey)) {
+        return true;
+      }
 
       setBusy(true);
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "metadata" }));
       clearRuntimeIssue();
       try {
-        const mutatePayload = {
-          minerals: nextMetadata,
+        const mineralMutatePayload = {
+          remove: removeRequested,
           galaxy_id: galaxyId,
-          idempotency_key: nextIdempotencyKey("metadata"),
+          idempotency_key: nextIdempotencyKey("mineral"),
           ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
         };
-        const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
-          operation: "mutate",
+        if (!removeRequested) {
+          mineralMutatePayload.typed_value = parsedMineralValue;
+        }
+
+        const [primaryMineralUrl, legacyMineralUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
+          operation: "mutate_mineral",
           civilizationId: targetId,
+          mineralKey: metadataKey,
         });
-        let response = await apiFetch(primaryMutateUrl, {
+        let response = await apiFetch(primaryMineralUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(mutatePayload),
+          body: JSON.stringify(mineralMutatePayload),
         });
         if (shouldFallbackToMoonAlias(response.status)) {
-          response = await apiFetch(legacyMutateUrl, {
+          response = await apiFetch(legacyMineralUrl, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mineralMutatePayload),
+          });
+        }
+        if (shouldFallbackToMoonAlias(response.status)) {
+          const nextMetadata = mergeMetadataValue(currentMetadata, metadataKey, rawValue);
+          const mutatePayload = {
+            minerals: nextMetadata,
+            galaxy_id: galaxyId,
+            idempotency_key: nextIdempotencyKey("metadata-fallback"),
+            ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
+          };
+          const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
+            operation: "mutate",
+            civilizationId: targetId,
+          });
+          response = await apiFetch(primaryMutateUrl, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(mutatePayload),
           });
+          if (shouldFallbackToMoonAlias(response.status)) {
+            response = await apiFetch(legacyMutateUrl, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(mutatePayload),
+            });
+          }
         }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Nerost se nepodarilo ulozit: ${response.status}`);
@@ -1840,6 +1879,20 @@ export default function UniverseWorkspace({
   const handleClearStarFocus = useCallback(() => {
     setStarControlPhase((prev) => (prev === STAR_CONTROL_PHASE.STAR_FOCUSED ? STAR_CONTROL_PHASE.IDLE : prev));
   }, []);
+  const handlePlanetSelect = useCallback(
+    (tableId, { source = "programmatic" } = {}) => {
+      const selectionPatch = resolveCivilizationSelectionPatch({
+        source,
+        tableId,
+        interactionLocked: workspaceInteractionLocked,
+        previousQuickGridOpen: quickGridOpen,
+      });
+      setSelectedTableId(selectionPatch.selectedTableId);
+      setSelectedAsteroidId(selectionPatch.selectedAsteroidId);
+      setQuickGridOpen(selectionPatch.quickGridOpen);
+    },
+    [quickGridOpen, workspaceInteractionLocked]
+  );
 
   const handleApplyStarProfileLock = useCallback(async () => {
     if (!galaxyId) return;
@@ -1973,10 +2026,7 @@ export default function UniverseWorkspace({
           onSelectStar={handleStarSelect}
           onOpenStarControlCenter={handleOpenStarHeartDashboard}
           onClearStarFocus={handleClearStarFocus}
-          onSelectTable={(tableId) => {
-            setSelectedTableId(String(tableId || ""));
-            setSelectedAsteroidId("");
-          }}
+          onSelectTable={(tableId) => handlePlanetSelect(tableId, { source: "canvas" })}
           onSelectAsteroid={(asteroidId) => {
             setSelectedAsteroidId(String(asteroidId || ""));
           }}
@@ -2609,10 +2659,7 @@ export default function UniverseWorkspace({
           selectedTableId={selectedTableId}
           selectedTableLabel={selectedTableLabel}
           selectedAsteroidLabel={selectedAsteroidLabel}
-          onSelectTable={(tableId) => {
-            setSelectedTableId(tableId);
-            setSelectedAsteroidId("");
-          }}
+          onSelectTable={(tableId) => handlePlanetSelect(tableId, { source: "sidebar" })}
           onOpenGrid={() => setQuickGridOpen(true)}
           onRefresh={() => {
             void refreshProjection();

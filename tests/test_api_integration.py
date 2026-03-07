@@ -1454,6 +1454,209 @@ def test_star_core_planet_physics_endpoint_returns_runtime_shape(auth_client: tu
     assert isinstance(after_body.get("items"), list)
 
 
+def test_planet_preview_payload_parity_v1(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    execute = client.post(
+        "/parser/execute",
+        json={
+            "query": (
+                f"ParityA-{uuid.uuid4()} (table: Preview > Prime, amount: 17) + "
+                f"ParityB-{uuid.uuid4()} (table: Preview > Prime, amount: 29)"
+            ),
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert execute.status_code == 200, execute.text
+
+    def _preview_payload(item: dict) -> dict:
+        metrics = item.get("metrics") if isinstance(item.get("metrics"), dict) else {}
+        visual = item.get("visual") if isinstance(item.get("visual"), dict) else {}
+        return {
+            "table_id": str(item.get("table_id") or ""),
+            "phase": str(item.get("phase") or "").upper(),
+            "corrosion_level": round(float(visual.get("corrosion_level") or 0), 6),
+            "crack_intensity": round(float(visual.get("crack_intensity") or 0), 6),
+            "pulse_factor": round(float(visual.get("pulse_rate") or 0), 6),
+            "emissive_boost": round(float(visual.get("luminosity") or 0), 6),
+            "health": round(float(metrics.get("health") or 0), 6),
+            "source_event_seq": int(item.get("source_event_seq") or 0),
+        }
+
+    runtime_a = client.get(
+        f"/galaxies/{galaxy_id}/star-core/physics/planets",
+        params={"limit": 256},
+    )
+    assert runtime_a.status_code == 200, runtime_a.text
+    body_a = runtime_a.json()
+    items_a = body_a.get("items", [])
+    assert isinstance(items_a, list) and items_a
+
+    parity_a = {}
+    for raw_item in items_a:
+        payload = _preview_payload(raw_item)
+        table_id = payload["table_id"]
+        if not table_id:
+            continue
+        assert payload["phase"] in {"ACTIVE", "OVERLOADED", "DORMANT", "CORRODING", "CRITICAL", "CALM"}
+        assert 0.0 <= payload["corrosion_level"] <= 1.0
+        assert 0.0 <= payload["crack_intensity"] <= 1.0
+        assert payload["pulse_factor"] >= 0.0
+        assert 0.0 <= payload["emissive_boost"] <= 1.0
+        assert 0.0 <= payload["health"] <= 1.0
+        assert payload["source_event_seq"] >= 0
+        parity_a[table_id] = payload
+    assert parity_a, "Expected at least one normalized preview payload row"
+
+    runtime_b = client.get(
+        f"/galaxies/{galaxy_id}/star-core/physics/planets",
+        params={"limit": 256},
+    )
+    assert runtime_b.status_code == 200, runtime_b.text
+    items_b = runtime_b.json().get("items", [])
+    assert isinstance(items_b, list) and items_b
+    normalized_b = (_preview_payload(item) for item in items_b)
+    parity_b = {payload["table_id"]: payload for payload in normalized_b if payload["table_id"]}
+
+    shared_table_ids = sorted(set(parity_a.keys()) & set(parity_b.keys()))
+    assert shared_table_ids, "Expected overlap between repeated runtime pulls for parity check"
+    for table_id in shared_table_ids:
+        assert parity_b[table_id] == parity_a[table_id]
+
+
+def test_planet_moon_preview_convergence_lifecycle_v1(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"P6-03 > Lifecycle-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"p6-03-lifecycle-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    table_id = str(created_planet.json()["table_id"])
+
+    created = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": table_id,
+            "label": "P6-03 Lifecycle Seed",
+            "minerals": {
+                "entity_id": f"p6-03-seed-{uuid.uuid4().hex[:8]}",
+                "label": "P6-03 Lifecycle Seed",
+                "state": "active",
+            },
+            "idempotency_key": f"p6-03-lifecycle-create-{uuid.uuid4()}",
+        },
+    )
+    assert created.status_code == 201, created.text
+    created_body = created.json()
+    moon_id = str(created_body["moon_id"])
+    event_seq = int(created_body.get("current_event_seq") or 0)
+    assert event_seq >= 1
+
+    allowed_phases = {"ACTIVE", "OVERLOADED", "DORMANT", "CORRODING", "CRITICAL", "CALM"}
+
+    def _preview_row() -> dict:
+        runtime = client.get(
+            f"/galaxies/{galaxy_id}/star-core/physics/planets",
+            params={"limit": 256},
+        )
+        assert runtime.status_code == 200, runtime.text
+        items = runtime.json().get("items", [])
+        assert isinstance(items, list)
+        row = next((item for item in items if str(item.get("table_id") or "") == table_id), None)
+        assert row is not None
+        metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
+        visual = row.get("visual") if isinstance(row.get("visual"), dict) else {}
+        phase = str(row.get("phase") or "").upper()
+        assert phase in allowed_phases
+        return {
+            "phase": phase,
+            "rows": int(metrics.get("rows") or 0),
+            "health": round(float(metrics.get("health") or 0), 6),
+            "corrosion_level": round(float(visual.get("corrosion_level") or 0), 6),
+            "crack_intensity": round(float(visual.get("crack_intensity") or 0), 6),
+            "source_event_seq": int(row.get("source_event_seq") or 0),
+        }
+
+    def _table_member_ids() -> set[str]:
+        tables = client.get("/universe/tables", params={"galaxy_id": galaxy_id})
+        assert tables.status_code == 200, tables.text
+        table_row = next(
+            (row for row in tables.json().get("tables", []) if str(row.get("table_id") or "") == table_id),
+            None,
+        )
+        assert table_row is not None
+        return {str(member.get("id")) for member in table_row.get("members", []) if member.get("id")}
+
+    def _snapshot_ids() -> set[str]:
+        snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+        assert snapshot.status_code == 200, snapshot.text
+        rows = [row for row in snapshot.json().get("asteroids", []) if str(row.get("table_id") or "") == table_id]
+        return {str(row.get("id")) for row in rows if row.get("id")}
+
+    preview_after_create_a = _preview_row()
+    preview_after_create_b = _preview_row()
+    assert preview_after_create_b == preview_after_create_a
+    member_ids_after_create = _table_member_ids()
+    snapshot_ids_after_create = _snapshot_ids()
+    assert moon_id in member_ids_after_create
+    assert member_ids_after_create == snapshot_ids_after_create
+    assert preview_after_create_a["rows"] == len(member_ids_after_create)
+    assert preview_after_create_a["source_event_seq"] >= 1
+
+    mutated = client.patch(
+        f"/civilizations/{moon_id}/mutate",
+        json={
+            "galaxy_id": galaxy_id,
+            "minerals": {"state": "archived"},
+            "expected_event_seq": event_seq,
+            "idempotency_key": f"p6-03-lifecycle-mutate-{uuid.uuid4()}",
+        },
+    )
+    assert mutated.status_code == 200, mutated.text
+    mutated_seq = int(mutated.json().get("current_event_seq") or 0)
+    assert mutated_seq > event_seq
+
+    preview_after_mutate_a = _preview_row()
+    preview_after_mutate_b = _preview_row()
+    assert preview_after_mutate_b == preview_after_mutate_a
+    member_ids_after_mutate = _table_member_ids()
+    snapshot_ids_after_mutate = _snapshot_ids()
+    assert moon_id in member_ids_after_mutate
+    assert member_ids_after_mutate == snapshot_ids_after_mutate
+    assert preview_after_mutate_a["rows"] == len(member_ids_after_mutate)
+    assert preview_after_mutate_a["source_event_seq"] >= preview_after_create_a["source_event_seq"]
+
+    extinguished = client.patch(
+        f"/civilizations/{moon_id}/extinguish",
+        params={
+            "galaxy_id": galaxy_id,
+            "expected_event_seq": mutated_seq,
+            "idempotency_key": f"p6-03-lifecycle-extinguish-{uuid.uuid4()}",
+        },
+    )
+    assert extinguished.status_code == 200, extinguished.text
+    assert extinguished.json()["moon_id"] == moon_id
+    assert extinguished.json()["is_deleted"] is True
+
+    preview_after_extinguish_a = _preview_row()
+    preview_after_extinguish_b = _preview_row()
+    assert preview_after_extinguish_b == preview_after_extinguish_a
+    member_ids_after_extinguish = _table_member_ids()
+    snapshot_ids_after_extinguish = _snapshot_ids()
+    assert moon_id not in member_ids_after_extinguish
+    assert member_ids_after_extinguish == snapshot_ids_after_extinguish
+    assert preview_after_extinguish_a["rows"] == len(member_ids_after_extinguish)
+    assert preview_after_extinguish_a["rows"] == 0
+    assert preview_after_extinguish_a["source_event_seq"] == 0
+
+
 def test_star_core_endpoint_by_endpoint_closure_v2(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
 
@@ -4132,6 +4335,214 @@ def test_moons_alias_deprecation_marker_and_parity(auth_client: tuple[httpx.Clie
 
     missing_after_extinguish = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
     assert missing_after_extinguish.status_code == 404, missing_after_extinguish.text
+
+
+def test_civilization_mineral_endpoint_patch_remove_and_health(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"CivilizationMineral > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"civilization-mineral-endpoint-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    created = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "Civilization Mineral Seed",
+            "minerals": {
+                "entity_id": f"civilization-mineral-{uuid.uuid4().hex[:8]}",
+                "label": "Civilization Mineral Seed",
+                "state": "active",
+                "segment": "core",
+            },
+            "idempotency_key": f"civilization-mineral-endpoint-create-{uuid.uuid4()}",
+        },
+    )
+    assert created.status_code == 201, created.text
+    created_body = created.json()
+    moon_id = created_body["moon_id"]
+    created_event_seq = int(created_body.get("current_event_seq") or 0)
+    assert created_event_seq >= 1
+    assert created_body["state"] == "ACTIVE"
+    assert created_body["health_score"] == 100
+    assert created_body["violation_count"] == 0
+    assert created_body["last_violation_at"] is None
+
+    mineral_mutate = client.patch(
+        f"/civilizations/{moon_id}/minerals/segment",
+        json={
+            "galaxy_id": galaxy_id,
+            "typed_value": "enterprise",
+            "expected_event_seq": created_event_seq,
+            "idempotency_key": f"civilization-mineral-endpoint-mutate-{uuid.uuid4()}",
+        },
+    )
+    assert mineral_mutate.status_code == 200, mineral_mutate.text
+    mineral_mutate_body = mineral_mutate.json()
+    mutate_event_seq = int(mineral_mutate_body.get("current_event_seq") or 0)
+    assert mutate_event_seq > created_event_seq
+    mutate_facts = {fact["key"]: fact for fact in mineral_mutate_body.get("facts", [])}
+    assert mutate_facts["segment"]["typed_value"] == "enterprise"
+    assert mineral_mutate_body["state"] == "ACTIVE"
+    assert mineral_mutate_body["violation_count"] == 0
+
+    remove_via_alias = client.patch(
+        f"/moons/{moon_id}/minerals/segment",
+        json={
+            "galaxy_id": galaxy_id,
+            "remove": True,
+            "expected_event_seq": mutate_event_seq,
+            "idempotency_key": f"civilization-mineral-endpoint-remove-{uuid.uuid4()}",
+        },
+    )
+    assert remove_via_alias.status_code == 200, remove_via_alias.text
+    assert remove_via_alias.headers.get("X-Dataverse-Deprecated-Alias") == "true"
+    assert remove_via_alias.headers.get("X-Dataverse-Canonical-Route") == "/civilizations"
+    removed_body = remove_via_alias.json()
+    remove_event_seq = int(removed_body.get("current_event_seq") or 0)
+    assert remove_event_seq > mutate_event_seq
+    removed_facts = {fact["key"]: fact for fact in removed_body.get("facts", [])}
+    assert "segment" not in removed_facts
+
+    stale_occ = client.patch(
+        f"/civilizations/{moon_id}/minerals/state",
+        json={
+            "galaxy_id": galaxy_id,
+            "typed_value": "active",
+            "expected_event_seq": mutate_event_seq,
+            "idempotency_key": f"civilization-mineral-endpoint-occ-{uuid.uuid4()}",
+        },
+    )
+    _assert_occ_conflict(stale_occ, expected_event_seq=mutate_event_seq)
+
+    detail = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert detail.status_code == 200, detail.text
+    detail_body = detail.json()
+    detail_facts = {fact["key"]: fact for fact in detail_body.get("facts", [])}
+    assert "segment" not in detail_facts
+    assert detail_body["state"] == "ACTIVE"
+    assert detail_body["health_score"] == 100
+    assert detail_body["violation_count"] == 0
+
+
+def test_civilization_mineral_edit_mutate_facts_convergence_v1(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"CMV2-08 > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"cmv2-08-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    created = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "CMV2-08 Seed",
+            "minerals": {
+                "entity_id": f"cmv2-08-{uuid.uuid4().hex[:8]}",
+                "label": "CMV2-08 Seed",
+                "state": "active",
+                "amount": 100,
+            },
+            "idempotency_key": f"cmv2-08-create-{uuid.uuid4()}",
+        },
+    )
+    assert created.status_code == 201, created.text
+    created_body = created.json()
+    moon_id = str(created_body["moon_id"])
+    first_seq = int(created_body.get("current_event_seq") or 0)
+    assert first_seq >= 1
+
+    mutated = client.patch(
+        f"/civilizations/{moon_id}/minerals/amount",
+        json={
+            "galaxy_id": galaxy_id,
+            "typed_value": 321.5,
+            "expected_event_seq": first_seq,
+            "idempotency_key": f"cmv2-08-mutate-{uuid.uuid4()}",
+        },
+    )
+    assert mutated.status_code == 200, mutated.text
+    mutated_body = mutated.json()
+    second_seq = int(mutated_body.get("current_event_seq") or 0)
+    assert second_seq > first_seq
+    mutated_facts = {fact["key"]: fact for fact in mutated_body.get("facts", [])}
+    assert mutated_facts["amount"]["typed_value"] == 321.5
+
+    listed = client.get("/civilizations", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
+    assert listed.status_code == 200, listed.text
+    listed_row = next((item for item in listed.json().get("items", []) if item.get("moon_id") == moon_id), None)
+    assert listed_row is not None
+    listed_facts = {fact["key"]: fact for fact in listed_row.get("facts", [])}
+    assert listed_facts["amount"]["typed_value"] == 321.5
+    assert int(listed_row.get("current_event_seq") or 0) == second_seq
+
+    detail = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert detail.status_code == 200, detail.text
+    detail_body = detail.json()
+    detail_facts = {fact["key"]: fact for fact in detail_body.get("facts", [])}
+    assert detail_facts["amount"]["typed_value"] == 321.5
+    assert int(detail_body.get("current_event_seq") or 0) == second_seq
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    snapshot_row = next((item for item in snapshot.json().get("asteroids", []) if item.get("id") == moon_id), None)
+    assert snapshot_row is not None
+    snapshot_facts = {fact["key"]: fact for fact in snapshot_row.get("facts", [])}
+    assert snapshot_facts["amount"]["typed_value"] == 321.5
+    assert int(snapshot_row.get("current_event_seq") or 0) == second_seq
+
+    removed = client.patch(
+        f"/civilizations/{moon_id}/minerals/state",
+        json={
+            "galaxy_id": galaxy_id,
+            "remove": True,
+            "expected_event_seq": second_seq,
+            "idempotency_key": f"cmv2-08-remove-{uuid.uuid4()}",
+        },
+    )
+    assert removed.status_code == 200, removed.text
+    removed_body = removed.json()
+    third_seq = int(removed_body.get("current_event_seq") or 0)
+    assert third_seq > second_seq
+    removed_facts = {fact["key"]: fact for fact in removed_body.get("facts", [])}
+    assert "state" not in removed_facts
+
+    detail_after_remove = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert detail_after_remove.status_code == 200, detail_after_remove.text
+    detail_after_remove_facts = {fact["key"]: fact for fact in detail_after_remove.json().get("facts", [])}
+    assert "state" not in detail_after_remove_facts
+    assert int(detail_after_remove.json().get("current_event_seq") or 0) == third_seq
+
+    snapshot_after_remove = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_after_remove.status_code == 200, snapshot_after_remove.text
+    snapshot_after_remove_row = next(
+        (item for item in snapshot_after_remove.json().get("asteroids", []) if item.get("id") == moon_id),
+        None,
+    )
+    assert snapshot_after_remove_row is not None
+    snapshot_after_remove_facts = {fact["key"]: fact for fact in snapshot_after_remove_row.get("facts", [])}
+    assert "state" not in snapshot_after_remove_facts
+    assert int(snapshot_after_remove_row.get("current_event_seq") or 0) == third_seq
 
 
 def test_civilization_contract_gate_create_mutate_extinguish_and_converge(

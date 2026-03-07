@@ -41,8 +41,15 @@ def apply_event(
         if asteroid is None:
             return
         metadata_patch = payload.get("metadata", {})
+        metadata_remove = payload.get("metadata_remove", [])
         if isinstance(metadata_patch, dict):
             asteroid.metadata = {**asteroid.metadata, **metadata_patch}
+        if isinstance(metadata_remove, list):
+            for item in metadata_remove:
+                key = str(item or "").strip()
+                if not key:
+                    continue
+                asteroid.metadata.pop(key, None)
         asteroid.current_event_seq = int(event.event_seq)
         return
 

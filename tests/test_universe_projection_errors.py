@@ -220,3 +220,59 @@ def test_projection_replay_convergence_under_load() -> None:
             assert UUID(str(bond["id"])) in expected_active_bond_ids
             assert UUID(str(bond["source_id"])) in expected_active_asteroid_ids
             assert UUID(str(bond["target_id"])) in expected_active_asteroid_ids
+
+
+def test_projection_replay_applies_metadata_remove_patch() -> None:
+    user_id = uuid4()
+    galaxy_id = uuid4()
+    asteroid_id = uuid4()
+    base_ts = datetime(2026, 3, 6, 12, 30, 0, tzinfo=UTC)
+    events = [
+        SimpleNamespace(
+            id=uuid4(),
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=None,
+            entity_id=asteroid_id,
+            event_type="ASTEROID_CREATED",
+            payload={
+                "value": "Metadata remove seed",
+                "metadata": {
+                    "table": "Replay > Minerals",
+                    "entity_id": "seed-1",
+                    "state": "active",
+                    "segment": "core",
+                },
+            },
+            timestamp=base_ts,
+            event_seq=1,
+        ),
+        SimpleNamespace(
+            id=uuid4(),
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=None,
+            entity_id=asteroid_id,
+            event_type="METADATA_UPDATED",
+            payload={"metadata": {}, "metadata_remove": ["segment"]},
+            timestamp=base_ts + timedelta(milliseconds=1),
+            event_seq=2,
+        ),
+    ]
+    service = UniverseService(event_store=_ReplayLoadEventStore(events))
+    asteroids, bonds = asyncio.run(
+        service._project_state_from_events(
+            session=None,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=None,
+            as_of=None,
+        )
+    )
+    assert bonds == []
+    assert len(asteroids) == 1
+    asteroid = asteroids[0]
+    assert asteroid.id == asteroid_id
+    assert asteroid.current_event_seq == 2
+    assert asteroid.metadata.get("state") == "active"
+    assert "segment" not in asteroid.metadata

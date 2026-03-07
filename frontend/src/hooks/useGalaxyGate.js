@@ -23,7 +23,7 @@ async function parseApiError(response, fallback) {
   return text;
 }
 
-export function useGalaxyGate({ isAuthenticated, userEmail, setDefaultGalaxy }) {
+export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, userEmail, setDefaultGalaxy }) {
   const { selectedGalaxyId, selectGalaxy, setLevel } = useUniverseStore();
 
   const [galaxies, setGalaxies] = useState([]);
@@ -44,18 +44,24 @@ export function useGalaxyGate({ isAuthenticated, userEmail, setDefaultGalaxy }) 
   );
 
   useEffect(() => {
+    if (isAuthLoading) return;
     if (!isAuthenticated) {
       localStorage.removeItem(SELECTED_GALAXY_STORAGE_KEY);
       return;
     }
     if (selectedGalaxyId) {
       localStorage.setItem(SELECTED_GALAXY_STORAGE_KEY, selectedGalaxyId);
-    } else {
+      return;
+    }
+    // On hard reload we first render with empty selectedGalaxyId.
+    // Keep persisted value until restore attempt runs to avoid wiping resume state.
+    if (restoreAttemptedRef.current) {
       localStorage.removeItem(SELECTED_GALAXY_STORAGE_KEY);
     }
-  }, [isAuthenticated, selectedGalaxyId]);
+  }, [isAuthLoading, isAuthenticated, selectedGalaxyId]);
 
   useEffect(() => {
+    if (isAuthLoading) return;
     if (!isAuthenticated) {
       restoreAttemptedRef.current = false;
       selectGalaxy("");
@@ -75,7 +81,7 @@ export function useGalaxyGate({ isAuthenticated, userEmail, setDefaultGalaxy }) 
       restoreAttemptedRef.current = true;
     }
     setLevel(selectedGalaxyId ? 2 : 1);
-  }, [isAuthenticated, selectGalaxy, selectedGalaxyId, setLevel]);
+  }, [isAuthLoading, isAuthenticated, selectGalaxy, selectedGalaxyId, setLevel]);
 
   const loadGalaxies = useCallback(async () => {
     if (!isAuthenticated) return;

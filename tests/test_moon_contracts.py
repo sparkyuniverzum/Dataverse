@@ -5,12 +5,14 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from app.schemas import (
+    CivilizationState,
     FactSource,
     FactStatus,
     FactValueType,
     UniverseAsteroidSnapshot,
     asteroid_snapshot_to_moon_row,
     build_moon_facts,
+    derive_civilization_health,
     infer_fact_value_type,
 )
 from app.services.table_contract_effective import compile_effective_table_contract
@@ -79,9 +81,30 @@ def test_asteroid_snapshot_to_moon_row_projects_canonical_shape() -> None:
     assert row.planet_id == snapshot.table_id
     assert row.label == "Hrebiky"
     assert row.current_event_seq == 7
+    assert row.state == CivilizationState.ACTIVE
+    assert row.health_score == 100
+    assert row.violation_count == 0
+    assert row.last_violation_at is None
     assert row.active_alerts == ["LOW_STOCK"]
     assert any(fact.key == "cena" for fact in row.facts)
     assert any(fact.key == "suma" and fact.source == FactSource.CALCULATED for fact in row.facts)
+
+
+def test_derive_civilization_health_flags_anomaly_on_invalid_facts() -> None:
+    created_at = datetime.now(UTC)
+    facts = build_moon_facts(
+        value="Row",
+        metadata={"table": "Ops > Queue", "state": "active"},
+        calculated_values={"broken_formula": "#CIRC!"},
+    )
+    state, health_score, violation_count, last_violation_at = derive_civilization_health(
+        facts=facts,
+        created_at=created_at,
+    )
+    assert state == CivilizationState.ANOMALY
+    assert violation_count == 1
+    assert health_score == 65
+    assert last_violation_at == created_at
 
 
 def _base_contract() -> SimpleNamespace:

@@ -17,6 +17,7 @@ export default function App() {
 
   const galaxyGate = useGalaxyGate({
     isAuthenticated,
+    isAuthLoading: isLoading,
     userEmail: user?.email,
     setDefaultGalaxy,
   });

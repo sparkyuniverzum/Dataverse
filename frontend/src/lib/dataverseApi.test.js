@@ -28,11 +28,13 @@ import {
   buildMoonDetailUrl,
   buildMoonExtinguishUrl,
   buildMoonListUrl,
+  buildMoonMineralMutateUrl,
   buildMoonMutateUrl,
   buildCivilizationCreateUrl,
   buildCivilizationDetailUrl,
   buildCivilizationExtinguishUrl,
   buildCivilizationListUrl,
+  buildCivilizationMineralMutateUrl,
   buildCivilizationMutateUrl,
   buildSnapshotExportUrl,
   buildSnapshotUrl,
@@ -265,6 +267,9 @@ describe("io urls", () => {
 
     expect(buildMoonCreateUrl("http://127.0.0.1:8000")).toBe("http://127.0.0.1:8000/moons");
     expect(buildMoonMutateUrl("http://127.0.0.1:8000", "moon-7")).toBe("http://127.0.0.1:8000/moons/moon-7/mutate");
+    expect(buildMoonMineralMutateUrl("http://127.0.0.1:8000", "moon-7", "amount")).toBe(
+      "http://127.0.0.1:8000/moons/moon-7/minerals/amount"
+    );
     expect(buildMoonExtinguishUrl("http://127.0.0.1:8000", "moon-7")).toBe(
       "http://127.0.0.1:8000/moons/moon-7/extinguish"
     );
@@ -285,6 +290,9 @@ describe("io urls", () => {
     expect(buildCivilizationCreateUrl("http://127.0.0.1:8000")).toBe("http://127.0.0.1:8000/civilizations");
     expect(buildCivilizationMutateUrl("http://127.0.0.1:8000", "civilization-7")).toBe(
       "http://127.0.0.1:8000/civilizations/civilization-7/mutate"
+    );
+    expect(buildCivilizationMineralMutateUrl("http://127.0.0.1:8000", "civilization-7", "amount")).toBe(
+      "http://127.0.0.1:8000/civilizations/civilization-7/minerals/amount"
     );
     expect(buildCivilizationExtinguishUrl("http://127.0.0.1:8000", "civilization-7")).toBe(
       "http://127.0.0.1:8000/civilizations/civilization-7/extinguish"

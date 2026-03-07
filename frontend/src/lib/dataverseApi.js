@@ -297,6 +297,10 @@ export function buildMoonMutateUrl(apiBase, moonId) {
   return `${apiBase}/moons/${moonId}/mutate`;
 }
 
+export function buildMoonMineralMutateUrl(apiBase, moonId, mineralKey) {
+  return `${apiBase}/moons/${moonId}/minerals/${encodeURIComponent(String(mineralKey || "").trim())}`;
+}
+
 export function buildMoonExtinguishUrl(apiBase, moonId) {
   return `${apiBase}/moons/${moonId}/extinguish`;
 }
@@ -332,6 +336,10 @@ export function buildCivilizationCreateUrl(apiBase) {
 
 export function buildCivilizationMutateUrl(apiBase, civilizationId) {
   return `${apiBase}/civilizations/${civilizationId}/mutate`;
+}
+
+export function buildCivilizationMineralMutateUrl(apiBase, civilizationId, mineralKey) {
+  return `${apiBase}/civilizations/${civilizationId}/minerals/${encodeURIComponent(String(mineralKey || "").trim())}`;
 }
 
 export function buildCivilizationExtinguishUrl(apiBase, civilizationId) {

@@ -13,9 +13,11 @@ import {
 import {
   buildCivilizationCreateUrl,
   buildCivilizationExtinguishUrl,
+  buildCivilizationMineralMutateUrl,
   buildCivilizationMutateUrl,
   buildMoonCreateUrl,
   buildMoonExtinguishUrl,
+  buildMoonMineralMutateUrl,
   buildMoonMutateUrl,
 } from "./dataverseApi";
 
@@ -43,6 +45,16 @@ describe("civilizationRuntimeRouteGate", () => {
       `${base}/civilizations/civilization-1/extinguish`,
       `${base}/moons/civilization-1/extinguish`,
     ]);
+
+    const mineralCandidates = buildCivilizationWriteRouteCandidates(base, {
+      operation: "mutate_mineral",
+      civilizationId: "civilization-1",
+      mineralKey: "amount",
+    });
+    expect(mineralCandidates).toEqual([
+      `${base}/civilizations/civilization-1/minerals/amount`,
+      `${base}/moons/civilization-1/minerals/amount`,
+    ]);
   });
 
   it("keeps fallback status policy explicit and narrow", () => {
@@ -62,6 +74,8 @@ describe("civilizationRuntimeRouteGate", () => {
 
     expect(source).toContain("buildCivilizationWriteRouteCandidates");
     expect(source).toContain("shouldFallbackToMoonAlias");
+    expect(source).toContain('operation: "mutate_mineral"');
+    expect(source).toContain("mineralKey: metadataKey");
     expect(source).not.toContain("buildMoonCreateUrl(");
     expect(source).not.toContain("buildMoonMutateUrl(");
     expect(source).not.toContain("buildMoonExtinguishUrl(");
@@ -82,6 +96,16 @@ describe("civilizationRuntimeRouteGate", () => {
     expect(buildCivilizationWriteRouteCandidates(base, { operation: "extinguish", civilizationId })).toEqual([
       buildCivilizationExtinguishUrl(base, civilizationId),
       buildMoonExtinguishUrl(base, civilizationId),
+    ]);
+    expect(
+      buildCivilizationWriteRouteCandidates(base, {
+        operation: "mutate_mineral",
+        civilizationId,
+        mineralKey: "amount",
+      })
+    ).toEqual([
+      buildCivilizationMineralMutateUrl(base, civilizationId, "amount"),
+      buildMoonMineralMutateUrl(base, civilizationId, "amount"),
     ]);
   });
 });

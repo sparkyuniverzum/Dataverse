@@ -17,7 +17,9 @@ from app.db import get_session
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
+    FACT_RESERVED_METADATA_KEYS,
     AsteroidResponse,
+    CivilizationMineralMutateRequest,
     MoonCreateRequest,
     MoonExtinguishResponse,
     MoonListResponse,
@@ -93,6 +95,21 @@ async def _load_active_moon_row(
             continue
         return _moon_row_from_source(asteroid, galaxy_id=galaxy_id)
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Moon not found")
+
+
+def _normalize_mineral_key(raw_key: str) -> str:
+    key = str(raw_key or "").strip()
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="`mineral_key` must be non-empty",
+        )
+    if key.lower() in FACT_RESERVED_METADATA_KEYS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"`{key}` is reserved and cannot be mutated as mineral key",
+        )
+    return key
 
 
 @router.get("/moons", response_model=MoonListResponse, status_code=status.HTTP_200_OK)
@@ -354,6 +371,98 @@ async def mutate_civilization(
 ) -> MoonRowContract:
     return await mutate_moon(
         moon_id=civilization_id,
+        payload=payload,
+        session=session,
+        current_user=current_user,
+        services=services,
+    )
+
+
+@router.patch(
+    "/moons/{moon_id}/minerals/{mineral_key}",
+    response_model=MoonRowContract,
+    status_code=status.HTTP_200_OK,
+)
+async def mutate_moon_mineral(
+    moon_id: UUID,
+    mineral_key: str,
+    payload: CivilizationMineralMutateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> MoonRowContract:
+    target_galaxy_id, target_branch_id = await resolve_scope_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=payload.galaxy_id,
+        branch_id=payload.branch_id,
+        services=services,
+    )
+    normalized_key = _normalize_mineral_key(mineral_key)
+    params: dict[str, Any] = {"asteroid_id": str(moon_id)}
+    if payload.remove:
+        params["metadata_remove"] = [normalized_key]
+    else:
+        params["metadata"] = {normalized_key: payload.typed_value}
+    if payload.expected_event_seq is not None:
+        params["expected_event_seq"] = payload.expected_event_seq
+    tasks = [AtomicTask(action="UPDATE_ASTEROID", params=params)]
+
+    async def execute_scoped(_: UUID, __: UUID | None):
+        execution = await services.task_executor_service.execute_tasks(
+            session=session,
+            tasks=tasks,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            manage_transaction=False,
+        )
+        if not execution.asteroids:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Moon not found")
+        mutated = next((asteroid for asteroid in execution.asteroids if asteroid.id == moon_id), execution.asteroids[0])
+        return asteroid_to_response(mutated)
+
+    mutated = await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=target_galaxy_id,
+        branch_id=target_branch_id,
+        endpoint_key="PATCH:/moons/{moon_id}/minerals/{mineral_key}",
+        idempotency_key=payload.idempotency_key,
+        request_payload={
+            "moon_id": str(moon_id),
+            "mineral_key": normalized_key,
+            "remove": payload.remove,
+            "typed_value": payload.typed_value if not payload.remove else None,
+            "expected_event_seq": payload.expected_event_seq,
+        },
+        execute=execute_scoped,
+        replay_loader=AsteroidResponse.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="Moon not found",
+        empty_response_status=status.HTTP_404_NOT_FOUND,
+        resolved_scope=(target_galaxy_id, target_branch_id),
+    )
+    return _moon_row_from_asteroid_response(mutated, galaxy_id=target_galaxy_id)
+
+
+@router.patch(
+    "/civilizations/{civilization_id}/minerals/{mineral_key}",
+    response_model=MoonRowContract,
+    status_code=status.HTTP_200_OK,
+)
+async def mutate_civilization_mineral(
+    civilization_id: UUID,
+    mineral_key: str,
+    payload: CivilizationMineralMutateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> MoonRowContract:
+    return await mutate_moon_mineral(
+        moon_id=civilization_id,
+        mineral_key=mineral_key,
         payload=payload,
         session=session,
         current_user=current_user,
