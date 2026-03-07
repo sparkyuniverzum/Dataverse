@@ -32,13 +32,11 @@ from app.services.parser2.intents import (
 from app.services.read_model_projector import ReadModelProjector
 from app.services.table_contract_effective import EffectiveTableContract
 from app.services.task_executor.contract_validation import TableContractValidator
-from app.services.task_executor.families import (
-    handle_extinguish_family,
-    handle_formula_guardian_select_family,
-    handle_ingest_update_family,
-    handle_link_and_bond_mutation_family,
-)
 from app.services.task_executor.occ_guards import OccGuards
+from app.services.task_executor.handlers.extinguish import ExtinguishHandler
+from app.services.task_executor.handlers.formula_guardian_select import FormulaGuardianSelectHandler
+from app.services.task_executor.handlers.ingest_update import IngestUpdateHandler
+from app.services.task_executor.handlers.link_mutation import LinkMutationHandler
 from app.services.task_executor.target_resolution import TargetResolver
 from app.services.universe_service import (
     DEFAULT_GALAXY_ID,
@@ -101,6 +99,12 @@ class TaskExecutorService:
         self.occ_guards = OccGuards()
         self.contract_validator = TableContractValidator()
         self.auto_semantics_service = AutoSemanticsService(self)
+        self.handlers = [
+            IngestUpdateHandler(self),
+            LinkMutationHandler(self),
+            ExtinguishHandler(self),
+            FormulaGuardianSelectHandler(self),
+        ]
 
     @staticmethod
     def _to_jsonable_dict(payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -554,32 +558,10 @@ class TaskExecutorService:
         )
         return civilizations, bonds, "full"
 
-    async def _handle_ingest_update_family(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
-        return await handle_ingest_update_family(self, task=task, ctx=ctx)
-
-    async def _handle_link_and_bond_mutation_family(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
-        return await handle_link_and_bond_mutation_family(self, task=task, ctx=ctx)
-
-    async def _handle_extinguish_family(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
-        return await handle_extinguish_family(self, task=task, ctx=ctx)
-
-    async def _handle_formula_guardian_select_family(
-        self,
-        *,
-        task: Intent,
-        ctx: _TaskExecutionContext,
-    ) -> bool:
-        return await handle_formula_guardian_select_family(self, task=task, ctx=ctx)
-
     async def _dispatch_task_family(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
-        if isinstance(task, (UpsertNodeIntent, AssignAttributeIntent)):
-            return await self._handle_ingest_update_family(task=task, ctx=ctx)
-        if isinstance(task, CreateLinkIntent):
-            return await self._handle_link_and_bond_mutation_family(task=task, ctx=ctx)
-        if isinstance(task, ExtinguishNodeIntent):
-            return await self._handle_extinguish_family(task=task, ctx=ctx)
-        if isinstance(task, (SetFormulaIntent, AddGuardianIntent, SelectNodesIntent)):
-            return await self._handle_formula_guardian_select_family(task=task, ctx=ctx)
+        for handler in self.handlers:
+            if await handler.handle(task=task, ctx=ctx):
+                return True
         return False
 
     async def execute_tasks(
