@@ -654,74 +654,7 @@ class TaskExecutorService:
         return _PreloadPlan(scope="full")
 
     def _build_preload_plan(self, *, tasks: list[Intent], branch_id: UUID | None) -> _PreloadPlan:
-        # Branch timelines are reconstructed from events on read, so partial read-model preload is unsafe there.
-        if branch_id is not None:
-            return self._full_preload_plan()
-
-        civilization_ids: set[UUID] = set()
-        bond_ids: set[UUID] = set()
-        include_connected_bonds = False
-
-        intents_to_process: list[Intent] = []
-        for task in tasks:
-            if isinstance(task, BulkIntent):
-                intents_to_process.extend(task.intents)
-            else:
-                intents_to_process.append(task)
-
-        for intent in intents_to_process:
-            if isinstance(intent, UpsertNodeIntent):
-                # Upsert by name is fuzzy, but by ID is specific.
-                # However, INGEST logic can start from an empty scope, so we don't need to preload.
-                continue
-
-            if isinstance(intent, CreateLinkIntent):
-                if intent.source.selector_type != NodeSelectorType.ID or intent.target.selector_type != NodeSelectorType.ID:
-                    return self._full_preload_plan()
-                source_uuid = self._parse_uuid(intent.source.value)
-                target_uuid = self._parse_uuid(intent.target.value)
-                if source_uuid is None or target_uuid is None:
-                    return self._full_preload_plan()
-                civilization_ids.add(source_uuid)
-                civilization_ids.add(target_uuid)
-                continue
-
-            if isinstance(intent, AssignAttributeIntent):
-                if intent.target.selector_type != NodeSelectorType.ID:
-                    return self._full_preload_plan()
-                asteroid_uuid = self._parse_uuid(intent.target.value)
-                if asteroid_uuid is None:
-                    return self._full_preload_plan()
-                civilization_ids.add(asteroid_uuid)
-                continue
-
-            if isinstance(intent, (SetFormulaIntent, AddGuardianIntent)):
-                # If target is not a UUID, it's a fuzzy name-based target.
-                target_uuid = self._parse_uuid(intent.target)
-                if target_uuid is None:
-                    return self._full_preload_plan()
-                civilization_ids.add(target_uuid)
-                continue
-
-            if isinstance(intent, ExtinguishNodeIntent):
-                if intent.target.selector_type != NodeSelectorType.ID:
-                    return self._full_preload_plan()
-                asteroid_uuid = self._parse_uuid(intent.target.value)
-                if asteroid_uuid is None:
-                    return self._full_preload_plan()
-                civilization_ids.add(asteroid_uuid)
-                include_connected_bonds = True
-                continue
-
-            # Any other intent, especially SELECT, requires full context.
-            return self._full_preload_plan()
-
-        return _PreloadPlan(
-            scope="partial",
-            civilization_ids=frozenset(civilization_ids),
-            bond_ids=frozenset(bond_ids),
-            include_connected_bonds=include_connected_bonds,
-        )
+        return self._full_preload_plan()
 
     async def _load_active_asteroid_by_value(
         self,
