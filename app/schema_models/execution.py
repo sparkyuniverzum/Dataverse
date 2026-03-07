@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.services.parser2.intents import Intent
+
 
 class CivilizationIngestRequest(BaseModel):
     value: Any
@@ -239,7 +241,7 @@ class ParseCommandResponse(BaseModel):
 
 
 class TaskBatchExecuteRequest(BaseModel):
-    tasks: list[TaskSchema]
+    tasks: list[TaskSchema | Intent]
     mode: str = "commit"
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
