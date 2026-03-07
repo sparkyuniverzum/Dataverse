@@ -11,6 +11,7 @@ from app.services.constellation_dashboard_service import ConstellationDashboardS
 from app.services.cosmos_service import CosmosService
 from app.services.event_store_service import EventStoreService
 from app.services.galaxy_dashboard_service import GalaxyDashboardService
+from app.services.galaxy_lifecycle_service import GalaxyLifecycleService
 from app.services.idempotency_service import IdempotencyService
 from app.services.io_service import ImportExportService
 from app.services.moon_dashboard_service import MoonDashboardService
@@ -46,6 +47,7 @@ class ServiceContainer:
     schema_preset_service: SchemaPresetService
     preset_bundle_service: PresetBundleService
     star_core_service: StarCoreService
+    galaxy_lifecycle_service: GalaxyLifecycleService
 
 
 _SERVICE_SINGLETON: ServiceContainer | None = None
@@ -97,6 +99,7 @@ def create_services() -> ServiceContainer:
         universe_service=universe_service,
         task_executor_service=task_executor_service,
     )
+    galaxy_lifecycle_service = GalaxyLifecycleService()
     return ServiceContainer(
         event_store=event_store,
         universe_service=universe_service,
@@ -121,6 +124,7 @@ def create_services() -> ServiceContainer:
             universe_service=universe_service,
             constellation_dashboard_service=constellation_dashboard_service,
         ),
+        galaxy_lifecycle_service=galaxy_lifecycle_service,
     )
 
 
