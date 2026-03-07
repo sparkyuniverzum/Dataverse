@@ -70,20 +70,20 @@ class ExtinguishNodeIntent(IntentBase):
 
 class SelectNodesIntent(IntentBase):
     kind: Literal["SELECT_NODES"] = "SELECT_NODES"
-    target: str = Field(min_length=1)
+    target: NodeSelector
     condition: str | None = None
 
 
 class SetFormulaIntent(IntentBase):
     kind: Literal["SET_FORMULA"] = "SET_FORMULA"
-    target: str = Field(min_length=1)
+    target: NodeSelector
     field: str = Field(min_length=1)
     formula: str = Field(min_length=1)
 
 
 class AddGuardianIntent(IntentBase):
     kind: Literal["ADD_GUARDIAN"] = "ADD_GUARDIAN"
-    target: str = Field(min_length=1)
+    target: NodeSelector
     field: str = Field(min_length=1)
     operator: str = Field(min_length=1)
     threshold: Any
