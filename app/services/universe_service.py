@@ -51,8 +51,14 @@ class UniverseService:
         self.event_store = event_store or EventStoreService()
 
     async def _ensure_galaxy_access(self, session: AsyncSession, *, user_id: UUID, galaxy_id: UUID) -> None:
-        galaxy = (await session.execute(select(Galaxy).where(Galaxy.id == galaxy_id))).scalar_one_or_none()
-        if galaxy is None or galaxy.deleted_at is not None:
+        stmt = select(Galaxy).where(
+            and_(
+                Galaxy.id == galaxy_id,
+                Galaxy.deleted_at.is_(None),
+            )
+        )
+        galaxy = (await session.execute(stmt)).scalar_one_or_none()
+        if galaxy is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Galaxy not found")
         if galaxy.owner_id != user_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden galaxy access")
