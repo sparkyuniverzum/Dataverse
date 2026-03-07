@@ -94,7 +94,7 @@ def test_star_core_pulse_derives_visual_hints_from_event_types() -> None:
         ),
         _EventStub(
             event_seq=103,
-            event_type="EXTINGUISH",
+            event_type="ASTEROID_SOFT_DELETED",
             entity_id=uuid.uuid4(),
             payload={"is_deleted": True},
             timestamp=now + timedelta(seconds=20),

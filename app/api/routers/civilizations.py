@@ -57,7 +57,7 @@ async def ingest_asteroid(
 
 
 @router.patch(
-    "/civilizations/{civilization_id}/extinguish",
+    "/civilizations/{civilization_id}/raw-extinguish",
     response_model=CivilizationResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -116,7 +116,7 @@ async def extinguish_asteroid(
 
 
 @router.patch(
-    "/civilizations/{civilization_id}/mutate",
+    "/civilizations/{civilization_id}/raw-mutate",
     response_model=CivilizationResponse,
     status_code=status.HTTP_200_OK,
 )

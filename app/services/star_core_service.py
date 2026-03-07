@@ -933,6 +933,8 @@ class StarCoreService:
             return "source_shockwave", 1.0
         if "extinguish" in kind:
             return "fade_to_singularity", 0.85
+        if "deleted" in kind:
+            return "fade_to_singularity", 0.85
         if kind in {"link", "create_bond"}:
             return "bridge_flux", 0.75
         if kind.startswith("update") or kind in {"mutate", "patch"}:

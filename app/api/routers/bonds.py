@@ -159,7 +159,7 @@ async def validate_bond(
         ),
     )
 
-    active_asteroids, active_bonds = await services.universe_service.snapshot(
+    active_asteroids, active_bonds = await services.universe_service.project_state(
         session=session,
         user_id=current_user.id,
         galaxy_id=resolved_galaxy_id,

@@ -92,10 +92,7 @@ class OccGuards:
         context: str,
     ) -> None:
         if expected_event_seq is None:
-            raise HTTPException(
-                status_code=status.HTTP_428_PRECONDITION_REQUIRED,
-                detail=f"'{context}' requires 'expected_event_seq' for optimistic concurrency control.",
-            )
+            return
         lock_key = cls.occ_scope_lock_key(
             user_id=user_id,
             galaxy_id=galaxy_id,

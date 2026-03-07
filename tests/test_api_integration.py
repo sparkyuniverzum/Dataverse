@@ -72,7 +72,7 @@ def _parallel_mutate_with_expected_seq(
         ) as worker_client:
             barrier.wait(timeout=10.0)
             response = worker_client.patch(
-                f"/civilizations/{civilization_id}/mutate",
+                f"/civilizations/{civilization_id}/raw-mutate",
                 json={
                     "metadata": {"race_status": status_label},
                     "expected_event_seq": expected_event_seq,
@@ -563,7 +563,7 @@ def test_semantic_constitution_endpoint_by_endpoint_closure_v1(auth_client: tupl
     assert extinguish_bond.json()["id"] == type_bond_id
     assert extinguish_bond.json()["is_deleted"] is True
 
-    extinguish_asteroid = client.patch(f"/civilizations/{guardian_id}/extinguish", params={"galaxy_id": galaxy_id})
+    extinguish_asteroid = client.patch(f"/civilizations/{guardian_id}/raw-extinguish", params={"galaxy_id": galaxy_id})
     assert extinguish_asteroid.status_code == 200, extinguish_asteroid.text
     assert extinguish_asteroid.json()["id"] == guardian_id
     assert extinguish_asteroid.json()["is_deleted"] is True
@@ -646,7 +646,7 @@ def test_snapshot_excludes_soft_deleted_atoms_and_orphaned_bonds(auth_client: tu
     assert atom_b_id in before_atom_ids
     assert bond_id in before_bond_ids
 
-    extinguish_atom = client.patch(f"/civilizations/{atom_a_id}/extinguish", params={"galaxy_id": galaxy_id})
+    extinguish_atom = client.patch(f"/civilizations/{atom_a_id}/raw-extinguish", params={"galaxy_id": galaxy_id})
     assert extinguish_atom.status_code == 200, extinguish_atom.text
 
     after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
@@ -697,7 +697,7 @@ def test_snapshot_as_of_returns_historical_state(auth_client: tuple[httpx.Client
     assert atom_a_id not in before_creation_ids
     assert atom_b_id not in before_creation_ids
 
-    extinguish = client.patch(f"/civilizations/{atom_a_id}/extinguish", params={"galaxy_id": galaxy_id})
+    extinguish = client.patch(f"/civilizations/{atom_a_id}/raw-extinguish", params={"galaxy_id": galaxy_id})
     assert extinguish.status_code == 200, extinguish.text
     deleted_at = _parse_iso_datetime(extinguish.json()["deleted_at"])
 
@@ -887,14 +887,14 @@ def test_mutate_asteroid_updates_value_and_metadata(auth_client: tuple[httpx.Cli
     civilization_id = created.json()["id"]
 
     patch_value = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={"value": renamed, "galaxy_id": galaxy_id},
     )
     assert patch_value.status_code == 200, patch_value.text
     assert _stringify(patch_value.json()["value"]) == renamed
 
     patch_meta = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={"metadata": {"stav": "aktivni"}, "galaxy_id": galaxy_id},
     )
     assert patch_meta.status_code == 200, patch_meta.text
@@ -918,13 +918,13 @@ def test_mutate_asteroid_occ_rejects_stale_expected_event_seq(auth_client: tuple
     initial_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=civilization_id)
 
     ok_mutate = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={"value": renamed, "expected_event_seq": initial_seq, "galaxy_id": galaxy_id},
     )
     assert ok_mutate.status_code == 200, ok_mutate.text
 
     stale_mutate = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={"metadata": {"status": "stale-write"}, "expected_event_seq": initial_seq, "galaxy_id": galaxy_id},
     )
     detail = _assert_occ_conflict(stale_mutate, expected_event_seq=initial_seq)
@@ -985,7 +985,7 @@ def test_snapshot_and_write_responses_expose_current_event_seq(auth_client: tupl
     assert snapshot_before["current_event_seq"] == civilization["current_event_seq"]
 
     mutated = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={"value": renamed, "galaxy_id": galaxy_id},
     )
     assert mutated.status_code == 200, mutated.text
@@ -1006,14 +1006,14 @@ def test_mutate_idempotency_key_replays_success_and_guards_payload(auth_client: 
     civilization_id = created.json()["id"]
 
     first = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={"metadata": {"stage": "done"}, "idempotency_key": key, "galaxy_id": galaxy_id},
     )
     assert first.status_code == 200, first.text
     first_body = first.json()
 
     replay = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={"metadata": {"stage": "done"}, "idempotency_key": key, "galaxy_id": galaxy_id},
     )
     assert replay.status_code == 200, replay.text
@@ -1022,13 +1022,13 @@ def test_mutate_idempotency_key_replays_success_and_guards_payload(auth_client: 
     assert replay_body["current_event_seq"] == first_body["current_event_seq"]
 
     no_key_repeat = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={"metadata": {"stage": "done"}, "galaxy_id": galaxy_id},
     )
     assert no_key_repeat.status_code == 422
 
     key_conflict = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={"metadata": {"stage": "other"}, "idempotency_key": key, "galaxy_id": galaxy_id},
     )
     assert key_conflict.status_code == 409
@@ -1080,13 +1080,13 @@ def test_extinguish_asteroid_occ_rejects_stale_expected_event_seq(auth_client: t
     initial_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=civilization_id)
 
     updated = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={"metadata": {"phase": "updated"}, "galaxy_id": galaxy_id},
     )
     assert updated.status_code == 200, updated.text
 
     stale_delete = client.patch(
-        f"/civilizations/{civilization_id}/extinguish",
+        f"/civilizations/{civilization_id}/raw-extinguish",
         params={"galaxy_id": galaxy_id, "expected_event_seq": initial_seq},
     )
     detail = _assert_occ_conflict(stale_delete, expected_event_seq=initial_seq)
@@ -1113,7 +1113,7 @@ def test_link_occ_rejects_stale_expected_source_seq(auth_client: tuple[httpx.Cli
     target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_civilization_id)
 
     source_mutate = client.patch(
-        f"/civilizations/{source_civilization_id}/mutate",
+        f"/civilizations/{source_civilization_id}/raw-mutate",
         json={"metadata": {"touch": "new"}, "galaxy_id": galaxy_id},
     )
     assert source_mutate.status_code == 200, source_mutate.text
@@ -2321,7 +2321,7 @@ def test_branch_extinguish_does_not_delete_main_timeline(auth_client: tuple[http
     branch_id = branch.json()["id"]
 
     extinguished = client.patch(
-        f"/civilizations/{civilization_id}/extinguish",
+        f"/civilizations/{civilization_id}/raw-extinguish",
         params={"galaxy_id": galaxy_id, "branch_id": branch_id},
     )
     assert extinguished.status_code == 200, extinguished.text
@@ -2696,7 +2696,7 @@ def test_table_contract_is_enforced_for_ingest_and_mutate(auth_client: tuple[htt
     assert "unique rule" in unique_violation.text
 
     invalid_mutate = client.patch(
-        f"/civilizations/{seeded_id}/mutate",
+        f"/civilizations/{seeded_id}/raw-mutate",
         json={"metadata": {"cena": -5}, "galaxy_id": galaxy_id},
     )
     assert invalid_mutate.status_code == 422, invalid_mutate.text
@@ -2750,13 +2750,13 @@ def test_table_contract_semantic_validator_is_non_blocking(auth_client: tuple[ht
     assert ingested.status_code == 200, ingested.text
 
     mutate_ok = client.patch(
-        f"/civilizations/{seeded_id}/mutate",
+        f"/civilizations/{seeded_id}/raw-mutate",
         json={"metadata": {"owner": "Team-B", "cena": 55}, "galaxy_id": galaxy_id},
     )
     assert mutate_ok.status_code == 200, mutate_ok.text
 
     mutate_bad = client.patch(
-        f"/civilizations/{seeded_id}/mutate",
+        f"/civilizations/{seeded_id}/raw-mutate",
         json={"metadata": {"cena": -1}, "galaxy_id": galaxy_id},
     )
     assert mutate_bad.status_code == 422, mutate_bad.text
@@ -4647,7 +4647,7 @@ def test_civilization_contract_gate_create_mutate_extinguish_and_converge(
     assert expected_seq >= 1
 
     mutated = client.patch(
-        f"/civilizations/{civilization_id}/mutate",
+        f"/civilizations/{civilization_id}/raw-mutate",
         json={
             "metadata": {"state": "archived"},
             "expected_event_seq": expected_seq,
@@ -4671,7 +4671,7 @@ def test_civilization_contract_gate_create_mutate_extinguish_and_converge(
     assert civilization_id in member_ids_before
 
     extinguished = client.patch(
-        f"/civilizations/{civilization_id}/extinguish",
+        f"/civilizations/{civilization_id}/raw-extinguish",
         params={"galaxy_id": galaxy_id, "expected_event_seq": extinguish_expected_seq},
     )
     assert extinguished.status_code == 200, extinguished.text
@@ -5132,21 +5132,34 @@ def test_planet_stage0_two_planets_validate_star_laws(auth_client: tuple[httpx.C
         "/civilizations/ingest",
         json={
             "value": f"Moon-Catalog-{uuid.uuid4().hex[:6]}",
-            "metadata": {"table": catalog_name},
+            "metadata": {
+                "table": catalog_name,
+                "entity_id": f"moon-catalog-{uuid.uuid4().hex[:8]}",
+                "label": "Catalog moon",
+                "state": "active",
+            },
             "galaxy_id": galaxy_id,
         },
     )
     stream_moon = client.post(
         "/civilizations/ingest",
         json={
-            "value": f"Moon-Stream-{uuid.uuid4().hex[:6]}",
-            "metadata": {"table": stream_name},
+            "value": 1.0,
+            "metadata": {
+                "table": stream_name,
+                "event_id": f"evt-{uuid.uuid4().hex[:8]}",
+                "event_time": "2026-01-01T00:00:00Z",
+                "value": 1.0,
+            },
             "galaxy_id": galaxy_id,
         },
     )
     assert catalog_moon.status_code == 200, catalog_moon.text
     assert stream_moon.status_code == 200, stream_moon.text
-    catalog_moon_id = catalog_moon.json()["id"]
+    catalog_moon_body = catalog_moon.json()
+    catalog_moon_id = catalog_moon_body["id"]
+    catalog_moon_event_seq = int(catalog_moon_body.get("current_event_seq") or 0)
+    assert catalog_moon_event_seq >= 1
     stream_moon_id = stream_moon.json()["id"]
 
     linked = client.post(
@@ -5186,11 +5199,16 @@ def test_planet_stage0_two_planets_validate_star_laws(auth_client: tuple[httpx.C
     pulse_before = client.get(f"/galaxies/{galaxy_id}/star-core/pulse", params={"limit": 1})
     assert pulse_before.status_code == 200, pulse_before.text
     pulse_cursor = int(pulse_before.json().get("last_event_seq") or 0)
+    catalog_extinguish_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=catalog_moon_id)
+    assert catalog_extinguish_seq >= catalog_moon_event_seq
 
-    extinguished_moon = client.patch(f"/civilizations/{catalog_moon_id}/extinguish", params={"galaxy_id": galaxy_id})
+    extinguished_moon = client.patch(
+        f"/civilizations/{catalog_moon_id}/extinguish",
+        params={"galaxy_id": galaxy_id, "expected_event_seq": catalog_extinguish_seq},
+    )
     assert extinguished_moon.status_code == 200, extinguished_moon.text
     ext_body = extinguished_moon.json()
-    assert ext_body["id"] == catalog_moon_id
+    assert ext_body["moon_id"] == catalog_moon_id
     assert ext_body["is_deleted"] is True
     assert ext_body.get("deleted_at")
 
@@ -5208,9 +5226,9 @@ def test_planet_stage0_two_planets_validate_star_laws(auth_client: tuple[httpx.C
     )
     assert pulse_after.status_code == 200, pulse_after.text
     pulse_events = pulse_after.json().get("events", [])
-    moon_event = next((item for item in pulse_events if item.get("entity_id") == catalog_moon_id), None)
-    assert moon_event is not None
-    assert moon_event["visual_hint"] == "fade_to_singularity"
+    moon_events = [item for item in pulse_events if item.get("entity_id") == catalog_moon_id]
+    assert moon_events
+    assert any(item.get("visual_hint") == "fade_to_singularity" for item in moon_events)
 
 
 def test_planet_mvp_extinguish_empty_planet(auth_client: tuple[httpx.Client, str]) -> None:
