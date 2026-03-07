@@ -3,7 +3,7 @@
 Status: active (planet/moon preview layer not closed)
 Date: 2026-03-06
 Owner: Core BE/FE architecture
-Depends on: `docs/contracts/planet-builder-mvp-v2.md`, `docs/contracts/moon-contract-v1.md`, `docs/contracts/civilization-contract-v1.md`, `docs/contracts/mineral-contract-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `docs/upgrade/adr-moon-civilization-runtime-alias-migration-v1.md`
+Depends on: `docs/contracts/planet-builder-mvp-v2.md`, `docs/contracts/moon-contract-v1.md`, `docs/contracts/civilization-contract-v1.md`, `docs/contracts/mineral-contract-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `docs/upgrade/adr-moon-civilization-runtime-alias-migration-v1.md`, `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
 
 ## 1. Purpose
 
@@ -258,6 +258,13 @@ DoD:
 1. Preview layer has explicit frame-time budget and load profile.
 2. High moon-count scenarios stay responsive.
 3. Regressions are surfaced through automated gate failures.
+
+### P6.LF Logical flow closure (Planet -> Moon -> Civilization -> Mineral -> Bond)
+
+DoD:
+1. Logical-flow readiness gate (`SG-LF-*`) is fully green before implementation execution.
+2. Closure gate (`LF-01` .. `LF-08`) is fully green with FE/BE/staging evidence.
+3. Canonical closure evidence is synchronized in `docs/contracts/planet-civilization-logical-flow-dod-v1.md`.
 
 ### P6.9 Workspace resume continuity
 

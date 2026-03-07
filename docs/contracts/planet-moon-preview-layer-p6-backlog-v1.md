@@ -2,7 +2,7 @@
 
 Status: active
 Date: 2026-03-06
-Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/contracts/star-physics-laws-v2.md`, `docs/contracts/planet-builder-mvp-v2.md`, `docs/contracts/civilization-mineral-contract-v2.md`
+Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/contracts/star-physics-laws-v2.md`, `docs/contracts/planet-builder-mvp-v2.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
 
 ## 1. Goal
 
@@ -200,6 +200,7 @@ Gate:
 2. Preview layer is deterministic across live and replay modes.
 3. UX interaction layer is resilient across viewport/overlay/accessibility variants.
 4. Planet+Moon preview closure can be marked in `docs/contracts/planet-moon-dod-v3.md`.
+5. Logical-flow readiness and closure (`SG-LF-*`, `LF-*`) are synchronized from `docs/contracts/planet-civilization-logical-flow-dod-v1.md`.
 
 ## 5. Canonical TODO list (keep P6 open until all checked)
 
@@ -273,3 +274,20 @@ Exit checks:
 - staging commands are executed and evidence is attached in release notes.
 - `CMV2-09` is resolved (implemented endpoint + gate OR explicit reject+replacement gate, documented).
 - P6 and CMV2 statuses are synchronized to final truth in backlog + DoD + release notes.
+
+## 7. Logical flow extension (open)
+
+Canonical source:
+- `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
+- `docs/contracts/planet-civilization-logical-flow-wave0-execution-v1.md`
+
+Current status:
+- `SG-LF-*`: `OPEN`
+- `LF-01` .. `LF-08`: `OPEN`
+
+TODO synchronization:
+- [ ] `PM-P6-LF-01`: synchronize readiness status (`SG-LF-01` .. `SG-LF-16`) into this backlog snapshot.
+- [ ] `PM-P6-LF-02`: add FE gate inventory for `LF-01` .. `LF-05`.
+- [ ] `PM-P6-LF-03`: add BE gate inventory for `LF-04`, `LF-06`, `LF-07`.
+- [ ] `PM-P6-LF-04`: add staging smoke inventory for moon-inspection, mineral-repair, cross-planet-preview flows.
+- [ ] `PM-P6-LF-05`: closure update in this file after all `SG-LF-*` and `LF-*` are green.
