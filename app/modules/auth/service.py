@@ -21,6 +21,7 @@ from app.modules.auth.security import (
     utc_now,
     verify_password,
 )
+from app.services.task_executor.occ_guards import OccGuards
 
 
 @dataclass(frozen=True)
@@ -192,5 +193,16 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Galaxy name cannot be empty")
         return await self.repository.create_galaxy(session=session, user_id=user_id, name=normalized)
 
-    async def soft_delete_galaxy(self, session: AsyncSession, *, user_id: UUID, galaxy_id: UUID) -> Galaxy:
+    async def soft_delete_galaxy(
+        self, session: AsyncSession, *, user_id: UUID, galaxy_id: UUID, expected_event_seq: int | None
+    ) -> Galaxy:
+        await OccGuards.enforce_expected_entity_event_seq(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=None,
+            entity_id=galaxy_id,
+            expected_event_seq=expected_event_seq,
+            context="extinguish_galaxy",
+        )
         return await self.repository.soft_delete_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)

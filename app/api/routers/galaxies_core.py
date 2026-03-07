@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import galaxy_to_public
@@ -51,6 +51,7 @@ async def create_galaxy(
 @router.patch("/galaxies/{galaxy_id}/extinguish", response_model=GalaxyPublic, status_code=status.HTTP_200_OK)
 async def extinguish_galaxy(
     galaxy_id: UUID,
+    expected_event_seq: int | None = Query(default=None, ge=0),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
@@ -60,6 +61,7 @@ async def extinguish_galaxy(
             session=session,
             user_id=current_user.id,
             galaxy_id=galaxy_id,
+            expected_event_seq=expected_event_seq,
         )
     await commit_if_active(session)
     return galaxy_to_public(galaxy)
