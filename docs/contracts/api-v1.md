@@ -1,7 +1,7 @@
 # DataVerse API Contract v1
 
 Status: frozen from current implementation (`app/main.py`, `app/schemas.py`)
-Date: 2026-02-28 (updated 2026-03-05 for planets + grid sync contract)
+Date: 2026-02-28 (updated 2026-03-07 for civilization canonical route policy)
 
 ## Global rules
 - No hard delete endpoints exist. Data removal is soft only (`.../extinguish` or parser `DELETE` command).
@@ -133,25 +133,32 @@ Date: 2026-02-28 (updated 2026-03-05 for planets + grid sync contract)
 - Response `200`: updated `AsteroidResponse`.
 - Errors: `404` not found, `409` optimistic concurrency conflict.
 
-## Civilization rows (transitional naming)
+## Civilization rows (canonical route policy v1)
 
-Current runtime includes first-class row lifecycle on both endpoint families:
-- canonical `/civilizations*`,
-- compatibility alias `/moons*`.
+Canonical policy (effective 2026-03-07):
+1. `/civilizations*` is the only canonical route family for row lifecycle.
+2. `/moons*` is compatibility alias only and must not be used as primary route in new clients.
+3. FE/runtime clients may fallback to `/moons*` only for compatibility statuses (`404`, `405`, `501`) when canonical route is unavailable.
+4. Alias and canonical surfaces must preserve parity for payload shape, status code behavior, OCC/idempotency semantics, and soft-delete semantics.
+5. Every `/moons*` response must include:
+   - `X-Dataverse-Deprecated-Alias: true`
+   - `X-Dataverse-Canonical-Route: /civilizations`
 
-### Transitional row API (implemented)
-- `GET /moons`
-- `GET /moons/{moon_id}`
-- `POST /moons`
-- `PATCH /moons/{moon_id}/mutate`
-- `PATCH /moons/{moon_id}/extinguish`
-
-### Canonical naming (implemented, migration target for clients)
+### Canonical row API (implemented)
 - `GET /civilizations`
 - `GET /civilizations/{civilization_id}`
 - `POST /civilizations`
 - `PATCH /civilizations/{civilization_id}/mutate`
 - `PATCH /civilizations/{civilization_id}/extinguish`
+- `PATCH /civilizations/{civilization_id}/minerals/{mineral_key}`
+
+### Compatibility alias API (implemented, parity-required)
+- `GET /moons`
+- `GET /moons/{moon_id}`
+- `POST /moons`
+- `PATCH /moons/{moon_id}/mutate`
+- `PATCH /moons/{moon_id}/extinguish`
+- `PATCH /moons/{moon_id}/minerals/{mineral_key}`
 
 ## Moon capabilities (first-class capability aggregate)
 

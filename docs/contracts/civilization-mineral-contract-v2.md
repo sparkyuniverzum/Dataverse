@@ -122,6 +122,17 @@ Error taxonomy:
 - `409` OCC/idempotency conflict
 - `422` structured contract violation (never generic plain error for contract failure)
 
+### 8.0 Canonical route policy freeze (2026-03-07)
+
+Non-negotiable policy:
+1. `/civilizations*` is canonical for all new runtime clients.
+2. `/moons*` is compatibility alias only and cannot be primary in new implementations.
+3. Alias fallback is allowed only for compatibility statuses (`404`, `405`, `501`) when canonical route is unavailable.
+4. Alias responses must include:
+   - `X-Dataverse-Deprecated-Alias: true`
+   - `X-Dataverse-Canonical-Route: /civilizations`
+5. Alias/canonical parity is mandatory for payload fields, OCC/idempotency behavior, and soft-delete semantics.
+
 ### 8.1 Backend capability snapshot (as-is, 2026-03-06)
 
 Implemented in `app/api/routers/moons.py`:

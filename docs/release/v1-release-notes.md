@@ -162,3 +162,14 @@ Release SHA: `89f4f17`
     - `frontend/e2e/staging/camera-focus-flow.smoke.spec.mjs`
     - `frontend/src/components/universe/CameraPilot.test.jsx`
     - `frontend/src/components/universe/cameraPilotMath.test.js`
+
+## Logical flow Wave 0 addendum (2026-03-07)
+- `W0-LF-04` closed (`GREEN`): canonical row route policy is frozen.
+- Contract updates:
+  - `docs/contracts/api-v1.md`
+  - `docs/contracts/civilization-mineral-contract-v2.md`
+- Policy result:
+  - `/civilizations*` is canonical row lifecycle API.
+  - `/moons*` remains compatibility alias with mandatory headers:
+    - `X-Dataverse-Deprecated-Alias: true`
+    - `X-Dataverse-Canonical-Route: /civilizations`

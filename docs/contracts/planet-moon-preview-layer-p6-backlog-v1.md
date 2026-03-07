@@ -282,11 +282,12 @@ Canonical source:
 - `docs/contracts/planet-civilization-logical-flow-wave0-execution-v1.md`
 
 Current status:
-- `SG-LF-*`: `OPEN`
+- `SG-LF-04`: `GREEN` (canonical route policy freeze done 2026-03-07)
+- remaining `SG-LF-*`: `OPEN`
 - `LF-01` .. `LF-08`: `OPEN`
 
 TODO synchronization:
-- [ ] `PM-P6-LF-01`: synchronize readiness status (`SG-LF-01` .. `SG-LF-16`) into this backlog snapshot.
+- [x] `PM-P6-LF-01`: synchronize readiness status (`SG-LF-01` .. `SG-LF-16`) into this backlog snapshot (first sync: `SG-LF-04` marked `GREEN`, 2026-03-07).
 - [ ] `PM-P6-LF-02`: add FE gate inventory for `LF-01` .. `LF-05`.
 - [ ] `PM-P6-LF-03`: add BE gate inventory for `LF-04`, `LF-06`, `LF-07`.
 - [ ] `PM-P6-LF-04`: add staging smoke inventory for moon-inspection, mineral-repair, cross-planet-preview flows.
