@@ -220,11 +220,11 @@ export function AuthProvider({ children }) {
 
       const bodyText = await response.text();
       if (!response.ok) {
-        throw new Error(parseErrorMessage(bodyText, "Přihlášení selhalo"));
+        throw new Error(parseErrorMessage(bodyText, "Přihlášení selhalo. Zkontrolujte prosím zadané údaje."));
       }
 
       const body = parseJsonSafe(bodyText);
-      return completeAuth(body, "Backend nevrátil access/refresh token");
+      return completeAuth(body, "Při komunikaci se serverem došlo k chybě. Přihlášení nebylo dokončeno.");
     },
     [completeAuth]
   );
@@ -238,7 +238,7 @@ export function AuthProvider({ children }) {
 
     const bodyText = await response.text();
     if (!response.ok) {
-      throw new Error(parseErrorMessage(bodyText, "Registrace selhala"));
+      throw new Error(parseErrorMessage(bodyText, "Registrace se nezdařila. Zkuste to prosím později."));
     }
 
     return { message: "Účet byl úspěšně vytvořen. Pro aktivaci prosím zkontrolujte svoji e-mailovou schránku." };
@@ -253,7 +253,7 @@ export function AuthProvider({ children }) {
 
     const bodyText = await response.text();
     if (!response.ok) {
-      throw new Error(parseErrorMessage(bodyText, "Odeslání odkazu pro obnovu hesla selhalo"));
+      throw new Error(parseErrorMessage(bodyText, "Odeslání instrukcí pro obnovu hesla selhalo. Zkuste to prosím později."));
     }
 
     // The component can show this message to the user upon success.
@@ -286,7 +286,7 @@ export function AuthProvider({ children }) {
 
       const bodyText = await response.text();
       if (!response.ok) {
-        throw new Error(parseErrorMessage(bodyText, "Aktualizace profilu selhala"));
+        throw new Error(parseErrorMessage(bodyText, "Aktualizace profilu selhala. Zkuste to prosím později."));
       }
 
       const updatedUser = parseJsonSafe(bodyText);
@@ -309,7 +309,7 @@ export function AuthProvider({ children }) {
 
     if (!response.ok) {
       const bodyText = await response.text();
-      throw new Error(parseErrorMessage(bodyText, "Smazání účtu selhalo"));
+      throw new Error(parseErrorMessage(bodyText, "Smazání účtu selhalo. Zkuste to prosím později."));
     }
 
     clearSession();

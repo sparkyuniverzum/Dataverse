@@ -166,7 +166,7 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
   const [successMessage, setSuccessMessage] = useState("");
 
-  const title = "Vladnete svym datum. Zazehnete svou Galaxii.";
+  const title = "Vládněte svým datům. Zažehněte svou Galaxii.";
 
   const handleFormSubmit = async (event) => {
     event.preventDefault();
@@ -273,22 +273,22 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
                   opacity: 0.9,
                 }}
               >
-                Data nejsou radky. Jsou to zive ekosystemy planet, mesicu a gravitacnich mostu.
+                Přestaňte vnímat data jako řádky. Uvidíte je jako živé ekosystémy planet, měsíců a gravitačních mostů.
               </p>
             </div>
 
             <div style={{ display: "grid", gap: 10, maxWidth: 720 }}>
               <FeatureCard
-                title="VIZUALNI ARCHITEKTURA"
-                text="Pozorujte, jak vase informace tvori planety a gravitacni mosty namisto neprehlednych listu."
+                title="VIZUÁLNÍ ARCHITEKTURA"
+                text="Sledujte, jak se vaše data transformují v interaktivní planety a gravitační vazby namísto statických tabulek."
               />
               <FeatureCard
-                title="NEZNICITELNA HISTORIE"
-                text="Bez hard delete. Zaznamy se pouze menni nebo mekkce zhasinaji, historicke statistiky zustavaji konzistentni."
+                title="NEZNIČITELNÁ HISTORIE"
+                text="Žádné 'hard delete'. Záznamy se pouze mění nebo archivují. Vaše historická data tak zůstanou vždy konzistentní a auditovatelná."
               />
               <FeatureCard
-                title="DOKONALY RAD"
-                text="Od centralni Hvezdy po nejmensi datovy atom. Vse ma sve misto, pravidla i drahu."
+                title="DOKONALÝ ŘÁD A PROPOJENÍ"
+                text="Od centrální Hvězdy po nejmenší datový atom. Vše má své místo, pravidla a jasně definovanou dráhu v rámci vaší datové galaxie."
               />
             </div>
           </div>
@@ -310,7 +310,7 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
                 AUTH MODULE
               </div>
               <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800, lineHeight: 1.1 }}>
-                Potvrzeni odeslano
+                Úspěšně odesláno
               </div>
               <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.84, lineHeight: "var(--dv-lh-relaxed)" }}>
                 {successMessage}
@@ -332,12 +332,22 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
                 AUTH MODULE
               </div>
               <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800, lineHeight: 1.1 }}>
-                {mode === "forgot-password" ? "Obnova přístupu" : "Pripojte se k Jadru"}
+                {
+                  {
+                    login: "Vstupte do své Galaxie",
+                    register: "Vytvořte si účet",
+                    "forgot-password": "Obnova hesla",
+                  }[mode]
+                }
               </div>
               <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.84 }}>
-                {mode === "forgot-password"
-                  ? "Zadejte svůj e-mail, pošleme vám odkaz pro nastavení nového hesla."
-                  : "Prihlaseni otevre cisty vesmir, herni plochu a sidebar. Nic navic."}
+                {
+                  {
+                    login: "Přihlaste se a pokračujte v objevování vašeho datového vesmíru.",
+                    register: "Staňte se pilotem vlastní datové galaxie. Registrace je první krok.",
+                    "forgot-password": "Zadejte svůj e-mail, pošleme vám instrukce pro obnovu hesla.",
+                  }[mode]
+                }
               </div>
 
               {mode !== "forgot-password" ? (
@@ -370,7 +380,7 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
                       cursor: "pointer",
                     }}
                   >
-                    Stvorit Workspace
+                    Stvořit Workspace
                   </button>
                 </div>
               ) : null}
@@ -393,7 +403,7 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
               {mode !== "forgot-password" ? (
                 <label style={{ display: "grid", gap: 6 }}>
                   <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>
-                    PRISTUPOVY KLIC
+                    PŘÍSTUPOVÝ KLÍČ
                   </span>
                   <input
                     type="password"
@@ -411,11 +421,11 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
 
               <button type="submit" disabled={busy} data-testid="auth-submit-button" style={ctaStyle(busy)}>
                 {busy
-                  ? "Navazuji spojeni..."
+                  ? "Navazuji spojení..."
                   : mode === "login"
                     ? "Vstoupit do Galaxie"
                     : mode === "register"
-                      ? "Iniciovat Hvezdu"
+                      ? "Vytvořit účet"
                       : "Odeslat instrukce"}
               </button>
 
@@ -435,12 +445,12 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
                 </div>
               ) : null}
 
-              {mode !== "forgot-password" ? (
+              {mode === "register" ? (
                 <div
                   style={{ marginTop: 4, fontSize: "var(--dv-fs-xs)", opacity: 0.72, lineHeight: "var(--dv-lh-relaxed)" }}
                 >
-                  Pokracovanim potvrzujete, ze chcete aktivovat datovy prostor s event sourcing historii a soft-delete
-                  pravidly.
+                  Registrací souhlasíte s vytvořením datového prostoru, který využívá principy Event Sourcing a
+                  soft-delete pro zajištění integrity a historie vašich dat.
                 </div>
               ) : null}
             </>
