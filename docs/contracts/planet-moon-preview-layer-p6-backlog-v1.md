@@ -7,6 +7,7 @@ Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/contracts/star-physics
 ## 1. Goal
 
 Close the missing Planet/Moon preview layer so users can reliably understand:
+
 - planet state (active/corroding/critical),
 - moon/orbit behavior,
 - convergence between grid lifecycle and 3D preview.
@@ -27,17 +28,20 @@ This backlog is focused on preview correctness and readability, not aesthetic re
 10. `PM-P6-10` Workspace resume/persistence continuity.
 
 Civilization+Mineral coupling baseline:
+
 - `CMV2-07`: planet selection -> civilization grid open determinism
 - `CMV2-08`: mineral edit -> mutate -> facts convergence
 - `CMV2-09`: mineral-level endpoint contract (`GREEN`)
 - `CMV2-10`: civilization health derivation from mineral violations (`GREEN`)
 
 Status legend:
+
 - `GREEN`: gate exists and passed in the current local verification snapshot.
 - `PARTIAL`: implementation/gate exists, but closure is incomplete (missing dedicated BE/staging closure evidence).
 - `OPEN`: required gate artifact is missing.
 
 Verification snapshot (2026-03-07, local):
+
 - `cd frontend && npm test -- src/components/universe/planetPhysicsParity.test.js src/lib/hierarchy_layout.test.js src/components/universe/scene/physicsSystem.test.js src/components/universe/projectionConvergenceGate.test.js src/components/universe/workspaceContractExplainability.test.js src/components/universe/planetBuilderFlow.test.js src/components/universe/planetBuilderWizardPanel.component.test.jsx src/components/universe/accessibilityPreview.test.jsx src/components/universe/scene/performanceBudget.test.js src/components/universe/workspaceUiPersistence.test.js` -> `10 files, 40 tests passed`.
 - `npm --prefix frontend run test:e2e:workspace-starlock` -> `1 passed (2.2m)` (`PM-P6-07A` / `CMV2-07` evidence).
 - Dedicated BE preview parity gate is now present: `tests/test_api_integration.py::test_planet_preview_payload_parity_v1` (`PM-P6-01A`); local targeted pytest is currently `skipped` when API server is unavailable.
@@ -50,6 +54,7 @@ Verification snapshot (2026-03-07, local):
 - `./scripts/staging_camera_focus_flow_smoke.sh` -> `PASS` (`1 passed`, `3.1m`).
 
 Current state:
+
 - `PM-P6-01`: `PARTIAL` (FE parity gate `GREEN`; dedicated BE parity gate added, but live API execution evidence in this local snapshot is pending).
 - `PM-P6-02`: `GREEN` (FE orbit/layout/physics gates pass).
 - `PM-P6-03`: `PARTIAL` (dedicated BE preview-lifecycle gate added; live API execution evidence in this local snapshot is pending).
@@ -62,6 +67,7 @@ Current state:
 - `PM-P6-10`: `GREEN` (resume staging smoke fixed and passing).
 
 Coupled CMV2 status:
+
 - `CMV2-07`: `GREEN`
 - `CMV2-08`: `GREEN`
 - `CMV2-09`: `GREEN`
@@ -72,11 +78,13 @@ Coupled CMV2 status:
 ### 3.1 PM-P6-01 Planet preview payload parity
 
 DoD:
+
 1. Preview payload schema is explicit and versioned (`phase`, `corrosion_level`, `crack_intensity`, `pulse_factor`, `emissive_boost`).
 2. FE mapping path is BE-authoritative and drift-protected.
 3. Freeze gate catches key removal/rename/type drift.
 
 Gate:
+
 - `tests/test_api_integration.py::test_star_core_planet_physics_endpoint_returns_runtime_shape` (interim BE runtime-shape coverage)
 - `frontend/src/components/universe/planetPhysicsParity.test.js`
 - `tests/test_api_integration.py::test_planet_preview_payload_parity_v1` (dedicated BE parity gate)
@@ -85,22 +93,26 @@ Gate:
 ### 3.2 PM-P6-02 Moon orbit readability
 
 DoD:
+
 1. Moon layout remains deterministic for high moon count.
 2. Orbit bands stay visually separable from planet core and from each other.
 3. Physics phase transitions preserve readability of moon preview nodes.
 
 Gate:
+
 - `frontend/src/lib/hierarchy_layout.test.js`
 - `frontend/src/components/universe/scene/physicsSystem.test.js`
 
 ### 3.3 PM-P6-03 Preview convergence lifecycle
 
 DoD:
+
 1. Create/mutate/extinguish civilization lifecycle is reflected in preview state.
 2. Replay and live path produce equivalent preview output.
 3. Convergence gate fails on preview drift.
 
 Gate:
+
 - `tests/test_api_integration.py::test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence` (interim lifecycle convergence coverage)
 - `frontend/src/components/universe/projectionConvergenceGate.test.js`
 - `tests/test_api_integration.py::test_planet_moon_preview_convergence_lifecycle_v1` (dedicated BE preview-lifecycle gate)
@@ -110,11 +122,13 @@ Gate:
 ### 3.4 PM-P6-04 Browser smoke
 
 DoD:
+
 1. Real browser smoke validates first planet, moon lifecycle writes, and preview update.
 2. Smoke is runnable as standalone script gate for staging.
 3. Failures provide actionable traces for preview-layer regressions.
 
 Gate:
+
 - `frontend/e2e/staging/planet-moon-preview.smoke.spec.mjs`
 - `npm --prefix frontend run test:e2e:planet-moon-preview`
 - `./scripts/staging_planet_moon_preview_smoke.sh`
@@ -122,11 +136,13 @@ Gate:
 ### 3.5 PM-P6-05 Camera choreography determinism
 
 DoD:
+
 1. Camera transitions (`star focus`, `planet focus`, `grid open/close`) are deterministic and bounded.
 2. Focus framing guarantees panel readability (no planet/panel collision).
 3. Camera does not oscillate or over-correct under rapid state changes.
 
 Gate:
+
 - `frontend/src/components/universe/cameraPilotMath.test.js` (interim math-level guard)
 - `frontend/src/components/universe/CameraPilot.test.jsx`
 - `frontend/e2e/staging/camera-focus-flow.smoke.spec.mjs`
@@ -136,11 +152,13 @@ Gate:
 ### 3.6 PM-P6-06 Causal guidance closure
 
 DoD:
+
 1. Every preview phase has explicit `what changed`, `why`, `next action`.
 2. Guidance is synchronized with runtime state, not static copy.
 3. Contract violation and repair hints are linked to affected planet/moon in-context.
 
 Gate:
+
 - `frontend/src/components/universe/workspaceContractExplainability.test.js`
 - `frontend/src/components/universe/planetBuilderFlow.test.js`
 - `CMV2-03`
@@ -148,11 +166,13 @@ Gate:
 ### 3.7 PM-P6-07 Interaction fail-safe
 
 DoD:
+
 1. Overlay stacking never blocks required actions unexpectedly.
 2. Drag/drop and setup clicks are resilient on small viewport and zoomed layouts.
 3. Recover CTA always returns user to nearest valid step.
 
 Gate:
+
 - `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs`
 - `frontend/src/components/universe/planetBuilderWizardPanel.component.test.jsx`
 - `CMV2-07`
@@ -160,33 +180,39 @@ Gate:
 ### 3.8 PM-P6-08 Accessibility + reduced motion
 
 DoD:
+
 1. Preview layer is keyboard-navigable for core actions.
 2. Reduced-motion mode keeps semantic feedback while removing heavy animation.
 3. Contrast thresholds for critical states are test-guarded.
 
 Gate:
+
 - `frontend/src/components/universe/accessibilityPreview.test.jsx`
 - `frontend/e2e/staging/accessibility-preview.smoke.spec.mjs`
 
 ### 3.9 PM-P6-09 Performance envelope
 
 DoD:
+
 1. Preview frame-time budget is defined and monitored under representative load.
 2. High moon-count scenarios keep UI responsive and avoid frame collapse.
 3. Performance regressions are surfaced as gate failures, not manual observations.
 
 Gate:
+
 - `frontend/src/components/universe/scene/performanceBudget.test.js`
 - `frontend/e2e/staging/preview-performance.smoke.spec.mjs`
 
 ### 3.10 PM-P6-10 Workspace continuity
 
 DoD:
+
 1. Returning to workspace restores selected planet, grid state, and builder stage consistently.
 2. No stale persisted state can force invalid preview transitions.
 3. Resume flow preserves Star lock and preview semantics.
 
 Gate:
+
 - `frontend/src/components/universe/workspaceUiPersistence.test.js`
 - `frontend/e2e/staging/workspace-resume-preview.smoke.spec.mjs`
 - `npm --prefix frontend run test:e2e:workspace-resume-preview`
@@ -221,8 +247,8 @@ Order is strict: blockers -> partial closure -> final closure update.
 - [x] `PM-P6-08A` (FE): executed `npm --prefix frontend run test:e2e:accessibility-preview` (`1 passed`, 2026-03-06).
 - [x] `PM-P6-09A` (FE): executed `npm --prefix frontend run test:e2e:preview-performance` (`1 passed`, 2026-03-06).
 - [x] `CMV2-08A` (FE+BE): dedicated scenario gate added for mineral edit -> mutate -> facts convergence:
-  `tests/test_api_integration.py::test_civilization_mineral_edit_mutate_facts_convergence_v1`
-  + FE guard `frontend/src/lib/civilizationRuntimeRouteGate.test.js`.
+      `tests/test_api_integration.py::test_civilization_mineral_edit_mutate_facts_convergence_v1`
+  - FE guard `frontend/src/lib/civilizationRuntimeRouteGate.test.js`.
 - [x] `PM-P6-10B` (FE): `npm --prefix frontend run test:e2e:workspace-resume-preview` is now passing (`1 passed`, 2026-03-07) after resume-flow fixes.
 
 ### 5.3 Final closure updates (docs + gate hygiene)
@@ -232,8 +258,8 @@ Order is strict: blockers -> partial closure -> final closure update.
 - [x] `PM-P6-DOC-03`: closure addendum added in `docs/release/v1-release-notes.md` with executed commands and pass results.
 - [ ] `PM-P6-GATE-01`: run `pre-commit run` and ensure `frontend eslint` + `frontend prettier check` + targeted FE/BE gates pass before closure sign-off.
 - [x] `PM-P6-BRANCH-01`: branch scope promote smoke gate added and passing:
-  `frontend/e2e/staging/branch-scope-promote.smoke.spec.mjs`
-  + `npm --prefix frontend run test:e2e -- e2e/staging/branch-scope-promote.smoke.spec.mjs` (`1 passed`, 2026-03-08).
+      `frontend/e2e/staging/branch-scope-promote.smoke.spec.mjs`
+  - `npm --prefix frontend run test:e2e -- e2e/staging/branch-scope-promote.smoke.spec.mjs` (`1 passed`, 2026-03-08).
 
 ### 5.4 CMV2 closure dependencies (must be closed with P6)
 
@@ -246,11 +272,13 @@ Order is strict: blockers -> partial closure -> final closure update.
 ### 6.1 Wave 1 - logic blockers first
 
 Scope:
+
 - `PM-P6-05A`, `PM-P6-05B`
 - `PM-P6-10A`
 - `CMV2-07A`
 
 Exit checks:
+
 - camera-focus component and staging smoke gates exist and pass locally where possible.
 - workspace resume preview staging smoke gate exists.
 - explicit FE gate exists for deterministic `planet select -> civilization grid open`.
@@ -258,11 +286,13 @@ Exit checks:
 ### 6.2 Wave 2 - convergence + parity closure
 
 Scope:
+
 - `PM-P6-01A`
 - `PM-P6-03A`
 - `CMV2-08A`
 
 Exit checks:
+
 - dedicated BE parity and lifecycle gates are implemented and green.
 - dedicated mineral edit convergence scenario is green.
 - civilization health derivation gate stays green and deterministic under replay.
@@ -270,10 +300,12 @@ Exit checks:
 ### 6.3 Wave 3 - staging evidence + contract decision
 
 Scope:
+
 - `PM-P6-04A`, `PM-P6-07A`, `PM-P6-08A`, `PM-P6-09A`
 - docs closure (`PM-P6-DOC-01`, `PM-P6-DOC-02`, `PM-P6-DOC-03`, `PM-P6-GATE-01`)
 
 Exit checks:
+
 - staging commands are executed and evidence is attached in release notes.
 - `CMV2-09` is resolved (implemented endpoint + gate OR explicit reject+replacement gate, documented).
 - P6 and CMV2 statuses are synchronized to final truth in backlog + DoD + release notes.
@@ -281,10 +313,12 @@ Exit checks:
 ## 7. Logical flow extension (open)
 
 Canonical source:
+
 - `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
 - `docs/contracts/planet-civilization-logical-flow-wave0-execution-v1.md`
 
 Current status:
+
 - `SG-LF-04`: `GREEN` (canonical route policy freeze done 2026-03-07)
 - `SG-LF-05`: `GREEN` (error envelope freeze + FE mapping closure done 2026-03-07)
 - `SG-LF-06`: `GREEN` (Visual Builder context contract freeze done 2026-03-07)
@@ -294,19 +328,22 @@ Current status:
 - `SG-LF-10`: `GREEN` (Inspector IA contract freeze done 2026-03-07)
 - `SG-LF-11`: `GREEN` (Persistence scope + resume safety contract freeze done 2026-03-07)
 - `SG-LF-12`: `GREEN` (Feature-flag rollout plan freeze done 2026-03-07)
-- `SG-LF-13`: `GREEN` (Test matrix skeleton + placeholders done 2026-03-07)
+- `SG-LF-13`: `GREEN` (Test matrix now executable in BE + FE + staging inventory path)
 - `SG-LF-14`: `GREEN` (Deterministic two-planet fixtures done 2026-03-07)
 - `SG-LF-15`: `GREEN` (Telemetry schema freeze done 2026-03-07)
 - `SG-LF-16`: `GREEN` (Rollback policy freeze done 2026-03-07)
 - `SG-LF-01`: `GREEN` (Vocabulary freeze approved 2026-03-07; `docs/contracts/planet-civilization-glossary-v1.md`)
 - `SG-LF-02`: `GREEN` (UX intent freeze approved 2026-03-07; `docs/contracts/planet-civilization-ux-intent-v1.md`)
 - `SG-LF-03`: `GREEN` (Success metrics freeze approved 2026-03-07; `LF-M01..LF-M06` thresholds in `docs/contracts/planet-civilization-ux-intent-v1.md`)
-- `LF-01` .. `LF-08`: `PARTIAL` (FE gate inventory is now explicit; BE/staging closure inventory remains open).
+- `LF-01` .. `LF-08`: `PARTIAL` (BE + FE + staging smoke inventory are executable; full closure evidence is still open).
 
 TODO synchronization:
+
 - [x] `PM-P6-LF-01`: synchronize readiness status (`SG-LF-01` .. `SG-LF-16`) into this backlog snapshot (full sync complete on 2026-03-07; all `SG-LF-01..16` are `GREEN`).
 - [x] `PM-P6-LF-02`: add FE gate inventory for `LF-01` .. `LF-05`.
   - Evidence: `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js` now contains executable `LF-01..LF-08` assertions (no `it.skip` placeholders).
-- [ ] `PM-P6-LF-03`: add BE gate inventory for `LF-04`, `LF-06`, `LF-07`.
-- [ ] `PM-P6-LF-04`: add staging smoke inventory for moon-inspection, mineral-repair, cross-planet-preview flows.
+- [x] `PM-P6-LF-03`: add BE gate inventory for `LF-04`, `LF-06`, `LF-07`.
+  - Evidence: `tests/test_planet_civilization_lf_matrix_placeholder.py` now contains executable LF-01..LF-08 integration assertions.
+- [x] `PM-P6-LF-04`: add staging smoke inventory for moon-inspection, mineral-repair, cross-planet-preview flows.
+  - Evidence: `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs` now runs real browser flow (workspace bootstrap + grid + command bar), not static inventory mapping only.
 - [ ] `PM-P6-LF-05`: closure update in this file after all `SG-LF-*` and `LF-*` are green.

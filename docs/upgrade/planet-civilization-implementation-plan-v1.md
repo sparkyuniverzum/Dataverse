@@ -5,6 +5,7 @@ Date: 2026-03-08
 Owner: FE + BE core
 
 Depends on:
+
 - `docs/contracts/api-v1.md`
 - `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
 - `docs/contracts/planet-civilization-test-matrix-v1.md`
@@ -21,15 +22,18 @@ Close user-visible gaps between current implementation and documented logical-fl
 ### P0 (Sprint 1) - critical user-flow blockers
 
 Objective:
+
 - Deliver expected workspace interactions with correct timeline scope behavior.
 
 Scope:
+
 1. Implement real context menu flow (RMB) for planet/civilization actions.
 2. Add branch runtime state into FE store and UI branch selection.
 3. Pass selected `branch_id` consistently through workspace read/write calls.
 4. Wire branch promote action (`POST /branches/{branch_id}/promote`) in FE flow.
 
 Target files:
+
 - `frontend/src/components/universe/UniverseWorkspace.jsx`
 - `frontend/src/components/universe/UniverseCanvas.jsx`
 - `frontend/src/components/screens/GalaxySelector3D.jsx`
@@ -37,20 +41,24 @@ Target files:
 - `frontend/src/lib/dataverseApi.js`
 
 Acceptance:
+
 1. User can open context menu with RMB and execute focus/edit/extinguish.
 2. User can switch branch and immediately see branch-scoped projections.
 3. User can promote branch and observe deterministic converge to main timeline.
 
 Gates:
+
 1. FE unit tests for context menu actions and branch switching.
 2. E2E smoke: select galaxy -> select branch -> write -> refresh -> scope verified.
 
 ### P1 (Sprint 2) - contract parity and explainability
 
 Objective:
+
 - Align inspector and explainability flows with formal contracts.
 
 Scope:
+
 1. Implement backend endpoint `GET /planets/{planet_id}/moon-impact`.
 2. Replace local Moon Inspector derivation with moon-impact API source.
 3. Complete inspector precedence and required blocks:
@@ -60,26 +68,31 @@ Scope:
    - Planet Inspector
 
 Target files:
+
 - `app/api/routers/planets.py`
 - `app/services/*` (moon-impact projection service)
 - `frontend/src/components/universe/WorkspaceSidebar.jsx`
 - `frontend/src/components/universe/UniverseWorkspace.jsx`
 
 Acceptance:
+
 1. Moon inspector shows API-provided impact summary and violations.
 2. Inspector precedence is deterministic and contract-compliant.
 3. No local heuristic-only impact mode remains as primary source.
 
 Gates:
+
 1. BE integration tests for moon-impact scope/order/error envelope.
 2. FE component tests for inspector precedence + payload mapping.
 
 ### P2 (Sprint 3) - observability and closure quality
 
 Objective:
+
 - Convert readiness from placeholder state to executable evidence.
 
 Scope:
+
 1. Implement telemetry event catalog from telemetry contract:
    - `moon_opened`
    - `moon_rule_failed`
@@ -90,6 +103,7 @@ Scope:
 3. Move stage-zero preset flow to `/presets/catalog` + `/presets/apply`.
 
 Target files:
+
 - `frontend/src/components/universe/UniverseWorkspace.jsx`
 - `frontend/src/lib/*telemetry*`
 - `tests/test_planet_civilization_lf_matrix_placeholder.py`
@@ -97,11 +111,13 @@ Target files:
 - `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs`
 
 Acceptance:
+
 1. LF-01..LF-08 are no longer placeholders/skips.
 2. Telemetry payload contains required shared and event-specific fields.
 3. Preset source of truth is backend catalog/apply endpoints.
 
 Gates:
+
 1. CI green with non-placeholder LF matrix.
 2. Staging evidence attached to release docs.
 
@@ -121,6 +137,7 @@ Gates:
 ## 5. Tracking checklist
 
 ### P0 checklist
+
 - [x] `onOpenContext` in workspace wired to real menu state and actions.
 - [x] Branch selected state added to store and persisted.
 - [x] All projection fetches include selected `branch_id` where supported.
@@ -128,18 +145,21 @@ Gates:
 - [x] P0 tests and smoke scenarios merged.
 
 P0 evidence (2026-03-08):
+
 - FE tests: `frontend/src/components/universe/UniverseWorkspace.contextMenu.test.jsx`
 - FE tests: `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js`
 - FE tests: `frontend/src/lib/dataverseApi.test.js`
 - Staging smoke: `npm --prefix frontend run test:e2e -- e2e/staging/branch-scope-promote.smoke.spec.mjs` (`1 passed`)
 
 ### P1 checklist
+
 - [x] Moon-impact endpoint implemented and documented.
 - [x] Moon inspector switched to API-backed impact source.
 - [x] Inspector precedence implemented exactly per IA contract.
 - [x] P1 BE + FE tests merged.
 
 P1 evidence (2026-03-08):
+
 - BE endpoint: `GET /planets/{planet_id}/moon-impact` implemented in `app/api/routers/planets.py` with schema models in `app/schema_models/planetary.py`.
 - FE integration: `frontend/src/components/universe/UniverseWorkspace.jsx` loads moon-impact payload; `frontend/src/components/universe/WorkspaceSidebar.jsx` uses API impact data as primary inspector source.
 - FE helper: `frontend/src/lib/dataverseApi.js` (`buildMoonImpactUrl`).
@@ -149,28 +169,31 @@ P1 evidence (2026-03-08):
   - `npm --prefix frontend run test -- --run src/components/universe/planetCivilizationMatrix.placeholder.test.js` (passed)
 
 Verification snapshot update (2026-03-08, latest):
+
 - `pre-commit` -> passed
-- `npm --prefix frontend run test -- --run src/lib/workspaceTelemetry.test.js src/components/universe/UniverseWorkspace.contextMenu.test.jsx src/components/universe/planetCivilizationMatrix.placeholder.test.js` -> `3 files, 24 tests passed`
+- `npm --prefix frontend run test -- --run src/components/universe/UniverseWorkspace.contextMenu.test.jsx src/components/universe/planetCivilizationMatrix.placeholder.test.js` -> `2 files, 19 tests passed`
 - `npm --prefix frontend run test:e2e -- e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs` -> `1 passed`
 
 ### P2 checklist
+
 - [x] Telemetry catalog emitted with required fields.
 - [x] LF matrix placeholders removed/replaced with real tests.
 - [x] Preset flow uses `/presets/catalog` + `/presets/apply`.
 - [x] Release evidence updated in docs/release.
 
 P2 evidence (2026-03-08):
+
 - Telemetry runtime wiring added in `frontend/src/components/universe/UniverseWorkspace.jsx` and helper in `frontend/src/lib/workspaceTelemetry.js`.
 - Telemetry catalog gate added:
   - `frontend/src/lib/workspaceTelemetry.test.js`
   - `frontend/src/components/universe/UniverseWorkspace.contextMenu.test.jsx` (`moon_opened` emission)
 - LF matrix FE gate no longer uses placeholder skips for `LF-01..LF-08`:
   - `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js`
-- LF matrix staging inventory e2e gate is executable (no `test.skip`):
+- LF matrix staging smoke e2e gate is executable (real user-flow assertions):
   - `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs`
 - Verification snapshot (latest run report):
   - `pre-commit` checks passed
-  - frontend unit gates passed (`5 files`, `38 tests`)
+  - frontend unit gates passed (`2 files`, `19 tests`)
   - LF staging e2e gate passed (`1 test`)
 - Stage-zero preset runtime migrated to canonical API:
   - FE reads preset cards from `GET /presets/catalog` (with static fallback if request fails).
@@ -190,4 +213,4 @@ P2 evidence (2026-03-08):
 
 1. User can complete branch-scoped workflow without ambiguity.
 2. Inspector explainability is API-backed and deterministic.
-3. LF test matrix status can be promoted from `SKELETON` to active/green evidence.
+3. LF test matrix status remains executable and progresses from `ACTIVE` to `GREEN` with staging evidence.

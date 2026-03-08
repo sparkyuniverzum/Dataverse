@@ -5,6 +5,7 @@ Release tag: `v1.0.1`
 Release SHA: `89f4f17`
 
 ## Scope closed in V1
+
 - API/parser/table contracts are frozen and synchronized with implementation.
 - Runtime reliability finalized (transaction boundaries, rollback safety, idempotence).
 - UX operating clarity and visual discipline stabilized.
@@ -13,6 +14,7 @@ Release SHA: `89f4f17`
 - Branch naming guard finalized (`trim + casefold`, deterministic `409`) with DB-level unique active-name index.
 
 ## Validation evidence
+
 - `make v1-release-gate` -> passed
 - `make v1-release-full` -> passed
 - Included checks:
@@ -24,11 +26,13 @@ Release SHA: `89f4f17`
   - `cd frontend && npm ci && npm test && npm run build`
 
 ## Operational notes
+
 - Hard delete remains forbidden by design and DB triggers.
 - Event log remains the single write source of truth.
 - Read projections remain deterministic for live and branch timelines.
 
 ## MVP closure addendum (2026-03-05)
+
 - Star physics migration path implemented and gated:
   - `POST /galaxies/{galaxy_id}/star-core/physics/profile/migrate` (dry-run + apply).
 - FE projection replay convergence gate added:
@@ -37,6 +41,7 @@ Release SHA: `89f4f17`
   - `docs/contracts/contract-gap-diff-v2.md` has all tracked rows in `DONE`.
 
 ## Planet+Moon v3 P0 closure addendum (2026-03-06)
+
 - P0 gate set is fully green for capability + civilization + mineral + bridge integrity path.
 - Added and closed gate set:
   - `tests/test_api_integration.py::test_moon_capability_entity_lifecycle_and_projection_convergence`
@@ -51,6 +56,7 @@ Release SHA: `89f4f17`
   - `scripts/star_contract_gate.sh` -> PASS
 
 ## Planet+Moon v3 P1 closure addendum (2026-03-06)
+
 - P1 hardening gate set is fully green:
   - `PM-P1-01` `/civilizations*` canonical runtime gate.
   - `PM-P1-02` `/moons*` compatibility + deprecation marker parity gate.
@@ -65,6 +71,7 @@ Release SHA: `89f4f17`
   - `docs/contracts/planet-moon-p1-backlog-v1.md` is closed.
 
 ## Planet+Moon v3 P2 progress addendum (2026-03-06)
+
 - `PM-P2-01` closed: bulk civilization write resilience (`OCC + idempotency + rollback`).
   - Gate: `tests/test_api_integration.py::test_bulk_civilization_writes_occ_idempotency`.
 - `PM-P2-02` closed: replay convergence under load (BE + FE).
@@ -73,6 +80,7 @@ Release SHA: `89f4f17`
     - `frontend/src/components/universe/projectionConvergenceGate.test.js` (high-volume replay scenario).
 
 ## Planet+Moon v3 P2 closure addendum (2026-03-06)
+
 - `PM-P2-03` closed: deterministic guided repair flow in FE runtime path.
   - Gate: `frontend/src/components/universe/repairFlowContract.test.js`.
 - Guided repair runtime now includes:
@@ -83,6 +91,7 @@ Release SHA: `89f4f17`
   - `PM-P2-01` .. `PM-P2-03` are all `GREEN` in `docs/contracts/planet-moon-dod-v3.md`.
 
 ## Planet Builder UX flow kickoff (2026-03-06)
+
 - Started next MVP layer above repair baseline:
   - explicit Planet Builder state machine + causal mission copy in workspace UI.
 - Initial gate:
@@ -102,6 +111,7 @@ Release SHA: `89f4f17`
   - real auth bootstrap helper (`PM-P5-01`) and real auth/session lifecycle smoke (`PM-P5-02`) are implemented.
 
 ## Planet Builder UX flow P5 closure addendum (2026-03-06)
+
 - `PM-P5-03` closed:
   - real workspace bootstrap path is covered in browser smoke (first-run create and rerun enter paths).
 - `PM-P5-04` closed:
@@ -112,6 +122,7 @@ Release SHA: `89f4f17`
   - `./scripts/staging_workspace_starlock_wizard_grid_smoke.sh`
 
 ## Planet+Moon v3 P6 reconciliation addendum (2026-03-06)
+
 - Local FE gate sweep for current P6 scope is green:
   - `cd frontend && npm test -- src/components/universe/planetPhysicsParity.test.js src/lib/hierarchy_layout.test.js src/components/universe/scene/physicsSystem.test.js src/components/universe/projectionConvergenceGate.test.js src/components/universe/workspaceContractExplainability.test.js src/components/universe/planetBuilderFlow.test.js src/components/universe/planetBuilderWizardPanel.component.test.jsx src/components/universe/accessibilityPreview.test.jsx src/components/universe/scene/performanceBudget.test.js src/components/universe/workspaceUiPersistence.test.js` -> `10 files, 40 tests passed`.
 - Staging gate artifacts added for preview layer:
@@ -128,6 +139,7 @@ Release SHA: `89f4f17`
   - `docs/contracts/planet-moon-dod-v3.md`
 
 ## Planet+Moon v3 P6 evidence sync addendum (2026-03-07)
+
 - `PM-P6-07A` / `CMV2-07` staging evidence executed:
   - `npm --prefix frontend run test:e2e:workspace-starlock`
   - result: `1 passed (2.2m)` for `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs`.
@@ -164,6 +176,7 @@ Release SHA: `89f4f17`
     - `frontend/src/components/universe/cameraPilotMath.test.js`
 
 ## Logical flow Wave 0 addendum (2026-03-07)
+
 - `W0-LF-01` closed (`GREEN`): canonical glossary freeze approved.
 - Artifact:
   - `docs/contracts/planet-civilization-glossary-v1.md`
@@ -255,6 +268,7 @@ Release SHA: `89f4f17`
   - all `W0-LF-01..16` and `SG-LF-01..16` are `GREEN` as of 2026-03-07.
 
 ## Planet/Civilization P2 telemetry + LF activation addendum (2026-03-08)
+
 - Telemetry catalog runtime wiring is active in FE workspace:
   - `frontend/src/lib/workspaceTelemetry.js`
   - `frontend/src/components/universe/UniverseWorkspace.jsx`
@@ -263,10 +277,10 @@ Release SHA: `89f4f17`
   - `frontend/src/components/universe/UniverseWorkspace.contextMenu.test.jsx` (moon open emission path).
 - LF matrix placeholder replacement completed in FE gate inventory:
   - `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js` now carries executable `LF-01..LF-08` checks without `it.skip`.
-  - `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs` is executable inventory gate (no `test.skip` placeholders).
+  - `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs` is executable staging smoke gate with real workspace flow assertions.
 - Verification snapshot:
   - `pre-commit` checks passed.
-  - frontend targeted unit run passed (`5 files`, `38 tests`).
-  - LF staging e2e inventory run passed (`1 test`).
-- Open P2 item after this addendum:
-  - preset FE runtime flow still requires closure evidence for canonical `/presets/catalog` + `/presets/apply`.
+  - frontend targeted unit run passed (`2 files`, `19 tests`).
+  - LF staging e2e smoke run passed (`1 test`).
+- P2 preset runtime closure evidence:
+  - FE runtime flow now uses canonical `/presets/catalog` + `/presets/apply` path in stage-zero setup.
