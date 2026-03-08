@@ -1,33 +1,19 @@
 import { useEffect, useState } from "react";
+import { useMouseGuideContent } from "./mouseGuideOverlayContent";
 
 export function MouseGuideOverlay({ level, hoveredNode }) {
   const [expanded, setExpanded] = useState(false);
-  const isTablesLevel = level < 3;
-  const title = isTablesLevel ? "L2 objekty: Souhvezdi / Planety" : "L3 objekty: Mesice";
-  const lines = isTablesLevel
-    ? [
-        "Levy klik na planetu: otevres tabulku a jeji mesice.",
-        "Pravy klik na planetu: akce (vstoupit/zpet).",
-        "Male body kolem planety jsou mesice (nahled).",
-        "Tazenim pozadi otacis kamerou, koleckem zoomujes.",
-      ]
-    : [
-        "Levy klik na mesic: otevres detail radku tabulky.",
-        "Pravy klik na mesic: akce (upravit/zhasnout).",
-        "Nova vazba: pretahni mesic na mesic (prave tlacitko).",
-        "Vazbu vyberes klikem na svetelnou krivku nebo jeji popisek.",
-      ];
+  const t = useMouseGuideContent();
 
-  const hoverTip = hoveredNode
+  const isTablesLevel = level < 3;
+  const levelContent = isTablesLevel ? t.level2 : t.level3;
+  const { title, lines, compactHint } = levelContent;
+
+  const dynamicTip = hoveredNode
     ? hoveredNode.kind === "table"
-      ? `Objekt ${hoveredNode.label}: levy klik otevre detail, pravy klik otevre akce.`
-      : `Objekt ${hoveredNode.label}: levy klik detail, pravy klik akce, pretazenim vytvoris vazbu.`
-    : isTablesLevel
-      ? "Najed mysi na planetu a hned uvidis, co muzes udelat."
-      : "Propojeni mezi mesici vytvoris pretazenim.";
-  const compactHint = isTablesLevel
-    ? "LMB planeta: otevres tabulku. RMB: akce."
-    : "LMB mesic: detail radku. RMB: akce.";
+      ? levelContent.hoverTip.table(hoveredNode.label)
+      : levelContent.hoverTip.moon(hoveredNode.label)
+    : compactHint;
 
   useEffect(() => {
     setExpanded(false);
@@ -66,11 +52,11 @@ export function MouseGuideOverlay({ level, hoveredNode }) {
             cursor: "pointer",
           }}
         >
-          {expanded ? "Min" : "?"}
+          {expanded ? t.buttons.minimize : t.buttons.expand}
         </button>
       </div>
       <div style={{ fontSize: "var(--dv-fs-sm)", marginTop: 5, color: "#9fe6ff", lineHeight: "var(--dv-lh-base)" }}>
-        {hoveredNode ? hoverTip : compactHint}
+        {dynamicTip}
       </div>
       {expanded ? (
         <div style={{ marginTop: 4, display: "grid", gap: 3 }}>
