@@ -238,6 +238,18 @@ export function buildBranchesUrl(apiBase, galaxyId = null) {
   return url.toString();
 }
 
+export function buildPresetsCatalogUrl(apiBase, galaxyId = null) {
+  const url = new URL(`${apiBase}/presets/catalog`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  return url.toString();
+}
+
+export function buildPresetsApplyUrl(apiBase) {
+  return `${apiBase}/presets/apply`;
+}
+
 export function buildBranchPromoteUrl(apiBase, branchId, galaxyId = null) {
   const url = new URL(`${apiBase}/branches/${branchId}/promote`);
   if (galaxyId) {

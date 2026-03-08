@@ -16,6 +16,8 @@ import {
   buildBranchPromoteUrl,
   buildOccConflictMessage,
   buildMoonImpactUrl,
+  buildPresetsApplyUrl,
+  buildPresetsCatalogUrl,
   buildParserPayload,
   buildStarCorePolicyLockUrl,
   buildTableContractUrl,
@@ -49,9 +51,7 @@ import { buildStageZeroPlanetName, mapDropPointToPlanetPosition } from "./stageZ
 import {
   STAGE_ZERO_CASHFLOW_STEPS,
   STAGE_ZERO_PRESET_CARDS,
-  buildStageZeroFieldTypes,
   buildStageZeroCameraMicroNudgeKey,
-  buildStageZeroRequiredFields,
   buildStageZeroSchemaPreview,
   createStageZeroSchemaDraft,
   isStageZeroStepUnlocked,
@@ -316,6 +316,10 @@ export default function UniverseWorkspace({
   const [stageZeroSetupOpen, setStageZeroSetupOpen] = useState(false);
   const [stageZeroPlanetName, setStageZeroPlanetName] = useState("");
   const [stageZeroPresetSelected, setStageZeroPresetSelected] = useState(false);
+  const [stageZeroPresetBundleKey, setStageZeroPresetBundleKey] = useState("");
+  const [stageZeroPresetCatalog, setStageZeroPresetCatalog] = useState([]);
+  const [stageZeroPresetCatalogLoading, setStageZeroPresetCatalogLoading] = useState(false);
+  const [stageZeroPresetCatalogError, setStageZeroPresetCatalogError] = useState("");
   const [stageZeroSchemaDraft, setStageZeroSchemaDraft] = useState(() => createStageZeroSchemaDraft());
   const [stageZeroDraggedSchemaKey, setStageZeroDraggedSchemaKey] = useState("");
   const [stageZeroCommitBusy, setStageZeroCommitBusy] = useState(false);
@@ -401,6 +405,10 @@ export default function UniverseWorkspace({
     setStageZeroSetupOpen(false);
     setStageZeroPlanetName("");
     setStageZeroPresetSelected(false);
+    setStageZeroPresetBundleKey("");
+    setStageZeroPresetCatalog([]);
+    setStageZeroPresetCatalogLoading(false);
+    setStageZeroPresetCatalogError("");
     setStageZeroSchemaDraft(createStageZeroSchemaDraft());
     setStageZeroDraggedSchemaKey("");
     setStageZeroCommitBusy(false);
@@ -497,6 +505,21 @@ export default function UniverseWorkspace({
     () => buildStageZeroSchemaPreview(stageZeroSchemaDraft),
     [stageZeroSchemaDraft]
   );
+  const stageZeroPresetCards = useMemo(() => {
+    if (Array.isArray(stageZeroPresetCatalog) && stageZeroPresetCatalog.length > 0) {
+      return stageZeroPresetCatalog.map((preset) => ({
+        key: String(preset?.key || ""),
+        bundleKey: String(preset?.bundle_key || preset?.key || ""),
+        label: String(preset?.name || preset?.key || "Preset"),
+        locked: !preset?.is_unlocked,
+        lockReason: String(preset?.lock_reason || ""),
+      }));
+    }
+    return STAGE_ZERO_PRESET_CARDS.map((preset) => ({
+      ...preset,
+      bundleKey: String(preset?.key || ""),
+    }));
+  }, [stageZeroPresetCatalog]);
   const stageZeroVisualBoost = useMemo(
     () =>
       resolveStageZeroPlanetVisualBoost(stageZeroSchemaDraft, {
@@ -577,6 +600,43 @@ export default function UniverseWorkspace({
       setSelectedAsteroidId("");
     }
   }, [selectedTableId, tableById, tables]);
+
+  useEffect(() => {
+    if (!galaxyId) {
+      setStageZeroPresetCatalog([]);
+      setStageZeroPresetCatalogError("");
+      setStageZeroPresetCatalogLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    const run = async () => {
+      setStageZeroPresetCatalogLoading(true);
+      setStageZeroPresetCatalogError("");
+      try {
+        const response = await apiFetch(buildPresetsCatalogUrl(API_BASE, galaxyId));
+        if (!response.ok) {
+          throw await apiErrorFromResponse(response, `Katalog presetu nelze nacist: ${response.status}`);
+        }
+        const payload = await response.json().catch(() => ({}));
+        const archetypes = Array.isArray(payload?.archetypes) ? payload.archetypes : [];
+        const entries = archetypes.flatMap((group) => (Array.isArray(group?.presets) ? group.presets : []));
+        if (cancelled) return;
+        setStageZeroPresetCatalog(entries);
+      } catch (catalogError) {
+        if (cancelled) return;
+        setStageZeroPresetCatalog([]);
+        setStageZeroPresetCatalogError(catalogError?.message || "Katalog presetu nelze nacist.");
+      } finally {
+        if (!cancelled) {
+          setStageZeroPresetCatalogLoading(false);
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [galaxyId]);
 
   useEffect(() => {
     const waitingForProjectionBootstrap = stageZeroActive && quickGridOpen && loading;
@@ -1322,9 +1382,12 @@ export default function UniverseWorkspace({
         if (!stageZeroPresetSelected) {
           setStageZeroPresetSelected(true);
         }
+        if (!stageZeroPresetBundleKey) {
+          setStageZeroPresetBundleKey("personal_cashflow");
+        }
       }
     },
-    [clearRuntimeIssue, stageZeroPresetSelected]
+    [clearRuntimeIssue, stageZeroPresetBundleKey, stageZeroPresetSelected]
   );
 
   const handleStageZeroDropPlanet = useCallback(
@@ -1365,6 +1428,7 @@ export default function UniverseWorkspace({
         setStageZeroPlanetName(planetName);
         setStageZeroFlow(STAGE_ZERO_FLOW.COMPLETE);
         setStageZeroPresetSelected(false);
+        setStageZeroPresetBundleKey("");
         setStageZeroSchemaDraft(createStageZeroSchemaDraft());
         setStageZeroDraggedSchemaKey("");
         setStageZeroSetupOpen(true);
@@ -1513,79 +1577,36 @@ export default function UniverseWorkspace({
   );
 
   const handleStageZeroCommitPreset = useCallback(async () => {
-    if (!galaxyId || !selectedTableId || !selectedTable || !stageZeroAllSchemaStepsDone || stageZeroCommitBusy) return;
+    if (
+      !galaxyId ||
+      !selectedTableId ||
+      !selectedTable ||
+      !stageZeroAllSchemaStepsDone ||
+      stageZeroCommitBusy ||
+      !stageZeroPresetBundleKey
+    ) {
+      return;
+    }
     if (!runBuilderGuard(PLANET_BUILDER_ACTION.COMMIT_PRESET, { schemaComplete: stageZeroAllSchemaStepsDone })) return;
     setStageZeroCommitBusy(true);
     setBusy(true);
     clearRuntimeIssue();
     try {
-      const currentContract = await loadTableContract(selectedTableId);
-      const nextFieldTypes = buildStageZeroFieldTypes();
-      const requiredFields = buildStageZeroRequiredFields();
-      const nextPayload = {
-        galaxy_id: galaxyId,
-        ...(branchIdScope ? { branch_id: branchIdScope } : {}),
-        required_fields: requiredFields,
-        field_types: nextFieldTypes,
-        unique_rules: [],
-        validators: [],
-        auto_semantics: [],
-        schema_registry: {
-          required_fields: requiredFields,
-          field_types: nextFieldTypes,
-          unique_rules: [],
-          validators: [],
-          auto_semantics: [],
-        },
-        formula_registry: Array.isArray(currentContract?.formula_registry) ? currentContract.formula_registry : [],
-        physics_rulebook:
-          currentContract?.physics_rulebook && typeof currentContract.physics_rulebook === "object"
-            ? currentContract.physics_rulebook
-            : { rules: [], defaults: {} },
-      };
-      const contractWrite = await apiFetch(`${API_BASE}/contracts/${selectedTableId}`, {
+      const applyResponse = await apiFetch(buildPresetsApplyUrl(API_BASE), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextPayload),
+        body: JSON.stringify({
+          bundle_key: stageZeroPresetBundleKey,
+          mode: "commit",
+          conflict_strategy: "skip",
+          seed_rows: true,
+          galaxy_id: galaxyId,
+          ...(branchIdScope ? { branch_id: branchIdScope } : {}),
+          idempotency_key: nextIdempotencyKey("stage0-preset-commit"),
+        }),
       });
-      if (!contractWrite.ok) {
-        throw await apiErrorFromResponse(contractWrite, `Schéma se nepodařilo uložit: ${contractWrite.status}`);
-      }
-
-      const rows = [
-        { name: "Salary", amount: 48000, type: "INCOME" },
-        { name: "Rent", amount: -17000, type: "EXPENSE" },
-        { name: "Groceries", amount: -4200, type: "EXPENSE" },
-      ];
-
-      const postCivilization = async (payload) => {
-        const [primaryUrl, legacyUrl] = buildCivilizationWriteRouteCandidates(API_BASE, { operation: "create" });
-        const primary = await apiFetch(primaryUrl, payload);
-        if (!shouldFallbackToMoonAlias(primary.status)) return primary;
-        return apiFetch(legacyUrl, payload);
-      };
-      for (const row of rows) {
-        const minerals = {
-          ...buildMoonCreateMinerals({ label: row.name, contract: nextPayload }),
-          transaction_name: row.name,
-          amount: row.amount,
-          transaction_type: row.type,
-        };
-        const ingest = await postCivilization({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            label: row.name,
-            minerals,
-            planet_id: selectedTableId,
-            galaxy_id: galaxyId,
-            ...(branchIdScope ? { branch_id: branchIdScope } : {}),
-            idempotency_key: nextIdempotencyKey("stage0-seed"),
-          }),
-        });
-        if (!ingest.ok) {
-          throw await apiErrorFromResponse(ingest, `Seed dat selhal: ${ingest.status}`);
-        }
+      if (!applyResponse.ok) {
+        throw await apiErrorFromResponse(applyResponse, `Preset se nepodarilo aplikovat: ${applyResponse.status}`);
       }
 
       await refreshProjection({ silent: true });
@@ -1601,7 +1622,6 @@ export default function UniverseWorkspace({
     clearRuntimeIssue,
     galaxyId,
     branchIdScope,
-    loadTableContract,
     refreshProjection,
     runBuilderGuard,
     selectedTable,
@@ -1609,6 +1629,7 @@ export default function UniverseWorkspace({
     setRuntimeError,
     stageZeroAllSchemaStepsDone,
     stageZeroCommitBusy,
+    stageZeroPresetBundleKey,
   ]);
 
   const executeParserCommand = useCallback(
@@ -3075,8 +3096,16 @@ export default function UniverseWorkspace({
                 <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
                   Vesmír nebudujeme od nuly, používáme prověřené nákresy. Vyber si pro začátek Cashflow.
                 </div>
+                {stageZeroPresetCatalogLoading ? (
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>Nacitam katalog presetu...</div>
+                ) : null}
+                {stageZeroPresetCatalogError ? (
+                  <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffc08f" }}>
+                    {stageZeroPresetCatalogError}. Pokracuji se statickym fallback katalogem.
+                  </div>
+                ) : null}
                 <div style={{ display: "grid", gap: 8 }}>
-                  {STAGE_ZERO_PRESET_CARDS.map((preset) => {
+                  {stageZeroPresetCards.map((preset) => {
                     const locked = Boolean(preset.locked);
                     return (
                       <button
@@ -3087,6 +3116,7 @@ export default function UniverseWorkspace({
                           if (locked) return;
                           if (!runBuilderGuard(PLANET_BUILDER_ACTION.SELECT_PRESET)) return;
                           setStageZeroPresetSelected(true);
+                          setStageZeroPresetBundleKey(String(preset.bundleKey || preset.key || ""));
                           setStageZeroSchemaDraft(createStageZeroSchemaDraft());
                           setStageZeroDraggedSchemaKey("");
                         }}

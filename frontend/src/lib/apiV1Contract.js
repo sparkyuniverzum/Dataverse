@@ -38,6 +38,7 @@ export const API_V1_FE_HELPER_SIGNATURES = Object.freeze([
   "GET /io/imports/{job_id}/errors",
   "GET /moons",
   "GET /moons/{moon_id}",
+  "GET /presets/catalog",
   "GET /universe/snapshot",
   "GET /universe/tables",
   "PATCH /asteroids/{asteroid_id}/extinguish",
@@ -50,6 +51,7 @@ export const API_V1_FE_HELPER_SIGNATURES = Object.freeze([
   "PATCH /planets/{table_id}/extinguish",
   "POST /galaxies/{galaxy_id}/star-core/policy/lock",
   "POST /io/imports",
+  "POST /presets/apply",
   "POST /civilizations",
   "POST /moons",
 ]);

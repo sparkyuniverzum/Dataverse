@@ -120,3 +120,9 @@ Implementation notes (2026-03-08):
 - Validation gates:
   - `tests/test_api_integration.py::test_planet_moon_impact_endpoint_scope_and_shape`
   - `frontend/src/components/universe/WorkspaceSidebar.moonImpact.test.jsx`
+
+Verification snapshot (latest 2026-03-08):
+- Backend integration:
+  - `pytest -q tests/test_api_integration.py -k "planet_moon_impact_endpoint_scope_and_shape"` -> `1 passed`
+- Frontend component/tests batch:
+  - `npm --prefix frontend run test -- --run src/lib/workspaceTelemetry.test.js src/components/universe/UniverseWorkspace.contextMenu.test.jsx src/components/universe/planetCivilizationMatrix.placeholder.test.js` -> `3 files, 24 tests passed`

@@ -253,3 +253,20 @@ Release SHA: `89f4f17`
   - `docs/release/v1-rollout-runbook.md` (logical-flow operations reference)
 - Wave 0 readiness closure:
   - all `W0-LF-01..16` and `SG-LF-01..16` are `GREEN` as of 2026-03-07.
+
+## Planet/Civilization P2 telemetry + LF activation addendum (2026-03-08)
+- Telemetry catalog runtime wiring is active in FE workspace:
+  - `frontend/src/lib/workspaceTelemetry.js`
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+- Telemetry gates added/updated:
+  - `frontend/src/lib/workspaceTelemetry.test.js`
+  - `frontend/src/components/universe/UniverseWorkspace.contextMenu.test.jsx` (moon open emission path).
+- LF matrix placeholder replacement completed in FE gate inventory:
+  - `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js` now carries executable `LF-01..LF-08` checks without `it.skip`.
+  - `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs` is executable inventory gate (no `test.skip` placeholders).
+- Verification snapshot:
+  - `pre-commit` checks passed.
+  - frontend targeted unit run passed (`5 files`, `38 tests`).
+  - LF staging e2e inventory run passed (`1 test`).
+- Open P2 item after this addendum:
+  - preset FE runtime flow still requires closure evidence for canonical `/presets/catalog` + `/presets/apply`.

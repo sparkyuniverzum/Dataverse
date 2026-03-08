@@ -22,6 +22,8 @@ import {
   buildImportRunUrl,
   buildBranchesUrl,
   buildBranchPromoteUrl,
+  buildPresetsCatalogUrl,
+  buildPresetsApplyUrl,
   buildGalaxyOnboardingUrl,
   buildParserPayload,
   buildTableContractUrl,
@@ -259,6 +261,15 @@ describe("io urls", () => {
 
     const onboardingUrl = buildGalaxyOnboardingUrl("http://127.0.0.1:8000", "g-42");
     expect(onboardingUrl).toBe("http://127.0.0.1:8000/galaxies/g-42/onboarding");
+
+    const catalogScoped = buildPresetsCatalogUrl("http://127.0.0.1:8000", "g-42");
+    expect(catalogScoped).toBe("http://127.0.0.1:8000/presets/catalog?galaxy_id=g-42");
+
+    const catalogPlain = buildPresetsCatalogUrl("http://127.0.0.1:8000");
+    expect(catalogPlain).toBe("http://127.0.0.1:8000/presets/catalog");
+
+    const presetsApplyUrl = buildPresetsApplyUrl("http://127.0.0.1:8000");
+    expect(presetsApplyUrl).toBe("http://127.0.0.1:8000/presets/apply");
   });
 
   it("builds first-class moon and civilization CRUD URLs", () => {

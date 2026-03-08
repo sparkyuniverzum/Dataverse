@@ -1,6 +1,6 @@
 # Planet/Civilization Implementation Plan v1
 
-Status: P0/P1 completed, P2 open
+Status: P0/P1/P2 completed
 Date: 2026-03-08
 Owner: FE + BE core
 
@@ -148,11 +148,34 @@ P1 evidence (2026-03-08):
   - `npm --prefix frontend run test -- --run src/lib/dataverseApi.test.js src/components/universe/WorkspaceSidebar.moonImpact.test.jsx` (passed)
   - `npm --prefix frontend run test -- --run src/components/universe/planetCivilizationMatrix.placeholder.test.js` (passed)
 
+Verification snapshot update (2026-03-08, latest):
+- `pre-commit` -> passed
+- `npm --prefix frontend run test -- --run src/lib/workspaceTelemetry.test.js src/components/universe/UniverseWorkspace.contextMenu.test.jsx src/components/universe/planetCivilizationMatrix.placeholder.test.js` -> `3 files, 24 tests passed`
+- `npm --prefix frontend run test:e2e -- e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs` -> `1 passed`
+
 ### P2 checklist
-- [ ] Telemetry catalog emitted with required fields.
-- [ ] LF matrix placeholders removed/replaced with real tests.
-- [ ] Preset flow uses `/presets/catalog` + `/presets/apply`.
-- [ ] Release evidence updated in docs/release.
+- [x] Telemetry catalog emitted with required fields.
+- [x] LF matrix placeholders removed/replaced with real tests.
+- [x] Preset flow uses `/presets/catalog` + `/presets/apply`.
+- [x] Release evidence updated in docs/release.
+
+P2 evidence (2026-03-08):
+- Telemetry runtime wiring added in `frontend/src/components/universe/UniverseWorkspace.jsx` and helper in `frontend/src/lib/workspaceTelemetry.js`.
+- Telemetry catalog gate added:
+  - `frontend/src/lib/workspaceTelemetry.test.js`
+  - `frontend/src/components/universe/UniverseWorkspace.contextMenu.test.jsx` (`moon_opened` emission)
+- LF matrix FE gate no longer uses placeholder skips for `LF-01..LF-08`:
+  - `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js`
+- LF matrix staging inventory e2e gate is executable (no `test.skip`):
+  - `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs`
+- Verification snapshot (latest run report):
+  - `pre-commit` checks passed
+  - frontend unit gates passed (`5 files`, `38 tests`)
+  - LF staging e2e gate passed (`1 test`)
+- Stage-zero preset runtime migrated to canonical API:
+  - FE reads preset cards from `GET /presets/catalog` (with static fallback if request fails).
+  - FE applies selected preset via `POST /presets/apply` (`mode=commit`) in stage-zero commit flow.
+  - Implemented in `frontend/src/components/universe/UniverseWorkspace.jsx` and URL helpers in `frontend/src/lib/dataverseApi.js`.
 
 ## 6. Risks and mitigations
 

@@ -301,11 +301,12 @@ Current status:
 - `SG-LF-01`: `GREEN` (Vocabulary freeze approved 2026-03-07; `docs/contracts/planet-civilization-glossary-v1.md`)
 - `SG-LF-02`: `GREEN` (UX intent freeze approved 2026-03-07; `docs/contracts/planet-civilization-ux-intent-v1.md`)
 - `SG-LF-03`: `GREEN` (Success metrics freeze approved 2026-03-07; `LF-M01..LF-M06` thresholds in `docs/contracts/planet-civilization-ux-intent-v1.md`)
-- `LF-01` .. `LF-08`: `OPEN`
+- `LF-01` .. `LF-08`: `PARTIAL` (FE gate inventory is now explicit; BE/staging closure inventory remains open).
 
 TODO synchronization:
 - [x] `PM-P6-LF-01`: synchronize readiness status (`SG-LF-01` .. `SG-LF-16`) into this backlog snapshot (full sync complete on 2026-03-07; all `SG-LF-01..16` are `GREEN`).
-- [ ] `PM-P6-LF-02`: add FE gate inventory for `LF-01` .. `LF-05`.
+- [x] `PM-P6-LF-02`: add FE gate inventory for `LF-01` .. `LF-05`.
+  - Evidence: `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js` now contains executable `LF-01..LF-08` assertions (no `it.skip` placeholders).
 - [ ] `PM-P6-LF-03`: add BE gate inventory for `LF-04`, `LF-06`, `LF-07`.
 - [ ] `PM-P6-LF-04`: add staging smoke inventory for moon-inspection, mineral-repair, cross-planet-preview flows.
 - [ ] `PM-P6-LF-05`: closure update in this file after all `SG-LF-*` and `LF-*` are green.
