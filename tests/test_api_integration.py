@@ -1506,17 +1506,51 @@ def test_star_core_planet_physics_endpoint_returns_runtime_shape(auth_client: tu
 
 def test_planet_preview_payload_parity_v1(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
-    execute = client.post(
-        "/parser/execute",
+    created_planet = client.post(
+        "/planets",
         json={
-            "query": (
-                f"ParityA-{uuid.uuid4()} (table: Preview > Prime, amount: 17) + "
-                f"ParityB-{uuid.uuid4()} (table: Preview > Prime, amount: 29)"
-            ),
+            "name": f"P6-01 > Parity-{uuid.uuid4().hex[:8]}",
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
             "galaxy_id": galaxy_id,
+            "idempotency_key": f"p6-01-parity-planet-{uuid.uuid4()}",
         },
     )
-    assert execute.status_code == 200, execute.text
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = str(created_planet.json()["table_id"])
+
+    row_a = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "P6-01 Parity A",
+            "minerals": {
+                "entity_id": f"p6-01-a-{uuid.uuid4().hex[:8]}",
+                "label": "P6-01 Parity A",
+                "state": "active",
+                "amount": 17,
+            },
+            "idempotency_key": f"p6-01-parity-row-a-{uuid.uuid4()}",
+        },
+    )
+    assert row_a.status_code == 201, row_a.text
+    row_b = client.post(
+        "/civilizations",
+        json={
+            "galaxy_id": galaxy_id,
+            "planet_id": planet_id,
+            "label": "P6-01 Parity B",
+            "minerals": {
+                "entity_id": f"p6-01-b-{uuid.uuid4().hex[:8]}",
+                "label": "P6-01 Parity B",
+                "state": "active",
+                "amount": 29,
+            },
+            "idempotency_key": f"p6-01-parity-row-b-{uuid.uuid4()}",
+        },
+    )
+    assert row_b.status_code == 201, row_b.text
 
     def _preview_payload(item: dict) -> dict:
         metrics = item.get("metrics") if isinstance(item.get("metrics"), dict) else {}
@@ -1661,10 +1695,10 @@ def test_planet_moon_preview_convergence_lifecycle_v1(auth_client: tuple[httpx.C
     assert preview_after_create_a["source_event_seq"] >= 1
 
     mutated = client.patch(
-        f"/civilizations/{moon_id}/mutate",
+        f"/civilizations/{moon_id}/minerals/state",
         json={
             "galaxy_id": galaxy_id,
-            "minerals": {"state": "archived"},
+            "typed_value": "archived",
             "expected_event_seq": event_seq,
             "idempotency_key": f"p6-03-lifecycle-mutate-{uuid.uuid4()}",
         },
@@ -1692,8 +1726,9 @@ def test_planet_moon_preview_convergence_lifecycle_v1(auth_client: tuple[httpx.C
         },
     )
     assert extinguished.status_code == 200, extinguished.text
-    assert extinguished.json()["moon_id"] == moon_id
-    assert extinguished.json()["is_deleted"] is True
+    extinguished_body = extinguished.json()
+    assert str(extinguished_body.get("moon_id") or extinguished_body.get("id") or "") == moon_id
+    assert extinguished_body["is_deleted"] is True
 
     preview_after_extinguish_a = _preview_row()
     preview_after_extinguish_b = _preview_row()

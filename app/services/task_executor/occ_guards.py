@@ -89,9 +89,11 @@ class OccGuards:
         galaxy_id: UUID,
         branch_id: UUID | None,
         entity_id: UUID,
-        expected_event_seq: int,
+        expected_event_seq: int | None,
         context: str,
     ) -> None:
+        if expected_event_seq is None:
+            return
         lock_key = cls.occ_scope_lock_key(
             user_id=user_id,
             galaxy_id=galaxy_id,

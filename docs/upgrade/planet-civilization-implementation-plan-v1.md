@@ -173,6 +173,8 @@ Verification snapshot update (2026-03-08, latest):
 - `pre-commit` -> passed
 - `npm --prefix frontend run test -- --run src/components/universe/UniverseWorkspace.contextMenu.test.jsx src/components/universe/planetCivilizationMatrix.placeholder.test.js` -> `2 files, 19 tests passed`
 - `npm --prefix frontend run test:e2e -- e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs` -> `1 passed`
+- `pytest -q tests/test_api_integration.py -k "test_planet_preview_payload_parity_v1 or test_planet_moon_preview_convergence_lifecycle_v1"` -> `2 passed`
+- `pytest -q tests/test_planet_civilization_lf_matrix_placeholder.py` -> `8 passed`
 
 ### P2 checklist
 
@@ -213,4 +215,4 @@ P2 evidence (2026-03-08):
 
 1. User can complete branch-scoped workflow without ambiguity.
 2. Inspector explainability is API-backed and deterministic.
-3. LF test matrix status remains executable and progresses from `ACTIVE` to `GREEN` with staging evidence.
+3. LF test matrix status remains executable and is `GREEN` with staging evidence.

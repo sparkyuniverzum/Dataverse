@@ -284,3 +284,16 @@ Release SHA: `89f4f17`
   - LF staging e2e smoke run passed (`1 test`).
 - P2 preset runtime closure evidence:
   - FE runtime flow now uses canonical `/presets/catalog` + `/presets/apply` path in stage-zero setup.
+
+## Planet+Moon P6 + LF closure sync addendum (2026-03-08)
+
+- Dedicated P6 BE gates executed and passing:
+  - `pytest -q tests/test_api_integration.py -k "test_planet_preview_payload_parity_v1 or test_planet_moon_preview_convergence_lifecycle_v1"` -> `2 passed`.
+- LF BE matrix gate executed and passing:
+  - `pytest -q tests/test_planet_civilization_lf_matrix_placeholder.py` -> `8 passed`.
+- Closure synchronization completed:
+  - `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`
+  - `docs/contracts/planet-moon-dod-v3.md`
+- Normalized closure status as of 2026-03-08:
+  - `PM-P6-01` .. `PM-P6-10` are `GREEN`.
+  - `LF-01` .. `LF-08` are `GREEN`.

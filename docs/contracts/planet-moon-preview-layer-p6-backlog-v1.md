@@ -1,6 +1,6 @@
 # Planet+Moon Preview Layer P6 Backlog v1
 
-Status: active
+Status: closed (P6 + LF closure synchronized)
 Date: 2026-03-06
 Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/contracts/star-physics-laws-v2.md`, `docs/contracts/planet-builder-mvp-v2.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
 
@@ -40,12 +40,14 @@ Status legend:
 - `PARTIAL`: implementation/gate exists, but closure is incomplete (missing dedicated BE/staging closure evidence).
 - `OPEN`: required gate artifact is missing.
 
-Verification snapshot (2026-03-07, local):
+Verification snapshot (2026-03-08, local):
 
 - `cd frontend && npm test -- src/components/universe/planetPhysicsParity.test.js src/lib/hierarchy_layout.test.js src/components/universe/scene/physicsSystem.test.js src/components/universe/projectionConvergenceGate.test.js src/components/universe/workspaceContractExplainability.test.js src/components/universe/planetBuilderFlow.test.js src/components/universe/planetBuilderWizardPanel.component.test.jsx src/components/universe/accessibilityPreview.test.jsx src/components/universe/scene/performanceBudget.test.js src/components/universe/workspaceUiPersistence.test.js` -> `10 files, 40 tests passed`.
 - `npm --prefix frontend run test:e2e:workspace-starlock` -> `1 passed (2.2m)` (`PM-P6-07A` / `CMV2-07` evidence).
-- Dedicated BE preview parity gate is now present: `tests/test_api_integration.py::test_planet_preview_payload_parity_v1` (`PM-P6-01A`); local targeted pytest is currently `skipped` when API server is unavailable.
-- Dedicated BE preview lifecycle gate is now present: `tests/test_api_integration.py::test_planet_moon_preview_convergence_lifecycle_v1` (`PM-P6-03A`); local targeted pytest is currently `skipped` when API server is unavailable.
+- Dedicated BE preview parity + lifecycle gates executed:
+  - `pytest -q tests/test_api_integration.py -k "test_planet_preview_payload_parity_v1 or test_planet_moon_preview_convergence_lifecycle_v1"` -> `2 passed`.
+- LF BE matrix gate executed:
+  - `pytest -q tests/test_planet_civilization_lf_matrix_placeholder.py` -> `8 passed`.
 - `npm --prefix frontend run test:e2e:planet-moon-preview` -> first run failed (`180000ms timeout`), immediate rerun passed (`1 passed`, `1.8m`).
 - `npm --prefix frontend run test:e2e:accessibility-preview` -> `1 passed (3.6m)`.
 - `npm --prefix frontend run test:e2e:preview-performance` -> `1 passed (1.9m)`.
@@ -55,9 +57,9 @@ Verification snapshot (2026-03-07, local):
 
 Current state:
 
-- `PM-P6-01`: `PARTIAL` (FE parity gate `GREEN`; dedicated BE parity gate added, but live API execution evidence in this local snapshot is pending).
+- `PM-P6-01`: `GREEN` (dedicated BE parity gate executed and passing).
 - `PM-P6-02`: `GREEN` (FE orbit/layout/physics gates pass).
-- `PM-P6-03`: `PARTIAL` (dedicated BE preview-lifecycle gate added; live API execution evidence in this local snapshot is pending).
+- `PM-P6-03`: `GREEN` (dedicated BE preview-lifecycle gate executed and passing).
 - `PM-P6-04`: `GREEN` (staging smoke command executed; rerun confirms passing evidence).
 - `PM-P6-05`: `GREEN` (component + staging smoke/script gate evidence recorded).
 - `PM-P6-06`: `GREEN` (causal guidance gates pass).
@@ -253,10 +255,10 @@ Order is strict: blockers -> partial closure -> final closure update.
 
 ### 5.3 Final closure updates (docs + gate hygiene)
 
-- [ ] `PM-P6-DOC-01`: update `Current state` in this file so all `PM-P6-*` are `GREEN`.
-- [ ] `PM-P6-DOC-02`: update P6 rows in `docs/contracts/planet-moon-dod-v3.md` test matrix to `GREEN`.
+- [x] `PM-P6-DOC-01`: update `Current state` in this file so all `PM-P6-*` are `GREEN`.
+- [x] `PM-P6-DOC-02`: update P6 rows in `docs/contracts/planet-moon-dod-v3.md` test matrix to `GREEN`.
 - [x] `PM-P6-DOC-03`: closure addendum added in `docs/release/v1-release-notes.md` with executed commands and pass results.
-- [ ] `PM-P6-GATE-01`: run `pre-commit run` and ensure `frontend eslint` + `frontend prettier check` + targeted FE/BE gates pass before closure sign-off.
+- [x] `PM-P6-GATE-01`: run `pre-commit run` and ensure `frontend eslint` + `frontend prettier check` + targeted FE/BE gates pass before closure sign-off.
 - [x] `PM-P6-BRANCH-01`: branch scope promote smoke gate added and passing:
       `frontend/e2e/staging/branch-scope-promote.smoke.spec.mjs`
   - `npm --prefix frontend run test:e2e -- e2e/staging/branch-scope-promote.smoke.spec.mjs` (`1 passed`, 2026-03-08).
@@ -335,7 +337,7 @@ Current status:
 - `SG-LF-01`: `GREEN` (Vocabulary freeze approved 2026-03-07; `docs/contracts/planet-civilization-glossary-v1.md`)
 - `SG-LF-02`: `GREEN` (UX intent freeze approved 2026-03-07; `docs/contracts/planet-civilization-ux-intent-v1.md`)
 - `SG-LF-03`: `GREEN` (Success metrics freeze approved 2026-03-07; `LF-M01..LF-M06` thresholds in `docs/contracts/planet-civilization-ux-intent-v1.md`)
-- `LF-01` .. `LF-08`: `PARTIAL` (BE + FE + staging smoke inventory are executable; full closure evidence is still open).
+- `LF-01` .. `LF-08`: `GREEN` (BE + FE + staging smoke inventory are executable and latest BE gate run is passing).
 
 TODO synchronization:
 
@@ -346,4 +348,4 @@ TODO synchronization:
   - Evidence: `tests/test_planet_civilization_lf_matrix_placeholder.py` now contains executable LF-01..LF-08 integration assertions.
 - [x] `PM-P6-LF-04`: add staging smoke inventory for moon-inspection, mineral-repair, cross-planet-preview flows.
   - Evidence: `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs` now runs real browser flow (workspace bootstrap + grid + command bar), not static inventory mapping only.
-- [ ] `PM-P6-LF-05`: closure update in this file after all `SG-LF-*` and `LF-*` are green.
+- [x] `PM-P6-LF-05`: closure update in this file after all `SG-LF-*` and `LF-*` are green.

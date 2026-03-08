@@ -1,6 +1,6 @@
 # Planet + Moon DoD v3
 
-Status: active (planet/moon preview layer not closed)
+Status: closed (planet/moon preview layer and logical-flow closure synchronized)
 Date: 2026-03-06
 Owner: Core BE/FE architecture
 Depends on: `docs/contracts/planet-builder-mvp-v2.md`, `docs/contracts/moon-contract-v1.md`, `docs/contracts/civilization-contract-v1.md`, `docs/contracts/mineral-contract-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `docs/upgrade/adr-moon-civilization-runtime-alias-migration-v1.md`, `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
@@ -314,9 +314,9 @@ Legend:
 | PM-P5-02 | P5 | Real auth/session lifecycle smoke | FE staging browser smoke | GREEN | `frontend/e2e/staging/auth-session-real.smoke.spec.mjs` |
 | PM-P5-03 | P5 | Real workspace bootstrap smoke | FE staging browser smoke | GREEN | `frontend/e2e/staging/workspace-starlock-wizard-grid.smoke.spec.mjs` |
 | PM-P5-04 | P5 | Real star-lock -> first planet -> grid convergence smoke | FE staging browser smoke + script gate | GREEN | `npm --prefix frontend run test:e2e:workspace-starlock` + `./scripts/staging_workspace_starlock_wizard_grid_smoke.sh` |
-| PM-P6-01 | P6 | Planet preview payload parity | BE+FE contract gate | PARTIAL | `tests/test_api_integration.py::test_star_core_planet_physics_endpoint_returns_runtime_shape` + `tests/test_api_integration.py::test_planet_preview_payload_parity_v1` + `frontend/src/components/universe/planetPhysicsParity.test.js` + `CMV2-02` |
+| PM-P6-01 | P6 | Planet preview payload parity | BE+FE contract gate | GREEN | `tests/test_api_integration.py::test_star_core_planet_physics_endpoint_returns_runtime_shape` + `tests/test_api_integration.py::test_planet_preview_payload_parity_v1` + `frontend/src/components/universe/planetPhysicsParity.test.js` + `CMV2-02` |
 | PM-P6-02 | P6 | Moon preview orbit readability | FE layout/physics gate | GREEN | `frontend/src/lib/hierarchy_layout.test.js` + `frontend/src/components/universe/scene/physicsSystem.test.js` |
-| PM-P6-03 | P6 | Planet/Moon preview convergence under lifecycle | BE+FE convergence gate | PARTIAL | `tests/test_api_integration.py::test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence` + `tests/test_api_integration.py::test_planet_moon_preview_convergence_lifecycle_v1` + `frontend/src/components/universe/projectionConvergenceGate.test.js` + `CMV2-01` + `CMV2-08` |
+| PM-P6-03 | P6 | Planet/Moon preview convergence under lifecycle | BE+FE convergence gate | GREEN | `tests/test_api_integration.py::test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence` + `tests/test_api_integration.py::test_planet_moon_preview_convergence_lifecycle_v1` + `frontend/src/components/universe/projectionConvergenceGate.test.js` + `CMV2-01` + `CMV2-08` |
 | PM-P6-04 | P6 | Browser smoke for preview layer | FE staging browser smoke | GREEN | `frontend/e2e/staging/planet-moon-preview.smoke.spec.mjs` + `npm --prefix frontend run test:e2e:planet-moon-preview` + `./scripts/staging_planet_moon_preview_smoke.sh` |
 | PM-P6-05 | P6 | Camera choreography determinism | FE component + browser gate | GREEN | `frontend/src/components/universe/cameraPilotMath.test.js` + `frontend/src/components/universe/CameraPilot.test.jsx` + `frontend/e2e/staging/camera-focus-flow.smoke.spec.mjs` + `npm --prefix frontend run test:e2e:camera-focus-flow` + `./scripts/staging_camera_focus_flow_smoke.sh` |
 | PM-P6-06 | P6 | In-context causal guidance | FE contract gate | GREEN | `frontend/src/components/universe/planetBuilderFlow.test.js` + `frontend/src/components/universe/workspaceContractExplainability.test.js` + `CMV2-03` |
@@ -374,11 +374,11 @@ Legend:
 3. Real workspace bootstrap path is validated in browser smoke.
 4. Real star-lock -> first planet -> grid convergence path is validated and script-gated.
 
-### Planet+Moon v3 P6 kickoff (open)
+### Planet+Moon v3 P6 closure
 
-1. Planet/Moon preview layer is not closed; preview parity/readability/convergence remain open.
-2. Current normalized status: `PM-P6-02`, `PM-P6-04`, `PM-P6-05`, `PM-P6-06`, `PM-P6-07`, `PM-P6-08`, `PM-P6-09`, `PM-P6-10` are `GREEN`; `PM-P6-01`, `PM-P6-03` are `PARTIAL`.
-3. P6 closure is coupled to Civilization+Mineral v2 closure path (`CMV2-07`, `CMV2-08`, `CMV2-09`, `CMV2-10`).
+1. Planet/Moon preview layer closure is complete; parity/readability/convergence gates are green.
+2. Current normalized status: `PM-P6-01` .. `PM-P6-10` are `GREEN`.
+3. P6 closure remains coupled to Civilization+Mineral v2 closure path (`CMV2-07`, `CMV2-08`, `CMV2-09`, `CMV2-10`), all green.
 
 ## 6. Out of scope for this document
 
