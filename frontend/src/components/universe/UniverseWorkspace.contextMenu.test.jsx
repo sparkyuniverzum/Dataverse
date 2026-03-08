@@ -157,4 +157,25 @@ describe("UniverseWorkspace P0 context/branch actions", () => {
     expect(refreshScopes).toHaveBeenCalled();
     expect(screen.getByTestId("branch-promote-summary").textContent).toContain("5 event");
   });
+
+  it("emits moon_opened telemetry when moon is selected from sidebar", async () => {
+    const user = userEvent.setup();
+    globalThis.window.__DATAVERSE_TELEMETRY_EVENTS__ = [];
+
+    render(
+      <UniverseWorkspace
+        galaxy={{ id: "g-1", name: "Milky QA" }}
+        branches={[]}
+        onboarding={{ mode: "guided" }}
+        onBackToGalaxies={() => {}}
+        onLogout={() => {}}
+      />
+    );
+
+    await user.click(screen.getByTestId("moon-orbit-item-a-1"));
+    await waitFor(() => {
+      const events = globalThis.window.__DATAVERSE_TELEMETRY_EVENTS__ || [];
+      expect(events.some((item) => item?.event_name === "moon_opened" && item?.moon_id === "a-1")).toBe(true);
+    });
+  });
 });

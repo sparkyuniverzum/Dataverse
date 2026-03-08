@@ -8,6 +8,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import BondBuilderPanel from "./BondBuilderPanel";
 import QuickGridOverlay from "./QuickGridOverlay";
 import WorkspaceSidebar from "./WorkspaceSidebar";
+import { normalizeSnapshot } from "../../lib/dataverseApi";
+import { getWorkspaceTelemetryCatalog } from "../../lib/workspaceTelemetry";
+import { buildPreviewContrastReport, resolveWorkspaceKeyboardAction } from "./previewAccessibility";
 import {
   evaluateBondFlowTransition,
   resolveNavigationState,
@@ -410,7 +413,106 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
     ).toBe(VISUAL_BUILDER_BOND_STATE.BOND_PREVIEW);
   });
 
-  it.skip("LF-06 cross-planet gate placeholder", () => {});
-  it.skip("LF-07 replay parity gate placeholder", () => {});
-  it.skip("LF-08 accessibility/performance gate placeholder", () => {});
+  it("LF-06 cross-planet gate: telemetry catalog and bond preview payload keep explicit cross-planet signals", async () => {
+    const user = userEvent.setup();
+    const onPreview = vi.fn();
+
+    render(
+      React.createElement(BondBuilderPanel, {
+        open: true,
+        visualBuilderState: "NAV_PLANET_FOCUSED",
+        options: [
+          { id: "moon-1", label: "Moon 1" },
+          { id: "moon-2", label: "Moon 2" },
+        ],
+        selectedAsteroidId: "moon-1",
+        bondState: VISUAL_BUILDER_BOND_STATE.BOND_PREVIEW,
+        sourceId: "moon-1",
+        targetId: "moon-2",
+        bondType: "FLOW",
+        preview: {
+          decision: "REJECT",
+          blocking: true,
+          reasons: [{ code: "BOND_VALIDATE_CROSS_PLANET", severity: "error", blocking: true, message: "blocked" }],
+        },
+        previewBusy: false,
+        commitBusy: false,
+        onStartDraft: () => {},
+        onSourceChange: () => {},
+        onTargetChange: () => {},
+        onTypeChange: () => {},
+        onRequestPreview: onPreview,
+        onCommit: () => {},
+        onCancel: () => {},
+      })
+    );
+
+    await user.click(screen.getByTestId("bond-preview-button"));
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("bond-preview-status").textContent).toContain("REJECT");
+    expect(screen.getByTestId("bond-preview-reasons").textContent).toContain("BOND_VALIDATE_CROSS_PLANET");
+    const catalog = getWorkspaceTelemetryCatalog();
+    expect(catalog).toContain("cross_planet_blocked");
+    expect(catalog).toContain("bond_preview_rejected");
+  });
+
+  it("LF-07 replay parity gate: snapshot normalization is deterministic and replay-safe", () => {
+    const input = {
+      asteroids: [
+        { id: "a-1", value: "A", is_deleted: false },
+        { id: "a-2", value: "B", is_deleted: true },
+        { id: "a-3", value: "C", is_deleted: false },
+      ],
+      bonds: [
+        { id: "b-1", source_id: "a-1", target_id: "a-3", is_deleted: false },
+        { id: "b-2", source_id: "a-1", target_id: "a-2", is_deleted: false },
+        { id: "b-3", source_id: "a-1", target_id: "a-3", is_deleted: true },
+      ],
+    };
+    const first = normalizeSnapshot(input);
+    const second = normalizeSnapshot({
+      asteroids: [...input.asteroids],
+      bonds: [...input.bonds],
+    });
+    expect(first).toEqual(second);
+    expect(first.asteroids.map((item) => item.id)).toEqual(["a-1", "a-3"]);
+    expect(first.bonds.map((item) => item.id)).toEqual(["b-1"]);
+  });
+
+  it("LF-08 accessibility/performance gate: keyboard actions and contrast report remain valid", () => {
+    const openGridAction = resolveWorkspaceKeyboardAction(
+      { key: "g", metaKey: false, ctrlKey: false, altKey: false, target: { tagName: "DIV", isContentEditable: false } },
+      {
+        canOpenGrid: true,
+        canOpenStarHeart: true,
+        quickGridOpen: false,
+        starHeartOpen: false,
+        stageZeroSetupOpen: false,
+      }
+    );
+    const escapeAction = resolveWorkspaceKeyboardAction(
+      {
+        key: "Escape",
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        target: { tagName: "DIV", isContentEditable: false },
+      },
+      {
+        canOpenGrid: true,
+        canOpenStarHeart: true,
+        quickGridOpen: true,
+        starHeartOpen: false,
+        stageZeroSetupOpen: false,
+      }
+    );
+
+    expect(openGridAction).toBe("open_grid");
+    expect(escapeAction).toBe("close_quick_grid");
+
+    const contrast = buildPreviewContrastReport({ minRatio: 3 });
+    expect(contrast.pass).toBe(true);
+    expect(Array.isArray(contrast.entries)).toBe(true);
+    expect(contrast.entries.length).toBeGreaterThanOrEqual(4);
+  });
 });

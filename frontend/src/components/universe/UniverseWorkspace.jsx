@@ -29,6 +29,7 @@ import {
 } from "../../lib/builderParserCommand";
 import { PARSER_EXECUTION_MODE } from "../../lib/parserExecutionMode";
 import { createParserTelemetrySnapshot, recordParserTelemetry } from "../../lib/parserExecutionTelemetry";
+import { createWorkspaceTelemetryEvent, emitWorkspaceTelemetry } from "../../lib/workspaceTelemetry";
 import {
   buildCivilizationWriteRouteCandidates,
   shouldFallbackToMoonAlias,
@@ -338,6 +339,27 @@ export default function UniverseWorkspace({
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const workspaceRef = useRef(null);
+  const lastMoonTelemetryRef = useRef("");
+  const trackWorkspaceEvent = useCallback(
+    (eventName, payload = {}) => {
+      const event = createWorkspaceTelemetryEvent({
+        eventName,
+        galaxyId,
+        branchId: branchIdScope,
+        planetId: payload.planet_id ?? selectedTableId ?? null,
+        civilizationId: payload.civilization_id ?? selectedAsteroidId ?? null,
+        moonId: payload.moon_id ?? selectedAsteroidId ?? null,
+        bondId: payload.bond_id ?? null,
+        clientVersion: import.meta.env.VITE_APP_VERSION || "dev-local",
+        flagPhase: onboarding?.mode || onboarding?.current_stage_key || "unknown",
+        payload,
+      });
+      if (event) {
+        emitWorkspaceTelemetry(event);
+      }
+    },
+    [branchIdScope, galaxyId, onboarding?.current_stage_key, onboarding?.mode, selectedAsteroidId, selectedTableId]
+  );
   const dndSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -672,6 +694,46 @@ export default function UniverseWorkspace({
       setSelectedAsteroidId("");
     }
   }, [asteroidById, selectedAsteroidId]);
+
+  useEffect(() => {
+    const moonId = String(selectedAsteroidId || "").trim();
+    if (!moonId) return;
+    const dedupeKey = `${galaxyId}:${branchIdScope || ""}:${selectedTableId || ""}:${moonId}`;
+    if (lastMoonTelemetryRef.current === dedupeKey) return;
+    lastMoonTelemetryRef.current = dedupeKey;
+    trackWorkspaceEvent("moon_opened", {
+      moon_id: moonId,
+      civilization_id: moonId,
+      planet_id: selectedTableId || null,
+    });
+  }, [branchIdScope, galaxyId, selectedAsteroidId, selectedTableId, trackWorkspaceEvent]);
+
+  useEffect(() => {
+    const moonId = String(selectedAsteroidId || "").trim();
+    if (!moonId) return;
+    const impactItems = Array.isArray(moonImpact?.items) ? moonImpact.items : [];
+    if (!impactItems.length) return;
+    const impacted = impactItems.filter((item) =>
+      Array.isArray(item?.impacted_civilization_ids)
+        ? item.impacted_civilization_ids.some((id) => String(id) === moonId)
+        : false
+    );
+    if (!impacted.length) return;
+    const failed = impacted.find((item) => Number(item?.active_violations_count || 0) > 0) || null;
+    if (!failed) return;
+    trackWorkspaceEvent("moon_rule_failed", {
+      moon_id: moonId,
+      civilization_id: moonId,
+      planet_id: selectedTableId || null,
+      rule_id: failed.rule_id || null,
+      capability_id: failed.capability_id || null,
+      mineral_key: failed.mineral_key || null,
+      expected_constraint:
+        Array.isArray(failed.violation_samples) && failed.violation_samples[0]?.detail?.expected_constraint
+          ? failed.violation_samples[0].detail.expected_constraint
+          : null,
+    });
+  }, [moonImpact, selectedAsteroidId, selectedTableId, trackWorkspaceEvent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1739,6 +1801,48 @@ export default function UniverseWorkspace({
         })
       );
       if (!applied) return;
+      const previewReasons = Array.isArray(previewPayload?.reasons) ? previewPayload.reasons : [];
+      const rejectCodes = previewReasons.map((reason) => String(reason?.code || reason?.reason || "unknown"));
+      const previewCrossPlanet = Boolean(
+        previewPayload?.cross_planet ||
+        previewReasons.some((reason) =>
+          String(reason?.code || reason?.reason || "")
+            .toUpperCase()
+            .includes("CROSS_PLANET")
+        )
+      );
+      if (previewDecision === "REJECT" || previewBlocking) {
+        trackWorkspaceEvent("bond_preview_rejected", {
+          source_civilization_id: sourceId,
+          target_civilization_id: targetId,
+          reject_codes: rejectCodes,
+          blocking_count: previewReasons.length,
+          cross_planet: previewCrossPlanet,
+        });
+        if (previewCrossPlanet) {
+          const sourcePlanetId = asteroidById.get(sourceId)?.table_id || null;
+          const targetPlanetId = asteroidById.get(targetId)?.table_id || null;
+          trackWorkspaceEvent("cross_planet_blocked", {
+            source_planet_id: sourcePlanetId,
+            target_planet_id: targetPlanetId,
+            reason_code: rejectCodes[0] || "cross_planet_blocked",
+          });
+        }
+      } else if (previewDecision === "WARN") {
+        trackWorkspaceEvent("bond_preview_warned", {
+          source_civilization_id: sourceId,
+          target_civilization_id: targetId,
+          reject_codes: rejectCodes,
+          blocking_count: previewReasons.length,
+          cross_planet: previewCrossPlanet,
+        });
+      } else {
+        trackWorkspaceEvent("bond_preview_allowed", {
+          source_civilization_id: sourceId,
+          target_civilization_id: targetId,
+          cross_planet: previewCrossPlanet,
+        });
+      }
       if (previewDecision === "REJECT" || previewBlocking) {
         const firstReason = Array.isArray(previewPayload?.reasons) ? previewPayload.reasons[0] : null;
         setRuntimeError(String(firstReason?.message || "Bond preview operation blocked by validation rules."));
@@ -1766,6 +1870,7 @@ export default function UniverseWorkspace({
     branchIdScope,
     reportContractViolationWithRepair,
     setRuntimeError,
+    trackWorkspaceEvent,
   ]);
   const handleCommitBondDraft = useCallback(async () => {
     const sourceId = String(bondDraft.sourceId || "").trim();
@@ -2315,6 +2420,13 @@ export default function UniverseWorkspace({
           stage: "applied",
         })
       );
+      trackWorkspaceEvent("guided_repair_applied", {
+        civilization_id: targetId,
+        moon_id: targetId,
+        planet_id: selectedTableId || null,
+        strategy_key: activeSuggestion.strategy_key || null,
+        repair_id: activeSuggestion.repair_id || activeSuggestion.id || null,
+      });
     } catch (applyError) {
       appendRepairAudit(
         buildGuidedRepairAuditRecord(activeSuggestion, {
@@ -2322,6 +2434,13 @@ export default function UniverseWorkspace({
           errorMessage: applyError?.message || "Guided repair failed.",
         })
       );
+      trackWorkspaceEvent("guided_repair_failed", {
+        civilization_id: targetId,
+        moon_id: targetId,
+        planet_id: selectedTableId || null,
+        strategy_key: activeSuggestion.strategy_key || null,
+        repair_id: activeSuggestion.repair_id || activeSuggestion.id || null,
+      });
       if (isOccConflictError(applyError)) {
         setRuntimeError(buildOccConflictMessage(applyError, "guided repair"));
         await refreshProjection({ silent: true });
@@ -2344,7 +2463,9 @@ export default function UniverseWorkspace({
     refreshProjection,
     repairSuggestion,
     reportContractViolationWithRepair,
+    selectedTableId,
     setRuntimeError,
+    trackWorkspaceEvent,
   ]);
 
   const handleStarSelect = useCallback(() => {
