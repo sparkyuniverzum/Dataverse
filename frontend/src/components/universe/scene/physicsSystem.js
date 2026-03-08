@@ -7,6 +7,7 @@ export const PHASE_ORDER = Object.freeze(["CALM", "ACTIVE", "OVERLOADED", "DORMA
 export const PHASE_DISPLAY_NAMES = Object.freeze({
   CALM: "Klid",
   ACTIVE: "Aktivní",
+  CONVERGING: "Přepočítává se",
   OVERLOADED: "Přetíženo",
   DORMANT: "Spící",
   CORRODING: "Korodující",
@@ -24,6 +25,17 @@ const PHASE_VISUAL_PRESETS = Object.freeze({
     metalness: 0.5,
     spinMultiplier: 1,
     pulseMultiplier: 1,
+  }),
+  CONVERGING: Object.freeze({
+    tint: "#e0f8ff",
+    emissive: "#ffffff",
+    rim: "#c8f6ff",
+    aura: "#c1f0ff",
+    label: "#ffffff",
+    roughness: 0.3,
+    metalness: 0.5,
+    spinMultiplier: 1.0,
+    pulseMultiplier: 1.8,
   }),
   ACTIVE: Object.freeze({
     tint: "#c5fdff",
@@ -117,8 +129,8 @@ function resolvePhaseColorBySeverity(severity) {
   return "#64d9ff";
 }
 
-export function resolvePlanetPhaseVisual({ phase, corrosionLevel, crackIntensity, hue, saturation }) {
-  const normalizedPhase = normalizePhase(phase);
+export function resolvePlanetPhaseVisual({ phase, isConverging, corrosionLevel, crackIntensity, hue, saturation }) {
+  const normalizedPhase = isConverging ? "CONVERGING" : normalizePhase(phase);
   const preset = PHASE_VISUAL_PRESETS[normalizedPhase] || PHASE_VISUAL_PRESETS.CALM;
   const corrosion = clamp(Number(corrosionLevel) || 0, 0, 1);
   const cracks = clamp(Number(crackIntensity) || 0, 0, 1);
@@ -149,9 +161,10 @@ export function resolvePlanetPhaseVisual({ phase, corrosionLevel, crackIntensity
   };
 }
 
-export function resolveMoonPhaseVisual({ phase, corrosionLevel, crackIntensity, hue, saturation }) {
+export function resolveMoonPhaseVisual({ phase, isConverging, corrosionLevel, crackIntensity, hue, saturation }) {
   const base = resolvePlanetPhaseVisual({
     phase,
+    isConverging,
     corrosionLevel,
     crackIntensity,
     hue,
@@ -170,6 +183,8 @@ export function resolveMoonPhaseVisual({ phase, corrosionLevel, crackIntensity, 
 export function resolveLinkPhaseVisual({
   sourcePhase,
   targetPhase,
+  sourceIsConverging = false,
+  targetIsConverging = false,
   sourceCorrosionLevel = 0,
   targetCorrosionLevel = 0,
   flow = 0,
@@ -177,26 +192,28 @@ export function resolveLinkPhaseVisual({
 }) {
   const source = normalizePhase(sourcePhase);
   const target = normalizePhase(targetPhase);
+  const isConverging = sourceIsConverging || targetIsConverging;
   const sourceSeverity = phaseSeverity(source);
   const targetSeverity = phaseSeverity(target);
   const dominantSeverity = Math.max(sourceSeverity, targetSeverity);
   const corrosion = clamp(Math.max(Number(sourceCorrosionLevel) || 0, Number(targetCorrosionLevel) || 0), 0, 1);
   const safeFlow = clamp(Number(flow) || 0, 0, 1);
   const safeStress = clamp(Number(stress) || 0, 0, 1);
-  const dominantColor = resolvePhaseColorBySeverity(dominantSeverity);
-  const pulseColor = new THREE.Color(dominantColor).lerp(new THREE.Color("#ffffff"), 0.28).getStyle();
+  const baseColor = resolvePhaseColorBySeverity(dominantSeverity);
+  const dominantColor = isConverging ? "#e0f8ff" : baseColor;
+  const pulseColor = new THREE.Color(dominantColor).lerp(new THREE.Color("#ffffff"), isConverging ? 0.5 : 0.28).getStyle();
   const dominantPhase = PHASE_ORDER[dominantSeverity] || "CALM";
 
   return {
     dominantPhase,
-    labelText: PHASE_DISPLAY_NAMES[dominantPhase] || dominantPhase,
+    labelText: isConverging ? PHASE_DISPLAY_NAMES.CONVERGING : PHASE_DISPLAY_NAMES[dominantPhase] || dominantPhase,
     color: dominantColor,
     pulseColor,
     severity: dominantSeverity,
     widthMultiplier: clamp(1 + safeFlow * 0.18 + dominantSeverity * 0.08 + corrosion * 0.08, 0.9, 1.7),
-    speedMultiplier: clamp(1 + safeFlow * 0.45 + safeStress * 0.22 + (dominantSeverity >= 5 ? 0.2 : 0), 0.82, 2.6),
+    speedMultiplier: clamp(1 + safeFlow * 0.45 + safeStress * 0.22 + (dominantSeverity >= 5 ? 0.2 : 0) + (isConverging ? 0.5 : 0), 0.82, 3.0),
     opacityMultiplier: clamp(1 + safeFlow * 0.08 + dominantSeverity * 0.05 - corrosion * 0.04, 0.86, 1.3),
-    pulseMultiplier: clamp(1 + safeFlow * 0.35 + safeStress * 0.24 + corrosion * 0.1, 0.9, 2.7),
+    pulseMultiplier: clamp(1 + safeFlow * 0.35 + safeStress * 0.24 + corrosion * 0.1 + (isConverging ? 0.8 : 0), 0.9, 3.5),
     sourcePhase: source,
     targetPhase: target,
   };
