@@ -109,7 +109,7 @@ export function buildOccConflictMessage(error, actionLabel = "zapis") {
   const current = Number.isInteger(detail.current_event_seq) ? detail.current_event_seq : null;
   const expectedText = expected === null ? "?" : String(expected);
   const currentText = current === null ? "?" : String(current);
-  return `Kolize soubezne zmeny (${context}). Data byla obnovena; zkontroluj aktualni stav a akci zopakuj (expected=${expectedText}, current=${currentText}).`;
+  return `Kolize souběžné změny (${context}). Data byla obnovena; zkontroluj aktuální stav a akci zopakuj (expected=${expectedText}, current=${currentText}).`;
 }
 
 const BOND_TYPE_ALIASES = {

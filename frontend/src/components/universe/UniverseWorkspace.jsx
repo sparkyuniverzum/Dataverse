@@ -157,7 +157,7 @@ function StageZeroDraggablePlanetCard({ disabled = false }) {
       }}
     >
       <span style={{ fontSize: "var(--dv-fs-sm)" }}>Planeta</span>
-      <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Zakladni datovy kontejner</span>
+      <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Základní datový kontejner</span>
     </button>
   );
 }
@@ -203,8 +203,8 @@ function StageZeroDragGhost() {
         pointerEvents: "none",
       }}
     >
-      <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>Hologram Planety</div>
-      <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Pust me do prostoru</div>
+      <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>Hologram planety</div>
+      <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Pusť mě do prostoru</div>
     </div>
   );
 }
@@ -1185,7 +1185,7 @@ export default function UniverseWorkspace({
           }),
         });
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Planetu se nepodarilo vytvorit: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Planetu se nepodařilo vytvořit: ${response.status}`);
         }
         const body = await response.json().catch(() => ({}));
         const tableId = body?.table_id ? String(body.table_id) : "";
@@ -1201,7 +1201,7 @@ export default function UniverseWorkspace({
         setStageZeroDraggedSchemaKey("");
         setStageZeroSetupOpen(true);
       } catch (createError) {
-        setRuntimeError(createError?.message || "Planetu se nepodarilo vytvorit.");
+        setRuntimeError(createError?.message || "Planetu se nepodařilo vytvořit.");
         setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT);
       } finally {
         setStageZeroCreating(false);
@@ -1334,7 +1334,7 @@ export default function UniverseWorkspace({
       if (!galaxyId || !targetTableId) return null;
       const contractRead = await apiFetch(buildTableContractUrl(API_BASE, targetTableId, galaxyId));
       if (!contractRead.ok) {
-        throw await apiErrorFromResponse(contractRead, `Kontrakt planety nelze nacist: ${contractRead.status}`);
+        throw await apiErrorFromResponse(contractRead, `Kontrakt planety nelze načíst: ${contractRead.status}`);
       }
       return contractRead.json();
     },
@@ -1377,7 +1377,7 @@ export default function UniverseWorkspace({
         body: JSON.stringify(nextPayload),
       });
       if (!contractWrite.ok) {
-        throw await apiErrorFromResponse(contractWrite, `Schema se nepodarilo ulozit: ${contractWrite.status}`);
+        throw await apiErrorFromResponse(contractWrite, `Schéma se nepodařilo uložit: ${contractWrite.status}`);
       }
 
       const rows = [
@@ -1419,7 +1419,7 @@ export default function UniverseWorkspace({
       setStageZeroSetupOpen(false);
       setQuickGridOpen(true);
     } catch (commitError) {
-      setRuntimeError(commitError?.message || "Preset se nepodarilo aplikovat.");
+      setRuntimeError(commitError?.message || "Preset se nepodařilo aplikovat.");
     } finally {
       setStageZeroCommitBusy(false);
       setBusy(false);
@@ -1517,7 +1517,7 @@ export default function UniverseWorkspace({
           }),
         });
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Vazba se nepodarila vytvorit: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Vazbu se nepodařilo vytvořit: ${response.status}`);
         }
         if (parserAttempted) {
           trackParserAttempt({
@@ -1543,11 +1543,11 @@ export default function UniverseWorkspace({
           parserTelemetryRecorded = true;
         }
         if (isOccConflictError(createError)) {
-          setRuntimeError(buildOccConflictMessage(createError, "vytvoreni vazby"));
+          setRuntimeError(buildOccConflictMessage(createError, "vytvoření vazby"));
           await refreshProjection({ silent: true });
         } else {
           reportContractViolationWithRepair(createError, {
-            fallbackMessage: createError?.message || "Vazbu se nepodarilo vytvorit.",
+            fallbackMessage: createError?.message || "Vazbu se nepodařilo vytvořit.",
             operation: "link",
           });
         }
@@ -1779,7 +1779,7 @@ export default function UniverseWorkspace({
           });
         }
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo vytvorit: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo vytvořit: ${response.status}`);
         }
         const payload = await response.json().catch(() => ({}));
         const asteroidId = payload?.moon_id ? String(payload.moon_id) : "";
@@ -1811,7 +1811,7 @@ export default function UniverseWorkspace({
           parserTelemetryRecorded = true;
         }
         reportContractViolationWithRepair(createError, {
-          fallbackMessage: createError?.message || "Civilizaci se nepodarilo vytvorit.",
+          fallbackMessage: createError?.message || "Civilizaci se nepodařilo vytvořit.",
           operation: "create",
         });
         return false;
@@ -1872,16 +1872,16 @@ export default function UniverseWorkspace({
           });
         }
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo upravit: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo upravit: ${response.status}`);
         }
         await refreshProjection({ silent: true });
       } catch (updateError) {
         if (isOccConflictError(updateError)) {
-          setRuntimeError(buildOccConflictMessage(updateError, "uprava civilizace"));
+          setRuntimeError(buildOccConflictMessage(updateError, "úprava civilizace"));
           await refreshProjection({ silent: true });
         } else {
           reportContractViolationWithRepair(updateError, {
-            fallbackMessage: updateError?.message || "Civilizaci se nepodarilo upravit.",
+            fallbackMessage: updateError?.message || "Civilizaci se nepodařilo upravit.",
             operation: "mutate",
             civilizationId: targetId,
           });
@@ -1965,7 +1965,7 @@ export default function UniverseWorkspace({
         }
 
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Civilizaci se nepodarilo zhasnout: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo zhasnout: ${response.status}`);
         }
         if (parserAttempted) {
           trackParserAttempt({
@@ -1994,11 +1994,11 @@ export default function UniverseWorkspace({
           parserTelemetryRecorded = true;
         }
         if (isOccConflictError(deleteError)) {
-          setRuntimeError(buildOccConflictMessage(deleteError, "zhasnuti civilizace"));
+          setRuntimeError(buildOccConflictMessage(deleteError, "zhasnutí civilizace"));
           await refreshProjection({ silent: true });
         } else {
           reportContractViolationWithRepair(deleteError, {
-            fallbackMessage: deleteError?.message || "Civilizaci se nepodarilo zhasnout.",
+            fallbackMessage: deleteError?.message || "Civilizaci se nepodařilo zhasnout.",
             operation: "extinguish",
             civilizationId: targetId,
           });
@@ -2101,17 +2101,17 @@ export default function UniverseWorkspace({
           }
         }
         if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Nerost se nepodarilo ulozit: ${response.status}`);
+          throw await apiErrorFromResponse(response, `Nerost se nepodařilo uložit: ${response.status}`);
         }
         await refreshProjection({ silent: true });
         return true;
       } catch (metadataError) {
         if (isOccConflictError(metadataError)) {
-          setRuntimeError(buildOccConflictMessage(metadataError, "uprava nerostu"));
+          setRuntimeError(buildOccConflictMessage(metadataError, "úprava nerostu"));
           await refreshProjection({ silent: true });
         } else {
           reportContractViolationWithRepair(metadataError, {
-            fallbackMessage: metadataError?.message || "Nerost se nepodarilo ulozit.",
+            fallbackMessage: metadataError?.message || "Nerost se nepodařilo uložit.",
             operation: "metadata",
             civilizationId: targetId,
           });
@@ -2185,7 +2185,7 @@ export default function UniverseWorkspace({
         await refreshProjection({ silent: true });
       } else {
         reportContractViolationWithRepair(applyError, {
-          fallbackMessage: applyError?.message || "Guided repair se nepodarilo aplikovat.",
+          fallbackMessage: applyError?.message || "Guided repair se nepodařilo aplikovat.",
           operation: "repair_apply",
           civilizationId: targetId,
         });
@@ -2275,7 +2275,7 @@ export default function UniverseWorkspace({
       if (isOccConflictError(applyError)) {
         setRuntimeError(buildOccConflictMessage(applyError, "lock star core"));
       } else {
-        const message = applyError?.message || "Star Core profil se nepodarilo uzamknout.";
+        const message = applyError?.message || "Star Core profil se nepodařilo uzamknout.";
         setStarControlError(message);
       }
       await refreshStarTelemetry({ force: true });
@@ -2431,9 +2431,9 @@ export default function UniverseWorkspace({
               <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
                 STAGE 0 / STAR CORE
               </div>
-              <div style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 800 }}>Nejdriv nastav zakony hvezdy</div>
+              <div style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 800 }}>Nejdřív nastav zákony hvězdy</div>
               <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.9, lineHeight: "var(--dv-lh-base)" }}>
-                Hvezda urcuje fyzikalni zakon cele galaxie. Dokud neni Star Core uzamceny, neni bezpecne zakladat prvni
+                Hvězda určuje fyzikální zákon celé galaxie. Dokud není Star Core uzamčený, není bezpečné zakládat první
                 planetu.
               </div>
               <div
@@ -2449,26 +2449,26 @@ export default function UniverseWorkspace({
                 {[
                   {
                     key: "no_hard_delete",
-                    label: "Zakaz tvrdeho mazani (soft-delete only)",
-                    impact: "Historie metrik zustane konzistentni i po odstraneni dat.",
+                    label: "Zákaz tvrdého mazání (soft-delete only)",
+                    impact: "Historie metrik zůstane konzistentní i po odstranění dat.",
                     done: starPolicy?.no_hard_delete !== false,
                   },
                   {
                     key: "occ",
-                    label: "OCC ochrana soubehu",
-                    impact: "Dva zapisy neprepisou stejny zaznam bez varovani.",
+                    label: "OCC ochrana souběhu",
+                    impact: "Dva zápisy nepřepíšou stejný záznam bez varování.",
                     done: starPolicy?.occ_enforced !== false,
                   },
                   {
                     key: "idempotency",
-                    label: "Idempotence prikazu",
-                    impact: "Opakovany request nevytvori duplicitni data pri retry.",
+                    label: "Idempotence příkazů",
+                    impact: "Opakovaný request nevytvoří duplicitní data při retry.",
                     done: starPolicy?.idempotency_supported !== false,
                   },
                   {
                     key: "physical_profile",
-                    label: "Fyzikalni profil planety",
-                    impact: "Urci, jak planety meni velikost, zar a degradaci pri zatezi.",
+                    label: "Fyzikální profil planety",
+                    impact: "Určí, jak planety mění velikost, zář a degradaci při zátěži.",
                     done: Boolean(String(starPhysicsProfile?.profile_key || "").trim()),
                   },
                   { key: "lock", label: "Star Core lock status = locked", done: starPolicyLocked },
@@ -2499,7 +2499,7 @@ export default function UniverseWorkspace({
                     cursor: "pointer",
                   }}
                 >
-                  Otevrit Star Heart Dashboard
+                  Otevřít Star Heart Dashboard
                 </button>
               </div>
             </article>
@@ -2538,11 +2538,11 @@ export default function UniverseWorkspace({
                 STAGE 0
               </div>
               <div style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 800 }}>
-                Prazdny vesmir ceka na prvni planetu
+                Prázdný vesmír čeká na první planetu
               </div>
               <div style={{ fontSize: "var(--dv-fs-sm)", opacity: 0.88, lineHeight: "var(--dv-lh-base)" }}>
-                Planeta je kontejner pro data. Nejdriv ji umistime do prostoru, potom ji nastavime zakladni zakony a
-                schema.
+                Planeta je kontejner pro data. Nejdřív ji umístíme do prostoru, potom jí nastavíme základní zákony a
+                schéma.
               </div>
               <button
                 type="button"
@@ -2562,7 +2562,7 @@ export default function UniverseWorkspace({
                   width: "fit-content",
                 }}
               >
-                Otevrit stavebnici
+                Otevřít stavebnici
               </button>
             </article>
           </section>
@@ -2592,7 +2592,7 @@ export default function UniverseWorkspace({
               BLUEPRINT PANEL
             </div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82, lineHeight: "var(--dv-lh-base)" }}>
-              Tohle je tva stavebnice. Vezmi Planetu a pretahni ji kamkoliv do prazdneho prostoru.
+              Tohle je tvá stavebnice. Vezmi Planetu a přetáhni ji kamkoliv do prázdného prostoru.
             </div>
             <StageZeroDraggablePlanetCard disabled={stageZeroCreating} />
           </aside>
@@ -2614,7 +2614,7 @@ export default function UniverseWorkspace({
               fontSize: "var(--dv-fs-xs)",
             }}
           >
-            Zhmotnuji planetu v prostoru...
+            Zhmotňuji planetu v prostoru...
           </div>
         ) : null}
 
@@ -2641,13 +2641,13 @@ export default function UniverseWorkspace({
               SETUP PANEL
             </div>
             <div style={{ fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-base)" }}>
-              Vyborne. <strong>{stageZeroPlanetName || "Planeta"}</strong> slouzi jako kontejner pro civilizaci (radky
-              dat). Aby v ni nebyl chaos, nastavime zakladni schema krok za krokem.
+              Výborně. <strong>{stageZeroPlanetName || "Planeta"}</strong> slouží jako kontejner pro civilizaci (řádky
+              dat). Aby v ní nebyl chaos, nastavíme základní schéma krok za krokem.
             </div>
             {!stageZeroPresetSelected ? (
               <>
                 <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
-                  Vesmír nebudujeme od nuly, pouzivame proverene nakresy. Vyber si pro zacatek Cashflow.
+                  Vesmír nebudujeme od nuly, používáme prověřené nákresy. Vyber si pro začátek Cashflow.
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   {STAGE_ZERO_PRESET_CARDS.map((preset) => {
@@ -2706,8 +2706,8 @@ export default function UniverseWorkspace({
                     Stavební plán: skládej schéma z Lego dílků (klik nebo drag & drop).
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
-                    Vizualni odezva planety: {stageZeroSchemaSummary.completed}/{stageZeroSchemaSummary.total} dilku •
-                    zar +{Math.round(stageZeroVisualBoost.emissiveBoost * 100)}%
+                    Vizuální odezva planety: {stageZeroSchemaSummary.completed}/{stageZeroSchemaSummary.total} dílků •
+                    zář +{Math.round(stageZeroVisualBoost.emissiveBoost * 100)}%
                   </div>
                 </div>
 
@@ -2806,7 +2806,7 @@ export default function UniverseWorkspace({
                       >
                         {done
                           ? `Slot osazen: ${step.blockLabel} ✓`
-                          : "Slot prazdny: pretahni dil sem nebo klikni na dil v trayi."}
+                          : "Slot prázdný: přetáhni díl sem nebo klikni na díl v trayi."}
                       </div>
                       <button
                         type="button"
@@ -2823,7 +2823,7 @@ export default function UniverseWorkspace({
                           cursor: !unlocked || done ? "default" : "pointer",
                         }}
                       >
-                        {done ? "Pridano ✓" : `+ ${step.blockLabel}`}
+                        {done ? "Přidáno ✓" : `+ ${step.blockLabel}`}
                       </button>
                     </div>
                   );
@@ -2839,14 +2839,14 @@ export default function UniverseWorkspace({
                     gap: 6,
                   }}
                 >
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>Prubezny preview planety</div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>Průběžný preview planety</div>
                   {stageZeroSchemaPreview.map((item) => (
                     <div key={item.key} style={{ fontSize: "var(--dv-fs-xs)", opacity: item.done ? 0.96 : 0.58 }}>
                       {item.done ? "✓" : "○"} {item.label} <span style={{ opacity: 0.74 }}>({item.type})</span>
                     </div>
                   ))}
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
-                    Po zazehnuti jadra se vlozi 3 ukazkove civilizacni radky do gridu.
+                    Po zažehnutí jádra se vloží 3 ukázkové civilizační řádky do gridu.
                   </div>
                 </div>
 
@@ -2862,7 +2862,7 @@ export default function UniverseWorkspace({
                     }}
                   >
                     <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
-                      Plan je kompletni. Vytvori se struktura o 3 zakonech a nasypou se 3 ukazkove zaznamy.
+                      Plán je kompletní. Vytvoří se struktura o 3 zákonech a nasypou se 3 ukázkové záznamy.
                     </div>
                     <button
                       type="button"
@@ -2881,7 +2881,7 @@ export default function UniverseWorkspace({
                         cursor: stageZeroCommitBusy ? "wait" : "pointer",
                       }}
                     >
-                      {stageZeroCommitBusy ? "Aplikuji..." : "Zazehnout Jadro"}
+                      {stageZeroCommitBusy ? "Aplikuji..." : "Zažehnout Jádro"}
                     </button>
                   </div>
                 ) : null}
@@ -2904,7 +2904,7 @@ export default function UniverseWorkspace({
                   cursor: "pointer",
                 }}
               >
-                Zavrit panel
+                Zavřít panel
               </button>
             </div>
           </aside>
@@ -2991,7 +2991,7 @@ export default function UniverseWorkspace({
                   cursor: "pointer",
                 }}
               >
-                Obnovit posledni validni krok ({planetBuilderRecoveryState})
+                Obnovit poslední validní krok ({planetBuilderRecoveryState})
               </button>
             ) : null}
           </aside>

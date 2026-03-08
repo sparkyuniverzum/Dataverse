@@ -231,7 +231,7 @@ export default function BondBuilderPanel({
           ))
         ) : (
           <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>
-            Preview jeste neprobehlo nebo nevratilo zadne reasons.
+            Preview ještě neproběhlo nebo nevrátilo žádné reasons.
           </div>
         )}
       </div>
