@@ -267,6 +267,13 @@ Canonical policy (effective 2026-03-07):
 - Errors: `404` bond not found, `409` OCC conflict.
 
 ## Parser execution
+### `POST /parser/plan`
+- Auth required.
+- Request: `{ "query"?: string, "text"?: string, "parser_version"?: "v1"|"v2", "galaxy_id"?: uuid, "branch_id"?: uuid }`
+- Behavior: parse-only mode, returns normalized atomic `tasks[]` without task execution.
+- Response `200`: `{ "tasks": TaskSchema[], "parser_version": "v1"|"v2" }`
+- Errors: `422` invalid/ambiguous parse payload.
+
 ### `POST /parser/execute`
 - Auth required.
 - Request: `{ "query"?: string, "text"?: string, "parser_version"?: "v1"|"v2", "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
@@ -289,6 +296,14 @@ Canonical policy (effective 2026-03-07):
 - `selected_asteroids[]`: `SELECT` output.
 - `extinguished_asteroid_ids[]`, `extinguished_bond_ids[]`: soft-delete effects.
 - Errors: `422` empty/invalid command, `404` target not found.
+
+### `POST /tasks/execute-batch`
+- Auth required.
+- Request: `{ "tasks": TaskSchema[], "mode": "preview"|"commit", "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
+- Behavior:
+- `mode=preview`: executes in nested transaction and rolls back (no durable write).
+- `mode=commit`: executes persistently with idempotency support.
+- Response `200`: `{ "mode": "...", "task_count": number, "result": ParseCommandResponse }`.
 
 ## Universe read models
 ### `GET /universe/snapshot`

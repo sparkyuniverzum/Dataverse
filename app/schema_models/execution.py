@@ -240,6 +240,13 @@ class ParseCommandResponse(BaseModel):
     semantic_effects: list[SemanticEffect] = Field(default_factory=list)
 
 
+class ParseCommandPlanResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tasks: list[TaskSchema] = Field(default_factory=list)
+    parser_version: str = "v2"
+
+
 class TaskBatchExecuteRequest(BaseModel):
     tasks: list[TaskSchema | Intent]
     mode: str = "commit"

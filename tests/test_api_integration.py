@@ -276,6 +276,28 @@ def test_parser_v2_executes_relation_command(auth_client: tuple[httpx.Client, st
     assert right in values
 
 
+def test_parser_plan_returns_tasks_without_persisting_changes(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    left = f"PlanA{uuid.uuid4().hex}"
+    right = f"PlanB{uuid.uuid4().hex}"
+
+    planned = client.post(
+        "/parser/plan",
+        json={"query": f"{left} + {right}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert planned.status_code == 200, planned.text
+    body = planned.json()
+    actions = [task["action"] for task in body.get("tasks", [])]
+    assert "LINK" in actions
+    assert actions.count("INGEST") >= 2
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    values = {_stringify(atom["value"]) for atom in snapshot.json()["civilizations"]}
+    assert left not in values
+    assert right not in values
+
+
 def test_parser_v2_returns_parse_error_for_invalid_syntax(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     execute = client.post(

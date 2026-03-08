@@ -63,8 +63,10 @@ export const API_V1_FE_LITERAL_SIGNATURES = Object.freeze([
   "POST /bonds/link",
   "POST /contracts/{table_id}",
   "POST /galaxies",
+  "POST /parser/plan",
   "POST /parser/execute",
   "POST /planets",
+  "POST /tasks/execute-batch",
 ]);
 
 export const API_V1_FE_ENDPOINT_SIGNATURES = Object.freeze(

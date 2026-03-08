@@ -74,6 +74,7 @@
       "POST /galaxies/{galaxy_id}/star-core/policy/lock",
       "POST /io/imports",
       "POST /moons",
+      "POST /parser/plan",
       "POST /parser/execute",
       "POST /planets",
       "POST /planets/{planet_id}/capabilities",

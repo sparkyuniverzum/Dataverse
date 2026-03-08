@@ -18,7 +18,9 @@ import {
   buildMoonImpactUrl,
   buildPresetsApplyUrl,
   buildPresetsCatalogUrl,
+  buildParserPlanUrl,
   buildParserPayload,
+  buildTaskExecuteBatchUrl,
   buildStarCorePolicyLockUrl,
   buildTableContractUrl,
   isOccConflictError,
@@ -1743,6 +1745,27 @@ export default function UniverseWorkspace({
     },
     [branchIdScope, galaxyId]
   );
+  const executeTaskBatch = useCallback(
+    async ({ tasks, mode = "preview", idempotencyKey = null }) => {
+      const payload = {
+        mode,
+        tasks: Array.isArray(tasks) ? tasks : [],
+        galaxy_id: galaxyId || null,
+        ...(branchIdScope ? { branch_id: branchIdScope } : {}),
+        ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
+      };
+      const response = await apiFetch(buildTaskExecuteBatchUrl(API_BASE), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw await apiErrorFromResponse(response, `Task batch ${mode} failed: ${response.status}`);
+      }
+      return response.json().catch(() => ({}));
+    },
+    [branchIdScope, galaxyId]
+  );
   const trackParserAttempt = useCallback((details) => {
     setParserTelemetry((prev) => recordParserTelemetry(prev, details));
   }, []);
@@ -2773,34 +2796,76 @@ export default function UniverseWorkspace({
 
   const handleBuildCommandPreview = useCallback(async () => {
     const trimmed = String(commandInput || "").trim();
+    if (!trimmed) return;
+    const actionHint = inferCommandAction(trimmed);
     setCommandPreviewBusy(true);
     setCommandError("");
     try {
-      const preview = buildCommandPreviewModel(trimmed, {
+      const previewBase = buildCommandPreviewModel(trimmed, {
         selectedTableLabel: selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "",
         selectedAsteroidLabel,
       });
-      setCommandPreview(preview);
+      const planResponse = await apiFetch(buildParserPlanUrl(API_BASE), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildParserPayload(trimmed, galaxyId, branchIdScope)),
+      });
+      if (!planResponse.ok) {
+        throw await apiErrorFromResponse(planResponse, `Parser plan failed: ${planResponse.status}`);
+      }
+      const planBody = await planResponse.json().catch(() => ({}));
+      const tasks = Array.isArray(planBody?.tasks) ? planBody.tasks : [];
+      if (!tasks.length) {
+        throw new Error("Parser plan nevratil zadne ulohy.");
+      }
+      const previewExecution = await executeTaskBatch({ tasks, mode: "preview" });
+      setCommandPreview({
+        ...previewBase,
+        tasks,
+        previewExecution,
+      });
+      trackParserAttempt({ action: actionHint, parserOk: true });
+    } catch (previewError) {
+      trackParserAttempt({
+        action: actionHint,
+        parserOk: false,
+        parserError: previewError,
+        fallbackUsed: false,
+        fallbackOk: null,
+      });
+      setCommandPreview(null);
+      setCommandError(previewError?.message || "Nahled se nepodarilo ziskat.");
     } finally {
       setCommandPreviewBusy(false);
     }
-  }, [commandInput, selectedAsteroidLabel, selectedTable]);
+  }, [
+    branchIdScope,
+    commandInput,
+    executeTaskBatch,
+    galaxyId,
+    selectedAsteroidLabel,
+    selectedTable,
+    trackParserAttempt,
+  ]);
 
   const handleExecuteCommandBar = useCallback(async () => {
     const trimmed = String(commandInput || "").trim();
-    if (!trimmed || commandExecuteBusy) return;
-    const actionHint = inferCommandAction(trimmed);
+    if (!trimmed || commandExecuteBusy || !commandPreview?.tasks?.length) return;
 
     setCommandExecuteBusy(true);
     setCommandError("");
     clearRuntimeIssue();
     try {
-      const responseBody = await executeParserCommand(trimmed);
-      trackParserAttempt({ action: actionHint, parserOk: true });
+      const commitBody = await executeTaskBatch({
+        tasks: commandPreview.tasks,
+        mode: "commit",
+        idempotencyKey: nextIdempotencyKey("command-bar-commit"),
+      });
       await refreshProjection({ silent: true });
-      const tasksCount = Array.isArray(responseBody?.tasks) ? responseBody.tasks.length : 0;
-      const civilizationsCount = Array.isArray(responseBody?.civilizations) ? responseBody.civilizations.length : 0;
-      const bondsCount = Array.isArray(responseBody?.bonds) ? responseBody.bonds.length : 0;
+      const result = commitBody?.result && typeof commitBody.result === "object" ? commitBody.result : {};
+      const tasksCount = Array.isArray(result?.tasks) ? result.tasks.length : 0;
+      const civilizationsCount = Array.isArray(result?.civilizations) ? result.civilizations.length : 0;
+      const bondsCount = Array.isArray(result?.bonds) ? result.bonds.length : 0;
       setCommandResultSummary(
         `Prikaz proveden: uloh ${tasksCount}, civilizaci ${civilizationsCount}, vazeb ${bondsCount}.`
       );
@@ -2808,25 +2873,11 @@ export default function UniverseWorkspace({
       setCommandInput("");
       setCommandPreview(null);
     } catch (executeError) {
-      trackParserAttempt({
-        action: actionHint,
-        parserOk: false,
-        parserError: executeError,
-        fallbackUsed: false,
-        fallbackOk: null,
-      });
       setCommandError(executeError?.message || "Prikaz se nepodarilo vykonat.");
     } finally {
       setCommandExecuteBusy(false);
     }
-  }, [
-    clearRuntimeIssue,
-    commandExecuteBusy,
-    commandInput,
-    executeParserCommand,
-    refreshProjection,
-    trackParserAttempt,
-  ]);
+  }, [clearRuntimeIssue, commandExecuteBusy, commandInput, commandPreview, executeTaskBatch, refreshProjection]);
 
   useEffect(() => {
     if (!contextMenu.open) return undefined;
@@ -3122,15 +3173,32 @@ export default function UniverseWorkspace({
               }}
             >
               <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
-                Nahled je lokalni interpretace prikazu (bez zapisu). Zapis probiha az po potvrzeni.
+                Nahled je backend preview (bez zapisu). Trvaly zapis probiha az po potvrzeni.
               </div>
               {commandPreview ? (
                 <>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
                     Akce: <strong>{commandPreview.action}</strong>
                   </div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
+                    Plan uloh: <strong>{Array.isArray(commandPreview.tasks) ? commandPreview.tasks.length : 0}</strong>
+                  </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
                     Kontext: {commandPreview.selectedTableLabel || "bez aktivni planety"}
+                  </div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
+                    Nahled dopadu: civilizace{" "}
+                    <strong>
+                      {Array.isArray(commandPreview.previewExecution?.result?.civilizations)
+                        ? commandPreview.previewExecution.result.civilizations.length
+                        : 0}
+                    </strong>{" "}
+                    | vazby{" "}
+                    <strong>
+                      {Array.isArray(commandPreview.previewExecution?.result?.bonds)
+                        ? commandPreview.previewExecution.result.bonds.length
+                        : 0}
+                    </strong>
                   </div>
                   {commandPreview.entities.length ? (
                     <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>

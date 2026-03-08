@@ -164,6 +164,14 @@ export function buildParserPayload(command, galaxyId = null, branchId = null) {
   return payload;
 }
 
+export function buildParserPlanUrl(apiBase) {
+  return `${apiBase}/parser/plan`;
+}
+
+export function buildTaskExecuteBatchUrl(apiBase) {
+  return `${apiBase}/tasks/execute-batch`;
+}
+
 export function buildTaskBatchPayload({
   tasks,
   mode = "commit",

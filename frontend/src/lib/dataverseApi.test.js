@@ -25,7 +25,9 @@ import {
   buildPresetsCatalogUrl,
   buildPresetsApplyUrl,
   buildGalaxyOnboardingUrl,
+  buildParserPlanUrl,
   buildParserPayload,
+  buildTaskExecuteBatchUrl,
   buildTableContractUrl,
   buildTaskBatchPayload,
   buildCivilizationMutatePayload,
@@ -67,6 +69,11 @@ describe("buildParserPayload", () => {
       galaxy_id: "g-1",
       branch_id: "br-1",
     });
+  });
+
+  it("builds parser plan and task batch execute URLs", () => {
+    expect(buildParserPlanUrl("http://127.0.0.1:8000")).toBe("http://127.0.0.1:8000/parser/plan");
+    expect(buildTaskExecuteBatchUrl("http://127.0.0.1:8000")).toBe("http://127.0.0.1:8000/tasks/execute-batch");
   });
 });
 

@@ -178,4 +178,71 @@ describe("UniverseWorkspace P0 context/branch actions", () => {
       expect(events.some((item) => item?.event_name === "moon_opened" && item?.moon_id === "a-1")).toBe(true);
     });
   });
+
+  it("supports command bar open, preview and confirm execute flow", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input) => {
+        const url = String(input || "");
+        if (url.includes("/parser/plan")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              tasks: [{ action: "INGEST", params: { value: "Invoice 2026" } }],
+              parser_version: "v2",
+            }),
+            text: async () => "",
+          };
+        }
+        if (url.includes("/tasks/execute-batch")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              mode: "preview",
+              task_count: 1,
+              result: {
+                tasks: [{ action: "INGEST", params: { value: "Invoice 2026" } }],
+                civilizations: [{ id: "c-1" }],
+                bonds: [],
+              },
+            }),
+            text: async () => "",
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          text: async () => "",
+        };
+      })
+    );
+
+    render(
+      <UniverseWorkspace
+        galaxy={{ id: "g-1", name: "Milky QA" }}
+        branches={[]}
+        onboarding={null}
+        onBackToGalaxies={() => {}}
+        onLogout={() => {}}
+      />
+    );
+
+    await user.click(screen.getByTestId("workspace-open-command-bar"));
+    expect(screen.getByTestId("workspace-command-bar-modal")).toBeTruthy();
+
+    await user.type(screen.getByTestId("command-bar-input"), '"Invoice 2026"');
+    await user.click(screen.getByTestId("command-bar-preview-button"));
+    expect(screen.getByText(/Plan uloh:/i).textContent).toContain("1");
+
+    await user.click(screen.getByTestId("command-bar-execute-button"));
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalled();
+    });
+    expect(screen.queryByTestId("workspace-command-bar-modal")).toBeNull();
+    expect(screen.getByTestId("workspace-command-result-summary").textContent).toContain("Prikaz proveden");
+  });
 });

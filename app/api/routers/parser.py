@@ -16,41 +16,21 @@ from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
-from app.schemas import ParseCommandRequest, ParseCommandResponse
+from app.schemas import ParseCommandPlanResponse, ParseCommandRequest, ParseCommandResponse
 from app.services.parser2 import Parser2SemanticPlanner, SnapshotSemanticResolver, parser_v2_fallback_to_v1_enabled
 from app.services.parser_service import AtomicTask
 
 router = APIRouter(tags=["parser"])
 
 
-@router.post("/parser/execute", response_model=ParseCommandResponse, status_code=status.HTTP_200_OK)
-async def parse_and_execute(
+async def _resolve_tasks_for_payload(
+    *,
     payload: ParseCommandRequest,
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-    services: ServiceContainer = Depends(get_service_container),
-) -> ParseCommandResponse:
-    target_galaxy_id: UUID | None = None
-    target_branch_id: UUID | None = None
-
-    async def ensure_scope() -> tuple[UUID, UUID | None]:
-        nonlocal target_galaxy_id, target_branch_id
-        if target_galaxy_id is None:
-            target_galaxy_id = await resolve_galaxy_id_for_user(
-                session=session,
-                user=current_user,
-                galaxy_id=payload.galaxy_id,
-                services=services,
-            )
-            target_branch_id = await resolve_branch_id_for_user(
-                session=session,
-                user=current_user,
-                galaxy_id=target_galaxy_id,
-                branch_id=payload.branch_id,
-                services=services,
-            )
-        return target_galaxy_id, target_branch_id
-
+    session: AsyncSession,
+    current_user: User,
+    services: ServiceContainer,
+    ensure_scope,
+) -> list[AtomicTask]:
     tasks: list[AtomicTask]
     parser_version_explicit = "parser_version" in payload.model_fields_set
     if payload.parser_version == "v2":
@@ -101,6 +81,82 @@ async def parse_and_execute(
                 detail=f"Parse error: {parse_result.errors[0]}",
             )
         tasks = parse_result.tasks
+    return tasks
+
+
+@router.post("/parser/plan", response_model=ParseCommandPlanResponse, status_code=status.HTTP_200_OK)
+async def parse_only(
+    payload: ParseCommandRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> ParseCommandPlanResponse:
+    target_galaxy_id: UUID | None = None
+    target_branch_id: UUID | None = None
+
+    async def ensure_scope() -> tuple[UUID, UUID | None]:
+        nonlocal target_galaxy_id, target_branch_id
+        if target_galaxy_id is None:
+            target_galaxy_id = await resolve_galaxy_id_for_user(
+                session=session,
+                user=current_user,
+                galaxy_id=payload.galaxy_id,
+                services=services,
+            )
+            target_branch_id = await resolve_branch_id_for_user(
+                session=session,
+                user=current_user,
+                galaxy_id=target_galaxy_id,
+                branch_id=payload.branch_id,
+                services=services,
+            )
+        return target_galaxy_id, target_branch_id
+
+    tasks = await _resolve_tasks_for_payload(
+        payload=payload,
+        session=session,
+        current_user=current_user,
+        services=services,
+        ensure_scope=ensure_scope,
+    )
+    return ParseCommandPlanResponse(tasks=tasks, parser_version=payload.parser_version)
+
+
+@router.post("/parser/execute", response_model=ParseCommandResponse, status_code=status.HTTP_200_OK)
+async def parse_and_execute(
+    payload: ParseCommandRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> ParseCommandResponse:
+    target_galaxy_id: UUID | None = None
+    target_branch_id: UUID | None = None
+
+    async def ensure_scope() -> tuple[UUID, UUID | None]:
+        nonlocal target_galaxy_id, target_branch_id
+        if target_galaxy_id is None:
+            target_galaxy_id = await resolve_galaxy_id_for_user(
+                session=session,
+                user=current_user,
+                galaxy_id=payload.galaxy_id,
+                services=services,
+            )
+            target_branch_id = await resolve_branch_id_for_user(
+                session=session,
+                user=current_user,
+                galaxy_id=target_galaxy_id,
+                branch_id=payload.branch_id,
+                services=services,
+            )
+        return target_galaxy_id, target_branch_id
+
+    tasks = await _resolve_tasks_for_payload(
+        payload=payload,
+        session=session,
+        current_user=current_user,
+        services=services,
+        ensure_scope=ensure_scope,
+    )
 
     resolved_scope: tuple[UUID, UUID | None] | None = None
     if target_galaxy_id is not None:
