@@ -236,6 +236,50 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function inferCommandAction(command) {
+  const normalized = String(command || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return "OTHER";
+  if (
+    normalized.includes(" + ") ||
+    normalized.includes("propoj") ||
+    normalized.includes("vazb") ||
+    normalized.includes("link")
+  ) {
+    return "LINK";
+  }
+  if (normalized.includes("zhasn") || normalized.includes("extinguish") || normalized.includes("archive")) {
+    return "EXTINGUISH";
+  }
+  if (normalized.includes(":=") || normalized.includes("uprav") || normalized.includes("nastav")) {
+    return "OTHER";
+  }
+  return "INGEST";
+}
+
+function buildCommandPreviewModel(command, { selectedTableLabel = "", selectedAsteroidLabel = "" } = {}) {
+  const trimmed = String(command || "").trim();
+  const action = inferCommandAction(trimmed);
+  const entities = [...trimmed.matchAll(/"([^"]+)"/g)].map((match) => String(match[1] || "").trim()).filter(Boolean);
+  const normalizedEntities = [...new Set(entities)].slice(0, 4);
+  const warnings = [];
+  if (!trimmed) {
+    warnings.push("Prazdny prikaz nelze zpracovat.");
+  }
+  if (!selectedTableLabel) {
+    warnings.push("Neni vybrana planeta; parser muze zvolit jiny kontext.");
+  }
+  return {
+    command: trimmed,
+    action,
+    entities: normalizedEntities,
+    selectedTableLabel: String(selectedTableLabel || ""),
+    selectedAsteroidLabel: String(selectedAsteroidLabel || ""),
+    warnings,
+  };
+}
+
 const contextMenuButtonStyle = {
   border: "1px solid rgba(113, 202, 234, 0.3)",
   background: "rgba(7, 18, 32, 0.86)",
@@ -333,6 +377,13 @@ export default function UniverseWorkspace({
   const [moonImpact, setMoonImpact] = useState(null);
   const [moonImpactLoading, setMoonImpactLoading] = useState(false);
   const [moonImpactError, setMoonImpactError] = useState("");
+  const [commandBarOpen, setCommandBarOpen] = useState(false);
+  const [commandInput, setCommandInput] = useState("");
+  const [commandPreview, setCommandPreview] = useState(null);
+  const [commandPreviewBusy, setCommandPreviewBusy] = useState(false);
+  const [commandExecuteBusy, setCommandExecuteBusy] = useState(false);
+  const [commandError, setCommandError] = useState("");
+  const [commandResultSummary, setCommandResultSummary] = useState("");
   const [contextMenu, setContextMenu] = useState({
     open: false,
     kind: "",
@@ -345,6 +396,7 @@ export default function UniverseWorkspace({
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const workspaceRef = useRef(null);
   const lastMoonTelemetryRef = useRef("");
+  const commandInputRef = useRef(null);
   const trackWorkspaceEvent = useCallback(
     (eventName, payload = {}) => {
       const event = createWorkspaceTelemetryEvent({
@@ -420,6 +472,13 @@ export default function UniverseWorkspace({
     setBranchPromoteSummary("");
     setBranchCreateName("");
     setBranchCreateBusy(false);
+    setCommandBarOpen(false);
+    setCommandInput("");
+    setCommandPreview(null);
+    setCommandPreviewBusy(false);
+    setCommandExecuteBusy(false);
+    setCommandError("");
+    setCommandResultSummary("");
     setContextMenu({
       open: false,
       kind: "",
@@ -2701,6 +2760,74 @@ export default function UniverseWorkspace({
     setRuntimeError,
   ]);
 
+  const handleOpenCommandBar = useCallback(() => {
+    setCommandBarOpen(true);
+    setCommandError("");
+  }, []);
+
+  const handleCloseCommandBar = useCallback(() => {
+    setCommandBarOpen(false);
+    setCommandPreviewBusy(false);
+    setCommandExecuteBusy(false);
+  }, []);
+
+  const handleBuildCommandPreview = useCallback(async () => {
+    const trimmed = String(commandInput || "").trim();
+    setCommandPreviewBusy(true);
+    setCommandError("");
+    try {
+      const preview = buildCommandPreviewModel(trimmed, {
+        selectedTableLabel: selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "",
+        selectedAsteroidLabel,
+      });
+      setCommandPreview(preview);
+    } finally {
+      setCommandPreviewBusy(false);
+    }
+  }, [commandInput, selectedAsteroidLabel, selectedTable]);
+
+  const handleExecuteCommandBar = useCallback(async () => {
+    const trimmed = String(commandInput || "").trim();
+    if (!trimmed || commandExecuteBusy) return;
+    const actionHint = inferCommandAction(trimmed);
+
+    setCommandExecuteBusy(true);
+    setCommandError("");
+    clearRuntimeIssue();
+    try {
+      const responseBody = await executeParserCommand(trimmed);
+      trackParserAttempt({ action: actionHint, parserOk: true });
+      await refreshProjection({ silent: true });
+      const tasksCount = Array.isArray(responseBody?.tasks) ? responseBody.tasks.length : 0;
+      const civilizationsCount = Array.isArray(responseBody?.civilizations) ? responseBody.civilizations.length : 0;
+      const bondsCount = Array.isArray(responseBody?.bonds) ? responseBody.bonds.length : 0;
+      setCommandResultSummary(
+        `Prikaz proveden: uloh ${tasksCount}, civilizaci ${civilizationsCount}, vazeb ${bondsCount}.`
+      );
+      setCommandBarOpen(false);
+      setCommandInput("");
+      setCommandPreview(null);
+    } catch (executeError) {
+      trackParserAttempt({
+        action: actionHint,
+        parserOk: false,
+        parserError: executeError,
+        fallbackUsed: false,
+        fallbackOk: null,
+      });
+      setCommandError(executeError?.message || "Prikaz se nepodarilo vykonat.");
+    } finally {
+      setCommandExecuteBusy(false);
+    }
+  }, [
+    clearRuntimeIssue,
+    commandExecuteBusy,
+    commandInput,
+    executeParserCommand,
+    refreshProjection,
+    trackParserAttempt,
+  ]);
+
   useEffect(() => {
     if (!contextMenu.open) return undefined;
     const handleKeyDown = (event) => {
@@ -2711,6 +2838,32 @@ export default function UniverseWorkspace({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closeContextMenu, contextMenu.open]);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      const key = String(event?.key || "").toLowerCase();
+      const openShortcut = (event.metaKey || event.ctrlKey) && !event.altKey && key === "k";
+      if (openShortcut) {
+        event.preventDefault();
+        setCommandBarOpen(true);
+        setCommandError("");
+        return;
+      }
+      if (commandBarOpen && key === "escape") {
+        event.preventDefault();
+        handleCloseCommandBar();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [commandBarOpen, handleCloseCommandBar]);
+
+  useEffect(() => {
+    if (!commandBarOpen) return;
+    if (typeof commandInputRef.current?.focus === "function") {
+      commandInputRef.current.focus();
+    }
+  }, [commandBarOpen]);
 
   const handleApplyStarProfileLock = useCallback(async () => {
     if (!galaxyId) return;
@@ -2761,6 +2914,7 @@ export default function UniverseWorkspace({
 
   useEffect(() => {
     const onKeyDown = (event) => {
+      if (commandBarOpen) return;
       const action = resolveWorkspaceKeyboardAction(event, {
         canOpenGrid: Boolean(selectedTableId) && !workspaceInteractionLocked,
         canOpenStarHeart: true,
@@ -2798,6 +2952,7 @@ export default function UniverseWorkspace({
     handleOpenStarHeartDashboard,
     quickGridOpen,
     selectedTableId,
+    commandBarOpen,
     stageZeroSetupOpen,
     starHeartOpen,
     workspaceInteractionLocked,
@@ -2814,6 +2969,191 @@ export default function UniverseWorkspace({
       aria-label="Dataverse workspace"
       style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#020205" }}
     >
+      <div style={{ position: "fixed", left: 12, top: 12, zIndex: 62, display: "grid", gap: 6 }}>
+        <button
+          type="button"
+          data-testid="workspace-open-command-bar"
+          onClick={handleOpenCommandBar}
+          style={{
+            border: "1px solid rgba(118, 209, 243, 0.42)",
+            background: "rgba(5, 14, 26, 0.9)",
+            color: "#d9f8ff",
+            borderRadius: 10,
+            padding: "8px 10px",
+            fontSize: "var(--dv-fs-xs)",
+            cursor: "pointer",
+          }}
+        >
+          Prikazovy radek (Ctrl/Cmd+K)
+        </button>
+        {commandResultSummary ? (
+          <div
+            data-testid="workspace-command-result-summary"
+            style={{
+              border: "1px solid rgba(118, 209, 243, 0.3)",
+              background: "rgba(6, 18, 30, 0.74)",
+              color: "#d9f8ff",
+              borderRadius: 8,
+              padding: "6px 8px",
+              fontSize: "var(--dv-fs-2xs)",
+              maxWidth: 320,
+            }}
+          >
+            {commandResultSummary}
+          </div>
+        ) : null}
+      </div>
+
+      {commandBarOpen ? (
+        <section
+          data-testid="workspace-command-bar-modal"
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 63,
+            display: "grid",
+            placeItems: "start center",
+            paddingTop: 48,
+            background: "radial-gradient(circle at 50% 20%, rgba(19, 42, 66, 0.2), rgba(2, 6, 14, 0.74))",
+          }}
+        >
+          <article
+            style={{
+              width: "min(760px, calc(100vw - 24px))",
+              borderRadius: 14,
+              border: "1px solid rgba(126, 216, 250, 0.38)",
+              background: "rgba(5, 13, 24, 0.94)",
+              color: "#d8f8ff",
+              padding: 14,
+              display: "grid",
+              gap: 10,
+              boxShadow: "0 0 24px rgba(46, 145, 189, 0.24)",
+            }}
+          >
+            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+              COMMAND BAR
+            </div>
+            <input
+              ref={commandInputRef}
+              data-testid="command-bar-input"
+              value={commandInput}
+              onChange={(event) => setCommandInput(event.target.value)}
+              placeholder='Např. "Invoice 2026" (table: Finance > Cashflow, amount: 1250, status: paid)'
+              style={{
+                width: "100%",
+                borderRadius: 10,
+                border: "1px solid rgba(112, 205, 238, 0.24)",
+                background: "rgba(4, 10, 18, 0.92)",
+                color: "#ddf7ff",
+                padding: "10px 11px",
+                fontSize: "var(--dv-fs-sm)",
+                lineHeight: "var(--dv-lh-base)",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                data-testid="command-bar-preview-button"
+                onClick={() => void handleBuildCommandPreview()}
+                disabled={commandPreviewBusy || commandExecuteBusy || !String(commandInput || "").trim()}
+                style={{
+                  border: "1px solid rgba(114, 219, 252, 0.5)",
+                  background: "linear-gradient(120deg, #21bbea, #44d8ff)",
+                  color: "#072737",
+                  borderRadius: 9,
+                  padding: "8px 10px",
+                  fontWeight: 700,
+                  cursor: commandPreviewBusy ? "wait" : "pointer",
+                }}
+              >
+                {commandPreviewBusy ? "Generuji nahled..." : "Nahled"}
+              </button>
+              <button
+                type="button"
+                data-testid="command-bar-execute-button"
+                onClick={() => void handleExecuteCommandBar()}
+                disabled={
+                  commandExecuteBusy ||
+                  commandPreviewBusy ||
+                  !String(commandInput || "").trim() ||
+                  !commandPreview ||
+                  commandPreview.command !== String(commandInput || "").trim()
+                }
+                style={{
+                  border: "1px solid rgba(128, 226, 182, 0.52)",
+                  background: "linear-gradient(120deg, #2bbd82, #7ee5af)",
+                  color: "#073323",
+                  borderRadius: 9,
+                  padding: "8px 10px",
+                  fontWeight: 700,
+                  cursor: commandExecuteBusy ? "wait" : "pointer",
+                }}
+              >
+                {commandExecuteBusy ? "Provadim..." : "Potvrdit a vykonat"}
+              </button>
+              <button
+                type="button"
+                data-testid="command-bar-cancel-button"
+                onClick={handleCloseCommandBar}
+                style={{
+                  border: "1px solid rgba(113, 202, 234, 0.3)",
+                  background: "rgba(7, 18, 32, 0.86)",
+                  color: "#d5f5ff",
+                  borderRadius: 9,
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                Zavrit
+              </button>
+            </div>
+            <div
+              style={{
+                border: "1px solid rgba(95, 188, 220, 0.26)",
+                borderRadius: 10,
+                background: "rgba(7, 18, 32, 0.74)",
+                padding: "8px 9px",
+                display: "grid",
+                gap: 4,
+              }}
+            >
+              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
+                Nahled je lokalni interpretace prikazu (bez zapisu). Zapis probiha az po potvrzeni.
+              </div>
+              {commandPreview ? (
+                <>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
+                    Akce: <strong>{commandPreview.action}</strong>
+                  </div>
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
+                    Kontext: {commandPreview.selectedTableLabel || "bez aktivni planety"}
+                  </div>
+                  {commandPreview.entities.length ? (
+                    <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
+                      Entity: {commandPreview.entities.join(", ")}
+                    </div>
+                  ) : null}
+                  {commandPreview.warnings.length ? (
+                    <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffc08f" }}>
+                      {commandPreview.warnings.join(" ")}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>Vloz prikaz a klikni na Nahled.</div>
+              )}
+              {commandError ? (
+                <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffb4b4" }}>{commandError}</div>
+              ) : null}
+            </div>
+          </article>
+        </section>
+      ) : null}
+
       <DndContext
         sensors={dndSensors}
         onDragStart={handleStageZeroDndStart}
