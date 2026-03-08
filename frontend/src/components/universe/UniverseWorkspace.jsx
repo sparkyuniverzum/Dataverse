@@ -373,6 +373,33 @@ function patchTaskToSelectedPlanet(task, { selectedTableId = "", selectedTableNa
   };
 }
 
+function summarizeTaskRebind(previousTasks, nextTasks, selectedTableId) {
+  const prev = Array.isArray(previousTasks) ? previousTasks : [];
+  const next = Array.isArray(nextTasks) ? nextTasks : [];
+  const selected = String(selectedTableId || "").trim();
+  if (!selected || !prev.length || !next.length) return "";
+
+  let patchedCount = 0;
+  const remappedPairs = new Set();
+  const len = Math.min(prev.length, next.length);
+  for (let i = 0; i < len; i += 1) {
+    const beforeParams = prev[i]?.params && typeof prev[i].params === "object" ? prev[i].params : {};
+    const afterParams = next[i]?.params && typeof next[i].params === "object" ? next[i].params : {};
+    const beforeId = String(beforeParams.table_id || beforeParams.planet_id || "").trim();
+    const afterId = String(afterParams.table_id || afterParams.planet_id || "").trim();
+    if (afterId === selected && beforeId !== selected) {
+      patchedCount += 1;
+      if (beforeId) remappedPairs.add(`${beforeId} -> ${selected}`);
+    }
+  }
+
+  if (!patchedCount) return "";
+  const pairList = [...remappedPairs];
+  return pairList.length
+    ? `Pregenerovano: ${patchedCount} uloh (${pairList.join(", ")}).`
+    : `Pregenerovano: ${patchedCount} uloh na planetu ${selected}.`;
+}
+
 const contextMenuButtonStyle = {
   border: "1px solid rgba(113, 202, 234, 0.3)",
   background: "rgba(7, 18, 32, 0.86)",
@@ -477,6 +504,7 @@ export default function UniverseWorkspace({
   const [commandExecuteBusy, setCommandExecuteBusy] = useState(false);
   const [commandError, setCommandError] = useState("");
   const [commandResultSummary, setCommandResultSummary] = useState("");
+  const [commandResolveSummary, setCommandResolveSummary] = useState("");
   const [contextMenu, setContextMenu] = useState({
     open: false,
     kind: "",
@@ -2870,12 +2898,14 @@ export default function UniverseWorkspace({
   const handleOpenCommandBar = useCallback(() => {
     setCommandBarOpen(true);
     setCommandError("");
+    setCommandResolveSummary("");
   }, []);
 
   const handleCloseCommandBar = useCallback(() => {
     setCommandBarOpen(false);
     setCommandPreviewBusy(false);
     setCommandExecuteBusy(false);
+    setCommandResolveSummary("");
   }, []);
 
   const handleBuildCommandPreview = useCallback(async () => {
@@ -2884,6 +2914,7 @@ export default function UniverseWorkspace({
     const actionHint = inferCommandAction(trimmed);
     setCommandPreviewBusy(true);
     setCommandError("");
+    setCommandResolveSummary("");
     try {
       const previewBase = buildCommandPreviewModel(trimmed, {
         selectedTableLabel: selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "",
@@ -2895,7 +2926,7 @@ export default function UniverseWorkspace({
         body: JSON.stringify(buildParserPayload(trimmed, galaxyId, branchIdScope)),
       });
       if (!planResponse.ok) {
-        throw await apiErrorFromResponse(planResponse, `Parser plan failed: ${planResponse.status}`);
+        throw await apiErrorFromResponse(planResponse, `Parser plan selhal: ${planResponse.status}`);
       }
       const planBody = await planResponse.json().catch(() => ({}));
       const tasks = Array.isArray(planBody?.tasks) ? planBody.tasks : [];
@@ -2906,7 +2937,12 @@ export default function UniverseWorkspace({
         selectedTableId,
         selectedTableName: selectedTable?.name || "",
       });
-      const previewExecution = await executeTaskBatch({ tasks, mode: "preview" });
+      let previewExecution;
+      try {
+        previewExecution = await executeTaskBatch({ tasks, mode: "preview" });
+      } catch (previewExecutionError) {
+        throw new Error(previewExecutionError?.message || "Backend preview selhal.");
+      }
       setCommandPreview({
         ...previewBase,
         tasks,
@@ -2923,7 +2959,15 @@ export default function UniverseWorkspace({
         fallbackOk: null,
       });
       setCommandPreview(null);
-      setCommandError(previewError?.message || "Nahled se nepodarilo ziskat.");
+      const rawMessage = String(previewError?.message || "").trim();
+      const normalizedMessage = rawMessage.toLowerCase();
+      if (normalizedMessage.includes("parser plan")) {
+        setCommandError(rawMessage || "Parser plan selhal.");
+      } else if (normalizedMessage.includes("task batch preview") || normalizedMessage.includes("backend preview")) {
+        setCommandError(rawMessage || "Backend preview selhal.");
+      } else {
+        setCommandError(rawMessage || "Nahled se nepodarilo ziskat.");
+      }
     } finally {
       setCommandPreviewBusy(false);
     }
@@ -2955,6 +2999,7 @@ export default function UniverseWorkspace({
         selectedTableName,
       });
       const previewExecution = await executeTaskBatch({ tasks: patchedTasks, mode: "preview" });
+      const resolveSummary = summarizeTaskRebind(commandPreview.tasks, patchedTasks, selectedTableId);
       setCommandPreview((prev) => {
         if (!prev) return prev;
         return {
@@ -2965,8 +3010,9 @@ export default function UniverseWorkspace({
           previewExecution,
         };
       });
+      setCommandResolveSummary(resolveSummary);
     } catch (resolveError) {
-      setCommandError(resolveError?.message || "Upraveny nahled se nepodarilo ziskat.");
+      setCommandError(resolveError?.message || "Backend preview selhal po uprave planu.");
     } finally {
       setCommandPreviewBusy(false);
     }
@@ -2996,6 +3042,7 @@ export default function UniverseWorkspace({
       setCommandBarOpen(false);
       setCommandInput("");
       setCommandPreview(null);
+      setCommandResolveSummary("");
     } catch (executeError) {
       setCommandError(executeError?.message || "Prikaz se nepodarilo vykonat.");
     } finally {
@@ -3382,6 +3429,21 @@ export default function UniverseWorkspace({
                           Pouzit aktivni planetu a pregenerovat nahled
                         </button>
                       ) : null}
+                    </div>
+                  ) : null}
+                  {commandResolveSummary ? (
+                    <div
+                      data-testid="command-bar-resolve-summary"
+                      style={{
+                        border: "1px solid rgba(124, 219, 170, 0.38)",
+                        background: "rgba(18, 60, 39, 0.46)",
+                        borderRadius: 8,
+                        padding: "6px 8px",
+                        fontSize: "var(--dv-fs-xs)",
+                        color: "#d7ffe9",
+                      }}
+                    >
+                      {commandResolveSummary}
                     </div>
                   ) : null}
                 </>

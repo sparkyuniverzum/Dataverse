@@ -303,6 +303,100 @@ describe("UniverseWorkspace P0 context/branch actions", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
+    expect(screen.getByTestId("command-bar-resolve-summary").textContent).toContain("Pregenerovano");
     expect(screen.getByTestId("command-bar-execute-button")).not.toBeDisabled();
+  });
+
+  it("shows parser plan specific error when parser endpoint fails", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input) => {
+        const url = String(input || "");
+        if (url.includes("/parser/plan")) {
+          return {
+            ok: false,
+            status: 500,
+            json: async () => ({ detail: { message: "plan crashed" } }),
+            text: async () => "plan crashed",
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          text: async () => "",
+        };
+      })
+    );
+
+    render(
+      <UniverseWorkspace
+        galaxy={{ id: "g-1", name: "Milky QA" }}
+        branches={[]}
+        onboarding={null}
+        onBackToGalaxies={() => {}}
+        onLogout={() => {}}
+      />
+    );
+
+    await user.click(screen.getByTestId("workspace-open-command-bar"));
+    await user.type(screen.getByTestId("command-bar-input"), '"Invoice parser fail"');
+    await user.click(screen.getByTestId("command-bar-preview-button"));
+    await waitFor(() => {
+      expect(screen.getByText(/Parser plan/i)).toBeTruthy();
+    });
+  });
+
+  it("shows backend preview specific error when preview batch fails", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input) => {
+        const url = String(input || "");
+        if (url.includes("/parser/plan")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              tasks: [{ action: "INGEST", params: { value: "Invoice 2026" } }],
+              parser_version: "v2",
+            }),
+            text: async () => "",
+          };
+        }
+        if (url.includes("/tasks/execute-batch")) {
+          return {
+            ok: false,
+            status: 500,
+            json: async () => ({ detail: { message: "preview failed" } }),
+            text: async () => "preview failed",
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          text: async () => "",
+        };
+      })
+    );
+
+    render(
+      <UniverseWorkspace
+        galaxy={{ id: "g-1", name: "Milky QA" }}
+        branches={[]}
+        onboarding={null}
+        onBackToGalaxies={() => {}}
+        onLogout={() => {}}
+      />
+    );
+
+    await user.click(screen.getByTestId("workspace-open-command-bar"));
+    await user.type(screen.getByTestId("command-bar-input"), '"Invoice preview fail"');
+    await user.click(screen.getByTestId("command-bar-preview-button"));
+    await waitFor(() => {
+      expect(screen.getByText(/Backend preview/i)).toBeTruthy();
+    });
   });
 });
