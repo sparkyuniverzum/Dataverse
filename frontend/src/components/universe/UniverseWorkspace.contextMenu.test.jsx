@@ -41,8 +41,31 @@ vi.mock("./LinkHoverTooltip", () => ({
 }));
 
 vi.mock("./QuickGridOverlay", () => ({
-  default: function MockQuickGrid({ open }) {
-    return open ? <div data-testid="quick-grid-open">GRID</div> : null;
+  default: function MockQuickGrid({ open, onUpdateRow, onUpsertMetadata }) {
+    if (!open) return null;
+    return (
+      <div data-testid="quick-grid-open">
+        GRID
+        <button
+          type="button"
+          data-testid="mock-grid-update-row"
+          onClick={() => {
+            void onUpdateRow?.("a-1", "Renamed Civilization");
+          }}
+        >
+          Update Row
+        </button>
+        <button
+          type="button"
+          data-testid="mock-grid-upsert-metadata"
+          onClick={() => {
+            void onUpsertMetadata?.("a-1", "state", "archived");
+          }}
+        >
+          Upsert Metadata
+        </button>
+      </div>
+    );
   },
 }));
 
@@ -297,14 +320,14 @@ describe("UniverseWorkspace P0 context/branch actions", () => {
     await user.click(screen.getByTestId("command-bar-preview-button"));
 
     expect(screen.getByTestId("command-bar-ambiguity-hints").textContent).toContain("BLOCK");
-    expect(screen.getByTestId("command-bar-execute-button")).toBeDisabled();
+    expect(screen.getByTestId("command-bar-execute-button").disabled).toBe(true);
 
     await user.click(screen.getByTestId("command-bar-resolve-planet-button"));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
     expect(screen.getByTestId("command-bar-resolve-summary").textContent).toContain("Pregenerovano");
-    expect(screen.getByTestId("command-bar-execute-button")).not.toBeDisabled();
+    expect(screen.getByTestId("command-bar-execute-button").disabled).toBe(false);
   });
 
   it("shows parser plan specific error when parser endpoint fails", async () => {
@@ -398,5 +421,127 @@ describe("UniverseWorkspace P0 context/branch actions", () => {
     await waitFor(() => {
       expect(screen.getByText(/Backend preview/i)).toBeTruthy();
     });
+  });
+
+  it("sends canonical mutate payload with both value and label for row update", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input) => {
+      const url = String(input || "");
+      if (url.includes("/civilizations/a-1/mutate")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            moon_id: "a-1",
+            current_event_seq: 8,
+            is_deleted: false,
+          }),
+          text: async () => "",
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+        text: async () => "",
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <UniverseWorkspace
+        galaxy={{ id: "g-1", name: "Milky QA" }}
+        branches={[]}
+        onboarding={null}
+        onBackToGalaxies={() => {}}
+        onLogout={() => {}}
+      />
+    );
+
+    await user.click(screen.getByTestId("mock-open-context"));
+    await user.click(screen.getByRole("button", { name: "Otevřít grid" }));
+    await user.click(screen.getByTestId("mock-grid-update-row"));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+    const mutateCall = fetchMock.mock.calls.find(([input]) =>
+      String(input || "").includes("/civilizations/a-1/mutate")
+    );
+    expect(mutateCall).toBeTruthy();
+    const mutateInit = mutateCall?.[1] || {};
+    const mutateBody = JSON.parse(String(mutateInit.body || "{}"));
+    expect(mutateBody.value).toBe("Renamed Civilization");
+    expect(mutateBody.label).toBe("Renamed Civilization");
+    expect(mutateBody.galaxy_id).toBe("g-1");
+  });
+
+  it("sends metadata in mutate fallback payload after mineral endpoints fallback", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input) => {
+      const url = String(input || "");
+      if (url.includes("/civilizations/a-1/minerals/state")) {
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ detail: "not found" }),
+          text: async () => "not found",
+        };
+      }
+      if (url.includes("/moons/a-1/minerals/state")) {
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ detail: "not found" }),
+          text: async () => "not found",
+        };
+      }
+      if (url.includes("/civilizations/a-1/mutate")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            moon_id: "a-1",
+            current_event_seq: 9,
+            is_deleted: false,
+          }),
+          text: async () => "",
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+        text: async () => "",
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <UniverseWorkspace
+        galaxy={{ id: "g-1", name: "Milky QA" }}
+        branches={[]}
+        onboarding={null}
+        onBackToGalaxies={() => {}}
+        onLogout={() => {}}
+      />
+    );
+
+    await user.click(screen.getByTestId("mock-open-context"));
+    await user.click(screen.getByRole("button", { name: "Otevřít grid" }));
+    await user.click(screen.getByTestId("mock-grid-upsert-metadata"));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+    const mutateFallbackCall = fetchMock.mock.calls.find(([input]) =>
+      String(input || "").includes("/civilizations/a-1/mutate")
+    );
+    expect(mutateFallbackCall).toBeTruthy();
+    const mutateFallbackInit = mutateFallbackCall?.[1] || {};
+    const fallbackBody = JSON.parse(String(mutateFallbackInit.body || "{}"));
+    expect(fallbackBody.metadata).toMatchObject({ state: "archived" });
+    expect(fallbackBody.minerals).toMatchObject({ state: "archived" });
+    expect(fallbackBody.galaxy_id).toBe("g-1");
   });
 });
