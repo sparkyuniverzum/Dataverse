@@ -55,6 +55,7 @@ export default function BondBuilderPanel({
   sourceId = "",
   targetId = "",
   bondType = "RELATION",
+  formula = "",
   preview = null,
   previewBusy = false,
   commitBusy = false,
@@ -62,6 +63,7 @@ export default function BondBuilderPanel({
   onSourceChange = null,
   onTargetChange = null,
   onTypeChange = null,
+  onFormulaChange = null,
   onRequestPreview = null,
   onCommit = null,
   onCancel = null,
@@ -158,6 +160,22 @@ export default function BondBuilderPanel({
           ))}
         </select>
       </label>
+
+      {bondType === "FLOW" && (
+        <label style={{ display: "grid", gap: 3 }}>
+          <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>CALCULATION LOGIC (FORMULA)</span>
+          <textarea
+            data-testid="bond-formula-input"
+            value={formula}
+            onChange={(event) => {
+              if (typeof onFormulaChange === "function") onFormulaChange(String(event.target.value || ""));
+            }}
+            placeholder="např. source.amount * 0.95"
+            style={{ ...inputStyle(), height: 64, resize: "vertical" }}
+            rows={3}
+          />
+        </label>
+      )}
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button

@@ -1,3 +1,5 @@
+import { isCyclic } from "../../lib/graph";
+
 export const VISUAL_BUILDER_NAV_STATE = Object.freeze({
   NAV_UNIVERSE: "NAV_UNIVERSE",
   NAV_PLANET_FOCUSED: "NAV_PLANET_FOCUSED",
@@ -94,6 +96,7 @@ export function evaluateBondFlowTransition({
   const previewDecision = toDecision(payload.previewDecision);
   const previewBlocking = Boolean(payload.previewBlocking);
   const converged = Boolean(payload.converged);
+  const existingBonds = Array.isArray(payload.existingBonds) ? payload.existingBonds : [];
 
   const fail = (reason, recoveryState = VISUAL_BUILDER_BOND_STATE.BOND_IDLE) => ({
     allowed: false,
@@ -146,6 +149,9 @@ export function evaluateBondFlowTransition({
     }
     if (!sourceId || !targetId) return fail("incomplete_endpoints", VISUAL_BUILDER_BOND_STATE.BOND_DRAFT_TARGET);
     if (!bondType) return fail("missing_type", VISUAL_BUILDER_BOND_STATE.BOND_DRAFT_TARGET);
+    if (isCyclic(sourceId, targetId, existingBonds)) {
+      return fail("cyclic_dependency", VISUAL_BUILDER_BOND_STATE.BOND_DRAFT_TARGET);
+    }
     return pass(VISUAL_BUILDER_BOND_STATE.BOND_PREVIEW, VISUAL_BUILDER_BOND_STATE.BOND_DRAFT_TARGET);
   }
 
@@ -183,6 +189,7 @@ export function buildVisualBuilderTransitionMessage(result) {
   if (reason === "missing_source") return "Bond draft vyzaduje zvoleny source moon.";
   if (reason === "missing_target") return "Bond draft vyzaduje zvoleny target moon.";
   if (reason === "same_endpoint") return "Source a target nemohou byt stejna civilizace.";
+  if (reason === "cyclic_dependency") return "Tato vazba vytvoří cyklickou závislost a byla zablokována.";
   if (reason === "missing_type") return "Bond preview vyzaduje typ vazby.";
   if (reason === "preview_not_committable") return "Bond commit je povolen az po ALLOW/WARN preview bez blockingu.";
   if (reason === "incomplete_endpoints") return "Bond preview vyzaduje source i target civilizaci.";
