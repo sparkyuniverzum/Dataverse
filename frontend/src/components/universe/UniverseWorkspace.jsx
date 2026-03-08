@@ -18,15 +18,11 @@ import {
   buildMoonImpactUrl,
   buildPresetsApplyUrl,
   buildPresetsCatalogUrl,
-  buildParserPlanUrl,
   buildParserPayload,
   buildTaskExecuteBatchUrl,
   buildStarCorePolicyLockUrl,
-  buildTableContractUrl,
   isOccConflictError,
-  normalizeBondType,
 } from "../../lib/dataverseApi";
-import { buildExtinguishMoonCommand, buildLinkMoonsCommand } from "../../lib/builderParserCommand";
 import { PARSER_EXECUTION_MODE } from "../../lib/parserExecutionMode";
 import { createParserTelemetrySnapshot, recordParserTelemetry } from "../../lib/parserExecutionTelemetry";
 import { createWorkspaceTelemetryEvent, emitWorkspaceTelemetry } from "../../lib/workspaceTelemetry";
@@ -39,7 +35,6 @@ import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import LinkHoverTooltip from "./LinkHoverTooltip";
 import { resolveEntityLaws, resolveLinkLaws, resolveStarCoreProfile } from "./lawResolver";
 import QuickGridOverlay from "./QuickGridOverlay";
-import { mergeMetadataValue, parseMetadataLiteral } from "./rowWriteUtils";
 import StarHeartDashboard from "./StarHeartDashboard";
 import UniverseCanvas from "./UniverseCanvas";
 import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
@@ -56,7 +51,6 @@ import {
   resolveStageZeroPlanetVisualBoost,
   summarizeStageZeroSchemaDraft,
 } from "./stageZeroBuilder";
-import { buildMoonCreateMinerals } from "./moonWriteDefaults";
 import {
   buildGuidedRepairAuditRecord,
   buildGuidedRepairMessage,
@@ -89,14 +83,10 @@ import {
 import { buildContractViolationMessage } from "./workspaceContractExplainability";
 import { readWorkspaceUiState, writeWorkspaceUiState } from "./workspaceUiPersistence";
 import { collectGridColumns, normalizeText, readGridCell, tableDisplayName, valueToLabel } from "./workspaceFormatters";
-import {
-  buildVisualBuilderTransitionMessage,
-  evaluateBondFlowTransition,
-  resolveNavigationState,
-  resolveVisualBuilderState,
-  VISUAL_BUILDER_BOND_STATE,
-  VISUAL_BUILDER_EVENT,
-} from "./visualBuilderStateMachine";
+import { resolveNavigationState, resolveVisualBuilderState } from "./visualBuilderStateMachine";
+import { useCommandBarController } from "./useCommandBarController";
+import { useMoonCrudController } from "./useMoonCrudController";
+import { useBondDraftController } from "./useBondDraftController";
 import { useUniverseStore } from "../../store/useUniverseStore";
 
 const DEFAULT_CAMERA_STATE = {
@@ -234,172 +224,6 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function inferCommandAction(command) {
-  const normalized = String(command || "")
-    .trim()
-    .toLowerCase();
-  if (!normalized) return "OTHER";
-  if (
-    normalized.includes(" + ") ||
-    normalized.includes("propoj") ||
-    normalized.includes("vazb") ||
-    normalized.includes("link")
-  ) {
-    return "LINK";
-  }
-  if (normalized.includes("zhasn") || normalized.includes("extinguish") || normalized.includes("archive")) {
-    return "EXTINGUISH";
-  }
-  if (normalized.includes(":=") || normalized.includes("uprav") || normalized.includes("nastav")) {
-    return "OTHER";
-  }
-  return "INGEST";
-}
-
-function buildCommandPreviewModel(command, { selectedTableLabel = "", selectedAsteroidLabel = "" } = {}) {
-  const trimmed = String(command || "").trim();
-  const action = inferCommandAction(trimmed);
-  const entities = [...trimmed.matchAll(/"([^"]+)"/g)].map((match) => String(match[1] || "").trim()).filter(Boolean);
-  const normalizedEntities = [...new Set(entities)].slice(0, 4);
-  const warnings = [];
-  if (!trimmed) {
-    warnings.push("Prazdny prikaz nelze zpracovat.");
-  }
-  if (!selectedTableLabel) {
-    warnings.push("Neni vybrana planeta; parser muze zvolit jiny kontext.");
-  }
-  return {
-    command: trimmed,
-    action,
-    entities: normalizedEntities,
-    selectedTableLabel: String(selectedTableLabel || ""),
-    selectedAsteroidLabel: String(selectedAsteroidLabel || ""),
-    warnings,
-  };
-}
-
-function buildCommandAmbiguityHints(tasks, { selectedTableId = "", selectedTableName = "" } = {}) {
-  const parsedTasks = Array.isArray(tasks) ? tasks : [];
-  const hints = [];
-  const selectedTableIdNormalized = String(selectedTableId || "").trim();
-  const selectedTableNameNormalized = normalizeText(selectedTableName || "");
-  const actions = [
-    ...new Set(
-      parsedTasks
-        .map((task) =>
-          String(task?.action || "")
-            .trim()
-            .toUpperCase()
-        )
-        .filter(Boolean)
-    ),
-  ];
-  if (actions.length > 1) {
-    hints.push({
-      severity: "warning",
-      message: "Plan kombinuje vice typu akci. Pred potvrzenim over dopad.",
-    });
-  }
-  parsedTasks.forEach((task) => {
-    const action = String(task?.action || "")
-      .trim()
-      .toUpperCase();
-    const target = String(task?.target || "").trim();
-    const params = task?.params && typeof task.params === "object" ? task.params : {};
-    const taskTableId = String(params.table_id || params.planet_id || "").trim();
-    const taskTableName = normalizeText(params.table_name || "");
-
-    if ((action === "INGEST" || action === "EXTINGUISH") && !target && !taskTableId && !taskTableName) {
-      hints.push({
-        severity: "warning",
-        message: `Uloha ${action} nema explicitni cil. Parser muze zvolit jiny kontext.`,
-      });
-    }
-
-    if (selectedTableIdNormalized && taskTableId && taskTableId !== selectedTableIdNormalized) {
-      hints.push({
-        severity: "blocking",
-        message: `Uloha ${action} miri na jinou planetu (${taskTableId}) nez je aktivni vyber.`,
-      });
-      return;
-    }
-
-    if (
-      selectedTableNameNormalized &&
-      taskTableName &&
-      selectedTableNameNormalized !== taskTableName &&
-      action !== "LINK"
-    ) {
-      hints.push({
-        severity: "warning",
-        message: `Uloha ${action} uvadi odlisny table_name (${params.table_name}).`,
-      });
-    }
-  });
-
-  if (!selectedTableIdNormalized && actions.includes("INGEST")) {
-    hints.push({
-      severity: "warning",
-      message: "Neni vybrana planeta; ingest muze vytvorit radek mimo aktualni fokus.",
-    });
-  }
-
-  const seen = new Set();
-  return hints.filter((hint) => {
-    const key = `${hint.severity}:${hint.message}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function patchTaskToSelectedPlanet(task, { selectedTableId = "", selectedTableName = "" } = {}) {
-  const action = String(task?.action || "")
-    .trim()
-    .toUpperCase();
-  const selectedId = String(selectedTableId || "").trim();
-  if (!selectedId || action === "LINK") return task;
-  const params = task?.params && typeof task.params === "object" ? task.params : {};
-  const taskTableId = String(params.table_id || params.planet_id || "").trim();
-  if (taskTableId && taskTableId === selectedId) return task;
-  return {
-    ...task,
-    params: {
-      ...params,
-      table_id: selectedId,
-      planet_id: selectedId,
-      ...(selectedTableName ? { table_name: selectedTableName } : {}),
-    },
-  };
-}
-
-function summarizeTaskRebind(previousTasks, nextTasks, selectedTableId) {
-  const prev = Array.isArray(previousTasks) ? previousTasks : [];
-  const next = Array.isArray(nextTasks) ? nextTasks : [];
-  const selected = String(selectedTableId || "").trim();
-  if (!selected || !prev.length || !next.length) return "";
-
-  let patchedCount = 0;
-  const remappedPairs = new Set();
-  const len = Math.min(prev.length, next.length);
-  for (let i = 0; i < len; i += 1) {
-    const beforeParams = prev[i]?.params && typeof prev[i].params === "object" ? prev[i].params : {};
-    const afterParams = next[i]?.params && typeof next[i].params === "object" ? next[i].params : {};
-    const beforeId = String(beforeParams.table_id || beforeParams.planet_id || "").trim();
-    const afterId = String(afterParams.table_id || afterParams.planet_id || "").trim();
-    if (afterId === selected && beforeId !== selected) {
-      patchedCount += 1;
-      if (beforeId) remappedPairs.add(`${beforeId} -> ${selected}`);
-    }
-  }
-
-  if (!patchedCount) return "";
-  const pairList = [...remappedPairs];
-  return pairList.length
-    ? `Pregenerovano: ${patchedCount} uloh (${pairList.join(", ")}).`
-    : `Pregenerovano: ${patchedCount} uloh na planetu ${selected}.`;
-}
-
 const contextMenuButtonStyle = {
   border: "1px solid rgba(113, 202, 234, 0.3)",
   background: "rgba(7, 18, 32, 0.86)",
@@ -445,21 +269,9 @@ export default function UniverseWorkspace({
   } = useUniverseRuntimeSync({ galaxyId, branchId: branchIdScope });
 
   const [busy, setBusy] = useState(false);
-  const [pendingCreate, setPendingCreate] = useState(false);
-  const [pendingRowOps, setPendingRowOps] = useState({});
   const [selectedTableId, setSelectedTableId] = useState("");
   const [selectedAsteroidId, setSelectedAsteroidId] = useState("");
   const [linkDraft, setLinkDraft] = useState(null);
-  const [bondDraft, setBondDraft] = useState({
-    state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
-    sourceId: "",
-    targetId: "",
-    type: "RELATION",
-    preview: null,
-    lastValidState: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
-  });
-  const [bondPreviewBusy, setBondPreviewBusy] = useState(false);
-  const [bondCommitBusy, setBondCommitBusy] = useState(false);
   const [hoveredLink, setHoveredLink] = useState(null);
 
   const [quickGridOpen, setQuickGridOpen] = useState(false);
@@ -497,15 +309,6 @@ export default function UniverseWorkspace({
   const [moonImpact, setMoonImpact] = useState(null);
   const [moonImpactLoading, setMoonImpactLoading] = useState(false);
   const [moonImpactError, setMoonImpactError] = useState("");
-  const [commandBarOpen, setCommandBarOpen] = useState(false);
-  const [commandInput, setCommandInput] = useState("");
-  const [commandPreview, setCommandPreview] = useState(null);
-  const [commandPreviewBusy, setCommandPreviewBusy] = useState(false);
-  const [commandExecuteBusy, setCommandExecuteBusy] = useState(false);
-  const [commandError, setCommandError] = useState("");
-  const [commandResultSummary, setCommandResultSummary] = useState("");
-  const [commandResolveSummary, setCommandResolveSummary] = useState("");
-  const [commandResolveTableId, setCommandResolveTableId] = useState("");
   const [contextMenu, setContextMenu] = useState({
     open: false,
     kind: "",
@@ -518,7 +321,6 @@ export default function UniverseWorkspace({
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const workspaceRef = useRef(null);
   const lastMoonTelemetryRef = useRef("");
-  const commandInputRef = useRef(null);
   const trackWorkspaceEvent = useCallback(
     (eventName, payload = {}) => {
       const event = createWorkspaceTelemetryEvent({
@@ -547,23 +349,11 @@ export default function UniverseWorkspace({
 
   useEffect(() => {
     const persistedUiState = readWorkspaceUiState(galaxyId);
-    setPendingCreate(false);
-    setPendingRowOps({});
     setSelectedTableId(String(persistedUiState.selectedTableId || ""));
     setSelectedAsteroidId("");
     setQuickGridOpen(Boolean(persistedUiState.quickGridOpen));
     setGridSearchQuery("");
     setLinkDraft(null);
-    setBondDraft({
-      state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
-      sourceId: "",
-      targetId: "",
-      type: "RELATION",
-      preview: null,
-      lastValidState: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
-    });
-    setBondPreviewBusy(false);
-    setBondCommitBusy(false);
     setHoveredLink(null);
     setStarControlPhase(STAR_CONTROL_PHASE.IDLE);
     setStarProfileDraftKey("ORIGIN");
@@ -594,15 +384,6 @@ export default function UniverseWorkspace({
     setBranchPromoteSummary("");
     setBranchCreateName("");
     setBranchCreateBusy(false);
-    setCommandBarOpen(false);
-    setCommandInput("");
-    setCommandPreview(null);
-    setCommandPreviewBusy(false);
-    setCommandExecuteBusy(false);
-    setCommandError("");
-    setCommandResultSummary("");
-    setCommandResolveSummary("");
-    setCommandResolveTableId("");
     setContextMenu({
       open: false,
       kind: "",
@@ -1379,152 +1160,6 @@ export default function UniverseWorkspace({
     },
     [appendRepairAudit, setRuntimeError]
   );
-  const resetBondDraft = useCallback(() => {
-    setBondDraft({
-      state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
-      sourceId: "",
-      targetId: "",
-      type: "RELATION",
-      preview: null,
-      lastValidState: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
-    });
-    setBondPreviewBusy(false);
-    setBondCommitBusy(false);
-  }, []);
-  const applyBondTransition = useCallback(
-    (event, payload = {}, updater = null) => {
-      const result = evaluateBondFlowTransition({
-        state: bondDraft.state,
-        event,
-        payload: {
-          sourceId: payload?.sourceId ?? bondDraft.sourceId,
-          targetId: payload?.targetId ?? bondDraft.targetId,
-          type: payload?.type ?? bondDraft.type,
-          previewDecision: payload?.previewDecision ?? bondDraft.preview?.decision,
-          previewBlocking: payload?.previewBlocking ?? bondDraft.preview?.blocking,
-          converged: payload?.converged ?? false,
-        },
-      });
-      if (!result.allowed) {
-        setRuntimeError(buildVisualBuilderTransitionMessage(result));
-        return false;
-      }
-      setBondDraft((prev) => {
-        const nextState = String(result.next_state || prev.state);
-        const shouldRefreshLastValid =
-          nextState !== VISUAL_BUILDER_BOND_STATE.BOND_BLOCKED &&
-          nextState !== VISUAL_BUILDER_BOND_STATE.BOND_COMMITTING;
-        const baseNext = {
-          ...prev,
-          state: nextState,
-          ...(shouldRefreshLastValid ? { lastValidState: nextState } : {}),
-        };
-        return typeof updater === "function" ? updater(baseNext, prev) : baseNext;
-      });
-      return true;
-    },
-    [
-      bondDraft.preview?.blocking,
-      bondDraft.preview?.decision,
-      bondDraft.sourceId,
-      bondDraft.state,
-      bondDraft.targetId,
-      bondDraft.type,
-      setRuntimeError,
-    ]
-  );
-  const handleStartBondDraft = useCallback(
-    (sourceId) => {
-      const nextSourceId = String(sourceId || "").trim();
-      if (!nextSourceId) return;
-      const startResult = evaluateBondFlowTransition({
-        state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
-        event: VISUAL_BUILDER_EVENT.START_BOND_DRAFT,
-        payload: { sourceId: nextSourceId },
-      });
-      if (!startResult.allowed) {
-        setRuntimeError(buildVisualBuilderTransitionMessage(startResult));
-        return;
-      }
-      clearRuntimeIssue();
-      setBondDraft({
-        state: startResult.next_state,
-        sourceId: nextSourceId,
-        targetId: "",
-        type: normalizeBondType(bondDraft.type || "RELATION"),
-        preview: null,
-        lastValidState: startResult.next_state,
-      });
-    },
-    [bondDraft.type, clearRuntimeIssue, setRuntimeError]
-  );
-  const handleSelectBondTarget = useCallback(
-    (targetId) => {
-      const nextTargetId = String(targetId || "").trim();
-      clearRuntimeIssue();
-      applyBondTransition(
-        VISUAL_BUILDER_EVENT.SELECT_BOND_TARGET,
-        { sourceId: bondDraft.sourceId, targetId: nextTargetId },
-        (next) => ({
-          ...next,
-          targetId: nextTargetId,
-          preview: null,
-        })
-      );
-    },
-    [applyBondTransition, bondDraft.sourceId, clearRuntimeIssue]
-  );
-  const handleSelectBondType = useCallback((nextType) => {
-    setBondDraft((prev) => ({
-      ...prev,
-      type: normalizeBondType(nextType || "RELATION"),
-      preview: null,
-    }));
-  }, []);
-  const primeBondDraftFromLink = useCallback(
-    (payload) => {
-      const sourceId = String(payload?.sourceId || "").trim();
-      const targetId = String(payload?.targetId || "").trim();
-      if (!sourceId || !targetId) return;
-      const startResult = evaluateBondFlowTransition({
-        state: VISUAL_BUILDER_BOND_STATE.BOND_IDLE,
-        event: VISUAL_BUILDER_EVENT.START_BOND_DRAFT,
-        payload: { sourceId },
-      });
-      if (!startResult.allowed) {
-        setRuntimeError(buildVisualBuilderTransitionMessage(startResult));
-        return;
-      }
-      const targetResult = evaluateBondFlowTransition({
-        state: startResult.next_state,
-        event: VISUAL_BUILDER_EVENT.SELECT_BOND_TARGET,
-        payload: { sourceId, targetId },
-      });
-      if (!targetResult.allowed) {
-        setRuntimeError(buildVisualBuilderTransitionMessage(targetResult));
-        return;
-      }
-      clearRuntimeIssue();
-      setBondDraft({
-        state: targetResult.next_state,
-        sourceId,
-        targetId,
-        type: "RELATION",
-        preview: null,
-        lastValidState: targetResult.next_state,
-      });
-    },
-    [clearRuntimeIssue, setRuntimeError]
-  );
-  useEffect(() => {
-    if (bondDraft.state === VISUAL_BUILDER_BOND_STATE.BOND_IDLE) return;
-    const rowIds = new Set(tableRows.map((row) => String(row?.id || "")));
-    const hasSource = rowIds.has(String(bondDraft.sourceId || ""));
-    const hasTarget = !bondDraft.targetId || rowIds.has(String(bondDraft.targetId || ""));
-    if (!hasSource || !hasTarget) {
-      resetBondDraft();
-    }
-  }, [bondDraft.sourceId, bondDraft.state, bondDraft.targetId, resetBondDraft, tableRows]);
   const runBuilderGuard = useCallback(
     (action, { schemaComplete = stageZeroAllSchemaStepsDone } = {}) => {
       const result = evaluatePlanetBuilderTransition({
@@ -1806,21 +1441,6 @@ export default function UniverseWorkspace({
     [handleStageZeroSchemaStep, stageZeroDraggedSchemaKey, stageZeroPresetSelected, stageZeroSchemaDraft]
   );
 
-  const loadTableContract = useCallback(
-    async (tableId) => {
-      const targetTableId = String(tableId || "").trim();
-      if (!galaxyId || !targetTableId) return null;
-      const contractRead = await apiFetch(
-        `${buildTableContractUrl(API_BASE, targetTableId, galaxyId)}${branchIdScope ? `&branch_id=${encodeURIComponent(branchIdScope)}` : ""}`
-      );
-      if (!contractRead.ok) {
-        throw await apiErrorFromResponse(contractRead, `Kontrakt planety nelze načíst: ${contractRead.status}`);
-      }
-      return contractRead.json();
-    },
-    [branchIdScope, galaxyId]
-  );
-
   const handleStageZeroCommitPreset = useCallback(async () => {
     if (
       !galaxyId ||
@@ -1922,729 +1542,103 @@ export default function UniverseWorkspace({
   const trackParserAttempt = useCallback((details) => {
     setParserTelemetry((prev) => recordParserTelemetry(prev, details));
   }, []);
-
-  const handleCreateLink = useCallback(
-    async (payload) => {
-      if (!galaxyId || !payload?.sourceId || !payload?.targetId) return;
-      if (String(payload.sourceId) === String(payload.targetId)) return;
-      const normalizedBondType = normalizeBondType(payload?.type || "RELATION");
-
-      const sourceAsteroid = asteroidById.get(String(payload.sourceId));
-      const targetAsteroid = asteroidById.get(String(payload.targetId));
-      const sourceEventSeq = sourceAsteroid?.current_event_seq;
-      const expectedSourceEventSeq = Number.isInteger(sourceEventSeq) && sourceEventSeq > 0 ? sourceEventSeq : null;
-      const targetEventSeq = targetAsteroid?.current_event_seq;
-      const expectedTargetEventSeq = Number.isInteger(targetEventSeq) && targetEventSeq > 0 ? targetEventSeq : null;
-      let parserAttempted = false;
-      let fallbackAttempted = false;
-      let parserFailure = null;
-      let parserTelemetryRecorded = false;
-
-      setBusy(true);
-      clearRuntimeIssue();
-      try {
-        const parserCommand =
-          normalizedBondType === "RELATION"
-            ? buildLinkMoonsCommand({
-                sourceId: payload.sourceId,
-                targetId: payload.targetId,
-              })
-            : "";
-        if (parserCommand && normalizedBondType === "RELATION") {
-          parserAttempted = true;
-          try {
-            await executeParserCommand(parserCommand);
-            trackParserAttempt({ action: "LINK", parserOk: true });
-            parserTelemetryRecorded = true;
-            await refreshProjection({ silent: true });
-            return true;
-          } catch (parserError) {
-            parserFailure = parserError;
-            if (parserExecutionMode.link) {
-              throw parserError;
-            }
-          }
-        }
-
-        fallbackAttempted = true;
-        const response = await apiFetch(`${API_BASE}/bonds/link`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            source_id: payload.sourceId,
-            target_id: payload.targetId,
-            type: normalizedBondType,
-            galaxy_id: galaxyId,
-            ...(branchIdScope ? { branch_id: branchIdScope } : {}),
-            idempotency_key: nextIdempotencyKey("link"),
-            ...(expectedSourceEventSeq !== null ? { expected_source_event_seq: expectedSourceEventSeq } : {}),
-            ...(expectedTargetEventSeq !== null ? { expected_target_event_seq: expectedTargetEventSeq } : {}),
-          }),
-        });
-        if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Vazbu se nepodařilo vytvořit: ${response.status}`);
-        }
-        if (parserAttempted) {
-          trackParserAttempt({
-            action: "LINK",
-            parserOk: false,
-            parserError: parserFailure,
-            fallbackUsed: true,
-            fallbackOk: true,
-          });
-          parserTelemetryRecorded = true;
-        }
-        await refreshProjection({ silent: true });
-        return true;
-      } catch (createError) {
-        if (parserAttempted && !parserTelemetryRecorded) {
-          trackParserAttempt({
-            action: "LINK",
-            parserOk: false,
-            parserError: parserFailure || createError,
-            fallbackUsed: fallbackAttempted,
-            fallbackOk: fallbackAttempted ? false : null,
-          });
-          parserTelemetryRecorded = true;
-        }
-        if (isOccConflictError(createError)) {
-          setRuntimeError(buildOccConflictMessage(createError, "vytvoření vazby"));
-          await refreshProjection({ silent: true });
-        } else {
-          reportContractViolationWithRepair(createError, {
-            fallbackMessage: createError?.message || "Vazbu se nepodařilo vytvořit.",
-            operation: "link",
-          });
-        }
-        return false;
-      } finally {
-        setBusy(false);
-      }
-    },
-    [
-      asteroidById,
-      clearRuntimeIssue,
-      executeParserCommand,
-      galaxyId,
-      branchIdScope,
-      parserExecutionMode,
-      refreshProjection,
-      reportContractViolationWithRepair,
-      setRuntimeError,
-      trackParserAttempt,
-    ]
-  );
-  const handleRequestBondPreview = useCallback(async () => {
-    if (!galaxyId) return;
-    const sourceId = String(bondDraft.sourceId || "").trim();
-    const targetId = String(bondDraft.targetId || "").trim();
-    const bondType = normalizeBondType(bondDraft.type || "RELATION");
-    if (!sourceId || !targetId) return;
-    if (
-      !applyBondTransition(VISUAL_BUILDER_EVENT.REQUEST_BOND_PREVIEW, {
-        sourceId,
-        targetId,
-        type: bondType,
-      })
-    ) {
-      return;
-    }
-
-    setBondPreviewBusy(true);
-    clearRuntimeIssue();
-    try {
-      const sourceAsteroid = asteroidById.get(sourceId);
-      const targetAsteroid = asteroidById.get(targetId);
-      const sourceEventSeq = sourceAsteroid?.current_event_seq;
-      const expectedSourceEventSeq = Number.isInteger(sourceEventSeq) && sourceEventSeq > 0 ? sourceEventSeq : null;
-      const targetEventSeq = targetAsteroid?.current_event_seq;
-      const expectedTargetEventSeq = Number.isInteger(targetEventSeq) && targetEventSeq > 0 ? targetEventSeq : null;
-      const response = await apiFetch(`${API_BASE}/bonds/validate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          operation: "create",
-          source_civilization_id: sourceId,
-          target_civilization_id: targetId,
-          type: bondType,
-          galaxy_id: galaxyId,
-          ...(branchIdScope ? { branch_id: branchIdScope } : {}),
-          ...(expectedSourceEventSeq !== null ? { expected_source_event_seq: expectedSourceEventSeq } : {}),
-          ...(expectedTargetEventSeq !== null ? { expected_target_event_seq: expectedTargetEventSeq } : {}),
-        }),
-      });
-      if (!response.ok) {
-        throw await apiErrorFromResponse(response, `Bond preview selhal: ${response.status}`);
-      }
-      const previewPayload = await response.json().catch(() => ({}));
-      const previewDecision = String(previewPayload?.decision || "").toUpperCase();
-      const previewBlocking = Boolean(previewPayload?.blocking);
-      const applied = applyBondTransition(
-        VISUAL_BUILDER_EVENT.APPLY_BOND_PREVIEW_RESULT,
-        {
-          previewDecision,
-          previewBlocking,
-        },
-        (next) => ({
-          ...next,
-          preview: previewPayload,
-        })
-      );
-      if (!applied) return;
-      const previewReasons = Array.isArray(previewPayload?.reasons) ? previewPayload.reasons : [];
-      const rejectCodes = previewReasons.map((reason) => String(reason?.code || reason?.reason || "unknown"));
-      const previewCrossPlanet = Boolean(
-        previewPayload?.cross_planet ||
-        previewReasons.some((reason) =>
-          String(reason?.code || reason?.reason || "")
-            .toUpperCase()
-            .includes("CROSS_PLANET")
-        )
-      );
-      if (previewDecision === "REJECT" || previewBlocking) {
-        trackWorkspaceEvent("bond_preview_rejected", {
-          source_civilization_id: sourceId,
-          target_civilization_id: targetId,
-          reject_codes: rejectCodes,
-          blocking_count: previewReasons.length,
-          cross_planet: previewCrossPlanet,
-        });
-        if (previewCrossPlanet) {
-          const sourcePlanetId = asteroidById.get(sourceId)?.table_id || null;
-          const targetPlanetId = asteroidById.get(targetId)?.table_id || null;
-          trackWorkspaceEvent("cross_planet_blocked", {
-            source_planet_id: sourcePlanetId,
-            target_planet_id: targetPlanetId,
-            reason_code: rejectCodes[0] || "cross_planet_blocked",
-          });
-        }
-      } else if (previewDecision === "WARN") {
-        trackWorkspaceEvent("bond_preview_warned", {
-          source_civilization_id: sourceId,
-          target_civilization_id: targetId,
-          reject_codes: rejectCodes,
-          blocking_count: previewReasons.length,
-          cross_planet: previewCrossPlanet,
-        });
-      } else {
-        trackWorkspaceEvent("bond_preview_allowed", {
-          source_civilization_id: sourceId,
-          target_civilization_id: targetId,
-          cross_planet: previewCrossPlanet,
-        });
-      }
-      if (previewDecision === "REJECT" || previewBlocking) {
-        const firstReason = Array.isArray(previewPayload?.reasons) ? previewPayload.reasons[0] : null;
-        setRuntimeError(String(firstReason?.message || "Bond preview operation blocked by validation rules."));
-      }
-    } catch (previewError) {
-      reportContractViolationWithRepair(previewError, {
-        fallbackMessage: previewError?.message || "Bond preview selhal.",
-        operation: "bond_preview",
-      });
-      setBondDraft((prev) => ({
-        ...prev,
-        state: VISUAL_BUILDER_BOND_STATE.BOND_BLOCKED,
-      }));
-    } finally {
-      setBondPreviewBusy(false);
-    }
-  }, [
-    applyBondTransition,
-    asteroidById,
-    bondDraft.sourceId,
-    bondDraft.targetId,
-    bondDraft.type,
-    clearRuntimeIssue,
+  const {
+    commandBarOpen,
+    commandInput,
+    commandPreview,
+    commandPreviewBusy,
+    commandExecuteBusy,
+    commandError,
+    commandResultSummary,
+    commandResolveSummary,
+    commandResolveTableId,
+    commandInputRef,
+    setCommandInput,
+    setCommandResolveTableId,
+    handleOpenCommandBar,
+    handleCloseCommandBar,
+    handleBuildCommandPreview,
+    handleResolveCommandAmbiguity,
+    handleExecuteCommandBar,
+    resetCommandBarState,
+  } = useCommandBarController({
+    apiBase: API_BASE,
     galaxyId,
     branchIdScope,
+    selectedTableId,
+    selectedTable,
+    selectedAsteroidLabel,
+    tableNodes,
+    tableById,
+    executeTaskBatch,
+    trackParserAttempt,
+    clearRuntimeIssue,
+    refreshProjection,
+    nextIdempotencyKey,
+  });
+  useEffect(() => {
+    resetCommandBarState();
+  }, [galaxyId, resetCommandBarState]);
+
+  const {
+    pendingCreate,
+    pendingRowOps,
+    handleCreateRow,
+    handleUpdateRow,
+    handleDeleteRow,
+    handleUpsertMetadata,
+    resetMoonCrudState,
+  } = useMoonCrudController({
+    apiBase: API_BASE,
+    galaxyId,
+    branchIdScope,
+    selectedTableId,
+    selectedAsteroidId,
+    asteroidById,
+    setSelectedAsteroidId,
+    setBusy,
+    clearRuntimeIssue,
+    refreshProjection,
     reportContractViolationWithRepair,
     setRuntimeError,
-    trackWorkspaceEvent,
-  ]);
-  const handleCommitBondDraft = useCallback(async () => {
-    const sourceId = String(bondDraft.sourceId || "").trim();
-    const targetId = String(bondDraft.targetId || "").trim();
-    const bondType = normalizeBondType(bondDraft.type || "RELATION");
-    const previewDecision = String(bondDraft.preview?.decision || "").toUpperCase();
-    const previewBlocking = Boolean(bondDraft.preview?.blocking);
-    if (
-      !applyBondTransition(VISUAL_BUILDER_EVENT.CONFIRM_BOND_COMMIT, {
-        sourceId,
-        targetId,
-        type: bondType,
-        previewDecision,
-        previewBlocking,
-      })
-    ) {
-      return;
-    }
-
-    setBondCommitBusy(true);
-    const committed = await handleCreateLink({
-      sourceId,
-      targetId,
-      type: bondType,
-    });
-    if (!committed) {
-      setBondDraft((prev) => ({
-        ...prev,
-        state: VISUAL_BUILDER_BOND_STATE.BOND_BLOCKED,
-      }));
-      setBondCommitBusy(false);
-      return;
-    }
-    const applied = applyBondTransition(
-      VISUAL_BUILDER_EVENT.RUNTIME_REFRESH,
-      {
-        converged: true,
-      },
-      (next) => ({
-        ...next,
-      })
-    );
-    if (!applied) {
-      setBondCommitBusy(false);
-      return;
-    }
-    setBondCommitBusy(false);
-    setTimeout(() => {
-      resetBondDraft();
-    }, 200);
-  }, [
-    applyBondTransition,
-    bondDraft.preview?.blocking,
-    bondDraft.preview?.decision,
-    bondDraft.sourceId,
-    bondDraft.targetId,
-    bondDraft.type,
-    handleCreateLink,
+    executeParserCommand,
+    trackParserAttempt,
+    parserExecutionMode,
+    nextIdempotencyKey,
+  });
+  const {
+    bondDraft,
+    bondPreviewBusy,
+    bondCommitBusy,
+    handleStartBondDraft,
+    handleSelectBondTarget,
+    handleSelectBondType,
+    primeBondDraftFromLink,
+    handleRequestBondPreview,
+    handleCommitBondDraft,
     resetBondDraft,
-  ]);
-
-  const handleCreateRow = useCallback(
-    async (value) => {
-      if (!galaxyId || !selectedTableId) {
-        return { ok: false, message: "Vyber planetu pred vytvorenim civilizace." };
-      }
-      const trimmed = String(value || "").trim();
-      if (!trimmed) return { ok: false, message: "Nazev civilizace je prazdny." };
-
-      setBusy(true);
-      setPendingCreate(true);
-      clearRuntimeIssue();
-      try {
-        const tableContract = await loadTableContract(selectedTableId);
-        const minerals = buildMoonCreateMinerals({
-          label: trimmed,
-          contract: tableContract,
-        });
-        if (!Object.prototype.hasOwnProperty.call(minerals, "label")) {
-          minerals.label = trimmed;
-        }
-        const createPayload = {
-          label: trimmed,
-          minerals,
-          planet_id: selectedTableId,
-          galaxy_id: galaxyId,
-          ...(branchIdScope ? { branch_id: branchIdScope } : {}),
-          idempotency_key: nextIdempotencyKey("ingest"),
-        };
-        const [primaryCreateUrl, legacyCreateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
-          operation: "create",
-        });
-        let response = await apiFetch(primaryCreateUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(createPayload),
-        });
-        if (shouldFallbackToMoonAlias(response.status)) {
-          response = await apiFetch(legacyCreateUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(createPayload),
-          });
-        }
-        if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo vytvořit: ${response.status}`);
-        }
-        const payload = await response.json().catch(() => ({}));
-        const asteroidId = payload?.moon_id
-          ? String(payload.moon_id)
-          : payload?.civilization_id
-            ? String(payload.civilization_id)
-            : payload?.id
-              ? String(payload.id)
-              : "";
-
-        await refreshProjection({ silent: true });
-        if (asteroidId) {
-          setSelectedAsteroidId(asteroidId);
-        }
-        return { ok: true, message: `Civilizace '${trimmed}' byla vytvorena.` };
-      } catch (createError) {
-        reportContractViolationWithRepair(createError, {
-          fallbackMessage: createError?.message || "Civilizaci se nepodařilo vytvořit.",
-          operation: "create",
-        });
-        return {
-          ok: false,
-          message: createError?.message || "Vytvoreni civilizace selhalo. Zkontroluj kontrakt planety.",
-        };
-      } finally {
-        setPendingCreate(false);
-        setBusy(false);
-      }
-    },
-    [
-      clearRuntimeIssue,
-      galaxyId,
-      branchIdScope,
-      loadTableContract,
-      refreshProjection,
-      reportContractViolationWithRepair,
-      selectedTableId,
-    ]
-  );
-
-  const handleUpdateRow = useCallback(
-    async (asteroidId, value) => {
-      const targetId = String(asteroidId || "").trim();
-      if (!galaxyId || !targetId) {
-        return { ok: false, message: "Neni vybrana civilizace pro upravu." };
-      }
-
-      const asteroid = asteroidById.get(targetId);
-      if (!asteroid) return { ok: false, message: "Civilizace uz neni v aktualni projekci." };
-      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
-        ? Number(asteroid.current_event_seq)
-        : null;
-
-      setBusy(true);
-      setPendingRowOps((prev) => ({ ...prev, [targetId]: "mutate" }));
-      clearRuntimeIssue();
-      try {
-        const mutatePayload = {
-          value,
-          label: value,
-          galaxy_id: galaxyId,
-          ...(branchIdScope ? { branch_id: branchIdScope } : {}),
-          idempotency_key: nextIdempotencyKey("mutate"),
-          ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
-        };
-        const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
-          operation: "mutate",
-          civilizationId: targetId,
-        });
-        let response = await apiFetch(primaryMutateUrl, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(mutatePayload),
-        });
-        if (shouldFallbackToMoonAlias(response.status)) {
-          response = await apiFetch(legacyMutateUrl, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(mutatePayload),
-          });
-        }
-        if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo upravit: ${response.status}`);
-        }
-        await refreshProjection({ silent: true });
-        return { ok: true, message: "Civilizace byla upravena." };
-      } catch (updateError) {
-        if (isOccConflictError(updateError)) {
-          const message = buildOccConflictMessage(updateError, "úprava civilizace");
-          setRuntimeError(message);
-          await refreshProjection({ silent: true });
-          return { ok: false, message };
-        } else {
-          reportContractViolationWithRepair(updateError, {
-            fallbackMessage: updateError?.message || "Civilizaci se nepodařilo upravit.",
-            operation: "mutate",
-            civilizationId: targetId,
-          });
-          return { ok: false, message: updateError?.message || "Uprava civilizace selhala." };
-        }
-      } finally {
-        setPendingRowOps((prev) => {
-          const next = { ...prev };
-          delete next[targetId];
-          return next;
-        });
-        setBusy(false);
-      }
-    },
-    [
-      asteroidById,
-      clearRuntimeIssue,
-      galaxyId,
-      branchIdScope,
-      refreshProjection,
-      reportContractViolationWithRepair,
-      setRuntimeError,
-    ]
-  );
-
-  const handleDeleteRow = useCallback(
-    async (asteroidId) => {
-      const targetId = String(asteroidId || "").trim();
-      if (!galaxyId || !targetId) return { ok: false, message: "Neni vybrana civilizace pro archivaci." };
-
-      const asteroid = asteroidById.get(targetId);
-      if (!asteroid) return { ok: false, message: "Civilizace uz neni v aktualni projekci." };
-      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
-        ? Number(asteroid.current_event_seq)
-        : null;
-      let parserAttempted = false;
-      let fallbackAttempted = false;
-      let parserFailure = null;
-      let parserTelemetryRecorded = false;
-
-      setBusy(true);
-      setPendingRowOps((prev) => ({ ...prev, [targetId]: "extinguish" }));
-      clearRuntimeIssue();
-      try {
-        const parserCommand = buildExtinguishMoonCommand({
-          asteroidId: targetId,
-          asteroidLabel: asteroid?.value,
-        });
-        if (parserCommand) {
-          parserAttempted = true;
-          try {
-            await executeParserCommand(parserCommand);
-            trackParserAttempt({ action: "EXTINGUISH", parserOk: true });
-            parserTelemetryRecorded = true;
-            await refreshProjection({ silent: true });
-            if (String(selectedAsteroidId) === targetId) {
-              setSelectedAsteroidId("");
-            }
-            return { ok: true, message: "Civilizace byla archivovana parser cestou." };
-          } catch (parserError) {
-            parserFailure = parserError;
-            if (parserExecutionMode.extinguish) {
-              throw parserError;
-            }
-          }
-        }
-
-        fallbackAttempted = true;
-        const extinguishIdempotencyKey = nextIdempotencyKey("extinguish");
-        const [primaryExtinguishBaseUrl, legacyExtinguishBaseUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
-          operation: "extinguish",
-          civilizationId: targetId,
-        });
-        const buildExtinguishUrl = (baseUrl) => {
-          const url = new URL(baseUrl);
-          url.searchParams.set("galaxy_id", galaxyId);
-          if (branchIdScope) {
-            url.searchParams.set("branch_id", branchIdScope);
-          }
-          url.searchParams.set("idempotency_key", extinguishIdempotencyKey);
-          if (expectedEventSeq !== null) {
-            url.searchParams.set("expected_event_seq", String(expectedEventSeq));
-          }
-          return url.toString();
-        };
-        let response = await apiFetch(buildExtinguishUrl(primaryExtinguishBaseUrl), {
-          method: "PATCH",
-        });
-        if (shouldFallbackToMoonAlias(response.status)) {
-          response = await apiFetch(buildExtinguishUrl(legacyExtinguishBaseUrl), {
-            method: "PATCH",
-          });
-        }
-
-        if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo zhasnout: ${response.status}`);
-        }
-        if (parserAttempted) {
-          trackParserAttempt({
-            action: "EXTINGUISH",
-            parserOk: false,
-            parserError: parserFailure,
-            fallbackUsed: true,
-            fallbackOk: true,
-          });
-          parserTelemetryRecorded = true;
-        }
-
-        await refreshProjection({ silent: true });
-        if (String(selectedAsteroidId) === targetId) {
-          setSelectedAsteroidId("");
-        }
-        return { ok: true, message: "Civilizace byla archivovana." };
-      } catch (deleteError) {
-        if (parserAttempted && !parserTelemetryRecorded) {
-          trackParserAttempt({
-            action: "EXTINGUISH",
-            parserOk: false,
-            parserError: parserFailure || deleteError,
-            fallbackUsed: fallbackAttempted,
-            fallbackOk: fallbackAttempted ? false : null,
-          });
-          parserTelemetryRecorded = true;
-        }
-        if (isOccConflictError(deleteError)) {
-          const message = buildOccConflictMessage(deleteError, "zhasnutí civilizace");
-          setRuntimeError(message);
-          await refreshProjection({ silent: true });
-          return { ok: false, message };
-        } else {
-          reportContractViolationWithRepair(deleteError, {
-            fallbackMessage: deleteError?.message || "Civilizaci se nepodařilo zhasnout.",
-            operation: "extinguish",
-            civilizationId: targetId,
-          });
-          return { ok: false, message: deleteError?.message || "Archivace civilizace selhala." };
-        }
-      } finally {
-        setPendingRowOps((prev) => {
-          const next = { ...prev };
-          delete next[targetId];
-          return next;
-        });
-        setBusy(false);
-      }
-    },
-    [
-      asteroidById,
-      clearRuntimeIssue,
-      executeParserCommand,
-      galaxyId,
-      branchIdScope,
-      parserExecutionMode,
-      refreshProjection,
-      reportContractViolationWithRepair,
-      selectedAsteroidId,
-      setRuntimeError,
-      trackParserAttempt,
-    ]
-  );
-
-  const handleUpsertMetadata = useCallback(
-    async (asteroidId, key, rawValue) => {
-      const targetId = String(asteroidId || "").trim();
-      const metadataKey = String(key || "").trim();
-      if (!galaxyId || !targetId || !metadataKey) {
-        return { ok: false, message: "Vyber civilizaci a zadej klic nerostu." };
-      }
-
-      const asteroid = asteroidById.get(targetId);
-      if (!asteroid) return { ok: false, message: "Civilizace uz neni v aktualni projekci." };
-      const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
-        ? Number(asteroid.current_event_seq)
-        : null;
-      const currentMetadata = asteroid?.metadata && typeof asteroid.metadata === "object" ? asteroid.metadata : {};
-      const parsedMineralValue = parseMetadataLiteral(rawValue);
-      const removeRequested = typeof parsedMineralValue === "undefined";
-      if (removeRequested && !Object.prototype.hasOwnProperty.call(currentMetadata, metadataKey)) {
-        return { ok: true, message: `Nerost '${metadataKey}' uz je prazdny.` };
-      }
-
-      setBusy(true);
-      setPendingRowOps((prev) => ({ ...prev, [targetId]: "metadata" }));
-      clearRuntimeIssue();
-      try {
-        const mineralMutatePayload = {
-          remove: removeRequested,
-          galaxy_id: galaxyId,
-          ...(branchIdScope ? { branch_id: branchIdScope } : {}),
-          idempotency_key: nextIdempotencyKey("mineral"),
-          ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
-        };
-        if (!removeRequested) {
-          mineralMutatePayload.typed_value = parsedMineralValue;
-        }
-
-        const [primaryMineralUrl, legacyMineralUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
-          operation: "mutate_mineral",
-          civilizationId: targetId,
-          mineralKey: metadataKey,
-        });
-        let response = await apiFetch(primaryMineralUrl, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(mineralMutatePayload),
-        });
-        if (shouldFallbackToMoonAlias(response.status)) {
-          response = await apiFetch(legacyMineralUrl, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(mineralMutatePayload),
-          });
-        }
-        if (shouldFallbackToMoonAlias(response.status)) {
-          const nextMetadata = mergeMetadataValue(currentMetadata, metadataKey, rawValue);
-          const mutatePayload = {
-            metadata: nextMetadata,
-            minerals: nextMetadata,
-            galaxy_id: galaxyId,
-            ...(branchIdScope ? { branch_id: branchIdScope } : {}),
-            idempotency_key: nextIdempotencyKey("metadata-fallback"),
-            ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
-          };
-          const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
-            operation: "mutate",
-            civilizationId: targetId,
-          });
-          response = await apiFetch(primaryMutateUrl, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(mutatePayload),
-          });
-          if (shouldFallbackToMoonAlias(response.status)) {
-            response = await apiFetch(legacyMutateUrl, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(mutatePayload),
-            });
-          }
-        }
-        if (!response.ok) {
-          throw await apiErrorFromResponse(response, `Nerost se nepodařilo uložit: ${response.status}`);
-        }
-        await refreshProjection({ silent: true });
-        return {
-          ok: true,
-          message: removeRequested
-            ? `Nerost '${metadataKey}' byl odebran (soft remove).`
-            : `Nerost '${metadataKey}' byl ulozen.`,
-        };
-      } catch (metadataError) {
-        if (isOccConflictError(metadataError)) {
-          const message = buildOccConflictMessage(metadataError, "úprava nerostu");
-          setRuntimeError(message);
-          await refreshProjection({ silent: true });
-          return { ok: false, message };
-        } else {
-          reportContractViolationWithRepair(metadataError, {
-            fallbackMessage: metadataError?.message || "Nerost se nepodařilo uložit.",
-            operation: "metadata",
-            civilizationId: targetId,
-          });
-          return { ok: false, message: metadataError?.message || `Ulozeni nerostu '${metadataKey}' selhalo.` };
-        }
-      } finally {
-        setPendingRowOps((prev) => {
-          const next = { ...prev };
-          delete next[targetId];
-          return next;
-        });
-        setBusy(false);
-      }
-    },
-    [
-      asteroidById,
-      clearRuntimeIssue,
-      galaxyId,
-      branchIdScope,
-      refreshProjection,
-      reportContractViolationWithRepair,
-      setRuntimeError,
-    ]
-  );
+    resetBondDraftState,
+  } = useBondDraftController({
+    apiBase: API_BASE,
+    galaxyId,
+    branchIdScope,
+    asteroidById,
+    tableRows,
+    setBusy,
+    clearRuntimeIssue,
+    refreshProjection,
+    reportContractViolationWithRepair,
+    setRuntimeError,
+    executeParserCommand,
+    trackParserAttempt,
+    trackWorkspaceEvent,
+    parserExecutionMode,
+    nextIdempotencyKey,
+  });
+  useEffect(() => {
+    resetMoonCrudState();
+    resetBondDraftState();
+  }, [galaxyId, resetBondDraftState, resetMoonCrudState]);
 
   const handleApplyGuidedRepair = useCallback(async () => {
     const activeSuggestion = repairSuggestion;
@@ -2931,177 +1925,6 @@ export default function UniverseWorkspace({
     setRuntimeError,
   ]);
 
-  const handleOpenCommandBar = useCallback(() => {
-    setCommandBarOpen(true);
-    setCommandError("");
-    setCommandResolveSummary("");
-    setCommandResolveTableId(String(selectedTableId || tableNodes[0]?.id || ""));
-  }, [selectedTableId, tableNodes]);
-
-  const handleCloseCommandBar = useCallback(() => {
-    setCommandBarOpen(false);
-    setCommandPreviewBusy(false);
-    setCommandExecuteBusy(false);
-    setCommandResolveSummary("");
-    setCommandResolveTableId("");
-  }, []);
-
-  const handleBuildCommandPreview = useCallback(async () => {
-    const trimmed = String(commandInput || "").trim();
-    if (!trimmed) return;
-    const actionHint = inferCommandAction(trimmed);
-    setCommandPreviewBusy(true);
-    setCommandError("");
-    setCommandResolveSummary("");
-    try {
-      const previewBase = buildCommandPreviewModel(trimmed, {
-        selectedTableLabel: selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "",
-        selectedAsteroidLabel,
-      });
-      const planResponse = await apiFetch(buildParserPlanUrl(API_BASE), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildParserPayload(trimmed, galaxyId, branchIdScope)),
-      });
-      if (!planResponse.ok) {
-        throw await apiErrorFromResponse(planResponse, `Parser plan selhal: ${planResponse.status}`);
-      }
-      const planBody = await planResponse.json().catch(() => ({}));
-      const tasks = Array.isArray(planBody?.tasks) ? planBody.tasks : [];
-      if (!tasks.length) {
-        throw new Error("Parser plan nevratil zadne ulohy.");
-      }
-      const ambiguityHints = buildCommandAmbiguityHints(tasks, {
-        selectedTableId,
-        selectedTableName: selectedTable?.name || "",
-      });
-      let previewExecution;
-      try {
-        previewExecution = await executeTaskBatch({ tasks, mode: "preview" });
-      } catch (previewExecutionError) {
-        throw new Error(previewExecutionError?.message || "Backend preview selhal.");
-      }
-      setCommandPreview({
-        ...previewBase,
-        tasks,
-        ambiguityHints,
-        previewExecution,
-      });
-      if (!selectedTableId) {
-        setCommandResolveTableId(String(tableNodes[0]?.id || ""));
-      }
-      trackParserAttempt({ action: actionHint, parserOk: true });
-    } catch (previewError) {
-      trackParserAttempt({
-        action: actionHint,
-        parserOk: false,
-        parserError: previewError,
-        fallbackUsed: false,
-        fallbackOk: null,
-      });
-      setCommandPreview(null);
-      const rawMessage = String(previewError?.message || "").trim();
-      const normalizedMessage = rawMessage.toLowerCase();
-      if (normalizedMessage.includes("parser plan")) {
-        setCommandError(rawMessage || "Parser plan selhal.");
-      } else if (normalizedMessage.includes("task batch preview") || normalizedMessage.includes("backend preview")) {
-        setCommandError(rawMessage || "Backend preview selhal.");
-      } else {
-        setCommandError(rawMessage || "Nahled se nepodarilo ziskat.");
-      }
-    } finally {
-      setCommandPreviewBusy(false);
-    }
-  }, [
-    branchIdScope,
-    commandInput,
-    executeTaskBatch,
-    galaxyId,
-    selectedAsteroidLabel,
-    selectedTableId,
-    selectedTable,
-    tableNodes,
-    trackParserAttempt,
-  ]);
-
-  const handleResolveCommandAmbiguity = useCallback(
-    async (forcedTableId = "") => {
-      if (!commandPreview) return;
-      const resolvedTableId = String(forcedTableId || selectedTableId || commandResolveTableId || "").trim();
-      if (!resolvedTableId) {
-        setCommandError("Vyber planetu, na kterou se ma plan navazat.");
-        return;
-      }
-      const resolvedTable = tableById.get(resolvedTableId) || null;
-      const selectedTableName = resolvedTable?.name || "";
-      const patchedTasks = (Array.isArray(commandPreview.tasks) ? commandPreview.tasks : []).map((task) =>
-        patchTaskToSelectedPlanet(task, {
-          selectedTableId: resolvedTableId,
-          selectedTableName,
-        })
-      );
-      setCommandPreviewBusy(true);
-      setCommandError("");
-      try {
-        const ambiguityHints = buildCommandAmbiguityHints(patchedTasks, {
-          selectedTableId: resolvedTableId,
-          selectedTableName,
-        });
-        const previewExecution = await executeTaskBatch({ tasks: patchedTasks, mode: "preview" });
-        const resolveSummary = summarizeTaskRebind(commandPreview.tasks, patchedTasks, resolvedTableId);
-        setCommandPreview((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            selectedTableLabel: resolvedTable ? `Tabulka: ${tableDisplayName(resolvedTable)}` : prev.selectedTableLabel,
-            tasks: patchedTasks,
-            ambiguityHints,
-            previewExecution,
-          };
-        });
-        setCommandResolveTableId(resolvedTableId);
-        setCommandResolveSummary(resolveSummary);
-      } catch (resolveError) {
-        setCommandError(resolveError?.message || "Backend preview selhal po uprave planu.");
-      } finally {
-        setCommandPreviewBusy(false);
-      }
-    },
-    [commandPreview, commandResolveTableId, executeTaskBatch, selectedTableId, tableById]
-  );
-
-  const handleExecuteCommandBar = useCallback(async () => {
-    const trimmed = String(commandInput || "").trim();
-    if (!trimmed || commandExecuteBusy || !commandPreview?.tasks?.length) return;
-
-    setCommandExecuteBusy(true);
-    setCommandError("");
-    clearRuntimeIssue();
-    try {
-      const commitBody = await executeTaskBatch({
-        tasks: commandPreview.tasks,
-        mode: "commit",
-        idempotencyKey: nextIdempotencyKey("command-bar-commit"),
-      });
-      await refreshProjection({ silent: true });
-      const result = commitBody?.result && typeof commitBody.result === "object" ? commitBody.result : {};
-      const tasksCount = Array.isArray(result?.tasks) ? result.tasks.length : 0;
-      const civilizationsCount = Array.isArray(result?.civilizations) ? result.civilizations.length : 0;
-      const bondsCount = Array.isArray(result?.bonds) ? result.bonds.length : 0;
-      setCommandResultSummary(
-        `Prikaz proveden: uloh ${tasksCount}, civilizaci ${civilizationsCount}, vazeb ${bondsCount}.`
-      );
-      setCommandBarOpen(false);
-      setCommandInput("");
-      setCommandPreview(null);
-      setCommandResolveSummary("");
-    } catch (executeError) {
-      setCommandError(executeError?.message || "Prikaz se nepodarilo vykonat.");
-    } finally {
-      setCommandExecuteBusy(false);
-    }
-  }, [clearRuntimeIssue, commandExecuteBusy, commandInput, commandPreview, executeTaskBatch, refreshProjection]);
-
   useEffect(() => {
     if (!contextMenu.open) return undefined;
     const handleKeyDown = (event) => {
@@ -3112,32 +1935,6 @@ export default function UniverseWorkspace({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closeContextMenu, contextMenu.open]);
-
-  useEffect(() => {
-    const onKeyDown = (event) => {
-      const key = String(event?.key || "").toLowerCase();
-      const openShortcut = (event.metaKey || event.ctrlKey) && !event.altKey && key === "k";
-      if (openShortcut) {
-        event.preventDefault();
-        setCommandBarOpen(true);
-        setCommandError("");
-        return;
-      }
-      if (commandBarOpen && key === "escape") {
-        event.preventDefault();
-        handleCloseCommandBar();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [commandBarOpen, handleCloseCommandBar]);
-
-  useEffect(() => {
-    if (!commandBarOpen) return;
-    if (typeof commandInputRef.current?.focus === "function") {
-      commandInputRef.current.focus();
-    }
-  }, [commandBarOpen]);
 
   const handleApplyStarProfileLock = useCallback(async () => {
     if (!galaxyId) return;

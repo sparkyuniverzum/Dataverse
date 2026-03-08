@@ -7,8 +7,7 @@ from app.api.mappers.execution import execution_to_response, task_to_response
 from app.api.runtime import (
     get_service_container,
     resolve_scope_for_user,
-    run_scoped_idempotent,
-    transactional_context,
+    run_scoped_atomic_idempotent,
 )
 from app.app_factory import ServiceContainer
 from app.db import get_session
@@ -16,6 +15,7 @@ from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import TaskBatchExecuteRequest, TaskBatchExecuteResponse
 from app.services.parser_service import AtomicTask
+from app.services.task_batch_execution_service import execute_atomic_tasks_preview
 
 router = APIRouter(tags=["tasks"])
 
@@ -38,39 +38,22 @@ async def execute_task_batch(
     resolved_galaxy_id, resolved_branch_id = resolved_scope
 
     if payload.mode == "preview":
-        async with transactional_context(session):
-            async with session.begin_nested() as preview_tx:
-                execution = await services.task_executor_service.execute_tasks(
-                    session=session,
-                    tasks=tasks,
-                    user_id=current_user.id,
-                    galaxy_id=resolved_galaxy_id,
-                    branch_id=resolved_branch_id,
-                    manage_transaction=False,
-                )
-                result = execution_to_response(tasks=tasks, execution=execution)
-                await preview_tx.rollback()
-        return TaskBatchExecuteResponse(mode="preview", task_count=len(tasks), result=result)
-
-    async def execute_scoped(target_galaxy_id, target_branch_id) -> TaskBatchExecuteResponse:
-        execution = await services.task_executor_service.execute_tasks(
+        execution = await execute_atomic_tasks_preview(
             session=session,
+            services=services,
             tasks=tasks,
             user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
+            galaxy_id=resolved_galaxy_id,
+            branch_id=resolved_branch_id,
         )
-        return TaskBatchExecuteResponse(
-            mode="commit",
-            task_count=len(tasks),
-            result=execution_to_response(tasks=tasks, execution=execution),
-        )
+        result = execution_to_response(tasks=tasks, execution=execution)
+        return TaskBatchExecuteResponse(mode="preview", task_count=len(tasks), result=result)
 
-    return await run_scoped_idempotent(
+    return await run_scoped_atomic_idempotent(
         session=session,
         current_user=current_user,
         services=services,
+        tasks=tasks,
         galaxy_id=payload.galaxy_id,
         branch_id=payload.branch_id,
         endpoint_key="POST:/tasks/execute-batch",
@@ -79,7 +62,11 @@ async def execute_task_batch(
             "mode": payload.mode,
             "tasks": [task_to_response(task).model_dump(mode="json") for task in tasks],
         },
-        execute=execute_scoped,
+        map_execution=lambda execution: TaskBatchExecuteResponse(
+            mode="commit",
+            task_count=len(tasks),
+            result=execution_to_response(tasks=tasks, execution=execution),
+        ),
         replay_loader=TaskBatchExecuteResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Batch execution failed",

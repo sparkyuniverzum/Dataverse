@@ -210,6 +210,7 @@ async def run_scoped_atomic_idempotent(
     response_dumper: Callable[[Any], dict[str, Any]],
     empty_response_detail: str,
     empty_response_status: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+    resolved_scope: tuple[UUID, UUID | None] | None = None,
 ) -> Any:
     task_list = list(tasks)
 
@@ -238,4 +239,5 @@ async def run_scoped_atomic_idempotent(
         response_dumper=response_dumper,
         empty_response_detail=empty_response_detail,
         empty_response_status=empty_response_status,
+        resolved_scope=resolved_scope,
     )
