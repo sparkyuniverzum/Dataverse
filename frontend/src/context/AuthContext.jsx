@@ -248,6 +248,22 @@ export function AuthProvider({ children }) {
     [completeAuth]
   );
 
+  const forgotPassword = useCallback(async (email) => {
+    const response = await fetch(`${API_BASE}/auth/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+
+    const bodyText = await response.text();
+    if (!response.ok) {
+      throw new Error(parseErrorMessage(bodyText, "Odeslání odkazu pro obnovu hesla selhalo"));
+    }
+
+    // The component can show this message to the user upon success.
+    return { message: "Pokud e-mail existuje v našem systému, byl na něj odeslán odkaz pro obnovu hesla." };
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -261,8 +277,20 @@ export function AuthProvider({ children }) {
       logout,
       refreshSession,
       setDefaultGalaxy,
+      forgotPassword,
     }),
-    [accessToken, defaultGalaxy, isLoading, login, logout, refreshSession, refreshToken, register, user]
+    [
+      accessToken,
+      defaultGalaxy,
+      isLoading,
+      login,
+      logout,
+      refreshSession,
+      refreshToken,
+      register,
+      user,
+      forgotPassword,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -159,7 +159,7 @@ function FeatureCard({ title, text }) {
   );
 }
 
-export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
+export default function LandingDashboard({ onLogin, onRegister, onForgotPassword, busy, error }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -271,8 +271,13 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            const handler = mode === "login" ? onLogin : onRegister;
-            handler(email.trim(), password);
+            if (mode === "login") {
+              onLogin(email.trim(), password);
+            } else if (mode === "register") {
+              onRegister(email.trim(), password);
+            } else if (mode === "forgot-password") {
+              onForgotPassword(email.trim());
+            }
           }}
           style={{
             display: "grid",
@@ -286,46 +291,50 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
             AUTH MODULE
           </div>
           <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800, lineHeight: 1.1 }}>
-            Pripojte se k Jadru
+            {mode === "forgot-password" ? "Obnova přístupu" : "Pripojte se k Jadru"}
           </div>
           <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.84 }}>
-            Prihlaseni otevre cisty vesmir, herni plochu a sidebar. Nic navic.
+            {mode === "forgot-password"
+              ? "Zadejte svůj e-mail, pošleme vám odkaz pro nastavení nového hesla."
+              : "Prihlaseni otevre cisty vesmir, herni plochu a sidebar. Nic navic."}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
-            <button
-              type="button"
-              onClick={() => setMode("login")}
-              data-testid="auth-mode-login"
-              style={{
-                borderRadius: 10,
-                border: "1px solid rgba(118, 216, 250, 0.42)",
-                background: mode === "login" ? "rgba(48,124,168,0.88)" : "rgba(8,18,32,0.84)",
-                color: "#e4f8ff",
-                padding: "8px 10px",
-                cursor: "pointer",
-              }}
-            >
-              Vstoupit do Galaxie
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("register")}
-              data-testid="auth-mode-register"
-              style={{
-                borderRadius: 10,
-                border: "1px solid rgba(118, 216, 250, 0.42)",
-                background: mode === "register" ? "rgba(48,124,168,0.88)" : "rgba(8,18,32,0.84)",
-                color: "#e4f8ff",
-                padding: "8px 10px",
-                cursor: "pointer",
-              }}
-            >
-              Stvorit Workspace
-            </button>
-          </div>
+          {mode !== "forgot-password" ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setMode("login")}
+                data-testid="auth-mode-login"
+                style={{
+                  borderRadius: 10,
+                  border: "1px solid rgba(118, 216, 250, 0.42)",
+                  background: mode === "login" ? "rgba(48,124,168,0.88)" : "rgba(8,18,32,0.84)",
+                  color: "#e4f8ff",
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                Vstoupit do Galaxie
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("register")}
+                data-testid="auth-mode-register"
+                style={{
+                  borderRadius: 10,
+                  border: "1px solid rgba(118, 216, 250, 0.42)",
+                  background: mode === "register" ? "rgba(48,124,168,0.88)" : "rgba(8,18,32,0.84)",
+                  color: "#e4f8ff",
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                Stvorit Workspace
+              </button>
+            </div>
+          ) : null}
 
-          <label style={{ display: "grid", gap: 6, marginTop: 2 }}>
+          <label style={{ display: "grid", gap: 6, marginTop: mode !== "forgot-password" ? 2 : 12 }}>
             <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>
               E-MAIL PILOTA
             </span>
@@ -340,31 +349,59 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
             />
           </label>
 
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>
-              PRISTUPOVY KLIC
-            </span>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              placeholder="********"
-              data-testid="auth-password-input"
-              style={inputStyle}
-            />
-          </label>
+          {mode !== "forgot-password" ? (
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>
+                PRISTUPOVY KLIC
+              </span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required={mode !== "forgot-password"}
+                placeholder="********"
+                data-testid="auth-password-input"
+                style={inputStyle}
+              />
+            </label>
+          ) : null}
 
           {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffabc3" }}>{error}</div> : null}
 
           <button type="submit" disabled={busy} data-testid="auth-submit-button" style={ctaStyle(busy)}>
-            {busy ? "Navazuji spojeni..." : mode === "login" ? "Vstoupit do Galaxie" : "Iniciovat Hvezdu"}
+            {busy
+              ? "Navazuji spojeni..."
+              : mode === "login"
+                ? "Vstoupit do Galaxie"
+                : mode === "register"
+                  ? "Iniciovat Hvezdu"
+                  : "Odeslat instrukce"}
           </button>
 
-          <div style={{ marginTop: 4, fontSize: "var(--dv-fs-xs)", opacity: 0.72, lineHeight: "var(--dv-lh-relaxed)" }}>
-            Pokracovanim potvrzujete, ze chcete aktivovat datovy prostor s event sourcing historii a soft-delete
-            pravidly.
-          </div>
+          {mode === "login" ? (
+            <div style={{ marginTop: 8, fontSize: "var(--dv-fs-xs)", textAlign: "right" }}>
+              <button type="button" onClick={() => setMode("forgot-password")} style={linkStyle}>
+                Zapomněli jste heslo?
+              </button>
+            </div>
+          ) : null}
+
+          {mode === "forgot-password" ? (
+            <div style={{ marginTop: 8, fontSize: "var(--dv-fs-xs)", textAlign: "right" }}>
+              <button type="button" onClick={() => setMode("login")} style={linkStyle}>
+                Zpět na přihlášení
+              </button>
+            </div>
+          ) : null}
+
+          {mode !== "forgot-password" ? (
+            <div
+              style={{ marginTop: 4, fontSize: "var(--dv-fs-xs)", opacity: 0.72, lineHeight: "var(--dv-lh-relaxed)" }}
+            >
+              Pokracovanim potvrzujete, ze chcete aktivovat datovy prostor s event sourcing historii a soft-delete
+              pravidly.
+            </div>
+          ) : null}
         </form>
       </section>
 
@@ -379,6 +416,17 @@ export default function LandingDashboard({ onLogin, onRegister, busy, error }) {
     </main>
   );
 }
+
+const linkStyle = {
+  background: "none",
+  border: "none",
+  padding: 0,
+  color: "#98dbff",
+  cursor: "pointer",
+  textDecoration: "underline",
+  fontSize: "var(--dv-fs-xs)",
+  fontFamily: "inherit",
+};
 
 const inputStyle = {
   width: "100%",
