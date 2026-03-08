@@ -1,6 +1,6 @@
 # Planet/Civilization Implementation Plan v1
 
-Status: P0 completed, P1/P2 open
+Status: P0/P1 completed, P2 open
 Date: 2026-03-08
 Owner: FE + BE core
 
@@ -134,10 +134,19 @@ P0 evidence (2026-03-08):
 - Staging smoke: `npm --prefix frontend run test:e2e -- e2e/staging/branch-scope-promote.smoke.spec.mjs` (`1 passed`)
 
 ### P1 checklist
-- [ ] Moon-impact endpoint implemented and documented.
-- [ ] Moon inspector switched to API-backed impact source.
-- [ ] Inspector precedence implemented exactly per IA contract.
-- [ ] P1 BE + FE tests merged.
+- [x] Moon-impact endpoint implemented and documented.
+- [x] Moon inspector switched to API-backed impact source.
+- [x] Inspector precedence implemented exactly per IA contract.
+- [x] P1 BE + FE tests merged.
+
+P1 evidence (2026-03-08):
+- BE endpoint: `GET /planets/{planet_id}/moon-impact` implemented in `app/api/routers/planets.py` with schema models in `app/schema_models/planetary.py`.
+- FE integration: `frontend/src/components/universe/UniverseWorkspace.jsx` loads moon-impact payload; `frontend/src/components/universe/WorkspaceSidebar.jsx` uses API impact data as primary inspector source.
+- FE helper: `frontend/src/lib/dataverseApi.js` (`buildMoonImpactUrl`).
+- BE gate: `pytest -q tests/test_api_integration.py -k "planet_moon_impact_endpoint_scope_and_shape"` (`1 passed`).
+- FE gates:
+  - `npm --prefix frontend run test -- --run src/lib/dataverseApi.test.js src/components/universe/WorkspaceSidebar.moonImpact.test.jsx` (passed)
+  - `npm --prefix frontend run test -- --run src/components/universe/planetCivilizationMatrix.placeholder.test.js` (passed)
 
 ### P2 checklist
 - [ ] Telemetry catalog emitted with required fields.

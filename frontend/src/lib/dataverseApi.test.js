@@ -10,6 +10,7 @@ import {
   buildGalaxyEventsStreamUrl,
   buildStarCoreDomainMetricsUrl,
   buildPlanetExtinguishUrl,
+  buildMoonImpactUrl,
   buildStarCorePhysicsProfileUrl,
   buildStarCorePlanetPhysicsUrl,
   buildStarCorePolicyLockUrl,
@@ -329,6 +330,26 @@ describe("io urls", () => {
 
     const galaxyUrl = buildGalaxyExtinguishUrl("http://127.0.0.1:8000", "g-5");
     expect(galaxyUrl).toBe("http://127.0.0.1:8000/galaxies/g-5/extinguish");
+  });
+});
+
+describe("moon impact url", () => {
+  it("builds moon-impact URL with full scope and filters", () => {
+    const url = buildMoonImpactUrl("http://127.0.0.1:8000", "planet-1", {
+      galaxyId: "g-1",
+      branchId: "br-1",
+      capabilityId: "cap-1",
+      includeCivilizationIds: false,
+      includeViolationSamples: true,
+      limit: 1250,
+    });
+    expect(url).toContain("/planets/planet-1/moon-impact");
+    expect(url).toContain("galaxy_id=g-1");
+    expect(url).toContain("branch_id=br-1");
+    expect(url).toContain("capability_id=cap-1");
+    expect(url).toContain("include_civilization_ids=false");
+    expect(url).toContain("include_violation_samples=true");
+    expect(url).toContain("limit=1000");
   });
 });
 

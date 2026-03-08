@@ -402,6 +402,40 @@ export function buildPlanetExtinguishUrl(
   return url.toString();
 }
 
+export function buildMoonImpactUrl(
+  apiBase,
+  planetId,
+  {
+    galaxyId = null,
+    branchId = null,
+    capabilityId = null,
+    capabilityKey = null,
+    includeCivilizationIds = true,
+    includeViolationSamples = true,
+    limit = 200,
+  } = {}
+) {
+  const url = new URL(`${apiBase}/planets/${planetId}/moon-impact`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  if (capabilityId) {
+    url.searchParams.set("capability_id", String(capabilityId));
+  } else if (capabilityKey) {
+    url.searchParams.set("capability_key", String(capabilityKey));
+  }
+  url.searchParams.set("include_civilization_ids", includeCivilizationIds ? "true" : "false");
+  url.searchParams.set("include_violation_samples", includeViolationSamples ? "true" : "false");
+  if (Number.isFinite(limit)) {
+    const normalized = Math.max(1, Math.min(1000, Math.floor(Number(limit))));
+    url.searchParams.set("limit", String(normalized));
+  }
+  return url.toString();
+}
+
 export function buildGalaxyExtinguishUrl(apiBase, galaxyId, { expectedEventSeq } = {}) {
   const url = new URL(`${apiBase}/galaxies/${galaxyId}/extinguish`);
   if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {

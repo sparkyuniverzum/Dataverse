@@ -4207,6 +4207,108 @@ def test_contract_violation_explainability_payload_shape(auth_client: tuple[http
     assert detail["capability_id"] == capability_id
 
 
+def test_planet_moon_impact_endpoint_scope_and_shape(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    planet_name = f"MoonImpact > Planet-{uuid.uuid4().hex[:8]}"
+    created_planet = client.post(
+        "/planets",
+        json={
+            "name": planet_name,
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"moon-impact-planet-{uuid.uuid4()}",
+        },
+    )
+    assert created_planet.status_code == 201, created_planet.text
+    planet_id = created_planet.json()["table_id"]
+
+    capability = client.post(
+        f"/planets/{planet_id}/capabilities",
+        json={
+            "galaxy_id": galaxy_id,
+            "capability_key": "state.guard",
+            "capability_class": "validation",
+            "config": {
+                "validators": [
+                    {
+                        "id": "state-must-be-active",
+                        "field": "state",
+                        "operator": "==",
+                        "value": "active",
+                    }
+                ]
+            },
+            "order_index": 10,
+            "status": "active",
+            "idempotency_key": f"moon-impact-capability-{uuid.uuid4()}",
+        },
+    )
+    assert capability.status_code == 201, capability.text
+    capability_body = capability.json()
+    capability_id = capability_body["id"]
+
+    seeded = client.post(
+        "/civilizations/ingest",
+        json={
+            "value": "Moon impact valid row",
+            "metadata": {
+                "table": planet_name,
+                "entity_id": f"impact-ok-{uuid.uuid4().hex[:8]}",
+                "label": "Moon impact valid row",
+                "state": "active",
+            },
+            "galaxy_id": galaxy_id,
+            "idempotency_key": f"moon-impact-row-valid-{uuid.uuid4()}",
+        },
+    )
+    assert seeded.status_code == 200, seeded.text
+
+    impact = client.get(
+        f"/planets/{planet_id}/moon-impact",
+        params={
+            "galaxy_id": galaxy_id,
+            "capability_id": capability_id,
+            "include_civilization_ids": True,
+            "include_violation_samples": True,
+            "limit": 200,
+        },
+    )
+    assert impact.status_code == 200, impact.text
+    body = impact.json()
+    assert body["planet_id"] == planet_id
+    assert body["galaxy_id"] == galaxy_id
+    assert body["branch_id"] is None
+    assert isinstance(body.get("generated_at"), str) and body.get("generated_at")
+    assert isinstance(body.get("items"), list)
+    assert isinstance(body.get("summary"), dict)
+
+    items = body["items"]
+    state_rule = next((item for item in items if item.get("rule_id") == "state-must-be-active"), None)
+    assert state_rule is not None
+    assert state_rule["capability_id"] == capability_id
+    assert state_rule["rule_kind"] == "validator"
+    assert state_rule["impact_kind"] == "validate"
+    assert state_rule["mineral_key"] == "state"
+    assert int(state_rule["active_violations_count"]) >= 0
+    assert int(state_rule["impacted_civilizations_count"]) >= 0
+    assert isinstance(state_rule.get("impacted_civilization_ids"), list)
+    assert isinstance(state_rule.get("violation_samples"), list)
+    if state_rule["violation_samples"]:
+        sample = state_rule["violation_samples"][0]
+        assert sample["mineral_key"] == "state"
+        assert sample["state"] in {"WARNING", "ANOMALY"}
+        assert sample["detail"]["rule_id"] == "state-must-be-active"
+        assert sample["detail"]["capability_id"] == capability_id
+        assert sample["detail"]["expected_constraint"] == {"operator": "==", "value": "active"}
+        assert isinstance(sample["detail"]["repair_hint"], str) and sample["detail"]["repair_hint"]
+
+    summary = body["summary"]
+    assert int(summary["capabilities_count"]) >= 1
+    assert int(summary["rules_count"]) >= 1
+    assert int(summary["active_violations_count"]) >= 0
+
+
 def test_civilization_first_class_alias_endpoints(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     planet_name = f"CivilizationAlias > Planet-{uuid.uuid4().hex[:8]}"

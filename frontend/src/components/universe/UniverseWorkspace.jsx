@@ -15,6 +15,7 @@ import {
   apiFetch,
   buildBranchPromoteUrl,
   buildOccConflictMessage,
+  buildMoonImpactUrl,
   buildParserPayload,
   buildStarCorePolicyLockUrl,
   buildTableContractUrl,
@@ -323,6 +324,9 @@ export default function UniverseWorkspace({
   const [branchPromoteSummary, setBranchPromoteSummary] = useState("");
   const [branchCreateName, setBranchCreateName] = useState("");
   const [branchCreateBusy, setBranchCreateBusy] = useState(false);
+  const [moonImpact, setMoonImpact] = useState(null);
+  const [moonImpactLoading, setMoonImpactLoading] = useState(false);
+  const [moonImpactError, setMoonImpactError] = useState("");
   const [contextMenu, setContextMenu] = useState({
     open: false,
     kind: "",
@@ -668,6 +672,55 @@ export default function UniverseWorkspace({
       setSelectedAsteroidId("");
     }
   }, [asteroidById, selectedAsteroidId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!galaxyId || !selectedTableId) {
+      setMoonImpact(null);
+      setMoonImpactError("");
+      setMoonImpactLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadMoonImpact = async () => {
+      setMoonImpactLoading(true);
+      setMoonImpactError("");
+      try {
+        const response = await apiFetch(
+          buildMoonImpactUrl(API_BASE, selectedTableId, {
+            galaxyId,
+            branchId: branchIdScope,
+            includeCivilizationIds: true,
+            includeViolationSamples: true,
+            limit: 200,
+          })
+        );
+        if (!response.ok) {
+          throw await apiErrorFromResponse(response, "Moon impact nelze načíst");
+        }
+        const payload = await response.json();
+        if (!cancelled) {
+          setMoonImpact(payload && typeof payload === "object" ? payload : null);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setMoonImpact(null);
+          setMoonImpactError(String(loadError?.message || "Moon impact nelze načíst"));
+        }
+      } finally {
+        if (!cancelled) {
+          setMoonImpactLoading(false);
+        }
+      }
+    };
+
+    void loadMoonImpact();
+    return () => {
+      cancelled = true;
+    };
+  }, [branchIdScope, galaxyId, selectedTableId]);
 
   const layout = useMemo(
     () =>
@@ -3307,6 +3360,9 @@ export default function UniverseWorkspace({
           selectedTableLabel={selectedTableLabel}
           selectedAsteroidLabel={selectedAsteroidLabel}
           moonRows={tableRows}
+          moonImpact={moonImpact}
+          moonImpactLoading={moonImpactLoading}
+          moonImpactError={moonImpactError}
           selectedMoonId={selectedAsteroidId}
           onSelectTable={(tableId) => handlePlanetSelect(tableId, { source: "sidebar" })}
           onSelectMoon={(moonId) => {

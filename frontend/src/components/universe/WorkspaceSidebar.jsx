@@ -77,7 +77,7 @@ function truncateValue(value, max = 48) {
   return `${asText.slice(0, max - 1)}…`;
 }
 
-function deriveMoonInspector(selectedMoon) {
+function deriveMoonInspector(selectedMoon, moonImpact, selectedMoonId = "") {
   if (!selectedMoon || typeof selectedMoon !== "object") {
     return {
       state: "UNKNOWN",
@@ -86,6 +86,43 @@ function deriveMoonInspector(selectedMoon) {
       activeRules: [],
     };
   }
+  const impactItems = Array.isArray(moonImpact?.items) ? moonImpact.items : [];
+  const selectedId = String(selectedMoonId || "").trim();
+  if (impactItems.length) {
+    const filtered = selectedId
+      ? impactItems.filter((item) =>
+          Array.isArray(item?.impacted_civilization_ids)
+            ? item.impacted_civilization_ids.some((civilizationId) => String(civilizationId) === selectedId)
+            : false
+        )
+      : [];
+    const relevant = filtered.length ? filtered : impactItems;
+    const impactedMinerals = [];
+    const activeRules = [];
+    let violationCount = 0;
+    relevant.forEach((item) => {
+      const mineralKey = String(item?.mineral_key || "").trim();
+      if (mineralKey) {
+        impactedMinerals.push(mineralKey);
+      }
+      const ruleId = String(item?.rule_id || "").trim();
+      if (ruleId) {
+        activeRules.push(ruleId);
+      }
+      const itemViolations = Number(item?.active_violations_count);
+      if (Number.isFinite(itemViolations)) {
+        violationCount += Math.max(0, Math.floor(itemViolations));
+      }
+    });
+    const state = String(selectedMoon.state || (selectedMoon.is_deleted ? "ARCHIVED" : "ACTIVE")).toUpperCase();
+    return {
+      state,
+      violationCount,
+      impactedMinerals: [...new Set(impactedMinerals)].slice(0, 6),
+      activeRules: [...new Set(activeRules)].slice(0, 4),
+    };
+  }
+
   const facts = Array.isArray(selectedMoon.facts) ? selectedMoon.facts : [];
   const metadata =
     selectedMoon.metadata && typeof selectedMoon.metadata === "object" && !Array.isArray(selectedMoon.metadata)
@@ -155,6 +192,9 @@ export default function WorkspaceSidebar({
   selectedTableLabel,
   selectedAsteroidLabel,
   moonRows = [],
+  moonImpact = null,
+  moonImpactLoading = false,
+  moonImpactError = "",
   selectedMoonId = "",
   onSelectTable,
   onSelectMoon = null,
@@ -180,7 +220,7 @@ export default function WorkspaceSidebar({
     safeMoonRows.find((row) => String(row?.id || "") === String(selectedMoonId || "")) ||
     safeMoonRows.find((row) => String(row?.value || "") === String(selectedAsteroidLabel || "")) ||
     null;
-  const moonInspector = deriveMoonInspector(selectedMoon);
+  const moonInspector = deriveMoonInspector(selectedMoon, moonImpact, selectedMoonId);
 
   return (
     <aside
@@ -452,6 +492,12 @@ export default function WorkspaceSidebar({
               <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.74 }}>
                 Aktivni pravidla: {moonInspector.activeRules.length ? moonInspector.activeRules.join(", ") : "n/a"}
               </div>
+              {moonImpactLoading ? (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.68 }}>Nacitam impact data...</div>
+              ) : null}
+              {moonImpactError ? (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", color: "#ffc1d3", opacity: 0.92 }}>{moonImpactError}</div>
+              ) : null}
             </div>
           ) : null}
         </div>

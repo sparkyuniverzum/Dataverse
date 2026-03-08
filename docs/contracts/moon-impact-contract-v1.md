@@ -1,6 +1,6 @@
 # Moon Impact Contract v1
 
-Status: approved target (Wave 0 readiness)
+Status: implemented (P1 closure)
 Date: 2026-03-07
 Owner: Core BE architecture
 Depends on: `docs/contracts/moon-contract-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `docs/contracts/visual-builder-context-contract-v1.md`, `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
@@ -110,3 +110,13 @@ Error detail must include:
 1. Contract is approved and linked from Wave 0 plan (`W0-LF-08`).
 2. Impact payload fields are frozen and referenced by FE inspector contract.
 3. Violation detail in impact samples reuses canonical explainability keys.
+
+Implementation notes (2026-03-08):
+- Backend endpoint is implemented in `app/api/routers/planets.py` (`GET /planets/{planet_id}/moon-impact`).
+- Response schemas are implemented in `app/schema_models/planetary.py` (`MoonImpactResponse` and related models).
+- FE Moon Inspector consumes this endpoint as primary impact source via:
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - `frontend/src/components/universe/WorkspaceSidebar.jsx`
+- Validation gates:
+  - `tests/test_api_integration.py::test_planet_moon_impact_endpoint_scope_and_shape`
+  - `frontend/src/components/universe/WorkspaceSidebar.moonImpact.test.jsx`
