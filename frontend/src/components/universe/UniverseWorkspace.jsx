@@ -2291,6 +2291,7 @@ export default function UniverseWorkspace({
       clearRuntimeIssue();
       try {
         const mutatePayload = {
+          value,
           label: value,
           galaxy_id: galaxyId,
           ...(branchIdScope ? { branch_id: branchIdScope } : {}),
@@ -2543,6 +2544,7 @@ export default function UniverseWorkspace({
         if (shouldFallbackToMoonAlias(response.status)) {
           const nextMetadata = mergeMetadataValue(currentMetadata, metadataKey, rawValue);
           const mutatePayload = {
+            metadata: nextMetadata,
             minerals: nextMetadata,
             galaxy_id: galaxyId,
             ...(branchIdScope ? { branch_id: branchIdScope } : {}),
