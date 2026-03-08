@@ -4,6 +4,15 @@ import { clamp } from "./sceneMath";
 
 export const PHASE_ORDER = Object.freeze(["CALM", "ACTIVE", "OVERLOADED", "DORMANT", "CORRODING", "CRITICAL"]);
 
+export const PHASE_DISPLAY_NAMES = Object.freeze({
+  CALM: "Klid",
+  ACTIVE: "Aktivní",
+  OVERLOADED: "Přetíženo",
+  DORMANT: "Spící",
+  CORRODING: "Korodující",
+  CRITICAL: "Kritický stav",
+});
+
 const PHASE_VISUAL_PRESETS = Object.freeze({
   CALM: Object.freeze({
     tint: "#8fdfff",
@@ -123,6 +132,7 @@ export function resolvePlanetPhaseVisual({ phase, corrosionLevel, crackIntensity
 
   return {
     phase: normalizedPhase,
+    labelText: PHASE_DISPLAY_NAMES[normalizedPhase] || normalizedPhase,
     tint,
     emissive,
     rim,
@@ -175,9 +185,11 @@ export function resolveLinkPhaseVisual({
   const safeStress = clamp(Number(stress) || 0, 0, 1);
   const dominantColor = resolvePhaseColorBySeverity(dominantSeverity);
   const pulseColor = new THREE.Color(dominantColor).lerp(new THREE.Color("#ffffff"), 0.28).getStyle();
+  const dominantPhase = PHASE_ORDER[dominantSeverity] || "CALM";
 
   return {
-    dominantPhase: PHASE_ORDER[dominantSeverity] || "CALM",
+    dominantPhase,
+    labelText: PHASE_DISPLAY_NAMES[dominantPhase] || dominantPhase,
     color: dominantColor,
     pulseColor,
     severity: dominantSeverity,

@@ -259,7 +259,7 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
           >
             <div>
               <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", opacity: 0.74 }}>
-                DATAVERSE / COSMIC DATA ENGINE
+                DATAVERSE / KOSMICKÝ DATOVÝ STROJ
               </div>
               <h1 style={{ margin: "12px 0 0", maxWidth: 620, fontSize: "clamp(28px, 3.2vw, 50px)", lineHeight: 1.05 }}>
                 {title}
@@ -307,7 +307,7 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
           {successMessage ? (
             <>
               <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", color: "#8fd9fb" }}>
-                AUTH MODULE
+                AUTENTIZAČNÍ MODUL
               </div>
               <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800, lineHeight: 1.1 }}>
                 Úspěšně odesláno
@@ -329,7 +329,7 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
           ) : (
             <>
               <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", color: "#8fd9fb" }}>
-                AUTH MODULE
+                AUTENTIZAČNÍ MODUL
               </div>
               <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800, lineHeight: 1.1 }}>
                 {
