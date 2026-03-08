@@ -7,10 +7,11 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select, text as sql_text
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import IdempotencyRecord
+from app.services.db_advisory_lock import acquire_transaction_lock
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,7 @@ class IdempotencyService:
             endpoint=endpoint,
             idempotency_key=idempotency_key,
         )
-        await session.execute(sql_text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+        await acquire_transaction_lock(session, key=lock_key)
 
         existing = (
             await session.execute(

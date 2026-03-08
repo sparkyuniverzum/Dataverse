@@ -120,6 +120,16 @@ def _resolve_decision(*, reasons: list[BondValidateReason]) -> tuple[str, bool, 
     return "WARN", True, False
 
 
+def _reason_from_unexpected_exception(exc: Exception) -> BondValidateReason:
+    return BondValidateReason(
+        code="BOND_VALIDATE_INTERNAL_ERROR",
+        severity="error",
+        blocking=True,
+        message="Bond preview encountered an unexpected runtime error.",
+        context={"error_type": type(exc).__name__},
+    )
+
+
 @router.post("/bonds/validate", response_model=BondValidateResponse, status_code=status.HTTP_200_OK)
 async def validate_bond(
     payload: BondValidateRequest,
@@ -159,41 +169,53 @@ async def validate_bond(
         ),
     )
 
-    active_asteroids, active_bonds = await services.universe_service.project_state(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=resolved_galaxy_id,
-        branch_id=resolved_branch_id,
-        apply_calculations=False,
-    )
-    asteroid_by_id = {item.id: item for item in active_asteroids}
-    source_asteroid = asteroid_by_id.get(normalized_source) if normalized_source is not None else None
-    target_asteroid = asteroid_by_id.get(normalized_target) if normalized_target is not None else None
-    source_planet_id = source_asteroid.table_id if source_asteroid is not None else None
-    target_planet_id = target_asteroid.table_id if target_asteroid is not None else None
-    cross_planet = (
-        source_planet_id is not None and target_planet_id is not None and str(source_planet_id) != str(target_planet_id)
-    )
-
+    reasons: list[BondValidateReason] = []
+    source_planet_id: UUID | None = None
+    target_planet_id: UUID | None = None
+    cross_planet = False
     existing_bond_id: UUID | None = None
-    if operation == "create" and normalized_source is not None and normalized_target is not None:
-        for bond in active_bonds:
-            bond_type = normalize_bond_type(bond.type)
-            if bond_type != semantics.bond_type:
-                continue
-            if bond_type == "RELATION":
-                candidate_source, candidate_target = _canonical_pair(
-                    bond.source_civilization_id,
-                    bond.target_civilization_id,
-                    relation_type=bond_type,
-                )
-                if candidate_source == normalized_source and candidate_target == normalized_target:
+    try:
+        active_asteroids, active_bonds = await services.universe_service.project_state(
+            session=session,
+            user_id=current_user.id,
+            galaxy_id=resolved_galaxy_id,
+            branch_id=resolved_branch_id,
+            apply_calculations=False,
+        )
+        asteroid_by_id = {item.id: item for item in active_asteroids}
+        source_asteroid = asteroid_by_id.get(normalized_source) if normalized_source is not None else None
+        target_asteroid = asteroid_by_id.get(normalized_target) if normalized_target is not None else None
+        source_planet_id = source_asteroid.table_id if source_asteroid is not None else None
+        target_planet_id = target_asteroid.table_id if target_asteroid is not None else None
+        cross_planet = (
+            source_planet_id is not None
+            and target_planet_id is not None
+            and str(source_planet_id) != str(target_planet_id)
+        )
+
+        if operation == "create" and normalized_source is not None and normalized_target is not None:
+            for bond in active_bonds:
+                bond_type = normalize_bond_type(bond.type)
+                if bond_type != semantics.bond_type:
+                    continue
+                if bond_type == "RELATION":
+                    candidate_source, candidate_target = _canonical_pair(
+                        bond.source_civilization_id,
+                        bond.target_civilization_id,
+                        relation_type=bond_type,
+                    )
+                    if candidate_source == normalized_source and candidate_target == normalized_target:
+                        existing_bond_id = bond.id
+                        break
+                    continue
+                if (
+                    bond.source_civilization_id == normalized_source
+                    and bond.target_civilization_id == normalized_target
+                ):
                     existing_bond_id = bond.id
                     break
-                continue
-            if bond.source_civilization_id == normalized_source and bond.target_civilization_id == normalized_target:
-                existing_bond_id = bond.id
-                break
+    except Exception as exc:
+        reasons.append(_reason_from_unexpected_exception(exc))
 
     preview = BondValidatePreview(
         cross_planet=cross_planet,
@@ -202,7 +224,6 @@ async def validate_bond(
         existing_bond_id=existing_bond_id,
     )
 
-    reasons: list[BondValidateReason] = []
     execution = None
     tasks: list[AtomicTask] = []
     if operation == "create":
@@ -256,20 +277,23 @@ async def validate_bond(
             )
         ]
 
-    try:
-        async with transactional_context(session):
-            async with session.begin_nested() as preview_tx:
-                execution = await services.task_executor_service.execute_tasks(
-                    session=session,
-                    tasks=tasks,
-                    user_id=current_user.id,
-                    galaxy_id=resolved_galaxy_id,
-                    branch_id=resolved_branch_id,
-                    manage_transaction=False,
-                )
-                await preview_tx.rollback()
-    except HTTPException as exc:
-        reasons.append(_reason_from_http_exception(exc))
+    if not reasons:
+        try:
+            async with transactional_context(session):
+                async with session.begin_nested() as preview_tx:
+                    execution = await services.task_executor_service.execute_tasks(
+                        session=session,
+                        tasks=tasks,
+                        user_id=current_user.id,
+                        galaxy_id=resolved_galaxy_id,
+                        branch_id=resolved_branch_id,
+                        manage_transaction=False,
+                    )
+                    await preview_tx.rollback()
+        except HTTPException as exc:
+            reasons.append(_reason_from_http_exception(exc))
+        except Exception as exc:
+            reasons.append(_reason_from_unexpected_exception(exc))
 
     if not reasons and operation == "create" and existing_bond_id is not None:
         reasons.append(

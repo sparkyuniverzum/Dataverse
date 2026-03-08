@@ -4,10 +4,11 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_, select, text as sql_text
+from sqlalchemy import and_, func, or_, select
 
 from app.models import Bond
 from app.services.bond_semantics import normalize_bond_type
+from app.services.db_advisory_lock import acquire_transaction_lock
 from app.services.parser2.intents import CreateLinkIntent, Intent
 from app.services.universe_service import ProjectedBond
 
@@ -106,7 +107,7 @@ class LinkMutationHandler:
             target_civilization_id=target_uuid,
             bond_type=bond_type,
         )
-        await ctx.session.execute(sql_text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+        await acquire_transaction_lock(ctx.session, key=lock_key)
 
         bond_match_predicate = and_(
             Bond.user_id == ctx.user_id,

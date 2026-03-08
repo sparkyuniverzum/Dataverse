@@ -4,10 +4,11 @@ from hashlib import blake2b
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select, text as sql_text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Event
+from app.services.db_advisory_lock import acquire_transaction_lock
 
 
 class OccGuards:
@@ -96,7 +97,7 @@ class OccGuards:
             galaxy_id=galaxy_id,
             branch_id=branch_id,
         )
-        await session.execute(sql_text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+        await acquire_transaction_lock(session, key=lock_key)
         current_event_seq = await cls.current_entity_event_seq(
             session=session,
             user_id=user_id,

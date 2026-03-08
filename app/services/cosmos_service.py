@@ -6,11 +6,12 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select, text as sql_text
+from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Branch, Event, Galaxy, MoonCapability, TableContract
+from app.services.db_advisory_lock import acquire_transaction_lock
 from app.services.event_store_service import EventStoreService
 from app.services.galaxy_scope_service import resolve_user_galaxy_for_user
 from app.services.moon_capability_matrix import ensure_capability_matrix_transition
@@ -343,7 +344,7 @@ class CosmosService:
         normalized_name = self._normalize_branch_name(branch_name)
 
         lock_key = self._branch_name_lock_key(galaxy_id=galaxy.id, normalized_name=normalized_name)
-        await session.execute(sql_text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+        await acquire_transaction_lock(session, key=lock_key)
 
         existing_active_branches = list(
             (
