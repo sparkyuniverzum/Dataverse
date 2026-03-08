@@ -9,14 +9,7 @@ const availableFunctions = [
   { name: "POW({základ}, {exponent})", description: "Umocní základ na daný exponent." },
 ];
 
-export default function FormulaEditor({
-  initialFormula = "",
-  columns = [],
-  onSave,
-  onCancel,
-  busy,
-  error,
-}) {
+export default function FormulaEditor({ initialFormula = "", columns = [], onSave, onCancel, busy, error }) {
   const [formula, setFormula] = useState(initialFormula);
 
   const handleSave = () => {

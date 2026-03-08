@@ -258,11 +258,12 @@ class ReadModelProjector:
     def _metadata_update_may_skip_rollups(
         *,
         metadata_patch: dict[str, Any],
-        metadata_remove: list[str],
+        metadata_remove: list[str] | None = None,
         bonds_count: int,
         formula_fields_count: int,
         guardian_rules_count: int,
     ) -> bool:
+        metadata_remove = metadata_remove or []
         if not metadata_patch and not metadata_remove:
             return True
         if bonds_count > 0 or formula_fields_count > 0 or guardian_rules_count > 0:

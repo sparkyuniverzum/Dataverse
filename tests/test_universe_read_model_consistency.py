@@ -49,4 +49,9 @@ def test_enrich_main_timeline_falls_back_when_calc_state_is_stale(monkeypatch) -
         )
     )
 
-    assert result is None
+    assert isinstance(result, list)
+    assert len(result) == 1
+    row = result[0]
+    assert row["id"] == civilization_id
+    assert row["metadata"]["state"] == "archived"
+    assert row["calculated_values"] == {}

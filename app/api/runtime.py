@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, Request, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.app_factory import ServiceContainer, get_or_create_services
 from app.models import User
 
 services: ServiceContainer = get_or_create_services()
+logger = logging.getLogger(__name__)
 
 
 def get_service_container(request: Request) -> ServiceContainer:
@@ -28,6 +31,35 @@ def transactional_context(session: AsyncSession):
 async def commit_if_active(session: AsyncSession) -> None:
     if session.in_transaction():
         await session.commit()
+
+
+async def ensure_onboarding_progress_safe(
+    *,
+    session: AsyncSession,
+    services: ServiceContainer,
+    user_id: UUID,
+    galaxy_id: UUID,
+    context: str,
+) -> None:
+    """
+    Onboarding progress is non-critical for auth and basic scope flows.
+    Keep core endpoint success even when onboarding storage is temporarily unavailable.
+    """
+    try:
+        async with session.begin_nested():
+            await services.onboarding_service.ensure_progress(
+                session=session,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+            )
+    except SQLAlchemyError as exc:
+        logger.warning(
+            "Skipped onboarding progress init (%s): user_id=%s galaxy_id=%s error=%s",
+            context,
+            user_id,
+            galaxy_id,
+            exc,
+        )
 
 
 def normalize_idempotency_key(raw: str | None) -> str | None:

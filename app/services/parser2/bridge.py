@@ -119,7 +119,7 @@ class Parser2ExecutorBridge:
             tasks.append(
                 AtomicTask(
                     action="SELECT",
-                    params={"target_asteroid": intent.target, "condition": intent.condition},
+                    params={"target_asteroid": intent.target.value, "condition": intent.condition},
                 )
             )
             return
@@ -128,7 +128,7 @@ class Parser2ExecutorBridge:
             tasks.append(
                 AtomicTask(
                     action="SET_FORMULA",
-                    params={"target": intent.target, "field": intent.field, "formula": intent.formula},
+                    params={"target": intent.target.value, "field": intent.field, "formula": intent.formula},
                 )
             )
             return
@@ -138,7 +138,7 @@ class Parser2ExecutorBridge:
                 AtomicTask(
                     action="ADD_GUARDIAN",
                     params={
-                        "target": intent.target,
+                        "target": intent.target.value,
                         "field": intent.field,
                         "operator": intent.operator,
                         "threshold": intent.threshold,

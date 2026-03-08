@@ -1,6 +1,6 @@
 # Calc + Physics Engine Upgrade Stages
 
-Status: in progress  
+Status: in progress
 Date: 2026-03-03
 
 ## Stage 1 - Calc foundation (implemented)

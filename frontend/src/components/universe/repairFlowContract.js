@@ -221,13 +221,17 @@ export function buildGuidedRepairMessage(suggestion) {
   return `Navrh opravy: ${suggestion.mineral_key} -> ${suggestion.suggested_raw_value} (${suggestion.strategy_key})`;
 }
 
-export function buildGuidedRepairMutationRequest(suggestion, { galaxyId = "", expectedEventSeq = null } = {}) {
+export function buildGuidedRepairMutationRequest(
+  suggestion,
+  { galaxyId = "", branchId = "", expectedEventSeq = null } = {}
+) {
   const civilizationId = String(suggestion?.civilization_id || "").trim();
   const mineralKey = String(suggestion?.mineral_key || "").trim();
   if (!galaxyId || !civilizationId || !mineralKey) return null;
 
   const payload = {
     galaxy_id: String(galaxyId),
+    ...(String(branchId || "").trim() ? { branch_id: String(branchId).trim() } : {}),
     minerals: {
       [mineralKey]: suggestion.suggested_typed_value,
     },

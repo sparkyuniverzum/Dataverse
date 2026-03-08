@@ -29,7 +29,7 @@ const STREAM_RECONNECT_DELAY_MS = 900;
 const STAR_TELEMETRY_THROTTLE_MS = 4000;
 const STAR_PULSE_RETENTION_MS = 18000;
 
-export function useUniverseRuntimeSync({ galaxyId }) {
+export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
   const [snapshot, setSnapshot] = useState({ asteroids: [], bonds: [] });
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -44,6 +44,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
   const [starPulseLastEventSeq, setStarPulseLastEventSeq] = useState(0);
 
   const activeGalaxyRef = useRef("");
+  const activeScopeRef = useRef("");
   const refreshInFlightRef = useRef(null);
   const refreshQueuedRef = useRef(false);
   const streamCursorRef = useRef(0);
@@ -54,8 +55,8 @@ export function useUniverseRuntimeSync({ galaxyId }) {
   const telemetryInFlightRef = useRef(null);
   const telemetryLastAtRef = useRef(0);
 
-  const mergePulsePayload = useCallback((payload, scopeGalaxyId) => {
-    if (activeGalaxyRef.current !== scopeGalaxyId) return;
+  const mergePulsePayload = useCallback((payload, scopeKey) => {
+    if (activeScopeRef.current !== scopeKey) return;
     const normalizedPulse = normalizeStarPulsePayload(payload);
     const events = normalizedPulse.events;
     const now = Date.now();
@@ -93,10 +94,13 @@ export function useUniverseRuntimeSync({ galaxyId }) {
       }
 
       const scopeGalaxyId = galaxyId;
+      const scopeBranchId = branchId || null;
+      const scopeKey = `${scopeGalaxyId}:${scopeBranchId || ""}`;
       const task = (async () => {
         try {
           const response = await apiFetch(
             buildStarCorePulseUrl(API_BASE, scopeGalaxyId, {
+              branchId: scopeBranchId,
               afterEventSeq,
               limit,
             })
@@ -105,7 +109,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
             throw await apiErrorFromResponse(response, `Star pulse failed: ${response.status}`);
           }
           const body = await response.json().catch(() => ({}));
-          mergePulsePayload(body, scopeGalaxyId);
+          mergePulsePayload(body, scopeKey);
         } catch {
           // Pulse feed is auxiliary; stream + snapshot refresh stay primary.
         }
@@ -126,7 +130,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
       }
       return null;
     },
-    [galaxyId, mergePulsePayload]
+    [branchId, galaxyId, mergePulsePayload]
   );
 
   const refreshStarTelemetry = useCallback(
@@ -142,15 +146,23 @@ export function useUniverseRuntimeSync({ galaxyId }) {
       }
 
       const scopeGalaxyId = galaxyId;
+      const scopeBranchId = branchId || null;
+      const scopeKey = `${scopeGalaxyId}:${scopeBranchId || ""}`;
       const task = (async () => {
         try {
           const [runtimeResponse, domainsResponse, policyResponse, physicsProfileResponse, planetPhysicsResponse] =
             await Promise.all([
-              apiFetch(buildStarCoreRuntimeUrl(API_BASE, scopeGalaxyId, { windowEvents: 120 })),
-              apiFetch(buildStarCoreDomainMetricsUrl(API_BASE, scopeGalaxyId, { windowEvents: 240 })),
-              apiFetch(buildStarCorePolicyUrl(API_BASE, scopeGalaxyId)),
-              apiFetch(buildStarCorePhysicsProfileUrl(API_BASE, scopeGalaxyId)),
-              apiFetch(buildStarCorePlanetPhysicsUrl(API_BASE, scopeGalaxyId, { limit: 1000 })),
+              apiFetch(
+                buildStarCoreRuntimeUrl(API_BASE, scopeGalaxyId, { branchId: scopeBranchId, windowEvents: 120 })
+              ),
+              apiFetch(
+                buildStarCoreDomainMetricsUrl(API_BASE, scopeGalaxyId, { branchId: scopeBranchId, windowEvents: 240 })
+              ),
+              apiFetch(buildStarCorePolicyUrl(API_BASE, scopeGalaxyId, { branchId: scopeBranchId })),
+              apiFetch(buildStarCorePhysicsProfileUrl(API_BASE, scopeGalaxyId, { branchId: scopeBranchId })),
+              apiFetch(
+                buildStarCorePlanetPhysicsUrl(API_BASE, scopeGalaxyId, { branchId: scopeBranchId, limit: 1000 })
+              ),
             ]);
 
           const [runtimeBody, domainsBody, policyBody, physicsProfileBody, planetPhysicsBody] = await Promise.all([
@@ -160,7 +172,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
             physicsProfileResponse.ok ? physicsProfileResponse.json().catch(() => null) : Promise.resolve(null),
             planetPhysicsResponse.ok ? planetPhysicsResponse.json().catch(() => null) : Promise.resolve(null),
           ]);
-          if (activeGalaxyRef.current !== scopeGalaxyId) {
+          if (activeScopeRef.current !== scopeKey) {
             return;
           }
           if (runtimeBody) {
@@ -199,7 +211,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
       }
       return null;
     },
-    [galaxyId]
+    [branchId, galaxyId]
   );
 
   const refreshProjection = useCallback(
@@ -212,14 +224,16 @@ export function useUniverseRuntimeSync({ galaxyId }) {
       }
 
       const scopeGalaxyId = galaxyId;
+      const scopeBranchId = branchId || null;
+      const scopeKey = `${scopeGalaxyId}:${scopeBranchId || ""}`;
       const task = (async () => {
         if (!silent) {
           setLoading(true);
         }
         try {
           const [snapshotResponse, tablesResponse] = await Promise.all([
-            apiFetch(buildSnapshotUrl(API_BASE, null, scopeGalaxyId, null)),
-            apiFetch(buildTablesUrl(API_BASE, null, scopeGalaxyId, null)),
+            apiFetch(buildSnapshotUrl(API_BASE, null, scopeGalaxyId, scopeBranchId)),
+            apiFetch(buildTablesUrl(API_BASE, null, scopeGalaxyId, scopeBranchId)),
           ]);
 
           if (!snapshotResponse.ok) {
@@ -233,7 +247,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
           const normalized = normalizeSnapshot(snapshotBody || {});
           const nextTables = Array.isArray(tablesBody?.tables) ? tablesBody.tables : [];
 
-          if (activeGalaxyRef.current !== scopeGalaxyId) {
+          if (activeScopeRef.current !== scopeKey) {
             return;
           }
           setSnapshot(normalized);
@@ -241,12 +255,12 @@ export function useUniverseRuntimeSync({ galaxyId }) {
           setError("");
           void refreshStarTelemetry();
         } catch (loadError) {
-          if (activeGalaxyRef.current !== scopeGalaxyId) {
+          if (activeScopeRef.current !== scopeKey) {
             return;
           }
           setError(loadError?.message || "Nacteni vesmiru selhalo.");
         } finally {
-          if (!silent && activeGalaxyRef.current === scopeGalaxyId) {
+          if (!silent && activeScopeRef.current === scopeKey) {
             setLoading(false);
           }
         }
@@ -266,11 +280,12 @@ export function useUniverseRuntimeSync({ galaxyId }) {
 
       return null;
     },
-    [galaxyId, refreshStarTelemetry]
+    [branchId, galaxyId, refreshStarTelemetry]
   );
 
   useEffect(() => {
     activeGalaxyRef.current = galaxyId;
+    activeScopeRef.current = `${galaxyId}:${branchId || ""}`;
 
     setError("");
     setSnapshot({ asteroids: [], bonds: [] });
@@ -296,7 +311,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
     } else {
       setLoading(false);
     }
-  }, [galaxyId, refreshProjection, refreshStarTelemetry, requestStarPulse]);
+  }, [branchId, galaxyId, refreshProjection, refreshStarTelemetry, requestStarPulse]);
 
   useEffect(() => {
     if (!galaxyId) return undefined;
@@ -320,6 +335,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
       while (!isDisposed) {
         try {
           const streamUrl = buildGalaxyEventsStreamUrl(API_BASE, galaxyId, {
+            branchId: branchId || null,
             lastEventSeq: streamCursorRef.current,
           });
           const response = await apiFetch(streamUrl, {
@@ -377,7 +393,7 @@ export function useUniverseRuntimeSync({ galaxyId }) {
       isDisposed = true;
       abortController.abort();
     };
-  }, [galaxyId, refreshProjection, refreshStarTelemetry, requestStarPulse]);
+  }, [branchId, galaxyId, refreshProjection, refreshStarTelemetry, requestStarPulse]);
 
   const clearRuntimeError = useCallback(() => {
     setError("");

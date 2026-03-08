@@ -212,9 +212,7 @@ class IngestUpdateHandler:
                         outputs={"civilization_id": civilization.id, "created": False, "table_id": next_table_id},
                     )
                     if previous_table_id != next_table_id:
-                        next_constellation_name, next_planet_name = split_constellation_and_planet_name(
-                            next_table_name
-                        )
+                        next_constellation_name, next_planet_name = split_constellation_and_planet_name(next_table_name)
                         self.service._record_semantic_effect(
                             ctx=ctx,
                             code="MOON_RECLASSIFIED",

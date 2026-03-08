@@ -306,8 +306,12 @@ async def enrich_main_timeline_from_read_models(
     enriched: list[dict[str, Any]] = []
     for civilization in active_asteroids:
         calc_state = calc_by_id.get(civilization.id) or {}
-        # Fallback for stale calc state (race condition) has been removed.
-        # The system will now display potentially stale data until the read model catches up.
+        calc_source_event_seq = int(calc_state.get("source_event_seq", 0) or 0)
+        civilization_event_seq = int(getattr(civilization, "current_event_seq", 0) or 0)
+        if calc_source_event_seq and civilization_event_seq and calc_source_event_seq < civilization_event_seq:
+            # Read-model lag fallback: keep projection stable with raw metadata
+            # until calc_state catches up.
+            calc_state = {}
         calculated_values = calc_state.get("calculated_values", {})
         if not isinstance(calculated_values, dict):
             calculated_values = {}

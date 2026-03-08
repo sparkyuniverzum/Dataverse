@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, or_, select, text as sql_text

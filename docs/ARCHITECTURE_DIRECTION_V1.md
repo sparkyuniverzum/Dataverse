@@ -1,7 +1,7 @@
 # Dataverse Architecture Direction v1
 
-Status: approved direction baseline  
-Owner: Core BE/FE architecture  
+Status: approved direction baseline
+Owner: Core BE/FE architecture
 Date: 2026-03-05
 
 ## 1) Purpose
@@ -9,10 +9,10 @@ This document defines the target direction for the Planet-centric Dataverse mode
 It is the source of truth for BE/FE alignment, including complete synchronization with Grid.
 
 ## 2) Core Principle
-Planet is the primary domain aggregate.  
+Planet is the primary domain aggregate.
 It is not only a visual object, but a governed data boundary with strict lifecycle rules and deterministic projections.
 
-Narrative layer (Planet, Moon, Bridge, Flow) is UX language.  
+Narrative layer (Planet, Moon, Bridge, Flow) is UX language.
 System layer remains strict technical model:
 - Planet = table aggregate
 - Moon (resident) = row

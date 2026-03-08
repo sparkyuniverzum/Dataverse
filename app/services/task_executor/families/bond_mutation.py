@@ -29,7 +29,7 @@ async def handle_link_and_bond_mutation_family(
             if len(ctx.context_civilization_ids) < 2:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="LINK requires source_civilization_id/target_civilization_id or two INGEST tasks",
+                    detail="LINK task requires source_civilization_id/target_civilization_id or two INGEST tasks",
                 )
             source_civilization_id = ctx.context_civilization_ids[-2]
             target_civilization_id = ctx.context_civilization_ids[-1]

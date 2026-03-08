@@ -1,7 +1,7 @@
 # Galaxy Workspace Contract v1
 
-Status: frozen (MVP sign-off)  
-Date: 2026-03-05  
+Status: frozen (MVP sign-off)
+Date: 2026-03-05
 Depends on: `docs/contracts/api-v1.md`, `docs/contracts/semantic-constitution-v1.md`
 
 ## 1. Purpose
@@ -40,7 +40,7 @@ All domain reads/writes must resolve to one active galaxy scope.
 
 ### 4.2 Branch workspace timelines
 
-- `GET /branches?galaxy_id=...`
+- `GET /branches` (query: `galaxy_id?`)
 - `POST /branches`
 - `POST /branches/{branch_id}/promote`
 

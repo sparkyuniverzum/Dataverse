@@ -1,6 +1,6 @@
 # DataVerse Architecture
 
-Aktualizace: 2026-02-28  
+Aktualizace: 2026-02-28
 Stav dokumentu: odpovídá aktuální implementaci v repozitáři.
 
 ## 1. Cíl systému

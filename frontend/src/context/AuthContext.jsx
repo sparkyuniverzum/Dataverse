@@ -253,7 +253,9 @@ export function AuthProvider({ children }) {
 
     const bodyText = await response.text();
     if (!response.ok) {
-      throw new Error(parseErrorMessage(bodyText, "Odeslání instrukcí pro obnovu hesla selhalo. Zkuste to prosím později."));
+      throw new Error(
+        parseErrorMessage(bodyText, "Odeslání instrukcí pro obnovu hesla selhalo. Zkuste to prosím později.")
+      );
     }
 
     // The component can show this message to the user upon success.

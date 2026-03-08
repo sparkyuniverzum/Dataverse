@@ -56,20 +56,27 @@ paths:
         "422":
           $ref: "#/components/responses/ValidationError"
 
-  /branches/{branch_id}/extinguish:
-    patch:
+  /branches/{branch_id}/promote:
+    post:
       tags: [branches]
-      summary: Soft-delete branch
+      summary: Promote branch into main timeline and close it
       parameters:
         - $ref: "#/components/parameters/branchIdPath"
         - $ref: "#/components/parameters/galaxyIdQuery"
       responses:
         "200":
-          description: Branch soft-deleted
+          description: Branch promoted
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BranchPublic"
+                type: object
+                required: [branch, promoted_events_count]
+                properties:
+                  branch:
+                    $ref: "#/components/schemas/BranchPublic"
+                  promoted_events_count:
+                    type: integer
+                    minimum: 0
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

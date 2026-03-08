@@ -1,6 +1,6 @@
 # DataVerse Parser Contract v1
 
-Status: frozen from current implementation (`app/services/parser_service.py`)  
+Status: frozen from current implementation (`app/services/parser_service.py`)
 Date: 2026-03-01
 
 ## Output model

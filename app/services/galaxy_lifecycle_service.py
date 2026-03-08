@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -25,6 +25,6 @@ class GalaxyLifecycleService:
         if galaxy.owner_id != user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden galaxy access")
 
-        galaxy.deleted_at = datetime.now(tz=timezone.utc)
+        galaxy.deleted_at = datetime.now(tz=UTC)
         session.add(galaxy)
         await session.flush()

@@ -1,7 +1,7 @@
 # Star Physics Laws Contract v2
 
-Status: frozen for MVP gate  
-Date: 2026-03-05  
+Status: frozen for MVP gate
+Date: 2026-03-05
 Depends on: `docs/contracts/api-v1.md`, `docs/star-contract-audit.md`
 
 ## 1. Purpose

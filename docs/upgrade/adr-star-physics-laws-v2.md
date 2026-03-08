@@ -1,7 +1,7 @@
 # ADR: Star Laws v2 - Immutable Constitution + Physical Laws Engine
 
-Status: proposed  
-Date: 2026-03-05  
+Status: proposed
+Date: 2026-03-05
 Owner: BE + FE core architecture
 
 ## 1. Context

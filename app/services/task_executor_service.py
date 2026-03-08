@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, cast, func, literal, or_, select
+from sqlalchemy import and_, cast, func, literal, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,25 +18,21 @@ from app.services.auto_semantics_service import AutoSemanticsService
 from app.services.bond_semantics import normalize_bond_type
 from app.services.event_store_service import EventStoreService
 from app.services.parser2.intents import (
-    AddGuardianIntent,
-    AssignAttributeIntent,
     BulkIntent,
-    CreateLinkIntent,
-    ExtinguishNodeIntent,
     Intent,
-    NodeSelectorType,
-    SelectNodesIntent,
-    SetFormulaIntent,
-    UpsertNodeIntent,
 )
 from app.services.read_model_projector import ReadModelProjector
 from app.services.table_contract_effective import EffectiveTableContract
 from app.services.task_executor.contract_validation import TableContractValidator
-from app.services.task_executor.occ_guards import OccGuards
+from app.services.task_executor.families.bond_mutation import handle_link_and_bond_mutation_family
+from app.services.task_executor.families.extinguish import handle_extinguish_family
+from app.services.task_executor.families.formula_guardian_select import handle_formula_guardian_select_family
+from app.services.task_executor.families.ingest_update import handle_ingest_update_family
 from app.services.task_executor.handlers.extinguish import ExtinguishHandler
 from app.services.task_executor.handlers.formula_guardian_select import FormulaGuardianSelectHandler
 from app.services.task_executor.handlers.ingest_update import IngestUpdateHandler
 from app.services.task_executor.handlers.link_mutation import LinkMutationHandler
+from app.services.task_executor.occ_guards import OccGuards
 from app.services.task_executor.target_resolution import TargetResolver
 from app.services.universe_service import (
     DEFAULT_GALAXY_ID,
@@ -45,7 +41,6 @@ from app.services.universe_service import (
     UniverseService,
     derive_table_id,
     derive_table_name,
-    split_constellation_and_planet_name,
 )
 
 
@@ -105,6 +100,12 @@ class TaskExecutorService:
             ExtinguishHandler(self),
             FormulaGuardianSelectHandler(self),
         ]
+        self.atomic_family_handlers = (
+            self._handle_ingest_update_family,
+            self._handle_link_and_bond_mutation_family,
+            self._handle_extinguish_family,
+            self._handle_formula_guardian_select_family,
+        )
 
     @staticmethod
     def _to_jsonable_dict(payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -239,7 +240,6 @@ class TaskExecutorService:
             "outputs": self._to_jsonable_dict(outputs),
         }
         ctx.result.semantic_effects.append(effect)
-
 
     async def _apply_auto_semantics_for_asteroid(
         self,
@@ -458,7 +458,60 @@ class TaskExecutorService:
         return _PreloadPlan(scope="full")
 
     def _build_preload_plan(self, *, tasks: list[Intent], branch_id: UUID | None) -> _PreloadPlan:
-        return self._full_preload_plan()
+        # Branch timelines are reconstructed from events on read, so partial read-model preload is unsafe there.
+        if branch_id is not None:
+            return self._full_preload_plan()
+
+        # Keep backwards-compatible partial preload for legacy AtomicTask batches.
+        civilization_ids: set[UUID] = set()
+        bond_ids: set[UUID] = set()
+        include_connected_bonds = False
+
+        for task in tasks:
+            if isinstance(task, BulkIntent):
+                return self._full_preload_plan()
+            action = str(getattr(task, "action", "")).upper()
+            params = getattr(task, "params", {})
+            if not isinstance(params, dict):
+                params = {}
+
+            if action == "INGEST":
+                continue
+            if action == "LINK":
+                source_uuid = self._parse_uuid(params.get("source_civilization_id"))
+                target_uuid = self._parse_uuid(params.get("target_civilization_id"))
+                if source_uuid is None or target_uuid is None:
+                    return self._full_preload_plan()
+                civilization_ids.add(source_uuid)
+                civilization_ids.add(target_uuid)
+                continue
+            if action in {"UPDATE_ASTEROID", "SET_FORMULA", "ADD_GUARDIAN"}:
+                asteroid_uuid = self._parse_uuid(params.get("civilization_id") or params.get("target"))
+                if asteroid_uuid is None:
+                    return self._full_preload_plan()
+                civilization_ids.add(asteroid_uuid)
+                continue
+            if action == "EXTINGUISH_BOND":
+                bond_uuid = self._parse_uuid(params.get("bond_id"))
+                if bond_uuid is None:
+                    return self._full_preload_plan()
+                bond_ids.add(bond_uuid)
+                continue
+            if action in {"EXTINGUISH", "DELETE"}:
+                asteroid_uuid = self._parse_uuid(params.get("civilization_id"))
+                if asteroid_uuid is None:
+                    return self._full_preload_plan()
+                civilization_ids.add(asteroid_uuid)
+                include_connected_bonds = True
+                continue
+            return self._full_preload_plan()
+
+        return _PreloadPlan(
+            scope="partial",
+            civilization_ids=frozenset(civilization_ids),
+            bond_ids=frozenset(bond_ids),
+            include_connected_bonds=include_connected_bonds,
+        )
 
     async def _load_active_asteroid_by_value(
         self,
@@ -539,7 +592,6 @@ class TaskExecutorService:
         rows = (await session.execute(stmt)).all()
         return {entity_id: int(max_seq or 0) for entity_id, max_seq in rows}
 
-
     async def _load_initial_context_state(
         self,
         *,
@@ -559,10 +611,42 @@ class TaskExecutorService:
         return civilizations, bonds, "full"
 
     async def _dispatch_task_family(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
+        if hasattr(task, "action"):
+            for handler in self.atomic_family_handlers:
+                if await handler(task=task, ctx=ctx):
+                    return True
+            return False
         for handler in self.handlers:
             if await handler.handle(task=task, ctx=ctx):
                 return True
         return False
+
+    async def _handle_ingest_update_family(self, *, task, ctx: _TaskExecutionContext) -> bool:
+        return await handle_ingest_update_family(self, task=task, ctx=ctx)
+
+    async def _handle_link_and_bond_mutation_family(self, *, task, ctx: _TaskExecutionContext) -> bool:
+        return await handle_link_and_bond_mutation_family(self, task=task, ctx=ctx)
+
+    async def _handle_extinguish_family(self, *, task, ctx: _TaskExecutionContext) -> bool:
+        return await handle_extinguish_family(self, task=task, ctx=ctx)
+
+    async def _handle_formula_guardian_select_family(self, *, task, ctx: _TaskExecutionContext) -> bool:
+        return await handle_formula_guardian_select_family(self, task=task, ctx=ctx)
+
+    async def _load_auto_semantic_rules_for_asteroid(
+        self,
+        *,
+        session,
+        galaxy_id: UUID,
+        civilization: ProjectedAsteroid,
+        contract_cache: dict[UUID, EffectiveTableContract | None],
+    ) -> list[dict[str, Any]]:
+        return await self.auto_semantics_service._load_auto_semantic_rules_for_asteroid(
+            session=session,
+            galaxy_id=galaxy_id,
+            civilization=civilization,
+            contract_cache=contract_cache,
+        )
 
     async def execute_tasks(
         self,

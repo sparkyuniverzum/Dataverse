@@ -69,12 +69,16 @@ export async function ensureAuthBootstrapUser(request, apiBase) {
       password: credentials.password,
     },
   });
+  const registerStatus = registerResponse.status();
+  const registerOk = registerResponse.ok();
+  const registerBodyText = registerOk ? "" : await registerResponse.text();
 
-  if (registerResponse.ok()) {
-    const body = await registerResponse.json();
+  if (registerOk) {
+    const body = await registerResponse.json().catch(() => ({}));
     return {
       ...credentials,
-      registerStatus: registerResponse.status(),
+      registerStatus,
+      defaultGalaxyId: String(body?.default_galaxy?.id || ""),
       tokens: {
         access_token: String(body?.access_token || ""),
         refresh_token: String(body?.refresh_token || ""),
@@ -89,15 +93,16 @@ export async function ensureAuthBootstrapUser(request, apiBase) {
     },
   });
   if (!loginResponse.ok()) {
-    const body = await loginResponse.text();
+    const loginBody = await loginResponse.text();
     throw new Error(
-      `Auth bootstrap failed (register=${registerResponse.status()}, login=${loginResponse.status()}): ${body}`
+      `Auth bootstrap failed (register=${registerStatus}, login=${loginResponse.status()}): register_body=${registerBodyText || "<empty>"}; login_body=${loginBody || "<empty>"}`
     );
   }
-  const loginBody = await loginResponse.json();
+  const loginBody = await loginResponse.json().catch(() => ({}));
   return {
     ...credentials,
-    registerStatus: registerResponse.status(),
+    registerStatus,
+    defaultGalaxyId: String(loginBody?.default_galaxy?.id || ""),
     tokens: {
       access_token: String(loginBody?.access_token || ""),
       refresh_token: String(loginBody?.refresh_token || ""),

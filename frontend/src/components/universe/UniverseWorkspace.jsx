@@ -13,6 +13,7 @@ import {
   API_BASE,
   apiErrorFromResponse,
   apiFetch,
+  buildBranchPromoteUrl,
   buildOccConflictMessage,
   buildParserPayload,
   buildStarCorePolicyLockUrl,
@@ -96,6 +97,7 @@ import {
   VISUAL_BUILDER_BOND_STATE,
   VISUAL_BUILDER_EVENT,
 } from "./visualBuilderStateMachine";
+import { useUniverseStore } from "../../store/useUniverseStore";
 
 const DEFAULT_CAMERA_STATE = {
   position: [0, 120, 340],
@@ -232,15 +234,31 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+const contextMenuButtonStyle = {
+  border: "1px solid rgba(113, 202, 234, 0.3)",
+  background: "rgba(7, 18, 32, 0.86)",
+  color: "#d5f5ff",
+  borderRadius: 8,
+  padding: "7px 9px",
+  fontSize: "var(--dv-fs-xs)",
+  lineHeight: "var(--dv-lh-base)",
+  textAlign: "left",
+  cursor: "pointer",
+};
+
 export default function UniverseWorkspace({
   galaxy,
   branches = [],
   onboarding = null,
   onBackToGalaxies,
   onLogout,
+  onRefreshScopes = null,
   minimalShell = false,
 }) {
   const galaxyId = String(galaxy?.id || "");
+  const selectedBranchId = useUniverseStore((state) => String(state.selectedBranchId || ""));
+  const selectBranch = useUniverseStore((state) => state.selectBranch);
+  const branchIdScope = selectedBranchId || null;
 
   const {
     snapshot,
@@ -258,7 +276,7 @@ export default function UniverseWorkspace({
     clearRuntimeError,
     refreshProjection,
     refreshStarTelemetry,
-  } = useUniverseRuntimeSync({ galaxyId });
+  } = useUniverseRuntimeSync({ galaxyId, branchId: branchIdScope });
 
   const [busy, setBusy] = useState(false);
   const [pendingCreate, setPendingCreate] = useState(false);
@@ -301,6 +319,18 @@ export default function UniverseWorkspace({
   const [stageZeroCommitBusy, setStageZeroCommitBusy] = useState(false);
   const [workspaceUiHydrated, setWorkspaceUiHydrated] = useState(false);
   const [planetBuilderLastValidState, setPlanetBuilderLastValidState] = useState(PLANET_BUILDER_STATE.IDLE);
+  const [branchPromoteBusy, setBranchPromoteBusy] = useState(false);
+  const [branchPromoteSummary, setBranchPromoteSummary] = useState("");
+  const [branchCreateName, setBranchCreateName] = useState("");
+  const [branchCreateBusy, setBranchCreateBusy] = useState(false);
+  const [contextMenu, setContextMenu] = useState({
+    open: false,
+    kind: "",
+    id: "",
+    label: "",
+    x: 0,
+    y: 0,
+  });
 
   const layoutRef = useRef({ tablePositions: new Map(), asteroidPositions: new Map() });
   const workspaceRef = useRef(null);
@@ -350,8 +380,30 @@ export default function UniverseWorkspace({
     setStageZeroCommitBusy(false);
     setWorkspaceUiHydrated(true);
     setPlanetBuilderLastValidState(PLANET_BUILDER_STATE.IDLE);
+    setBranchPromoteBusy(false);
+    setBranchPromoteSummary("");
+    setBranchCreateName("");
+    setBranchCreateBusy(false);
+    setContextMenu({
+      open: false,
+      kind: "",
+      id: "",
+      label: "",
+      x: 0,
+      y: 0,
+    });
     layoutRef.current = { tablePositions: new Map(), asteroidPositions: new Map() };
   }, [galaxyId]);
+
+  useEffect(() => {
+    if (!selectedBranchId) return;
+    const exists = (Array.isArray(branches) ? branches : []).some(
+      (item) => !item?.deleted_at && String(item?.id || "") === selectedBranchId
+    );
+    if (!exists) {
+      selectBranch("");
+    }
+  }, [branches, selectBranch, selectedBranchId]);
 
   useEffect(() => {
     if (!workspaceUiHydrated) return;
@@ -1181,6 +1233,7 @@ export default function UniverseWorkspace({
             seed_rows: false,
             visual_position: visualPosition,
             galaxy_id: galaxyId,
+            ...(branchIdScope ? { branch_id: branchIdScope } : {}),
             idempotency_key: nextIdempotencyKey("planet-stage0"),
           }),
         });
@@ -1218,6 +1271,7 @@ export default function UniverseWorkspace({
       stageZeroActive,
       stageZeroCreating,
       stageZeroRequiresStarLock,
+      branchIdScope,
       tableNodes.length,
     ]
   );
@@ -1332,13 +1386,15 @@ export default function UniverseWorkspace({
     async (tableId) => {
       const targetTableId = String(tableId || "").trim();
       if (!galaxyId || !targetTableId) return null;
-      const contractRead = await apiFetch(buildTableContractUrl(API_BASE, targetTableId, galaxyId));
+      const contractRead = await apiFetch(
+        `${buildTableContractUrl(API_BASE, targetTableId, galaxyId)}${branchIdScope ? `&branch_id=${encodeURIComponent(branchIdScope)}` : ""}`
+      );
       if (!contractRead.ok) {
         throw await apiErrorFromResponse(contractRead, `Kontrakt planety nelze načíst: ${contractRead.status}`);
       }
       return contractRead.json();
     },
-    [galaxyId]
+    [branchIdScope, galaxyId]
   );
 
   const handleStageZeroCommitPreset = useCallback(async () => {
@@ -1353,6 +1409,7 @@ export default function UniverseWorkspace({
       const requiredFields = buildStageZeroRequiredFields();
       const nextPayload = {
         galaxy_id: galaxyId,
+        ...(branchIdScope ? { branch_id: branchIdScope } : {}),
         required_fields: requiredFields,
         field_types: nextFieldTypes,
         unique_rules: [],
@@ -1407,6 +1464,7 @@ export default function UniverseWorkspace({
             minerals,
             planet_id: selectedTableId,
             galaxy_id: galaxyId,
+            ...(branchIdScope ? { branch_id: branchIdScope } : {}),
             idempotency_key: nextIdempotencyKey("stage0-seed"),
           }),
         });
@@ -1427,6 +1485,7 @@ export default function UniverseWorkspace({
   }, [
     clearRuntimeIssue,
     galaxyId,
+    branchIdScope,
     loadTableContract,
     refreshProjection,
     runBuilderGuard,
@@ -1446,14 +1505,14 @@ export default function UniverseWorkspace({
       const response = await apiFetch(`${API_BASE}/parser/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildParserPayload(trimmed, galaxyId)),
+        body: JSON.stringify(buildParserPayload(trimmed, galaxyId, branchIdScope)),
       });
       if (!response.ok) {
         throw await apiErrorFromResponse(response, `Parser command failed: ${response.status}`);
       }
       return response.json().catch(() => ({}));
     },
-    [galaxyId]
+    [branchIdScope, galaxyId]
   );
   const trackParserAttempt = useCallback((details) => {
     setParserTelemetry((prev) => recordParserTelemetry(prev, details));
@@ -1511,6 +1570,7 @@ export default function UniverseWorkspace({
             target_id: payload.targetId,
             type: normalizedBondType,
             galaxy_id: galaxyId,
+            ...(branchIdScope ? { branch_id: branchIdScope } : {}),
             idempotency_key: nextIdempotencyKey("link"),
             ...(expectedSourceEventSeq !== null ? { expected_source_event_seq: expectedSourceEventSeq } : {}),
             ...(expectedTargetEventSeq !== null ? { expected_target_event_seq: expectedTargetEventSeq } : {}),
@@ -1561,6 +1621,7 @@ export default function UniverseWorkspace({
       clearRuntimeIssue,
       executeParserCommand,
       galaxyId,
+      branchIdScope,
       parserExecutionMode,
       refreshProjection,
       reportContractViolationWithRepair,
@@ -1602,6 +1663,7 @@ export default function UniverseWorkspace({
           target_civilization_id: targetId,
           type: bondType,
           galaxy_id: galaxyId,
+          ...(branchIdScope ? { branch_id: branchIdScope } : {}),
           ...(expectedSourceEventSeq !== null ? { expected_source_event_seq: expectedSourceEventSeq } : {}),
           ...(expectedTargetEventSeq !== null ? { expected_target_event_seq: expectedTargetEventSeq } : {}),
         }),
@@ -1648,6 +1710,7 @@ export default function UniverseWorkspace({
     bondDraft.type,
     clearRuntimeIssue,
     galaxyId,
+    branchIdScope,
     reportContractViolationWithRepair,
     setRuntimeError,
   ]);
@@ -1761,6 +1824,7 @@ export default function UniverseWorkspace({
           minerals,
           planet_id: selectedTableId,
           galaxy_id: galaxyId,
+          ...(branchIdScope ? { branch_id: branchIdScope } : {}),
           idempotency_key: nextIdempotencyKey("ingest"),
         };
         const [primaryCreateUrl, legacyCreateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
@@ -1824,6 +1888,7 @@ export default function UniverseWorkspace({
       clearRuntimeIssue,
       executeParserCommand,
       galaxyId,
+      branchIdScope,
       loadTableContract,
       parserExecutionMode,
       refreshProjection,
@@ -1852,6 +1917,7 @@ export default function UniverseWorkspace({
         const mutatePayload = {
           label: value,
           galaxy_id: galaxyId,
+          ...(branchIdScope ? { branch_id: branchIdScope } : {}),
           idempotency_key: nextIdempotencyKey("mutate"),
           ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
         };
@@ -1895,7 +1961,15 @@ export default function UniverseWorkspace({
         setBusy(false);
       }
     },
-    [asteroidById, clearRuntimeIssue, galaxyId, refreshProjection, reportContractViolationWithRepair, setRuntimeError]
+    [
+      asteroidById,
+      clearRuntimeIssue,
+      galaxyId,
+      branchIdScope,
+      refreshProjection,
+      reportContractViolationWithRepair,
+      setRuntimeError,
+    ]
   );
 
   const handleDeleteRow = useCallback(
@@ -1949,6 +2023,9 @@ export default function UniverseWorkspace({
         const buildExtinguishUrl = (baseUrl) => {
           const url = new URL(baseUrl);
           url.searchParams.set("galaxy_id", galaxyId);
+          if (branchIdScope) {
+            url.searchParams.set("branch_id", branchIdScope);
+          }
           url.searchParams.set("idempotency_key", extinguishIdempotencyKey);
           if (expectedEventSeq !== null) {
             url.searchParams.set("expected_event_seq", String(expectedEventSeq));
@@ -2017,6 +2094,7 @@ export default function UniverseWorkspace({
       clearRuntimeIssue,
       executeParserCommand,
       galaxyId,
+      branchIdScope,
       parserExecutionMode,
       refreshProjection,
       reportContractViolationWithRepair,
@@ -2051,6 +2129,7 @@ export default function UniverseWorkspace({
         const mineralMutatePayload = {
           remove: removeRequested,
           galaxy_id: galaxyId,
+          ...(branchIdScope ? { branch_id: branchIdScope } : {}),
           idempotency_key: nextIdempotencyKey("mineral"),
           ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
         };
@@ -2080,6 +2159,7 @@ export default function UniverseWorkspace({
           const mutatePayload = {
             minerals: nextMetadata,
             galaxy_id: galaxyId,
+            ...(branchIdScope ? { branch_id: branchIdScope } : {}),
             idempotency_key: nextIdempotencyKey("metadata-fallback"),
             ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
           };
@@ -2126,7 +2206,15 @@ export default function UniverseWorkspace({
         setBusy(false);
       }
     },
-    [asteroidById, clearRuntimeIssue, galaxyId, refreshProjection, reportContractViolationWithRepair, setRuntimeError]
+    [
+      asteroidById,
+      clearRuntimeIssue,
+      galaxyId,
+      branchIdScope,
+      refreshProjection,
+      reportContractViolationWithRepair,
+      setRuntimeError,
+    ]
   );
 
   const handleApplyGuidedRepair = useCallback(async () => {
@@ -2139,6 +2227,7 @@ export default function UniverseWorkspace({
     const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq) ? Number(asteroid.current_event_seq) : null;
     const request = buildGuidedRepairMutationRequest(activeSuggestion, {
       galaxyId,
+      branchId: branchIdScope,
       expectedEventSeq,
     });
     if (!request) return;
@@ -2198,6 +2287,7 @@ export default function UniverseWorkspace({
     appendRepairAudit,
     asteroidById,
     galaxyId,
+    branchIdScope,
     refreshProjection,
     repairSuggestion,
     reportContractViolationWithRepair,
@@ -2244,6 +2334,168 @@ export default function UniverseWorkspace({
     },
     [quickGridOpen, workspaceInteractionLocked]
   );
+  const closeContextMenu = useCallback(() => {
+    setContextMenu((prev) => (prev.open ? { ...prev, open: false } : prev));
+  }, []);
+  const handleOpenContext = useCallback(({ kind = "", id = "", label = "", x = 0, y = 0 } = {}) => {
+    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1600;
+    const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 900;
+    const menuWidth = 220;
+    const menuHeight = 170;
+    const clampedX = clamp(Number(x || 0), 8, Math.max(8, viewportWidth - menuWidth - 8));
+    const clampedY = clamp(Number(y || 0), 8, Math.max(8, viewportHeight - menuHeight - 8));
+    setContextMenu({
+      open: true,
+      kind: String(kind || ""),
+      id: String(id || ""),
+      label: String(label || ""),
+      x: clampedX,
+      y: clampedY,
+    });
+  }, []);
+  const handleContextAction = useCallback(
+    async (actionKey) => {
+      const targetId = String(contextMenu.id || "").trim();
+      const targetKind = String(contextMenu.kind || "").trim();
+      closeContextMenu();
+      if (!targetId) return;
+      if (actionKey === "focus_table" && targetKind === "table") {
+        handlePlanetSelect(targetId, { source: "context" });
+        return;
+      }
+      if (actionKey === "focus_asteroid" && targetKind === "asteroid") {
+        setSelectedAsteroidId(targetId);
+        setQuickGridOpen(true);
+        return;
+      }
+      if (actionKey === "open_grid") {
+        if (targetKind === "table") {
+          handlePlanetSelect(targetId, { source: "context" });
+        } else if (targetKind === "asteroid") {
+          setSelectedAsteroidId(targetId);
+        }
+        setQuickGridOpen(true);
+        return;
+      }
+      if (actionKey === "extinguish_asteroid" && targetKind === "asteroid" && !workspaceInteractionLocked) {
+        await handleDeleteRow(targetId);
+      }
+    },
+    [
+      closeContextMenu,
+      contextMenu.id,
+      contextMenu.kind,
+      handleDeleteRow,
+      handlePlanetSelect,
+      workspaceInteractionLocked,
+    ]
+  );
+  const handlePromoteSelectedBranch = useCallback(async () => {
+    const targetBranchId = String(selectedBranchId || "").trim();
+    if (!galaxyId || !targetBranchId || branchPromoteBusy) return;
+    const approved =
+      typeof window === "undefined"
+        ? true
+        : window.confirm("Promote branch do main timeline? Tato akce uzavře branch a přehraje její eventy.");
+    if (!approved) return;
+    setBusy(true);
+    setBranchPromoteBusy(true);
+    setBranchPromoteSummary("");
+    clearRuntimeIssue();
+    try {
+      const response = await apiFetch(buildBranchPromoteUrl(API_BASE, targetBranchId, galaxyId), {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw await apiErrorFromResponse(response, `Promote branch selhal: ${response.status}`);
+      }
+      const promotePayload = await response.json().catch(() => ({}));
+      const promotedEventsCount = Number.isFinite(Number(promotePayload?.promoted_events_count))
+        ? Number(promotePayload.promoted_events_count)
+        : null;
+      selectBranch("");
+      setBranchPromoteSummary(
+        promotedEventsCount === null
+          ? "Branch byl promotnut do main timeline."
+          : `Branch byl promotnut (${promotedEventsCount} eventů).`
+      );
+      await refreshProjection({ silent: true });
+      if (typeof onRefreshScopes === "function") {
+        await onRefreshScopes();
+      }
+    } catch (promoteError) {
+      setRuntimeError(promoteError?.message || "Branch se nepodařilo promotnout.");
+    } finally {
+      setBranchPromoteBusy(false);
+      setBusy(false);
+    }
+  }, [
+    selectedBranchId,
+    galaxyId,
+    branchPromoteBusy,
+    clearRuntimeIssue,
+    selectBranch,
+    refreshProjection,
+    onRefreshScopes,
+    setRuntimeError,
+  ]);
+  const handleCreateBranch = useCallback(async () => {
+    const name = String(branchCreateName || "").trim();
+    if (!galaxyId || !name || branchCreateBusy) return;
+    setBusy(true);
+    setBranchCreateBusy(true);
+    setBranchPromoteSummary("");
+    clearRuntimeIssue();
+    try {
+      const response = await apiFetch(`${API_BASE}/branches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          galaxy_id: galaxyId,
+        }),
+      });
+      if (!response.ok) {
+        throw await apiErrorFromResponse(response, `Create branch selhal: ${response.status}`);
+      }
+      const payload = await response.json().catch(() => ({}));
+      const createdBranchId = String(payload?.id || "").trim();
+      if (createdBranchId) {
+        selectBranch(createdBranchId);
+      }
+      setBranchCreateName("");
+      if (typeof onRefreshScopes === "function") {
+        await onRefreshScopes();
+      }
+      await refreshProjection({ silent: true });
+      setBranchPromoteSummary(createdBranchId ? "Branch byl vytvořen a aktivován." : "Branch byl vytvořen.");
+    } catch (createError) {
+      setRuntimeError(createError?.message || "Branch se nepodařilo vytvořit.");
+    } finally {
+      setBranchCreateBusy(false);
+      setBusy(false);
+    }
+  }, [
+    branchCreateName,
+    galaxyId,
+    branchCreateBusy,
+    clearRuntimeIssue,
+    onRefreshScopes,
+    refreshProjection,
+    selectBranch,
+    setRuntimeError,
+  ]);
+
+  useEffect(() => {
+    if (!contextMenu.open) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeContextMenu();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [closeContextMenu, contextMenu.open]);
 
   const handleApplyStarProfileLock = useCallback(async () => {
     if (!galaxyId) return;
@@ -2381,7 +2633,7 @@ export default function UniverseWorkspace({
           onSelectAsteroid={(asteroidId) => {
             setSelectedAsteroidId(String(asteroidId || ""));
           }}
-          onOpenContext={() => {}}
+          onOpenContext={handleOpenContext}
           onLinkStart={(draft) => setLinkDraft(draft)}
           onLinkMove={(nextPoint) =>
             setLinkDraft((prev) => {
@@ -3025,6 +3277,25 @@ export default function UniverseWorkspace({
         <WorkspaceSidebar
           galaxy={galaxy}
           branches={branches}
+          selectedBranchId={selectedBranchId}
+          onSelectBranch={(branchId) => {
+            selectBranch(branchId);
+            setBranchPromoteSummary("");
+            if (!branchId) {
+              setBranchCreateName("");
+            }
+          }}
+          branchCreateName={branchCreateName}
+          onBranchCreateNameChange={setBranchCreateName}
+          branchCreateBusy={branchCreateBusy}
+          onCreateBranch={() => {
+            void handleCreateBranch();
+          }}
+          branchPromoteBusy={branchPromoteBusy}
+          branchPromoteSummary={branchPromoteSummary}
+          onPromoteBranch={() => {
+            void handlePromoteSelectedBranch();
+          }}
           onboarding={onboarding}
           tableNodes={tableNodes}
           asteroidCount={snapshot.asteroids.length}
@@ -3061,6 +3332,88 @@ export default function UniverseWorkspace({
           }}
           repairAuditCount={repairAuditTrail.length}
         />
+        {contextMenu.open ? (
+          <>
+            <div
+              role="button"
+              tabIndex={-1}
+              aria-label="Close context menu"
+              onClick={closeContextMenu}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                closeContextMenu();
+              }}
+              style={{ position: "fixed", inset: 0, zIndex: 62 }}
+            />
+            <div
+              role="menu"
+              style={{
+                position: "fixed",
+                left: contextMenu.x,
+                top: contextMenu.y,
+                zIndex: 63,
+                width: 216,
+                borderRadius: 10,
+                border: "1px solid rgba(112, 207, 240, 0.36)",
+                background: "rgba(4, 12, 22, 0.95)",
+                color: "#def8ff",
+                boxShadow: "0 0 24px rgba(31, 128, 176, 0.28)",
+                padding: 6,
+                display: "grid",
+                gap: 6,
+              }}
+            >
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.78, padding: "2px 4px" }}>
+                {contextMenu.kind === "table" ? "PLANET MENU" : "CIVILIZATION MENU"}:{" "}
+                <strong>{contextMenu.label || contextMenu.id}</strong>
+              </div>
+              {contextMenu.kind === "table" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleContextAction("focus_table")}
+                    style={contextMenuButtonStyle}
+                  >
+                    Fokus planety
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleContextAction("open_grid")}
+                    style={contextMenuButtonStyle}
+                  >
+                    Otevřít grid
+                  </button>
+                </>
+              ) : null}
+              {contextMenu.kind === "asteroid" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleContextAction("focus_asteroid")}
+                    style={contextMenuButtonStyle}
+                  >
+                    Fokus civilizace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleContextAction("open_grid")}
+                    style={contextMenuButtonStyle}
+                  >
+                    Otevřít grid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleContextAction("extinguish_asteroid")}
+                    disabled={workspaceInteractionLocked}
+                    style={{ ...contextMenuButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
+                  >
+                    Zhasnout civilizaci
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </>
+        ) : null}
 
         <StarHeartDashboard
           open={starHeartOpen}

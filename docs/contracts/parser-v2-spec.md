@@ -1,6 +1,6 @@
 # DataVerse Parser 2.0 Specification (Axiom Engine)
 
-Status: frozen (phase 1/3)  
+Status: frozen (phase 1/3)
 Date: 2026-03-02
 
 Tento dokument definuje syntaxi a diagnostiku Parseru 2.0. Je závazný pro lexer, AST parser a contract testy.
@@ -19,7 +19,7 @@ Tento dokument definuje syntaxi a diagnostiku Parseru 2.0. Je závazný pro lexe
 - `ASSIGN` (`:=` nebo `=`)
 - `MINUS` (`-`)
 - `DOT` (`.`)
-- `COMMA` (`,`) 
+- `COMMA` (`,`)
 - `LPAREN` (`(`)
 - `RPAREN` (`)`)
 - `EOF`

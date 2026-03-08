@@ -1,8 +1,8 @@
 # Contract Gap Diff v2
 
-Date: 2026-03-05  
+Date: 2026-03-05
 Scope: backend + frontend contract coverage audit for MVP system layers
-Status: closed (all tracked contract rows are `DONE`)
+Status: closed for core contract inventory (P6/LF closure tracked in dedicated backlog docs)
 
 Legend:
 - `DONE`: exists and has at least one automated gate
@@ -38,3 +38,6 @@ Legend:
 - `SIGN-OFF BLOCKERS` before MVP freeze:
 1. none at contract gate layer (closure complete).
 2. projection convergence replay gate is covered (`src/components/universe/projectionConvergenceGate.test.js`).
+3. P6/LF closure status is managed in:
+   - `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`
+   - `docs/contracts/planet-moon-dod-v3.md`

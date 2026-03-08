@@ -38,4 +38,3 @@ echo "[parser-smoke] [4/4] parser integration subset"
 DATAVERSE_API_BASE="$API_BASE" PYTHONPATH=. "$PYTEST_BIN" -q tests/test_api_integration.py -k "parser"
 
 echo "[parser-smoke] PASS"
-

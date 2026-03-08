@@ -135,6 +135,15 @@ function deriveMoonInspector(selectedMoon) {
 export default function WorkspaceSidebar({
   galaxy,
   branches = [],
+  selectedBranchId = "",
+  onSelectBranch = null,
+  branchCreateName = "",
+  onBranchCreateNameChange = null,
+  branchCreateBusy = false,
+  onCreateBranch = null,
+  branchPromoteBusy = false,
+  branchPromoteSummary = "",
+  onPromoteBranch = null,
   onboarding = null,
   tableNodes,
   asteroidCount,
@@ -208,6 +217,74 @@ export default function WorkspaceSidebar({
           <strong>{onboarding?.can_advance ? "ano" : "ne"}</strong>
         </div>
       </div>
+      <label style={{ display: "grid", gap: 4 }}>
+        <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76, letterSpacing: "var(--dv-tr-wide)" }}>
+          TIMELINE (BRANCH)
+        </span>
+        <select
+          data-testid="workspace-branch-select"
+          value={String(selectedBranchId || "")}
+          onChange={(event) => {
+            if (typeof onSelectBranch === "function") {
+              onSelectBranch(String(event.target.value || ""));
+            }
+          }}
+          style={selectStyle}
+        >
+          <option value="">Main timeline</option>
+          {(Array.isArray(branches) ? branches : [])
+            .filter((item) => !item?.deleted_at)
+            .map((branch) => (
+              <option key={String(branch.id)} value={String(branch.id)}>
+                {String(branch.name || branch.id)}
+              </option>
+            ))}
+        </select>
+      </label>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6 }}>
+        <input
+          data-testid="workspace-branch-create-input"
+          value={String(branchCreateName || "")}
+          onChange={(event) => {
+            if (typeof onBranchCreateNameChange === "function") {
+              onBranchCreateNameChange(String(event.target.value || ""));
+            }
+          }}
+          placeholder="Novy branch"
+          style={inputStyle}
+        />
+        <button
+          type="button"
+          data-testid="workspace-branch-create-button"
+          onClick={() => {
+            if (typeof onCreateBranch === "function") {
+              onCreateBranch();
+            }
+          }}
+          disabled={branchCreateBusy || !String(branchCreateName || "").trim()}
+          style={ghostButtonStyle}
+        >
+          {branchCreateBusy ? "Creating..." : "Create"}
+        </button>
+      </div>
+      <button
+        type="button"
+        data-testid="workspace-branch-promote-button"
+        onClick={() => {
+          if (typeof onPromoteBranch === "function") {
+            onPromoteBranch();
+          }
+        }}
+        disabled={!selectedBranchId || branchPromoteBusy}
+        style={ghostButtonStyle}
+      >
+        {branchPromoteBusy ? "Promoting..." : "Promote branch"}
+      </button>
+      {branchPromoteSummary ? (
+        <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }} data-testid="branch-promote-summary">
+          {branchPromoteSummary}
+        </div>
+      ) : null}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <span style={hudBadgeStyle}>Planety {tableNodes.length}</span>
         <span style={hudBadgeStyle}>Mesice {asteroidCount}</span>

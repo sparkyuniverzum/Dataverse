@@ -1,7 +1,7 @@
 # System MVP DoD v2 (Star -> Planet -> Moon -> Civilization -> Mineral)
 
-Status: closed (MVP sign-off complete)  
-Owner: Core BE/FE  
+Status: closed (MVP sign-off complete)
+Owner: Core BE/FE
 Date: 2026-03-05
 
 ## 1. Purpose

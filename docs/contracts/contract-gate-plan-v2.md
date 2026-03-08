@@ -1,6 +1,6 @@
 # Contract Gate Plan v2
 
-Date: 2026-03-05  
+Date: 2026-03-05
 Owner: Core BE/FE
 Status: closed (gate set implemented and wired to CI)
 

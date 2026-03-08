@@ -1,7 +1,7 @@
 # DataVerse API Contract v1
 
-Status: frozen from current implementation (`app/main.py`, `app/schemas.py`)
-Date: 2026-02-28 (updated 2026-03-07 for civilization canonical route policy)
+Status: frozen from current implementation (`app/main.py`)
+Date: 2026-02-28 (updated 2026-03-08 for route parity and canonical/alias lifecycle endpoints)
 
 ## Global rules
 - No hard delete endpoints exist. Data removal is soft only (`.../extinguish` or parser `DELETE` command).
@@ -14,6 +14,7 @@ Date: 2026-02-28 (updated 2026-03-07 for civilization canonical route policy)
 - Write endpoints support optional `idempotency_key`; same key + same payload in same scope replays stored response, same key + different payload returns `409`.
 - OCC conflicts (`409`) use unified payload:
   - `{ "detail": { "code": "OCC_CONFLICT", "message": string, "context": string, "entity_id": uuid, "expected_event_seq": int, "current_event_seq": int } }`
+- Complete method/path freeze list is tracked in `docs/api-v1-openapi-baseline-v1.json` (`method_path_signatures`).
 
 ## Contract violation error envelope (freeze v1, 2026-03-07)
 
@@ -56,10 +57,14 @@ Compatibility rule:
 - Response `200`: `UserPublic`.
 - Errors: `401` invalid/expired token.
 
-### `PATCH /auth/me/extinguish`
+### `POST /auth/refresh`
+- Request: `{ "refresh_token": string }`
+- Response `200`: `{ access_token, refresh_token, token_type, expires_at }`
+- Errors: `401` invalid/expired/revoked refresh token.
+
+### `POST /auth/logout`
 - Auth required.
-- Soft-deletes current user (`deleted_at`) and deactivates account.
-- Response `200`: `UserPublic`.
+- Response `200`: `{ "ok": true }`.
 
 ## Galaxies
 ### `GET /galaxies`
@@ -98,11 +103,6 @@ Compatibility rule:
 - Behavior: replays branch events into main timeline in-order and then closes branch (`deleted_at` set).
 - Errors: `404` branch not found/deleted, `403` foreign branch access.
 
-### `PATCH /branches/{branch_id}/extinguish`
-- Auth required.
-- Query: `galaxy_id?: uuid`.
-- Response `200`: `BranchPublic` (`deleted_at` set).
-
 ## Planets (table aggregate lifecycle)
 ### `GET /planets`
 - Auth required.
@@ -136,27 +136,45 @@ Compatibility rule:
   - soft-delete contract history only (no hard delete), appends `PLANET_EXTINGUISHED`
 
 ## Asteroids and bonds
-### `POST /asteroids/ingest`
+### `POST /civilizations/ingest` (canonical)
 - Auth required.
 - Request: `{ "value": any, "metadata"?: object, "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
-- Behavior: find-or-create active asteroid by exact `value`; metadata may be merged by event.
-- Response `200`: `AsteroidResponse`.
+- Behavior: find-or-create active civilization by exact `value`; metadata may be merged by event.
+- Response `200`: `CivilizationResponse`.
 
-### `PATCH /asteroids/{asteroid_id}/extinguish`
+### `POST /asteroids/ingest` (compat alias)
+- Auth required.
+- Request: `{ "value": any, "metadata"?: object, "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
+- Behavior: compatibility alias of canonical ingest.
+- Response `200`: `CivilizationResponse`.
+
+### `PATCH /civilizations/{civilization_id}/extinguish` (canonical)
 - Auth required.
 - Query: `galaxy_id?`, `branch_id?`, `expected_event_seq?`, `idempotency_key?`
-- Behavior: soft-deletes asteroid and connected bonds (event-sourced cascade).
+- Behavior: soft-deletes civilization and connected bonds (event-sourced cascade).
 - OCC (optional): if `expected_event_seq` is provided and current entity event sequence differs, endpoint returns `409`.
-- Response `200`: deleted `AsteroidResponse` (`is_deleted=true`, `deleted_at!=null`).
+- Response `200`: deleted `CivilizationResponse` (`is_deleted=true`, `deleted_at!=null`).
 - Errors: `404` not found, `409` optimistic concurrency conflict.
 
-### `PATCH /asteroids/{asteroid_id}/mutate`
+### `PATCH /civilizations/{civilization_id}/raw-extinguish` (compat alias)
+- Same behavior/shape as canonical extinguish endpoint.
+
+### `PATCH /asteroids/{asteroid_id}/extinguish` (compat alias)
+- Same behavior/shape as canonical extinguish endpoint.
+
+### `PATCH /civilizations/{civilization_id}/mutate` (canonical)
 - Auth required.
 - Request: `{ "value"?: any, "metadata"?: object, "expected_event_seq"?: int>=0, "idempotency_key"?: string, "galaxy_id"?: uuid, "branch_id"?: uuid }`
 - Behavior: updates value/metadata via event log (`ASTEROID_VALUE_UPDATED`, `METADATA_UPDATED`).
 - OCC (optional): if `expected_event_seq` is provided and current entity event sequence differs, endpoint returns `409`.
-- Response `200`: updated `AsteroidResponse`.
+- Response `200`: updated `CivilizationResponse`.
 - Errors: `404` not found, `409` optimistic concurrency conflict.
+
+### `PATCH /civilizations/{civilization_id}/raw-mutate` (compat alias)
+- Same behavior/shape as canonical mutate endpoint.
+
+### `PATCH /asteroids/{asteroid_id}/mutate` (compat alias)
+- Same behavior/shape as canonical mutate endpoint.
 
 ## Civilization rows (canonical route policy v1)
 
@@ -228,6 +246,11 @@ Canonical policy (effective 2026-03-07):
 - Type normalization: aliases are normalized before write (`FORMULA` -> `FLOW`, `REL`/`LINK` -> `RELATION`, `GUARD`/`WATCH` -> `GUARDIAN`).
 - OCC (optional): if expected source/target sequence is provided and differs from current sequence, endpoint returns `409`.
 - Errors: `422` same source/target or invalid context, `404` endpoint asteroid missing, `409` optimistic concurrency conflict.
+
+### `POST /bonds/validate`
+- Auth required.
+- Request: same shape as `POST /bonds/link`.
+- Response `200`: `BondValidateResponse` (`accepted`, `blocking`, `would_create`, `would_mutate`, `would_extinguish`, `reasons[]`).
 
 ### `PATCH /bonds/{bond_id}/mutate`
 - Auth required.
@@ -305,6 +328,27 @@ Canonical policy (effective 2026-03-07):
   - on `update`, FE refreshes projection sources (`/universe/snapshot` + `/universe/tables`)
 - after reconnect, FE resumes by `last_event_seq` and performs full projection refresh on sequence uncertainty
 
+## Galaxy onboarding
+### `GET /galaxies/{galaxy_id}/onboarding`
+- Auth required.
+- Response `200`: `OnboardingPublic`.
+
+### `PATCH /galaxies/{galaxy_id}/onboarding`
+- Auth required.
+- Request: `OnboardingUpdateRequest`.
+- Response `200`: `OnboardingPublic`.
+
+## Presets
+### `GET /presets/catalog`
+- Auth required.
+- Query: `galaxy_id?: uuid`.
+- Response `200`: `PresetCatalogResponse`.
+
+### `POST /presets/apply`
+- Auth required.
+- Request: `PresetBundleApplyRequest`.
+- Response `200`: `PresetBundleApplyResponse`.
+
 ## Star core physics migration (v2 additive)
 ### `POST /galaxies/{galaxy_id}/star-core/physics/profile/migrate`
 - Auth required.
@@ -375,7 +419,6 @@ Canonical policy (effective 2026-03-07):
 - Implemented endpoints:
 - `GET/POST /branches`
 - `POST /branches/{branch_id}/promote`
-- `PATCH /branches/{branch_id}/extinguish`
 - `GET/POST /contracts/{table_id}`
 - Branch-aware snapshot:
 - `GET /universe/snapshot?...&branch_id=<uuid>`

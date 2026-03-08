@@ -1,6 +1,6 @@
 # DataVerse Table Contract v1
 
-Status: frozen from current implementation (`app/services/universe_service.py`, `app/schemas.py`)  
+Status: frozen from current implementation (`app/services/universe_service.py`, `app/schemas.py`)
 Date: 2026-02-28
 
 ## What is a "table" in DataVerse

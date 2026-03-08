@@ -1,6 +1,6 @@
 # DataVerse V1 Freeze Checklist
 
-Date: 2026-02-28  
+Date: 2026-02-28
 Owner: Core Architecture
 
 ## Scope freeze

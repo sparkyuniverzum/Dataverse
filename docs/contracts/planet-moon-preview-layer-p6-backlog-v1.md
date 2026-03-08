@@ -231,6 +231,9 @@ Order is strict: blockers -> partial closure -> final closure update.
 - [ ] `PM-P6-DOC-02`: update P6 rows in `docs/contracts/planet-moon-dod-v3.md` test matrix to `GREEN`.
 - [x] `PM-P6-DOC-03`: closure addendum added in `docs/release/v1-release-notes.md` with executed commands and pass results.
 - [ ] `PM-P6-GATE-01`: run `pre-commit run` and ensure `frontend eslint` + `frontend prettier check` + targeted FE/BE gates pass before closure sign-off.
+- [x] `PM-P6-BRANCH-01`: branch scope promote smoke gate added and passing:
+  `frontend/e2e/staging/branch-scope-promote.smoke.spec.mjs`
+  + `npm --prefix frontend run test:e2e -- e2e/staging/branch-scope-promote.smoke.spec.mjs` (`1 passed`, 2026-03-08).
 
 ### 5.4 CMV2 closure dependencies (must be closed with P6)
 

@@ -1,6 +1,13 @@
 import UniverseWorkspace from "../universe/UniverseWorkspace";
 
-export default function WorkspaceShell({ galaxy, branches = [], onboarding = null, onBackToGalaxies, onLogout }) {
+export default function WorkspaceShell({
+  galaxy,
+  branches = [],
+  onboarding = null,
+  onBackToGalaxies,
+  onLogout,
+  onRefreshScopes,
+}) {
   return (
     <UniverseWorkspace
       galaxy={galaxy}
@@ -9,6 +16,7 @@ export default function WorkspaceShell({ galaxy, branches = [], onboarding = nul
       minimalShell
       onBackToGalaxies={onBackToGalaxies}
       onLogout={onLogout}
+      onRefreshScopes={onRefreshScopes}
     />
   );
 }

@@ -56,6 +56,26 @@ async def ingest_asteroid(
     )
 
 
+@router.post("/asteroids/ingest", response_model=CivilizationResponse, status_code=status.HTTP_200_OK)
+async def ingest_asteroid_alias(
+    payload: CivilizationIngestRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> CivilizationResponse:
+    return await ingest_asteroid(
+        payload=payload,
+        session=session,
+        current_user=current_user,
+        services=services,
+    )
+
+
+@router.patch(
+    "/civilizations/{civilization_id}/extinguish",
+    response_model=CivilizationResponse,
+    status_code=status.HTTP_200_OK,
+)
 @router.patch(
     "/civilizations/{civilization_id}/raw-extinguish",
     response_model=CivilizationResponse,
@@ -116,6 +136,38 @@ async def extinguish_asteroid(
 
 
 @router.patch(
+    "/asteroids/{asteroid_id}/extinguish",
+    response_model=CivilizationResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def extinguish_asteroid_alias(
+    asteroid_id: UUID,
+    galaxy_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    expected_event_seq: int | None = Query(default=None, ge=0),
+    idempotency_key: str | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> CivilizationResponse:
+    return await extinguish_asteroid(
+        civilization_id=asteroid_id,
+        galaxy_id=galaxy_id,
+        branch_id=branch_id,
+        expected_event_seq=expected_event_seq,
+        idempotency_key=idempotency_key,
+        session=session,
+        current_user=current_user,
+        services=services,
+    )
+
+
+@router.patch(
+    "/civilizations/{civilization_id}/mutate",
+    response_model=CivilizationResponse,
+    status_code=status.HTTP_200_OK,
+)
+@router.patch(
     "/civilizations/{civilization_id}/raw-mutate",
     response_model=CivilizationResponse,
     status_code=status.HTTP_200_OK,
@@ -170,4 +222,25 @@ async def mutate_asteroid(
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Civilization not found",
         empty_response_status=status.HTTP_404_NOT_FOUND,
+    )
+
+
+@router.patch(
+    "/asteroids/{asteroid_id}/mutate",
+    response_model=CivilizationResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def mutate_asteroid_alias(
+    asteroid_id: UUID,
+    payload: CivilizationMutateRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> CivilizationResponse:
+    return await mutate_asteroid(
+        civilization_id=asteroid_id,
+        payload=payload,
+        session=session,
+        current_user=current_user,
+        services=services,
     )

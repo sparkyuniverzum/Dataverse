@@ -125,7 +125,7 @@ class AutoSemanticsService:
         guard = 0
         while guard < 4:
             guard += 1
-            rules = await self._load_auto_semantic_rules_for_asteroid(
+            rules = await self.executor._load_auto_semantic_rules_for_asteroid(
                 session=ctx.session,
                 galaxy_id=ctx.galaxy_id,
                 civilization=civilization,

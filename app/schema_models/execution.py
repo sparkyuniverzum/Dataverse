@@ -48,7 +48,7 @@ class TaskSchema(BaseModel):
     action: str
     target: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
-    source_text: str
+    source_text: str = ""
 
 
 class BondCreateRequest(BaseModel):

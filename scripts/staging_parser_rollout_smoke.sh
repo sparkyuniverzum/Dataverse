@@ -49,4 +49,3 @@ echo "[4/4] Build frontend in staging mode"
 npm --prefix frontend run build -- --mode staging
 
 echo "[DONE] Staging parser rollout smoke passed"
-

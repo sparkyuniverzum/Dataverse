@@ -118,6 +118,11 @@ export default function App() {
       onboarding={onboarding}
       onBackToGalaxies={backToGalaxyGate}
       onLogout={logout}
+      onRefreshScopes={() => {
+        if (!selectedGalaxyId) return;
+        void loadBranchesForGalaxy(selectedGalaxyId);
+        void loadOnboardingForGalaxy(selectedGalaxyId);
+      }}
     />
   );
 }

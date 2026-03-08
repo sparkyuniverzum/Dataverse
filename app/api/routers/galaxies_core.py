@@ -6,7 +6,12 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import galaxy_to_public
-from app.api.runtime import commit_if_active, get_service_container, transactional_context
+from app.api.runtime import (
+    commit_if_active,
+    ensure_onboarding_progress_safe,
+    get_service_container,
+    transactional_context,
+)
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
@@ -39,10 +44,12 @@ async def create_galaxy(
             user_id=current_user.id,
             name=payload.name,
         )
-        await services.onboarding_service.ensure_progress(
+        await ensure_onboarding_progress_safe(
             session=session,
+            services=services,
             user_id=current_user.id,
             galaxy_id=galaxy.id,
+            context="galaxies.create",
         )
     await commit_if_active(session)
     return galaxy_to_public(galaxy)

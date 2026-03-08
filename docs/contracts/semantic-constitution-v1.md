@@ -1,6 +1,6 @@
 # DataVerse Semantic Constitution v1
 
-Status: normative  
+Status: normative
 Date: 2026-03-02
 
 Tento dokument sjednocuje doménový jazyk mezi parserem, API, event-store, read-modely a UI.
@@ -48,25 +48,25 @@ Tento dokument sjednocuje doménový jazyk mezi parserem, API, event-store, read
 
 ## III. Železná pravidla systému (zákony)
 
-1. Zákon zachování informace  
+1. Zákon zachování informace
 Nic zapsaného do Kroniky nesmí být hard-delete.
 
-2. Zákon kauzality  
+2. Zákon kauzality
 Každý stav instance musí být vysvětlitelný řetězcem událostí.
 
-3. Zákon dimenze  
+3. Zákon dimenze
 Grid a 3D reprezentují stejný stav; nesmí vzniknout informační drift.
 
-4. Zákon identity  
+4. Zákon identity
 Identita instance (`id`) je neměnná napříč událostmi.
 
-5. Zákon projekce  
+5. Zákon projekce
 Read-model je deterministická projekce event logu, ne alternativní source of truth.
 
-6. Zákon větví  
+6. Zákon větví
 Branch je izolovaná timeline; `promote` je replay branch eventů do main.
 
-7. Zákon kontraktu  
+7. Zákon kontraktu
 Když pro tabulku existuje contract, každý efektivní write ho musí validovat před appendem eventu.
 
 ## IV. Normalizační pravidla

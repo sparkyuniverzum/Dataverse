@@ -1,7 +1,7 @@
 # DataVerse Service Maturity Matrix v1
 
-Status: audit baseline  
-Date: 2026-03-03  
+Status: audit baseline
+Date: 2026-03-03
 Goal: align all backend services to parser-level engineering quality so parser throughput is not limited by weaker layers.
 
 ## Scope

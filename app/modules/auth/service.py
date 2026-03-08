@@ -265,7 +265,5 @@ class AuthService:
         )
 
         # 5. Perform the final soft-delete on the main galaxy table and return it
-        deleted_galaxy = await self.repository.soft_delete_galaxy(
-            session=session, user_id=user_id, galaxy_id=galaxy_id
-        )
+        deleted_galaxy = await self.repository.soft_delete_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)
         return deleted_galaxy

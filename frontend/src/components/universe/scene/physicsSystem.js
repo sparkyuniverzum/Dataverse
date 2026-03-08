@@ -201,7 +201,9 @@ export function resolveLinkPhaseVisual({
   const safeStress = clamp(Number(stress) || 0, 0, 1);
   const baseColor = resolvePhaseColorBySeverity(dominantSeverity);
   const dominantColor = isConverging ? "#e0f8ff" : baseColor;
-  const pulseColor = new THREE.Color(dominantColor).lerp(new THREE.Color("#ffffff"), isConverging ? 0.5 : 0.28).getStyle();
+  const pulseColor = new THREE.Color(dominantColor)
+    .lerp(new THREE.Color("#ffffff"), isConverging ? 0.5 : 0.28)
+    .getStyle();
   const dominantPhase = PHASE_ORDER[dominantSeverity] || "CALM";
 
   return {
@@ -211,9 +213,17 @@ export function resolveLinkPhaseVisual({
     pulseColor,
     severity: dominantSeverity,
     widthMultiplier: clamp(1 + safeFlow * 0.18 + dominantSeverity * 0.08 + corrosion * 0.08, 0.9, 1.7),
-    speedMultiplier: clamp(1 + safeFlow * 0.45 + safeStress * 0.22 + (dominantSeverity >= 5 ? 0.2 : 0) + (isConverging ? 0.5 : 0), 0.82, 3.0),
+    speedMultiplier: clamp(
+      1 + safeFlow * 0.45 + safeStress * 0.22 + (dominantSeverity >= 5 ? 0.2 : 0) + (isConverging ? 0.5 : 0),
+      0.82,
+      3.0
+    ),
     opacityMultiplier: clamp(1 + safeFlow * 0.08 + dominantSeverity * 0.05 - corrosion * 0.04, 0.86, 1.3),
-    pulseMultiplier: clamp(1 + safeFlow * 0.35 + safeStress * 0.24 + corrosion * 0.1 + (isConverging ? 0.8 : 0), 0.9, 3.5),
+    pulseMultiplier: clamp(
+      1 + safeFlow * 0.35 + safeStress * 0.24 + corrosion * 0.1 + (isConverging ? 0.8 : 0),
+      0.9,
+      3.5
+    ),
     sourcePhase: source,
     targetPhase: target,
   };

@@ -188,7 +188,7 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
           setEmail("");
         }
       }
-    } catch (err) {
+    } catch {
       // The parent component is responsible for setting and displaying the error.
     }
   };
@@ -447,7 +447,12 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
 
               {mode === "register" ? (
                 <div
-                  style={{ marginTop: 4, fontSize: "var(--dv-fs-xs)", opacity: 0.72, lineHeight: "var(--dv-lh-relaxed)" }}
+                  style={{
+                    marginTop: 4,
+                    fontSize: "var(--dv-fs-xs)",
+                    opacity: 0.72,
+                    lineHeight: "var(--dv-lh-relaxed)",
+                  }}
                 >
                   Registrací souhlasíte s vytvořením datového prostoru, který využívá principy Event Sourcing a
                   soft-delete pro zajištění integrity a historie vašich dat.

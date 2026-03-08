@@ -123,6 +123,67 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
     expect(onSelectMoon).toHaveBeenCalledWith("moon-2");
   });
 
+  it("P0 branch controls: sidebar supports branch switch and promote trigger", async () => {
+    const user = userEvent.setup();
+    const onSelectBranch = vi.fn();
+    const onCreateBranch = vi.fn();
+    const onBranchCreateNameChange = vi.fn();
+    const onPromoteBranch = vi.fn();
+
+    render(
+      React.createElement(WorkspaceSidebar, {
+        galaxy: { name: "Milky QA" },
+        branches: [
+          { id: "br-1", name: "Experiment A", deleted_at: null },
+          { id: "br-2", name: "Experiment B", deleted_at: null },
+        ],
+        selectedBranchId: "br-1",
+        onSelectBranch,
+        branchCreateName: "Feature-X",
+        onBranchCreateNameChange,
+        branchCreateBusy: false,
+        onCreateBranch,
+        branchPromoteBusy: false,
+        branchPromoteSummary: "Branch byl promotnut (3 eventů).",
+        onPromoteBranch,
+        onboarding: null,
+        tableNodes: [{ id: "table-1", entityName: "Finance", label: "Cashflow" }],
+        asteroidCount: 2,
+        bondCount: 1,
+        loading: false,
+        busy: false,
+        error: "",
+        selectedTableId: "table-1",
+        selectedTableLabel: "Tabulka: Cashflow",
+        selectedAsteroidLabel: "Moon-moon-1",
+        moonRows: [buildMoonRow("moon-1")],
+        selectedMoonId: "moon-1",
+        onSelectTable: () => {},
+        onSelectMoon: () => {},
+        onOpenGrid: () => {},
+        onRefresh: () => {},
+        onOpenStarHeart: () => {},
+        onBackToGalaxies: () => {},
+        onLogout: () => {},
+      })
+    );
+
+    const selector = screen.getByDisplayValue("Experiment A");
+    await user.selectOptions(selector, "br-2");
+    expect(onSelectBranch).toHaveBeenCalledWith("br-2");
+
+    const createInput = screen.getByTestId("workspace-branch-create-input");
+    await user.clear(createInput);
+    await user.type(createInput, "Feature-Y");
+    expect(onBranchCreateNameChange).toHaveBeenCalled();
+    await user.click(screen.getByTestId("workspace-branch-create-button"));
+    expect(onCreateBranch).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Promote branch" }));
+    expect(onPromoteBranch).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("branch-promote-summary").textContent).toContain("promotnut");
+  });
+
   it("LF-02 semantic clarity: grid shows explicit civilization vs mineral legend and separated inspector panels", () => {
     renderGrid({
       tableRows: [

@@ -1,7 +1,7 @@
 # Mineral Contract v1
 
-Status: frozen (MVP sign-off)  
-Date: 2026-03-05  
+Status: frozen (MVP sign-off)
+Date: 2026-03-05
 Depends on: `docs/contracts/table-contract-v1.md`, `docs/contracts/civilization-contract-v1.md`, `docs/contracts/moon-contract-v1.md`
 
 ## 1. Purpose

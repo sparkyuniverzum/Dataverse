@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import galaxy_to_public, user_to_public
-from app.api.runtime import commit_if_active, get_service_container, transactional_context
+from app.api.runtime import (
+    commit_if_active,
+    ensure_onboarding_progress_safe,
+    get_service_container,
+    transactional_context,
+)
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.modules.auth.dependencies import AuthContext, get_current_auth_context, get_current_user
@@ -52,10 +57,12 @@ async def register(
             user_agent=_request_user_agent(request),
             ip_address=_request_ip_address(request),
         )
-        await services.onboarding_service.ensure_progress(
+        await ensure_onboarding_progress_safe(
             session=session,
+            services=services,
             user_id=result.user.id,
             galaxy_id=result.default_galaxy.id,
+            context="auth.register",
         )
     await commit_if_active(session)
     return AuthResponse(
@@ -82,10 +89,12 @@ async def login(
             user_agent=_request_user_agent(request),
             ip_address=_request_ip_address(request),
         )
-        await services.onboarding_service.ensure_progress(
+        await ensure_onboarding_progress_safe(
             session=session,
+            services=services,
             user_id=result.user.id,
             galaxy_id=result.default_galaxy.id,
+            context="auth.login",
         )
     await commit_if_active(session)
     return AuthResponse(

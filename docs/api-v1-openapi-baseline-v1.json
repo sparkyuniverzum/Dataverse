@@ -47,10 +47,14 @@
       "PATCH /capabilities/{capability_id}",
       "PATCH /capabilities/{capability_id}/deprecate",
       "PATCH /civilizations/{civilization_id}/extinguish",
+      "PATCH /civilizations/{civilization_id}/minerals/{mineral_key}",
       "PATCH /civilizations/{civilization_id}/mutate",
+      "PATCH /civilizations/{civilization_id}/raw-extinguish",
+      "PATCH /civilizations/{civilization_id}/raw-mutate",
       "PATCH /galaxies/{galaxy_id}/extinguish",
       "PATCH /galaxies/{galaxy_id}/onboarding",
       "PATCH /moons/{moon_id}/extinguish",
+      "PATCH /moons/{moon_id}/minerals/{mineral_key}",
       "PATCH /moons/{moon_id}/mutate",
       "PATCH /planets/{table_id}/extinguish",
       "POST /asteroids/ingest",
@@ -59,9 +63,11 @@
       "POST /auth/refresh",
       "POST /auth/register",
       "POST /bonds/link",
+      "POST /bonds/validate",
       "POST /branches",
       "POST /branches/{branch_id}/promote",
       "POST /civilizations",
+      "POST /civilizations/ingest",
       "POST /contracts/{table_id}",
       "POST /galaxies",
       "POST /galaxies/{galaxy_id}/star-core/physics/profile/migrate",
@@ -77,6 +83,6 @@
     "required_security_schemes": [
       "OAuth2PasswordBearer"
     ],
-    "schema_sha256": "5f20da076e615ecc17047662802a2540b7d13ed332b5df618b2ed6f8637c7dca"
+    "schema_sha256": "94346c1527291a4299340648f6285812e8cce3e08df3413b71b70f885e1c6a19"
   }
 }

@@ -20,6 +20,7 @@ import {
   buildImportJobUrl,
   buildImportRunUrl,
   buildBranchesUrl,
+  buildBranchPromoteUrl,
   buildGalaxyOnboardingUrl,
   buildParserPayload,
   buildTableContractUrl,
@@ -248,6 +249,12 @@ describe("io urls", () => {
 
     const plainBranches = buildBranchesUrl("http://127.0.0.1:8000");
     expect(plainBranches).toBe("http://127.0.0.1:8000/branches");
+
+    const promoteScoped = buildBranchPromoteUrl("http://127.0.0.1:8000", "br-1", "g-42");
+    expect(promoteScoped).toBe("http://127.0.0.1:8000/branches/br-1/promote?galaxy_id=g-42");
+
+    const promotePlain = buildBranchPromoteUrl("http://127.0.0.1:8000", "br-2");
+    expect(promotePlain).toBe("http://127.0.0.1:8000/branches/br-2/promote");
 
     const onboardingUrl = buildGalaxyOnboardingUrl("http://127.0.0.1:8000", "g-42");
     expect(onboardingUrl).toBe("http://127.0.0.1:8000/galaxies/g-42/onboarding");

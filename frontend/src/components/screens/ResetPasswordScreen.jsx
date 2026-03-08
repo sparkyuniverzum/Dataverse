@@ -56,11 +56,7 @@ export default function ResetPasswordScreen({ onNavigateToLogin }) {
                 <div style={titleStyle}>Heslo změněno</div>
                 <div style={subtitleStyle}>{successMessage}</div>
               </div>
-              <button
-                type="button"
-                onClick={onNavigateToLogin}
-                style={{ ...ctaStyle(false), marginTop: 12 }}
-              >
+              <button type="button" onClick={onNavigateToLogin} style={{ ...ctaStyle(false), marginTop: 12 }}>
                 Přejít na přihlášení
               </button>
             </>

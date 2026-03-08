@@ -1,8 +1,8 @@
 # Planet Builder MVP Contract v2
 
-Status: normative target (implementation baseline)  
-Date: 2026-03-05  
-Owner: Core BE/FE  
+Status: normative target (implementation baseline)
+Date: 2026-03-05
+Owner: Core BE/FE
 Depends on: `docs/contracts/semantic-constitution-v1.md`, `docs/contracts/star-physics-laws-v2.md`, `docs/contracts/table-contract-v1.md`, `docs/contracts/moon-contract-v1.md`, `docs/contracts/civilization-contract-v1.md`, `docs/contracts/mineral-contract-v1.md`, `docs/contracts/api-v1.md`
 
 ## 1. Purpose

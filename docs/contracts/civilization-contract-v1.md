@@ -1,7 +1,7 @@
 # Civilization Contract v1
 
-Status: frozen (MVP sign-off)  
-Date: 2026-03-05  
+Status: frozen (MVP sign-off)
+Date: 2026-03-05
 Depends on: `docs/contracts/api-v1.md`, `docs/contracts/table-contract-v1.md`, `docs/contracts/moon-contract-v1.md`
 
 ## 1. Purpose
@@ -21,6 +21,7 @@ Canonical API surface (implemented):
 - `GET /civilizations`
 - `GET /civilizations/{civilization_id}`
 - `POST /civilizations`
+- `POST /civilizations/ingest`
 - `PATCH /civilizations/{civilization_id}/mutate`
 - `PATCH /civilizations/{civilization_id}/extinguish`
 

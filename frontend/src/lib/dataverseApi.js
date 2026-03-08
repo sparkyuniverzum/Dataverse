@@ -238,6 +238,14 @@ export function buildBranchesUrl(apiBase, galaxyId = null) {
   return url.toString();
 }
 
+export function buildBranchPromoteUrl(apiBase, branchId, galaxyId = null) {
+  const url = new URL(`${apiBase}/branches/${branchId}/promote`);
+  if (galaxyId) {
+    url.searchParams.set("galaxy_id", String(galaxyId));
+  }
+  return url.toString();
+}
+
 export function buildGalaxyOnboardingUrl(apiBase, galaxyId) {
   return `${apiBase}/galaxies/${galaxyId}/onboarding`;
 }
@@ -302,11 +310,10 @@ export function buildMoonMineralMutateUrl(apiBase, moonId, mineralKey) {
 }
 
 export function buildMoonExtinguishUrl(apiBase, moonId, { expectedEventSeq } = {}) {
-  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
-    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
-  }
   const url = new URL(`${apiBase}/moons/${moonId}/extinguish`);
-  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
+    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  }
   return url.toString();
 }
 
@@ -348,35 +355,32 @@ export function buildCivilizationMineralMutateUrl(apiBase, civilizationId, miner
 }
 
 export function buildCivilizationExtinguishUrl(apiBase, civilizationId, { expectedEventSeq } = {}) {
-  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
-    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
-  }
   const url = new URL(`${apiBase}/civilizations/${civilizationId}/extinguish`);
-  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
+    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  }
   return url.toString();
 }
 
 export function buildAsteroidExtinguishUrl(apiBase, asteroidId, { galaxyId = null, expectedEventSeq } = {}) {
-  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
-    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
-  }
   const url = new URL(`${apiBase}/asteroids/${asteroidId}/extinguish`);
   if (galaxyId) {
     url.searchParams.set("galaxy_id", String(galaxyId));
   }
-  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
+    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  }
   return url.toString();
 }
 
 export function buildBondExtinguishUrl(apiBase, bondId, { galaxyId = null, expectedEventSeq } = {}) {
-  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
-    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
-  }
   const url = new URL(`${apiBase}/bonds/${bondId}/extinguish`);
   if (galaxyId) {
     url.searchParams.set("galaxy_id", String(galaxyId));
   }
-  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
+    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  }
   return url.toString();
 }
 
@@ -385,9 +389,6 @@ export function buildPlanetExtinguishUrl(
   tableId,
   { galaxyId = null, branchId = null, expectedEventSeq } = {}
 ) {
-  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
-    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
-  }
   const url = new URL(`${apiBase}/planets/${tableId}/extinguish`);
   if (galaxyId) {
     url.searchParams.set("galaxy_id", String(galaxyId));
@@ -395,17 +396,78 @@ export function buildPlanetExtinguishUrl(
   if (branchId) {
     url.searchParams.set("branch_id", String(branchId));
   }
-  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
+    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  }
   return url.toString();
 }
 
 export function buildGalaxyExtinguishUrl(apiBase, galaxyId, { expectedEventSeq } = {}) {
-  if (expectedEventSeq == null || !Number.isFinite(expectedEventSeq) || Number(expectedEventSeq) < 0) {
-    throw new Error("expectedEventSeq is required and must be a non-negative number for extinguish operations");
-  }
   const url = new URL(`${apiBase}/galaxies/${galaxyId}/extinguish`);
-  url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
+    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
+  }
   return url.toString();
+}
+
+export function buildCivilizationMutatePayload({
+  label = null,
+  minerals = null,
+  planetId = null,
+  expectedEventSeq = null,
+  idempotencyKey = null,
+  galaxyId = null,
+  branchId = null,
+} = {}) {
+  const payload = {};
+  if (label !== null && label !== undefined) {
+    payload.label = String(label);
+  }
+  if (minerals && typeof minerals === "object" && !Array.isArray(minerals)) {
+    payload.minerals = minerals;
+  }
+  if (planetId) {
+    payload.planet_id = String(planetId);
+  }
+  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
+    payload.expected_event_seq = Math.floor(Number(expectedEventSeq));
+  }
+  if (idempotencyKey) {
+    payload.idempotency_key = String(idempotencyKey);
+  }
+  if (galaxyId) {
+    payload.galaxy_id = String(galaxyId);
+  }
+  if (branchId) {
+    payload.branch_id = String(branchId);
+  }
+  return payload;
+}
+
+export function buildCivilizationMineralMutatePayload({
+  typedValue = null,
+  remove = false,
+  expectedEventSeq = null,
+  idempotencyKey = null,
+  galaxyId = null,
+} = {}) {
+  const payload = {};
+  if (typedValue !== null && typedValue !== undefined) {
+    payload.typed_value = typedValue;
+  }
+  if (remove === true) {
+    payload.remove = true;
+  }
+  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
+    payload.expected_event_seq = Math.floor(Number(expectedEventSeq));
+  }
+  if (idempotencyKey) {
+    payload.idempotency_key = String(idempotencyKey);
+  }
+  if (galaxyId) {
+    payload.galaxy_id = String(galaxyId);
+  }
+  return payload;
 }
 
 export function buildGalaxyBondsUrl(apiBase, galaxyId, asOfIso = null, branchId = null) {
@@ -451,16 +513,24 @@ export function buildStarCoreRuntimeUrl(apiBase, galaxyId, { branchId = null, wi
   return url.toString();
 }
 
-export function buildStarCorePolicyUrl(apiBase, galaxyId) {
-  return `${apiBase}/galaxies/${galaxyId}/star-core/policy`;
+export function buildStarCorePolicyUrl(apiBase, galaxyId, { branchId = null } = {}) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/star-core/policy`);
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  return url.toString();
 }
 
 export function buildStarCorePolicyLockUrl(apiBase, galaxyId) {
   return `${apiBase}/galaxies/${galaxyId}/star-core/policy/lock`;
 }
 
-export function buildStarCorePhysicsProfileUrl(apiBase, galaxyId) {
-  return `${apiBase}/galaxies/${galaxyId}/star-core/physics/profile`;
+export function buildStarCorePhysicsProfileUrl(apiBase, galaxyId, { branchId = null } = {}) {
+  const url = new URL(`${apiBase}/galaxies/${galaxyId}/star-core/physics/profile`);
+  if (branchId) {
+    url.searchParams.set("branch_id", String(branchId));
+  }
+  return url.toString();
 }
 
 export function buildStarCorePlanetPhysicsUrl(

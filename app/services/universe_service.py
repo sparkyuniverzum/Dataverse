@@ -251,7 +251,6 @@ class UniverseService:
         apply_calculations: bool = True,
     ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond | dict[str, Any]]]:
         await self._ensure_galaxy_access(session, user_id=user_id, galaxy_id=galaxy_id)
-        projection_source = "events"
         if branch_id is not None:
             active_asteroids, active_bonds = await self._project_state_from_branch(
                 session=session,
@@ -260,14 +259,12 @@ class UniverseService:
                 branch_id=branch_id,
                 as_of=as_of,
             )
-            projection_source = "branch"
         elif as_of is None:
             active_asteroids, active_bonds = await self._project_state_from_read_model(
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
             )
-            projection_source = "read_model"
             # Fallback for galaxies not yet backfilled into read model.
             if not active_asteroids and not active_bonds:
                 # Before falling back, check if the galaxy is truly empty (has no events)
@@ -293,7 +290,6 @@ class UniverseService:
                         branch_id=None,
                         as_of=as_of,
                     )
-                    projection_source = "events"
         else:
             active_asteroids, active_bonds = await self._project_state_from_events(
                 session=session,
@@ -302,7 +298,6 @@ class UniverseService:
                 branch_id=None,
                 as_of=as_of,
             )
-            projection_source = "events"
 
         if not apply_calculations:
             return active_asteroids, active_bonds
