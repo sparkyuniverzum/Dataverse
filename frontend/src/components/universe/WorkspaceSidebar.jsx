@@ -327,7 +327,7 @@ export default function WorkspaceSidebar({
       ) : null}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <span style={hudBadgeStyle}>Planety {tableNodes.length}</span>
-        <span style={hudBadgeStyle}>Mesice {asteroidCount}</span>
+        <span style={hudBadgeStyle}>Civilizace {asteroidCount}</span>
         <span style={hudBadgeStyle}>Vazby {bondCount}</span>
         {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam...</span> : null}
         {busy ? <span style={{ ...hudBadgeStyle, color: "#ffd59c" }}>Ukladam...</span> : null}
@@ -406,7 +406,7 @@ export default function WorkspaceSidebar({
       </div>
       {selectedAsteroidLabel ? (
         <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
-          Vybrany mesic: <strong>{selectedAsteroidLabel}</strong>
+          Vybrana civilizace: <strong>{selectedAsteroidLabel}</strong>
         </div>
       ) : null}
       {selectedTableId ? (
@@ -421,10 +421,10 @@ export default function WorkspaceSidebar({
           }}
         >
           <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
-            MOON ORBIT
+            CIVILIZATION ORBIT
           </div>
           <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>
-            Mesice kolem planety: <strong>{safeMoonRows.length}</strong> | 1 klik = Moon Inspector
+            Civilizace kolem planety: <strong>{safeMoonRows.length}</strong> | 1 klik = Inspector
           </div>
           {safeMoonRows.length ? (
             <div
@@ -434,7 +434,7 @@ export default function WorkspaceSidebar({
               {safeMoonRows.map((moon) => {
                 const moonId = String(moon?.id || "").trim();
                 const selected = moonId && moonId === String(selectedMoonId || "");
-                const label = String(moon?.value || moonId || "Mesic");
+                const label = String(moon?.value || moonId || "Civilizace");
                 return (
                   <button
                     key={moonId || label}
@@ -464,7 +464,7 @@ export default function WorkspaceSidebar({
               })}
             </div>
           ) : (
-            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.68 }}>Planeta zatim nema civilizacni mesice.</div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.68 }}>Planeta zatim nema civilizacni zaznamy.</div>
           )}
           {selectedMoon ? (
             <div
@@ -479,7 +479,7 @@ export default function WorkspaceSidebar({
               }}
             >
               <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>
-                MOON INSPECTOR
+                CIVILIZATION INSPECTOR
               </div>
               <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
                 Stav: <strong>{moonInspector.state}</strong> | violations:{" "}

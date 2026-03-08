@@ -148,11 +148,13 @@ export default function QuickGridOverlay({
   busy = false,
   onClose,
   readGridCell,
+  runtimeError = "",
 }) {
   const [createValue, setCreateValue] = useState("");
   const [editValue, setEditValue] = useState("");
   const [metadataKey, setMetadataKey] = useState("");
   const [metadataValue, setMetadataValue] = useState("");
+  const [writeFeedback, setWriteFeedback] = useState("");
   const selectedRow = useMemo(
     () => tableRows.find((row) => String(row.id) === String(selectedAsteroidId || "")) || null,
     [selectedAsteroidId, tableRows]
@@ -174,6 +176,15 @@ export default function QuickGridOverlay({
     setMetadataKey(String(firstMetadataKey));
     setMetadataValue(firstMetadataKey ? String(metadata[firstMetadataKey] ?? "") : "");
   }, [open, selectedRow]);
+
+  useEffect(() => {
+    if (!open) {
+      setWriteFeedback("");
+      return;
+    }
+    if (!runtimeError) return;
+    setWriteFeedback(String(runtimeError));
+  }, [open, runtimeError]);
 
   if (!open) return null;
 
@@ -308,12 +319,30 @@ export default function QuickGridOverlay({
             const ok = await onCreateRow?.(createValue);
             if (ok) {
               setCreateValue("");
+              setWriteFeedback("Civilizace byla uspesne zapsana.");
+            } else {
+              setWriteFeedback("Zapis civilizace selhal. Zkontroluj kontrakt a vybranou planetu.");
             }
           }}
         >
           {pendingCreate ? "Pridavam..." : "Pridat civilizaci"}
         </button>
       </div>
+      {writeFeedback ? (
+        <div
+          data-testid="quick-grid-write-feedback"
+          style={{
+            border: "1px solid rgba(96, 186, 220, 0.22)",
+            borderRadius: 10,
+            background: "rgba(6, 18, 30, 0.52)",
+            padding: "7px 8px",
+            fontSize: "var(--dv-fs-xs)",
+            color: "#ffd5a3",
+          }}
+        >
+          {writeFeedback}
+        </div>
+      ) : null}
 
       <div
         style={{
@@ -352,7 +381,9 @@ export default function QuickGridOverlay({
             void onDeleteRow?.(selectedRow?.id);
           }}
         >
-          {selectedRow && pendingRowOps[String(selectedRow.id)] === "extinguish" ? "Zhasinam..." : "Zhasnout"}
+          {selectedRow && pendingRowOps[String(selectedRow.id)] === "extinguish"
+            ? "Archivuji..."
+            : "Archivovat civilizaci"}
         </button>
       </div>
 

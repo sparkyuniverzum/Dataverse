@@ -1534,6 +1534,7 @@ export default function UniverseWorkspace({
     [handleStageZeroDropPlanet, runBuilderGuard, stageZeroCreating]
   );
   const handleStageZeroQuickCreatePlanet = useCallback(() => {
+    if (!runBuilderGuard(PLANET_BUILDER_ACTION.START_DRAG_PLANET)) return;
     if (!runBuilderGuard(PLANET_BUILDER_ACTION.DROP_PLANET)) return;
     const viewportRect = workspaceRef.current?.getBoundingClientRect?.();
     const viewport = viewportRect
@@ -2049,7 +2050,13 @@ export default function UniverseWorkspace({
           throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo vytvořit: ${response.status}`);
         }
         const payload = await response.json().catch(() => ({}));
-        const asteroidId = payload?.moon_id ? String(payload.moon_id) : "";
+        const asteroidId = payload?.moon_id
+          ? String(payload.moon_id)
+          : payload?.civilization_id
+            ? String(payload.civilization_id)
+            : payload?.id
+              ? String(payload.id)
+              : "";
 
         await refreshProjection({ silent: true });
         if (asteroidId) {
@@ -3737,6 +3744,7 @@ export default function UniverseWorkspace({
           pendingCreate={pendingCreate}
           pendingRowOps={pendingRowOps}
           busy={busy}
+          runtimeError={error}
           onClose={() => setQuickGridOpen(false)}
           readGridCell={readGridCell}
         />
