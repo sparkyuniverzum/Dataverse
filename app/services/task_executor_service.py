@@ -648,6 +648,118 @@ class TaskExecutorService:
             contract_cache=contract_cache,
         )
 
+    @staticmethod
+    def _ensure_transaction_ready(*, session: AsyncSession, manage_transaction: bool) -> None:
+        if not manage_transaction and not session.in_transaction():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="TaskExecutor requires an active transaction when manage_transaction=False",
+            )
+
+    @staticmethod
+    @asynccontextmanager
+    async def _no_transaction():
+        yield
+
+    def _resolve_transaction_context(self, *, session: AsyncSession, manage_transaction: bool):
+        if manage_transaction:
+            if session.in_transaction():
+                return session.begin_nested()
+            return session.begin()
+        return self._no_transaction()
+
+    @staticmethod
+    async def _append_event_for_scope(
+        *,
+        session: AsyncSession,
+        event_store: EventStoreService,
+        user_id: UUID,
+        galaxy_id: UUID,
+        branch_id: UUID | None,
+        entity_id: UUID,
+        event_type: str,
+        payload: dict,
+    ) -> Event:
+        return await event_store.append_event(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+            entity_id=entity_id,
+            event_type=event_type,
+            payload=payload,
+        )
+
+    def _build_execution_context(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: UUID,
+        galaxy_id: UUID,
+        branch_id: UUID | None,
+        result: TaskExecutionResult,
+        active_asteroids: list[ProjectedAsteroid],
+        active_bonds: list[ProjectedBond],
+        preload_scope: str,
+    ) -> _TaskExecutionContext:
+        async def _uninitialized_append(*, entity_id: UUID, event_type: str, payload: dict) -> Event:
+            del entity_id, event_type, payload
+            raise RuntimeError("append callback not initialized")
+
+        context = _TaskExecutionContext(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+            result=result,
+            context_civilization_ids=[],
+            asteroids_by_id={a.id: a for a in active_asteroids},
+            bonds_by_id={b.id: b for b in active_bonds},
+            contract_cache={},
+            appended_events=[],
+            append_and_project_event=_uninitialized_append,
+            preload_scope=preload_scope,
+        )
+
+        async def append_with_tracking(*, entity_id: UUID, event_type: str, payload: dict) -> Event:
+            event = await self._append_event_for_scope(
+                session=session,
+                event_store=self.event_store,
+                user_id=user_id,
+                galaxy_id=galaxy_id,
+                branch_id=branch_id,
+                entity_id=entity_id,
+                event_type=event_type,
+                payload=payload,
+            )
+            context.appended_events.append(event)
+            return event
+
+        context.append_and_project_event = append_with_tracking
+        return context
+
+    async def _run_task_sequence(self, *, tasks: list[Intent], ctx: _TaskExecutionContext) -> None:
+        for task in tasks:
+            if isinstance(task, BulkIntent):
+                for sub_intent in task.intents:
+                    if not await self._dispatch_task_family(task=sub_intent, ctx=ctx):
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail=f"Unsupported task action: {sub_intent.kind}",
+                        )
+                continue
+            if not await self._dispatch_task_family(task=task, ctx=ctx):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"Unsupported task action: {task.kind}",
+                )
+
+    async def _sync_read_model_if_needed(self, *, branch_id: UUID | None, ctx: _TaskExecutionContext) -> None:
+        # Branch timelines are projected on read by event replay.
+        # Main timeline keeps strong read-model consistency within the same transaction.
+        if branch_id is None and ctx.appended_events:
+            await self.read_model_projector.apply_events(session=ctx.session, events=ctx.appended_events)
+
     async def execute_tasks(
         self,
         session: AsyncSession,
@@ -658,6 +770,7 @@ class TaskExecutorService:
         branch_id: UUID | None = None,
         manage_transaction: bool = True,
     ) -> TaskExecutionResult:
+        self._ensure_transaction_ready(session=session, manage_transaction=manage_transaction)
         active_asteroids, active_bonds, preload_scope = await self._load_initial_context_state(
             session=session,
             tasks=tasks,
@@ -665,83 +778,24 @@ class TaskExecutorService:
             galaxy_id=galaxy_id,
             branch_id=branch_id,
         )
-        if not manage_transaction and not session.in_transaction():
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="TaskExecutor requires an active transaction when manage_transaction=False",
-            )
-
-        @asynccontextmanager
-        async def _no_transaction():
-            yield
-
-        async def append_and_project_event(
-            *,
-            entity_id: UUID,
-            event_type: str,
-            payload: dict,
-        ) -> Event:
-            event = await self.event_store.append_event(
-                session=session,
-                user_id=user_id,
-                galaxy_id=galaxy_id,
-                branch_id=branch_id,
-                entity_id=entity_id,
-                event_type=event_type,
-                payload=payload,
-            )
-            return event
 
         result = TaskExecutionResult()
-        transaction_ctx = (
-            (session.begin_nested() if session.in_transaction() else session.begin())
-            if manage_transaction
-            else _no_transaction()
+        transaction_ctx = self._resolve_transaction_context(
+            session=session,
+            manage_transaction=manage_transaction,
         )
         async with transaction_ctx:
-            context = _TaskExecutionContext(
+            context = self._build_execution_context(
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
                 branch_id=branch_id,
                 result=result,
-                context_civilization_ids=[],
-                asteroids_by_id={a.id: a for a in active_asteroids},
-                bonds_by_id={b.id: b for b in active_bonds},
-                contract_cache={},
-                appended_events=[],
-                append_and_project_event=append_and_project_event,
+                active_asteroids=active_asteroids,
+                active_bonds=active_bonds,
                 preload_scope=preload_scope,
             )
-
-            async def append_with_tracking(*, entity_id: UUID, event_type: str, payload: dict) -> Event:
-                event = await append_and_project_event(
-                    entity_id=entity_id,
-                    event_type=event_type,
-                    payload=payload,
-                )
-                context.appended_events.append(event)
-                return event
-
-            context.append_and_project_event = append_with_tracking
-            for task in tasks:
-                if isinstance(task, BulkIntent):
-                    for sub_intent in task.intents:
-                        if not await self._dispatch_task_family(task=sub_intent, ctx=context):
-                            raise HTTPException(
-                                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                                detail=f"Unsupported task action: {sub_intent.kind}",
-                            )
-                else:
-                    if not await self._dispatch_task_family(task=task, ctx=context):
-                        raise HTTPException(
-                            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"Unsupported task action: {task.kind}",
-                        )
-
-            # Branch timelines are projected on read by event replay.
-            # Main timeline keeps strong read-model consistency within the same transaction.
-            if branch_id is None and context.appended_events:
-                await self.read_model_projector.apply_events(session=session, events=context.appended_events)
+            await self._run_task_sequence(tasks=tasks, ctx=context)
+            await self._sync_read_model_if_needed(branch_id=branch_id, ctx=context)
 
         return result

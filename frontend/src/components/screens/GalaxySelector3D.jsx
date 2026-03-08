@@ -518,7 +518,8 @@ export default function GalaxySelector3D({
         >
           <div style={{ fontSize: "var(--dv-fs-4xl)", fontWeight: 800 }}>Vytvor prvni workspace</div>
           <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.9 }}>
-            Prazdny ucet potrebuje jediny krok: pojmenuj galaxii a klikni na vytvoreni. Ostatni je volitelne.
+            Prazdny ucet potrebuje jediny krok: pojmenuj galaxii a klikni na vytvoreni. Galaxie se uz nikdy nevytvari
+            automaticky na pozadi.
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
             <input

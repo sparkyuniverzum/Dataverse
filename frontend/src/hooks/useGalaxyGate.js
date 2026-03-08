@@ -30,7 +30,7 @@ async function parseApiError(response, fallback) {
   return text;
 }
 
-export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, userEmail, setDefaultGalaxy }) {
+export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, setDefaultGalaxy }) {
   const { selectedGalaxyId, selectGalaxy, setLevel } = useUniverseStore();
 
   const [galaxies, setGalaxies] = useState([]);
@@ -38,11 +38,9 @@ export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, userEmai
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [newGalaxyName, setNewGalaxyName] = useState("");
-  const [hasLoadedGalaxies, setHasLoadedGalaxies] = useState(false);
   const [branchesByGalaxyId, setBranchesByGalaxyId] = useState({});
   const [onboardingByGalaxyId, setOnboardingByGalaxyId] = useState({});
 
-  const autoCreateAttemptedRef = useRef(false);
   const restoreAttemptedRef = useRef(false);
 
   const selectedGalaxy = useMemo(
@@ -76,8 +74,6 @@ export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, userEmai
       setGalaxies([]);
       setBranchesByGalaxyId({});
       setOnboardingByGalaxyId({});
-      setHasLoadedGalaxies(false);
-      autoCreateAttemptedRef.current = false;
       return;
     }
     if (!restoreAttemptedRef.current && !selectedGalaxyId) {
@@ -116,7 +112,6 @@ export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, userEmai
       setError(loadError.message || "Load galaxies failed");
     } finally {
       setLoading(false);
-      setHasLoadedGalaxies(true);
     }
   }, [isAuthenticated, selectGalaxy, selectedGalaxyId, setLevel]);
 
@@ -205,29 +200,6 @@ export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, userEmai
     },
     [busy, loadGalaxies, setDefaultGalaxy]
   );
-
-  useEffect(() => {
-    if (!isAuthenticated || !hasLoadedGalaxies) return;
-    if (loading || busy) return;
-    if (selectedGalaxyId) return;
-    if (galaxies.length > 0) {
-      autoCreateAttemptedRef.current = false;
-      return;
-    }
-    if (autoCreateAttemptedRef.current) return;
-
-    autoCreateAttemptedRef.current = true;
-    const emailAlias = String(userEmail || "")
-      .split("@")[0]
-      .replace(/[._-]+/g, " ")
-      .trim();
-    const workspaceName = emailAlias ? `${emailAlias} workspace` : "Moje galaxie";
-
-    createGalaxy(workspaceName).catch((createError) => {
-      autoCreateAttemptedRef.current = false;
-      setError(createError.message || "Auto create galaxy failed");
-    });
-  }, [busy, createGalaxy, galaxies.length, hasLoadedGalaxies, isAuthenticated, loading, selectedGalaxyId, userEmail]);
 
   const enterGalaxy = useCallback(
     (id) => {
