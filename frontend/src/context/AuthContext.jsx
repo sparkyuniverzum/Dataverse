@@ -264,6 +264,42 @@ export function AuthProvider({ children }) {
     return { message: "Pokud e-mail existuje v našem systému, byl na něj odeslán odkaz pro obnovu hesla." };
   }, []);
 
+  const updateProfile = useCallback(
+    async (payload) => {
+      const updateData = {};
+      if (typeof payload?.email === "string" && payload.email.trim()) {
+        updateData.email = payload.email.trim();
+      }
+      if (typeof payload?.password === "string" && payload.password) {
+        updateData.password = payload.password;
+      }
+
+      if (Object.keys(updateData).length === 0) return user;
+
+      const token = accessTokenRef.current;
+      if (!token) throw new Error("Nelze aktualizovat profil, uživatel není přihlášen.");
+
+      const response = await fetch(`${API_BASE}/auth/me`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      const bodyText = await response.text();
+      if (!response.ok) {
+        throw new Error(parseErrorMessage(bodyText, "Aktualizace profilu selhala"));
+      }
+
+      const updatedUser = parseJsonSafe(bodyText);
+      setUser(updatedUser);
+      return updatedUser;
+    },
+    [user]
+  );
+
   const value = useMemo(
     () => ({
       user,
@@ -278,6 +314,7 @@ export function AuthProvider({ children }) {
       refreshSession,
       setDefaultGalaxy,
       forgotPassword,
+      updateProfile,
     }),
     [
       accessToken,
@@ -290,6 +327,7 @@ export function AuthProvider({ children }) {
       register,
       user,
       forgotPassword,
+      updateProfile,
     ]
   );
 
