@@ -1467,12 +1467,10 @@ export default function UniverseWorkspace({
 
       const sourceAsteroid = asteroidById.get(String(payload.sourceId));
       const targetAsteroid = asteroidById.get(String(payload.targetId));
-      const expectedSourceEventSeq = Number.isInteger(sourceAsteroid?.current_event_seq)
-        ? Number(sourceAsteroid.current_event_seq)
-        : null;
-      const expectedTargetEventSeq = Number.isInteger(targetAsteroid?.current_event_seq)
-        ? Number(targetAsteroid.current_event_seq)
-        : null;
+      const sourceEventSeq = sourceAsteroid?.current_event_seq;
+      const expectedSourceEventSeq = Number.isInteger(sourceEventSeq) && sourceEventSeq > 0 ? sourceEventSeq : null;
+      const targetEventSeq = targetAsteroid?.current_event_seq;
+      const expectedTargetEventSeq = Number.isInteger(targetEventSeq) && targetEventSeq > 0 ? targetEventSeq : null;
       let parserAttempted = false;
       let fallbackAttempted = false;
       let parserFailure = null;
@@ -1591,12 +1589,10 @@ export default function UniverseWorkspace({
     try {
       const sourceAsteroid = asteroidById.get(sourceId);
       const targetAsteroid = asteroidById.get(targetId);
-      const expectedSourceEventSeq = Number.isInteger(sourceAsteroid?.current_event_seq)
-        ? Number(sourceAsteroid.current_event_seq)
-        : null;
-      const expectedTargetEventSeq = Number.isInteger(targetAsteroid?.current_event_seq)
-        ? Number(targetAsteroid.current_event_seq)
-        : null;
+      const sourceEventSeq = sourceAsteroid?.current_event_seq;
+      const expectedSourceEventSeq = Number.isInteger(sourceEventSeq) && sourceEventSeq > 0 ? sourceEventSeq : null;
+      const targetEventSeq = targetAsteroid?.current_event_seq;
+      const expectedTargetEventSeq = Number.isInteger(targetEventSeq) && targetEventSeq > 0 ? targetEventSeq : null;
       const response = await apiFetch(`${API_BASE}/bonds/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
