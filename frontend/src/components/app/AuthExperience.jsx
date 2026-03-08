@@ -1,5 +1,13 @@
 import LandingDashboard from "../screens/LandingDashboard";
 
-export default function AuthExperience({ onLogin, onRegister, busy, error }) {
-  return <LandingDashboard onLogin={onLogin} onRegister={onRegister} busy={busy} error={error} />;
+export default function AuthExperience({ onLogin, onRegister, onForgotPassword, busy, error }) {
+  return (
+    <LandingDashboard
+      onLogin={onLogin}
+      onRegister={onRegister}
+      onForgotPassword={onForgotPassword}
+      busy={busy}
+      error={error}
+    />
+  );
 }

@@ -66,6 +66,7 @@ class ParsedBundleManifest:
 class BundlePlanetPlan:
     planet: _ManifestPlanet
     table_id: UUID
+    table_name: str
     schema_plan: PresetApplyPlan | None
 
 
@@ -333,6 +334,7 @@ class PresetBundleService:
         manifest: dict[str, Any] | None,
         conflict_strategy: str,
         seed_rows: bool,
+        target_planet_id: UUID | None = None,
     ) -> BundleApplyPlan:
         parsed_manifest: ParsedBundleManifest
         key = "custom_manifest"
@@ -368,11 +370,23 @@ class PresetBundleService:
             branch_id=branch_id,
         )
 
+        if target_planet_id is not None and len(parsed_manifest.planets) != 1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="planet_id can be used only for single-planet bundles.",
+            )
+
         planet_plans: list[BundlePlanetPlan] = []
         planet_by_key: dict[str, BundlePlanetPlan] = {}
         for planet in parsed_manifest.planets:
-            table_id = derive_table_id(galaxy_id=galaxy_id, table_name=planet.table_name)
+            use_target_planet = target_planet_id is not None and len(parsed_manifest.planets) == 1
+            table_id = (
+                target_planet_id
+                if use_target_planet
+                else derive_table_id(galaxy_id=galaxy_id, table_name=planet.table_name)
+            )
             schema_plan: PresetApplyPlan | None = None
+            resolved_table_name = planet.table_name
             if planet.schema_preset_key:
                 schema_plan = await self.schema_preset_service.build_apply_plan(
                     session=session,
@@ -382,15 +396,21 @@ class PresetBundleService:
                     table_id=table_id,
                     preset_key=planet.schema_preset_key,
                     conflict_strategy=conflict_strategy,
-                    target_table_name=planet.table_name,
+                    target_table_name=None if use_target_planet else planet.table_name,
                     seed_rows=seed_rows,
                 )
+                resolved_table_name = schema_plan.table_name
                 values = existing_values.setdefault(table_id, set())
                 for row in schema_plan.seed_rows_to_create:
                     normalized = self._normalize_text(row.value)
                     if normalized:
                         values.add(normalized)
-            plan = BundlePlanetPlan(planet=planet, table_id=table_id, schema_plan=schema_plan)
+            plan = BundlePlanetPlan(
+                planet=planet,
+                table_id=table_id,
+                table_name=resolved_table_name,
+                schema_plan=schema_plan,
+            )
             planet_plans.append(plan)
             planet_by_key[planet.key] = plan
 
@@ -402,10 +422,10 @@ class PresetBundleService:
             normalized = self._normalize_text(moon.value)
             skip_existing = bool(normalized and normalized in values)
             metadata = dict(moon.metadata)
-            metadata["table"] = planet_plan.planet.table_name
+            metadata["table"] = planet_plan.table_name
             if skip_existing:
                 warnings.append(
-                    f"Moon '{moon.ref}' skipped in plan (existing value in table '{planet_plan.planet.table_name}')."
+                    f"Moon '{moon.ref}' skipped in plan (existing value in table '{planet_plan.table_name}')."
                 )
             else:
                 if normalized:
@@ -414,7 +434,7 @@ class PresetBundleService:
                 BundleMoonPlan(
                     moon=moon,
                     table_id=planet_plan.table_id,
-                    table_name=planet_plan.planet.table_name,
+                    table_name=planet_plan.table_name,
                     metadata=metadata,
                     skip_existing=skip_existing,
                 )

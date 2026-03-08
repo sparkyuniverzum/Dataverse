@@ -165,12 +165,15 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
   const [password, setPassword] = useState("");
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
   const [successMessage, setSuccessMessage] = useState("");
+  const [localError, setLocalError] = useState("");
 
   const title = "Vládněte svým datům. Zažehněte svou Galaxii.";
+  const resolvedError = error || localError;
 
   const handleFormSubmit = async (event) => {
     event.preventDefault();
     setSuccessMessage("");
+    setLocalError("");
     try {
       if (mode === "login") {
         await onLogin(email.trim(), password);
@@ -182,14 +185,18 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
           setPassword("");
         }
       } else if (mode === "forgot-password") {
+        if (typeof onForgotPassword !== "function") {
+          throw new Error("Obnova hesla není dostupná. Zkuste to prosím znovu za chvíli.");
+        }
         const result = await onForgotPassword(email.trim());
         if (result?.message) {
           setSuccessMessage(result.message);
           setEmail("");
         }
       }
-    } catch {
-      // The parent component is responsible for setting and displaying the error.
+    } catch (submitError) {
+      const message = String(submitError?.message || "").trim();
+      setLocalError(message || "Operaci se nepodařilo dokončit.");
     }
   };
 
@@ -417,7 +424,9 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
                 </label>
               ) : null}
 
-              {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffabc3" }}>{error}</div> : null}
+              {resolvedError ? (
+                <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffabc3" }}>{resolvedError}</div>
+              ) : null}
 
               <button type="submit" disabled={busy} data-testid="auth-submit-button" style={ctaStyle(busy)}>
                 {busy

@@ -229,20 +229,33 @@ export function AuthProvider({ children }) {
     [completeAuth]
   );
 
-  const register = useCallback(async (email, password) => {
-    const response = await fetch(`${API_BASE}/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+  const register = useCallback(
+    async (email, password) => {
+      const response = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    const bodyText = await response.text();
-    if (!response.ok) {
-      throw new Error(parseErrorMessage(bodyText, "Registrace se nezdařila. Zkuste to prosím později."));
-    }
+      const bodyText = await response.text();
+      if (!response.ok) {
+        throw new Error(parseErrorMessage(bodyText, "Registrace se nezdařila. Zkuste to prosím později."));
+      }
 
-    return { message: "Účet byl úspěšně vytvořen. Pro aktivaci prosím zkontrolujte svoji e-mailovou schránku." };
-  }, []);
+      const body = parseJsonSafe(bodyText);
+      const hasTokens = Boolean(String(body?.access_token || "").trim() && String(body?.refresh_token || "").trim());
+      if (hasTokens) {
+        completeAuth(body, "Registrace proběhla, ale nepodařilo se navázat session.");
+        return { authenticated: true };
+      }
+
+      return {
+        authenticated: false,
+        message: "Účet byl vytvořen. Dokončete prosím ověření e-mailu a následně se přihlaste.",
+      };
+    },
+    [completeAuth]
+  );
 
   const forgotPassword = useCallback(async (email) => {
     const response = await fetch(`${API_BASE}/auth/forgot-password`, {

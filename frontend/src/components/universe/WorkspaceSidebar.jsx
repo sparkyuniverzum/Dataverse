@@ -199,6 +199,7 @@ export default function WorkspaceSidebar({
   onSelectTable,
   onSelectMoon = null,
   onOpenGrid,
+  onAddPlanet = null,
   onRefresh,
   onOpenStarHeart,
   onBackToGalaxies,
@@ -504,6 +505,19 @@ export default function WorkspaceSidebar({
       ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof onAddPlanet === "function") {
+              onAddPlanet();
+            }
+          }}
+          disabled={busy}
+          data-testid="workspace-add-planet-button"
+          style={actionButtonStyle}
+        >
+          Pridat planetu
+        </button>
         <button
           type="button"
           onClick={onOpenGrid}

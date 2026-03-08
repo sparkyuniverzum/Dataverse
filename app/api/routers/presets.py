@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import table_contract_to_public
@@ -151,6 +151,7 @@ async def apply_preset_bundle(
             manifest=payload.manifest,
             conflict_strategy=payload.conflict_strategy.value,
             seed_rows=bool(payload.seed_rows),
+            target_planet_id=payload.planet_id,
         )
 
     def render_response(
@@ -190,7 +191,7 @@ async def apply_preset_bundle(
                 PresetBundleApplyPlanetResultPublic(
                     planet_key=planet_plan.planet.key,
                     table_id=planet_plan.table_id,
-                    table_name=planet_plan.planet.table_name,
+                    table_name=planet_plan.table_name,
                     schema_preset_key=planet_plan.planet.schema_preset_key,
                     diff=diff_payload,
                     contract_preview=contract_preview,
@@ -244,6 +245,11 @@ async def apply_preset_bundle(
 
     async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> PresetBundleApplyResponse:
         commit_plan = await build_plan_for_scope(target_galaxy_id, target_branch_id)
+        if payload.planet_id is None and len(commit_plan.planets) == 1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="planet_id is required for single-planet preset commit.",
+            )
         commit_result = await services.preset_bundle_service.apply_plan_commit(
             session=session,
             user_id=current_user.id,

@@ -9,7 +9,7 @@ import { useAuth } from "./context/AuthContext.jsx";
 import { useGalaxyGate } from "./hooks/useGalaxyGate";
 
 export default function App() {
-  const { user, isAuthenticated, isLoading, login, register, logout, setDefaultGalaxy } = useAuth();
+  const { user, isAuthenticated, isLoading, login, register, forgotPassword, logout, setDefaultGalaxy } = useAuth();
   const pathname = typeof window !== "undefined" ? String(window.location.pathname || "") : "";
 
   const [authBusy, setAuthBusy] = useState(false);
@@ -63,8 +63,11 @@ export default function App() {
       setAuthBusy(true);
       setAuthError("");
       try {
-        await register(email, password);
-        await loadGalaxies();
+        const result = await register(email, password);
+        if (result?.authenticated) {
+          await loadGalaxies();
+        }
+        return result;
       } catch (error) {
         setAuthError(error.message || "Register failed");
       } finally {
@@ -72,6 +75,21 @@ export default function App() {
       }
     },
     [loadGalaxies, register]
+  );
+  const handleAuthForgotPassword = useCallback(
+    async (email) => {
+      setAuthBusy(true);
+      setAuthError("");
+      try {
+        return await forgotPassword(email);
+      } catch (error) {
+        setAuthError(error.message || "Reset password request failed");
+        throw error;
+      } finally {
+        setAuthBusy(false);
+      }
+    },
+    [forgotPassword]
   );
 
   if (pathname === "/smoke/planet-builder") {
@@ -84,7 +102,13 @@ export default function App() {
 
   if (!isAuthenticated) {
     return (
-      <AuthExperience onLogin={handleAuthLogin} onRegister={handleAuthRegister} busy={authBusy} error={authError} />
+      <AuthExperience
+        onLogin={handleAuthLogin}
+        onRegister={handleAuthRegister}
+        onForgotPassword={handleAuthForgotPassword}
+        busy={authBusy}
+        error={authError}
+      />
     );
   }
 

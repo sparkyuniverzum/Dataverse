@@ -166,6 +166,7 @@ class PresetBundleApplyRequest(BaseModel):
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
+    planet_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def validate_payload(self) -> PresetBundleApplyRequest:

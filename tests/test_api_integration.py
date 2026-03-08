@@ -3565,6 +3565,71 @@ def test_apply_bundle_preset_preview_and_commit(auth_client: tuple[httpx.Client,
     assert "Meeting ACME Intro" in values
 
 
+def test_apply_single_planet_bundle_requires_explicit_planet_id_on_commit(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
+    client, galaxy_id = auth_client
+
+    preview = client.post(
+        "/presets/apply",
+        json={
+            "bundle_key": "personal_cashflow",
+            "mode": "preview",
+            "seed_rows": True,
+            "galaxy_id": galaxy_id,
+        },
+    )
+    if preview.status_code == 404:
+        pytest.skip("Bundle 'personal_cashflow' is not available in this environment.")
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    assert len(preview_body.get("planets") or []) == 1
+
+    created = client.post(
+        "/planets",
+        json={
+            "name": f"Preset target {uuid.uuid4().hex[:8]}",
+            "archetype": "catalog",
+            "initial_schema_mode": "empty",
+            "seed_rows": False,
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert created.status_code == 201, created.text
+    target_planet_id = str(created.json().get("table_id") or "")
+    assert target_planet_id
+
+    missing_planet_commit = client.post(
+        "/presets/apply",
+        json={
+            "bundle_key": "personal_cashflow",
+            "mode": "commit",
+            "seed_rows": True,
+            "idempotency_key": f"bundle-single-missing-planet-{uuid.uuid4()}",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert missing_planet_commit.status_code == 422, missing_planet_commit.text
+    assert "planet_id" in missing_planet_commit.text
+
+    commit = client.post(
+        "/presets/apply",
+        json={
+            "bundle_key": "personal_cashflow",
+            "mode": "commit",
+            "seed_rows": True,
+            "planet_id": target_planet_id,
+            "idempotency_key": f"bundle-single-with-planet-{uuid.uuid4()}",
+            "galaxy_id": galaxy_id,
+        },
+    )
+    assert commit.status_code == 200, commit.text
+    commit_body = commit.json()
+    assert commit_body["mode"] == "commit"
+    assert len(commit_body.get("planets") or []) == 1
+    assert str(commit_body["planets"][0]["table_id"]) == target_planet_id
+
+
 def test_planet_mvp_create_list_detail_and_universe_tables(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     planet_name = f"Ops > Planet-{uuid.uuid4().hex[:8]}"

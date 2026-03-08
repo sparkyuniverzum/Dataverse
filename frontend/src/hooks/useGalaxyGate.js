@@ -17,6 +17,13 @@ async function parseApiError(response, fallback) {
   try {
     const parsed = JSON.parse(text);
     if (typeof parsed?.detail === "string" && parsed.detail) return parsed.detail;
+    if (typeof parsed?.detail?.message === "string" && parsed.detail.message) return parsed.detail.message;
+    if (typeof parsed?.message === "string" && parsed.message) return parsed.message;
+    const detailCode = String(parsed?.detail?.code || parsed?.code || "").trim();
+    const detailHint = String(parsed?.detail?.repair_hint || parsed?.detail?.hint || parsed?.hint || "").trim();
+    if (detailCode && detailHint) return `${detailCode}: ${detailHint}`;
+    if (detailCode) return detailCode;
+    if (detailHint) return detailHint;
   } catch {
     // noop
   }

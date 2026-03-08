@@ -505,6 +505,7 @@ export default function UniverseWorkspace({
   const [commandError, setCommandError] = useState("");
   const [commandResultSummary, setCommandResultSummary] = useState("");
   const [commandResolveSummary, setCommandResolveSummary] = useState("");
+  const [commandResolveTableId, setCommandResolveTableId] = useState("");
   const [contextMenu, setContextMenu] = useState({
     open: false,
     kind: "",
@@ -600,6 +601,8 @@ export default function UniverseWorkspace({
     setCommandExecuteBusy(false);
     setCommandError("");
     setCommandResultSummary("");
+    setCommandResolveSummary("");
+    setCommandResolveTableId("");
     setContextMenu({
       open: false,
       kind: "",
@@ -1578,9 +1581,10 @@ export default function UniverseWorkspace({
     [clearRuntimeIssue, stageZeroPresetBundleKey, stageZeroPresetSelected]
   );
 
-  const handleStageZeroDropPlanet = useCallback(
-    async (dropPayload) => {
-      if (!galaxyId || stageZeroCreating || !stageZeroActive || stageZeroRequiresStarLock) return;
+  const handleCreatePlanetAtDrop = useCallback(
+    async (dropPayload, { allowOutsideStageZero = false, openSetupPanel = true } = {}) => {
+      if (!galaxyId || stageZeroCreating) return;
+      if (!allowOutsideStageZero && (!stageZeroActive || stageZeroRequiresStarLock)) return;
       const visualPosition = mapDropPointToPlanetPosition(dropPayload, dropPayload?.viewport);
       const suffix = Math.random().toString(36).slice(2, 6);
       const planetName = buildStageZeroPlanetName({ existingCount: tableNodes.length, suffix });
@@ -1614,15 +1618,21 @@ export default function UniverseWorkspace({
           setSelectedTableId(tableId);
         }
         setStageZeroPlanetName(planetName);
-        setStageZeroFlow(STAGE_ZERO_FLOW.COMPLETE);
-        setStageZeroPresetSelected(false);
-        setStageZeroPresetBundleKey("");
-        setStageZeroSchemaDraft(createStageZeroSchemaDraft());
-        setStageZeroDraggedSchemaKey("");
-        setStageZeroSetupOpen(true);
+        if (openSetupPanel) {
+          setStageZeroFlow(STAGE_ZERO_FLOW.COMPLETE);
+          setStageZeroPresetSelected(false);
+          setStageZeroPresetBundleKey("");
+          setStageZeroSchemaDraft(createStageZeroSchemaDraft());
+          setStageZeroDraggedSchemaKey("");
+          setStageZeroSetupOpen(true);
+        } else {
+          setStageZeroSetupOpen(false);
+        }
       } catch (createError) {
         setRuntimeError(createError?.message || "Planetu se nepodařilo vytvořit.");
-        setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT);
+        if (!allowOutsideStageZero) {
+          setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT);
+        }
       } finally {
         setStageZeroCreating(false);
         setStageZeroDragging(false);
@@ -1706,12 +1716,12 @@ export default function UniverseWorkspace({
         x: viewport.left + viewport.width * 0.5,
         y: viewport.top + viewport.height * 0.5,
       };
-      void handleStageZeroDropPlanet({
+      void handleCreatePlanetAtDrop({
         ...(center || fallbackPoint),
         viewport,
       });
     },
-    [handleStageZeroDropPlanet, runBuilderGuard, stageZeroCreating]
+    [handleCreatePlanetAtDrop, runBuilderGuard, stageZeroCreating]
   );
   const handleStageZeroQuickCreatePlanet = useCallback(() => {
     if (!runBuilderGuard(PLANET_BUILDER_ACTION.START_DRAG_PLANET)) return;
@@ -1735,8 +1745,31 @@ export default function UniverseWorkspace({
       y: viewport.top + viewport.height * 0.5,
       viewport,
     };
-    void handleStageZeroDropPlanet(center);
-  }, [handleStageZeroDropPlanet, runBuilderGuard]);
+    void handleCreatePlanetAtDrop(center);
+  }, [handleCreatePlanetAtDrop, runBuilderGuard]);
+  const handleAddPlanetFromSidebar = useCallback(() => {
+    if (!galaxyId || stageZeroCreating) return;
+    const viewportRect = workspaceRef.current?.getBoundingClientRect?.();
+    const viewport = viewportRect
+      ? {
+          left: viewportRect.left,
+          top: viewportRect.top,
+          width: viewportRect.width,
+          height: viewportRect.height,
+        }
+      : {
+          left: 0,
+          top: 0,
+          width: typeof window !== "undefined" ? window.innerWidth : 1,
+          height: typeof window !== "undefined" ? window.innerHeight : 1,
+        };
+    const center = {
+      x: viewport.left + viewport.width * 0.5,
+      y: viewport.top + viewport.height * 0.5,
+      viewport,
+    };
+    void handleCreatePlanetAtDrop(center, { allowOutsideStageZero: true, openSetupPanel: false });
+  }, [galaxyId, handleCreatePlanetAtDrop, stageZeroCreating]);
 
   const handleStageZeroSchemaStep = useCallback(
     (key) => {
@@ -1814,6 +1847,7 @@ export default function UniverseWorkspace({
           conflict_strategy: "skip",
           seed_rows: true,
           galaxy_id: galaxyId,
+          planet_id: selectedTableId,
           ...(branchIdScope ? { branch_id: branchIdScope } : {}),
           idempotency_key: nextIdempotencyKey("stage0-preset-commit"),
         }),
@@ -2901,13 +2935,15 @@ export default function UniverseWorkspace({
     setCommandBarOpen(true);
     setCommandError("");
     setCommandResolveSummary("");
-  }, []);
+    setCommandResolveTableId(String(selectedTableId || tableNodes[0]?.id || ""));
+  }, [selectedTableId, tableNodes]);
 
   const handleCloseCommandBar = useCallback(() => {
     setCommandBarOpen(false);
     setCommandPreviewBusy(false);
     setCommandExecuteBusy(false);
     setCommandResolveSummary("");
+    setCommandResolveTableId("");
   }, []);
 
   const handleBuildCommandPreview = useCallback(async () => {
@@ -2951,6 +2987,9 @@ export default function UniverseWorkspace({
         ambiguityHints,
         previewExecution,
       });
+      if (!selectedTableId) {
+        setCommandResolveTableId(String(tableNodes[0]?.id || ""));
+      }
       trackParserAttempt({ action: actionHint, parserOk: true });
     } catch (previewError) {
       trackParserAttempt({
@@ -2981,44 +3020,55 @@ export default function UniverseWorkspace({
     selectedAsteroidLabel,
     selectedTableId,
     selectedTable,
+    tableNodes,
     trackParserAttempt,
   ]);
 
-  const handleResolveCommandAmbiguity = useCallback(async () => {
-    if (!commandPreview || !selectedTableId) return;
-    const selectedTableName = selectedTable?.name || "";
-    const patchedTasks = (Array.isArray(commandPreview.tasks) ? commandPreview.tasks : []).map((task) =>
-      patchTaskToSelectedPlanet(task, {
-        selectedTableId,
-        selectedTableName,
-      })
-    );
-    setCommandPreviewBusy(true);
-    setCommandError("");
-    try {
-      const ambiguityHints = buildCommandAmbiguityHints(patchedTasks, {
-        selectedTableId,
-        selectedTableName,
-      });
-      const previewExecution = await executeTaskBatch({ tasks: patchedTasks, mode: "preview" });
-      const resolveSummary = summarizeTaskRebind(commandPreview.tasks, patchedTasks, selectedTableId);
-      setCommandPreview((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          selectedTableLabel: selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : prev.selectedTableLabel,
-          tasks: patchedTasks,
-          ambiguityHints,
-          previewExecution,
-        };
-      });
-      setCommandResolveSummary(resolveSummary);
-    } catch (resolveError) {
-      setCommandError(resolveError?.message || "Backend preview selhal po uprave planu.");
-    } finally {
-      setCommandPreviewBusy(false);
-    }
-  }, [commandPreview, executeTaskBatch, selectedTableId, selectedTable]);
+  const handleResolveCommandAmbiguity = useCallback(
+    async (forcedTableId = "") => {
+      if (!commandPreview) return;
+      const resolvedTableId = String(forcedTableId || selectedTableId || commandResolveTableId || "").trim();
+      if (!resolvedTableId) {
+        setCommandError("Vyber planetu, na kterou se ma plan navazat.");
+        return;
+      }
+      const resolvedTable = tableById.get(resolvedTableId) || null;
+      const selectedTableName = resolvedTable?.name || "";
+      const patchedTasks = (Array.isArray(commandPreview.tasks) ? commandPreview.tasks : []).map((task) =>
+        patchTaskToSelectedPlanet(task, {
+          selectedTableId: resolvedTableId,
+          selectedTableName,
+        })
+      );
+      setCommandPreviewBusy(true);
+      setCommandError("");
+      try {
+        const ambiguityHints = buildCommandAmbiguityHints(patchedTasks, {
+          selectedTableId: resolvedTableId,
+          selectedTableName,
+        });
+        const previewExecution = await executeTaskBatch({ tasks: patchedTasks, mode: "preview" });
+        const resolveSummary = summarizeTaskRebind(commandPreview.tasks, patchedTasks, resolvedTableId);
+        setCommandPreview((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            selectedTableLabel: resolvedTable ? `Tabulka: ${tableDisplayName(resolvedTable)}` : prev.selectedTableLabel,
+            tasks: patchedTasks,
+            ambiguityHints,
+            previewExecution,
+          };
+        });
+        setCommandResolveTableId(resolvedTableId);
+        setCommandResolveSummary(resolveSummary);
+      } catch (resolveError) {
+        setCommandError(resolveError?.message || "Backend preview selhal po uprave planu.");
+      } finally {
+        setCommandPreviewBusy(false);
+      }
+    },
+    [commandPreview, commandResolveTableId, executeTaskBatch, selectedTableId, tableById]
+  );
 
   const handleExecuteCommandBar = useCallback(async () => {
     const trimmed = String(commandInput || "").trim();
@@ -3410,26 +3460,67 @@ export default function UniverseWorkspace({
                           {hint?.severity === "blocking" ? "BLOCK" : "WARN"}: {hint?.message}
                         </div>
                       ))}
-                      {commandPreview.ambiguityHints.some((hint) => hint?.severity === "blocking") &&
-                      selectedTableId ? (
-                        <button
-                          type="button"
-                          data-testid="command-bar-resolve-planet-button"
-                          onClick={() => void handleResolveCommandAmbiguity()}
-                          disabled={commandPreviewBusy || commandExecuteBusy}
-                          style={{
-                            marginTop: 2,
-                            border: "1px solid rgba(146, 229, 185, 0.42)",
-                            background: "rgba(20, 66, 44, 0.56)",
-                            color: "#d2ffe7",
-                            borderRadius: 8,
-                            padding: "7px 8px",
-                            fontSize: "var(--dv-fs-xs)",
-                            cursor: commandPreviewBusy ? "wait" : "pointer",
-                          }}
-                        >
-                          Pouzit aktivni planetu a pregenerovat nahled
-                        </button>
+                      {commandPreview.ambiguityHints.some((hint) => hint?.severity === "blocking") ? (
+                        selectedTableId ? (
+                          <button
+                            type="button"
+                            data-testid="command-bar-resolve-planet-button"
+                            onClick={() => void handleResolveCommandAmbiguity()}
+                            disabled={commandPreviewBusy || commandExecuteBusy}
+                            style={{
+                              marginTop: 2,
+                              border: "1px solid rgba(146, 229, 185, 0.42)",
+                              background: "rgba(20, 66, 44, 0.56)",
+                              color: "#d2ffe7",
+                              borderRadius: 8,
+                              padding: "7px 8px",
+                              fontSize: "var(--dv-fs-xs)",
+                              cursor: commandPreviewBusy ? "wait" : "pointer",
+                            }}
+                          >
+                            Pouzit aktivni planetu a pregenerovat nahled
+                          </button>
+                        ) : (
+                          <div style={{ display: "grid", gap: 6, marginTop: 4 }}>
+                            <select
+                              data-testid="command-bar-resolve-planet-select"
+                              value={commandResolveTableId}
+                              onChange={(event) => setCommandResolveTableId(String(event.target.value || ""))}
+                              style={{
+                                border: "1px solid rgba(113, 202, 234, 0.3)",
+                                background: "rgba(7, 18, 32, 0.86)",
+                                color: "#d5f5ff",
+                                borderRadius: 8,
+                                padding: "7px 8px",
+                                fontSize: "var(--dv-fs-xs)",
+                              }}
+                            >
+                              <option value="">Vyber cilovou planetu</option>
+                              {tableNodes.map((node) => (
+                                <option key={String(node.id)} value={String(node.id)}>
+                                  {node.entityName} &gt; {node.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              data-testid="command-bar-resolve-planet-picker-button"
+                              onClick={() => void handleResolveCommandAmbiguity(commandResolveTableId)}
+                              disabled={!commandResolveTableId || commandPreviewBusy || commandExecuteBusy}
+                              style={{
+                                border: "1px solid rgba(146, 229, 185, 0.42)",
+                                background: "rgba(20, 66, 44, 0.56)",
+                                color: "#d2ffe7",
+                                borderRadius: 8,
+                                padding: "7px 8px",
+                                fontSize: "var(--dv-fs-xs)",
+                                cursor: commandPreviewBusy ? "wait" : "pointer",
+                              }}
+                            >
+                              Vybrat planetu a pregenerovat nahled
+                            </button>
+                          </div>
+                        )
                       ) : null}
                     </div>
                   ) : null}
@@ -4249,6 +4340,9 @@ export default function UniverseWorkspace({
             setSelectedAsteroidId(String(moonId || ""));
           }}
           onOpenGrid={() => setQuickGridOpen(true)}
+          onAddPlanet={() => {
+            void handleAddPlanetFromSidebar();
+          }}
           onRefresh={() => {
             void refreshProjection();
           }}
