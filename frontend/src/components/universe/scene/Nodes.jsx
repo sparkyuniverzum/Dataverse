@@ -1,5 +1,5 @@
-import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 
@@ -35,6 +35,21 @@ function pickConstellationArchetype(seedText) {
 function pushPoint(positions, colors, x, y, z, color) {
   positions.push(x, y, z);
   colors.push(color.r, color.g, color.b);
+}
+
+function PinIndicator({ size = 1 }) {
+  return (
+    <group>
+      <mesh position={[0, size * 1.5, 0]}>
+        <sphereGeometry args={[size * 0.5, 16, 16]} />
+        <meshStandardMaterial color="#ffffff" emissive="#dddddd" emissiveIntensity={0.5} />
+      </mesh>
+      <mesh position={[0, size * 0.5, 0]}>
+        <cylinderGeometry args={[size * 0.1, size * 0.1, size, 8]} />
+        <meshStandardMaterial color="#aaaaaa" metalness={0.5} roughness={0.5} />
+      </mesh>
+    </group>
+  );
 }
 
 function buildConstellationVisual(node) {
@@ -139,9 +154,12 @@ export function TableNode({
   onContextNode,
   onHoverNode,
   onLeaveNode,
+  onUpdateLayout,
 }) {
   const groupRef = useRef(null);
   const previewRef = useRef(null);
+  const { camera, gl, controls } = useThree();
+  const [isDragging, setDragging] = useState(false);
   const visual = useMemo(() => buildConstellationVisual(node), [node]);
   const targetScaleRef = useRef(selected ? 1.16 : 1);
   const v1Style = resolvePlanetV1Style(node.v1);
@@ -184,15 +202,60 @@ export function TableNode({
   const previewMoonRadius = Math.max(0.5, node.radius * 0.11);
   const previewPhase = useMemo(() => ((hashText(node.id) % 360) / 180) * Math.PI, [node.id]);
 
+  const onDragEnd = useCallback(() => {
+    if (!isDragging) return;
+    setDragging(false);
+    if (controls) controls.enabled = true;
+    if (groupRef.current) {
+      const { x, y, z } = groupRef.current.position;
+      onUpdateLayout(node.id, { position: [x, y, z] });
+    }
+  }, [isDragging, controls, node.id, onUpdateLayout]);
+
+  useEffect(() => {
+    const interactionPlane = new THREE.Plane();
+    const worldPosition = new THREE.Vector3();
+
+    const onPointerMove = (event) => {
+      if (!groupRef.current) return;
+      const rect = gl.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      groupRef.current.getWorldPosition(worldPosition);
+      interactionPlane.setFromNormalAndCoplanarPoint(
+        camera.position.clone().sub(worldPosition).normalize(),
+        worldPosition
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+      const intersection = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(interactionPlane, intersection)) {
+        groupRef.current.position.copy(intersection);
+      }
+    };
+
+    if (isDragging) {
+      gl.domElement.addEventListener("pointermove", onPointerMove);
+      gl.domElement.addEventListener("pointerup", onDragEnd, { once: true });
+    }
+    return () => {
+      gl.domElement.removeEventListener("pointermove", onPointerMove);
+      gl.domElement.removeEventListener("pointerup", onDragEnd);
+    };
+  }, [isDragging, gl.domElement, camera, onDragEnd]);
+
   useFrame((_, delta) => {
     if (!groupRef.current) return;
-    if (reducedMotion) {
+    if (reducedMotion || node.isPinned) {
       const staticScale = selected ? 1.1 : 1;
       groupRef.current.scale.set(staticScale, staticScale, staticScale);
       groupRef.current.rotation.x = 0;
+      groupRef.current.rotation.y = 0;
       groupRef.current.rotation.z = 0;
       if (previewRef.current) {
         previewRef.current.rotation.x = 0;
+        previewRef.current.rotation.y = 0;
       }
       return;
     }
@@ -283,11 +346,11 @@ export function TableNode({
         })}
 
         <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[node.radius * 1.08, node.radius * 0.028, 14, 120]} />
+          <torusGeometry args={[node.radius * 1.08, node.radius * (node.isPinned ? 0.042 : 0.028), 14, 120]} />
           <meshStandardMaterial
             color={signatureColor}
             emissive={signatureColor}
-            emissiveIntensity={selected ? 1.05 : 0.72}
+            emissiveIntensity={selected ? 1.05 : node.isPinned ? 1.0 : 0.72}
             transparent
             opacity={0.86}
           />
@@ -343,11 +406,30 @@ export function TableNode({
             })}
           </group>
         ) : null}
+        {node.isPinned ? (
+          <group position={[0, node.radius + 2, 0]}>
+            <PinIndicator size={1.5} />
+          </group>
+        ) : null}
       </group>
 
       <mesh
-        onPointerDown={(event) => onPointerDownNode(event, node)}
-        onPointerUp={(event) => onPointerUpNode(event, node)}
+        onPointerDown={(event) => {
+          if (node.isPinned) {
+            event.stopPropagation();
+            setDragging(true);
+            if (controls) controls.enabled = false;
+          } else {
+            onPointerDownNode(event, node);
+          }
+        }}
+        onPointerUp={(event) => {
+          if (isDragging) {
+            onDragEnd();
+          } else {
+            onPointerUpNode(event, node);
+          }
+        }}
         onPointerOver={(event) => {
           event.stopPropagation();
           setBodyCursor("pointer");
@@ -362,7 +444,13 @@ export function TableNode({
           event.stopPropagation();
           onSelectNode(node);
         }}
-        onContextMenu={(event) => onContextNode(event, node)}
+        onContextMenu={(event) => {
+          event.stopPropagation();
+          event.preventDefault();
+          if (isDragging) return;
+          onUpdateLayout(node.id, { isPinned: !node.isPinned });
+          onContextNode(event, node);
+        }}
       >
         <sphereGeometry args={[node.radius * 1.3, 22, 22]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
@@ -397,8 +485,11 @@ export function AsteroidNode({
   onContextNode,
   onHoverNode,
   onLeaveNode,
+  onUpdateLayout,
 }) {
   const groupRef = useRef(null);
+  const { camera, gl, controls } = useThree();
+  const [isDragging, setDragging] = useState(false);
   const physics = node.physics || FALLBACK_NODE_PHYSICS;
   const stress = clamp(Number(physics?.stress) || 0, 0, 1);
   const pulseFactor = clamp(Number(physics?.pulseFactor) || 1, 0.9, 2.35);
@@ -422,9 +513,50 @@ export function AsteroidNode({
   );
   const phase = useMemo(() => ((hashText(node.id) % 360) / 180) * Math.PI, [node.id]);
 
+  const onDragEnd = useCallback(() => {
+    if (!isDragging) return;
+    setDragging(false);
+    if (controls) controls.enabled = true;
+    if (groupRef.current) {
+      const { x, y, z } = groupRef.current.position;
+      onUpdateLayout(node.id, { position: [x, y, z] });
+    }
+  }, [isDragging, controls, node.id, onUpdateLayout]);
+
+  useEffect(() => {
+    const interactionPlane = new THREE.Plane();
+    const worldPosition = new THREE.Vector3();
+    const onPointerMove = (event) => {
+      if (!groupRef.current) return;
+      const rect = gl.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      groupRef.current.getWorldPosition(worldPosition);
+      interactionPlane.setFromNormalAndCoplanarPoint(
+        camera.position.clone().sub(worldPosition).normalize(),
+        worldPosition
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+      const intersection = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(interactionPlane, intersection)) {
+        groupRef.current.position.copy(intersection);
+      }
+    };
+    if (isDragging) {
+      gl.domElement.addEventListener("pointermove", onPointerMove);
+      gl.domElement.addEventListener("pointerup", onDragEnd, { once: true });
+    }
+    return () => {
+      gl.domElement.removeEventListener("pointermove", onPointerMove);
+      gl.domElement.removeEventListener("pointerup", onDragEnd);
+    };
+  }, [isDragging, gl.domElement, camera, onDragEnd]);
+
   useFrame((state, delta) => {
     if (!groupRef.current) return;
-    if (reducedMotion) {
+    if (reducedMotion || node.isPinned) {
       const staticScale = selected ? 1.06 : 1;
       groupRef.current.scale.set(staticScale, staticScale, staticScale);
       return;
@@ -449,9 +581,28 @@ export function AsteroidNode({
           opacity={0.96}
         />
       </mesh>
+      {node.isPinned ? (
+        <group position={[0, node.radius + 1.2, 0]}>
+          <PinIndicator size={0.8} />
+        </group>
+      ) : null}
       <mesh
-        onPointerDown={(event) => onPointerDownNode(event, node)}
-        onPointerUp={(event) => onPointerUpNode(event, node)}
+        onPointerDown={(event) => {
+          if (node.isPinned && event.button === 0 && !event.shiftKey) {
+            event.stopPropagation();
+            setDragging(true);
+            if (controls) controls.enabled = false;
+          } else {
+            onPointerDownNode(event, node);
+          }
+        }}
+        onPointerUp={(event) => {
+          if (isDragging) {
+            onDragEnd();
+          } else {
+            onPointerUpNode(event, node);
+          }
+        }}
         onPointerOver={(event) => {
           event.stopPropagation();
           setBodyCursor("grab");
@@ -466,7 +617,13 @@ export function AsteroidNode({
           event.stopPropagation();
           onSelectNode(node);
         }}
-        onContextMenu={(event) => onContextNode(event, node)}
+        onContextMenu={(event) => {
+          event.stopPropagation();
+          event.preventDefault();
+          if (isDragging) return;
+          onUpdateLayout(node.id, { isPinned: !node.isPinned });
+          onContextNode(event, node);
+        }}
       >
         <sphereGeometry args={[node.radius * 1.38, 18, 18]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
