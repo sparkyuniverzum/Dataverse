@@ -300,6 +300,25 @@ export function AuthProvider({ children }) {
     [user]
   );
 
+  const deleteAccount = useCallback(async () => {
+    const token = accessTokenRef.current;
+    if (!token) throw new Error("Nelze smazat účet, uživatel není přihlášen.");
+
+    const response = await fetch(`${API_BASE}/auth/me`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const bodyText = await response.text();
+      throw new Error(parseErrorMessage(bodyText, "Smazání účtu selhalo"));
+    }
+
+    clearSession();
+  }, [clearSession]);
+
   const value = useMemo(
     () => ({
       user,
@@ -315,6 +334,7 @@ export function AuthProvider({ children }) {
       setDefaultGalaxy,
       forgotPassword,
       updateProfile,
+      deleteAccount,
     }),
     [
       accessToken,
@@ -328,6 +348,7 @@ export function AuthProvider({ children }) {
       user,
       forgotPassword,
       updateProfile,
+      deleteAccount,
     ]
   );
 
