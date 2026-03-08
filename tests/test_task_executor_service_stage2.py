@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.services.parser_service import AtomicTask
 from app.services.task_executor_service import (
@@ -348,3 +352,88 @@ def test_record_semantic_effect_confidence_policy_sets_high_and_medium_defaults(
     assert str(ctx.result.semantic_effects[0].get("confidence")) == "high"
     assert str(ctx.result.semantic_effects[1].get("confidence")) == "medium"
     assert str(ctx.result.semantic_effects[2].get("confidence")) == "medium"
+
+
+def test_ensure_transaction_ready_rejects_missing_external_transaction() -> None:
+    service = TaskExecutorService()
+
+    class _Session:
+        @staticmethod
+        def in_transaction() -> bool:
+            return False
+
+    with pytest.raises(HTTPException) as exc:
+        service._ensure_transaction_ready(session=_Session(), manage_transaction=False)  # type: ignore[arg-type]
+
+    assert exc.value.status_code == 500
+    assert "active transaction" in str(exc.value.detail)
+
+
+def test_resolve_transaction_context_prefers_nested_for_active_transaction() -> None:
+    service = TaskExecutorService()
+
+    class _Token:
+        pass
+
+    class _Session:
+        def __init__(self) -> None:
+            self.used_begin = False
+            self.used_begin_nested = False
+
+        @staticmethod
+        def in_transaction() -> bool:
+            return True
+
+        def begin(self):  # noqa: ANN201
+            self.used_begin = True
+            return _Token()
+
+        def begin_nested(self):  # noqa: ANN201
+            self.used_begin_nested = True
+            return _Token()
+
+    session = _Session()
+    token = service._resolve_transaction_context(session=session, manage_transaction=True)
+
+    assert isinstance(token, _Token)
+    assert session.used_begin_nested is True
+    assert session.used_begin is False
+
+
+def test_run_task_sequence_raises_on_unsupported_atomic_task() -> None:
+    service = TaskExecutorService()
+    ctx = _context(civilizations=[])
+    tasks = [AtomicTask(action="UNKNOWN_ACTION", params={})]
+
+    async def _always_unhandled(*, task, ctx):  # noqa: ANN001, ARG001
+        return False
+
+    service._dispatch_task_family = _always_unhandled  # type: ignore[method-assign]
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(service._run_task_sequence(tasks=tasks, ctx=ctx))
+
+    assert exc.value.status_code == 422
+    assert "Unsupported task action" in str(exc.value.detail)
+
+
+def test_sync_read_model_if_needed_skips_for_branch_scope() -> None:
+    service = TaskExecutorService()
+    ctx = _context(civilizations=[])
+    ctx.branch_id = uuid4()
+    ctx.appended_events = [object()]  # type: ignore[list-item]
+
+    class _Projector:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def apply_events(self, *, session, events):  # noqa: ANN001, ANN201
+            del session, events
+            self.calls += 1
+
+    projector = _Projector()
+    service.read_model_projector = projector  # type: ignore[assignment]
+
+    asyncio.run(service._sync_read_model_if_needed(branch_id=ctx.branch_id, ctx=ctx))
+
+    assert projector.calls == 0

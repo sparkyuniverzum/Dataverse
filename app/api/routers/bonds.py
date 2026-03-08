@@ -10,7 +10,7 @@ from app.api.mappers.execution import bond_to_response
 from app.api.runtime import (
     get_service_container,
     resolve_scope_for_user,
-    run_scoped_idempotent,
+    run_scoped_atomic_idempotent,
     transactional_context,
 )
 from app.app_factory import ServiceContainer
@@ -370,23 +370,16 @@ async def link_bond(
         )
     ]
 
-    async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> BondResponse:
-        execution = await services.task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
-        )
+    def map_execution(execution) -> BondResponse:
         if not execution.bonds:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Bond link failed")
         return bond_to_response(execution.bonds[0])
 
-    return await run_scoped_idempotent(
+    return await run_scoped_atomic_idempotent(
         session=session,
         current_user=current_user,
         services=services,
+        tasks=tasks,
         galaxy_id=payload.galaxy_id,
         branch_id=payload.branch_id,
         endpoint_key="POST:/bonds/link",
@@ -398,7 +391,7 @@ async def link_bond(
             "expected_source_event_seq": payload.expected_source_event_seq,
             "expected_target_event_seq": payload.expected_target_event_seq,
         },
-        execute=execute_scoped,
+        map_execution=map_execution,
         replay_loader=BondResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Bond link failed",
@@ -426,23 +419,16 @@ async def mutate_bond(
         )
     ]
 
-    async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> BondResponse:
-        execution = await services.task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
-        )
+    def map_execution(execution) -> BondResponse:
         if not execution.bonds:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bond not found")
         return bond_to_response(execution.bonds[-1])
 
-    return await run_scoped_idempotent(
+    return await run_scoped_atomic_idempotent(
         session=session,
         current_user=current_user,
         services=services,
+        tasks=tasks,
         galaxy_id=payload.galaxy_id,
         branch_id=payload.branch_id,
         endpoint_key="PATCH:/bonds/{bond_id}/mutate",
@@ -452,7 +438,7 @@ async def mutate_bond(
             "type": payload.type,
             "expected_event_seq": payload.expected_event_seq,
         },
-        execute=execute_scoped,
+        map_execution=map_execution,
         replay_loader=BondResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Bond not found",
@@ -476,29 +462,22 @@ async def extinguish_bond(
         params["expected_event_seq"] = expected_event_seq
     tasks = [AtomicTask(action="EXTINGUISH_BOND", params=params)]
 
-    async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> BondResponse:
-        execution = await services.task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
-        )
+    def map_execution(execution) -> BondResponse:
         if not execution.bonds:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bond not found")
         return bond_to_response(execution.bonds[0])
 
-    return await run_scoped_idempotent(
+    return await run_scoped_atomic_idempotent(
         session=session,
         current_user=current_user,
         services=services,
+        tasks=tasks,
         galaxy_id=galaxy_id,
         branch_id=branch_id,
         endpoint_key="PATCH:/bonds/{bond_id}/extinguish",
         idempotency_key=idempotency_key,
         request_payload={"bond_id": str(bond_id), "expected_event_seq": expected_event_seq},
-        execute=execute_scoped,
+        map_execution=map_execution,
         replay_loader=BondResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Bond not found",

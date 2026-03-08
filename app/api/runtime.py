@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 from uuid import UUID
 
@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.app_factory import ServiceContainer, get_or_create_services
 from app.models import User
+from app.services.parser_service import AtomicTask
+from app.services.task_executor_service import TaskExecutionResult
 
 services: ServiceContainer = get_or_create_services()
 logger = logging.getLogger(__name__)
@@ -190,3 +192,50 @@ async def run_scoped_idempotent(
     if response_to_store is None:
         raise HTTPException(status_code=empty_response_status, detail=empty_response_detail)
     return response_to_store
+
+
+async def run_scoped_atomic_idempotent(
+    *,
+    session: AsyncSession,
+    current_user: User,
+    services: ServiceContainer,
+    tasks: Sequence[AtomicTask],
+    galaxy_id: UUID | None,
+    branch_id: UUID | None,
+    endpoint_key: str,
+    idempotency_key: str | None,
+    request_payload: dict[str, Any],
+    map_execution: Callable[[TaskExecutionResult], Any],
+    replay_loader: Callable[[dict[str, Any]], Any],
+    response_dumper: Callable[[Any], dict[str, Any]],
+    empty_response_detail: str,
+    empty_response_status: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+) -> Any:
+    task_list = list(tasks)
+
+    async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> Any:
+        execution = await services.task_executor_service.execute_tasks(
+            session=session,
+            tasks=task_list,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            manage_transaction=False,
+        )
+        return map_execution(execution)
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=galaxy_id,
+        branch_id=branch_id,
+        endpoint_key=endpoint_key,
+        idempotency_key=idempotency_key,
+        request_payload=request_payload,
+        execute=execute_scoped,
+        replay_loader=replay_loader,
+        response_dumper=response_dumper,
+        empty_response_detail=empty_response_detail,
+        empty_response_status=empty_response_status,
+    )

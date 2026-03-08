@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.execution import civilization_to_response
-from app.api.runtime import get_service_container, run_scoped_idempotent
+from app.api.runtime import get_service_container, run_scoped_atomic_idempotent
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
@@ -27,29 +27,22 @@ async def ingest_asteroid(
 ) -> CivilizationResponse:
     tasks = [AtomicTask(action="INGEST", params={"value": payload.value, "metadata": payload.metadata})]
 
-    async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> CivilizationResponse:
-        execution = await services.task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
-        )
+    def map_execution(execution) -> CivilizationResponse:
         if not execution.civilizations:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Civilization ingest failed")
         return civilization_to_response(execution.civilizations[0])
 
-    return await run_scoped_idempotent(
+    return await run_scoped_atomic_idempotent(
         session=session,
         current_user=current_user,
         services=services,
+        tasks=tasks,
         galaxy_id=payload.galaxy_id,
         branch_id=payload.branch_id,
         endpoint_key="POST:/civilizations/ingest",
         idempotency_key=payload.idempotency_key,
         request_payload={"value": payload.value, "metadata": payload.metadata},
-        execute=execute_scoped,
+        map_execution=map_execution,
         replay_loader=CivilizationResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Civilization ingest failed",
@@ -96,15 +89,7 @@ async def extinguish_asteroid(
         params["expected_event_seq"] = expected_event_seq
     tasks = [AtomicTask(action="EXTINGUISH", params=params)]
 
-    async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> CivilizationResponse:
-        execution = await services.task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
-        )
+    def map_execution(execution) -> CivilizationResponse:
         if civilization_id not in execution.extinguished_civilization_ids:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Civilization not found")
         deleted_asteroid = next(
@@ -118,16 +103,17 @@ async def extinguish_asteroid(
             )
         return civilization_to_response(deleted_asteroid)
 
-    return await run_scoped_idempotent(
+    return await run_scoped_atomic_idempotent(
         session=session,
         current_user=current_user,
         services=services,
+        tasks=tasks,
         galaxy_id=galaxy_id,
         branch_id=branch_id,
         endpoint_key="PATCH:/civilizations/{civilization_id}/extinguish",
         idempotency_key=idempotency_key,
         request_payload={"civilization_id": str(civilization_id), "expected_event_seq": expected_event_seq},
-        execute=execute_scoped,
+        map_execution=map_execution,
         replay_loader=CivilizationResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Civilization not found",
@@ -189,24 +175,17 @@ async def mutate_asteroid(
 
     tasks = [AtomicTask(action="UPDATE_ASTEROID", params=params)]
 
-    async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> CivilizationResponse:
-        execution = await services.task_executor_service.execute_tasks(
-            session=session,
-            tasks=tasks,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            manage_transaction=False,
-        )
+    def map_execution(execution) -> CivilizationResponse:
         if not execution.civilizations:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Civilization not found")
         mutated = next((c for c in execution.civilizations if c.id == civilization_id), execution.civilizations[0])
         return civilization_to_response(mutated)
 
-    return await run_scoped_idempotent(
+    return await run_scoped_atomic_idempotent(
         session=session,
         current_user=current_user,
         services=services,
+        tasks=tasks,
         galaxy_id=payload.galaxy_id,
         branch_id=payload.branch_id,
         endpoint_key="PATCH:/civilizations/{civilization_id}/mutate",
@@ -217,7 +196,7 @@ async def mutate_asteroid(
             "metadata": payload.metadata,
             "expected_event_seq": payload.expected_event_seq,
         },
-        execute=execute_scoped,
+        map_execution=map_execution,
         replay_loader=CivilizationResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Civilization not found",

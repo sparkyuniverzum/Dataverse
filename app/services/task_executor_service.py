@@ -739,19 +739,28 @@ class TaskExecutorService:
         return context
 
     async def _run_task_sequence(self, *, tasks: list[Intent], ctx: _TaskExecutionContext) -> None:
+        def _task_label(item: Any) -> str:
+            kind = getattr(item, "kind", None)
+            if isinstance(kind, str) and kind.strip():
+                return kind
+            action = getattr(item, "action", None)
+            if isinstance(action, str) and action.strip():
+                return action
+            return "UNKNOWN"
+
         for task in tasks:
             if isinstance(task, BulkIntent):
                 for sub_intent in task.intents:
                     if not await self._dispatch_task_family(task=sub_intent, ctx=ctx):
                         raise HTTPException(
                             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"Unsupported task action: {sub_intent.kind}",
+                            detail=f"Unsupported task action: {_task_label(sub_intent)}",
                         )
                 continue
             if not await self._dispatch_task_family(task=task, ctx=ctx):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Unsupported task action: {task.kind}",
+                    detail=f"Unsupported task action: {_task_label(task)}",
                 )
 
     async def _sync_read_model_if_needed(self, *, branch_id: UUID | None, ctx: _TaskExecutionContext) -> None:
