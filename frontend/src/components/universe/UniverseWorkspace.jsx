@@ -353,6 +353,26 @@ function buildCommandAmbiguityHints(tasks, { selectedTableId = "", selectedTable
   });
 }
 
+function patchTaskToSelectedPlanet(task, { selectedTableId = "", selectedTableName = "" } = {}) {
+  const action = String(task?.action || "")
+    .trim()
+    .toUpperCase();
+  const selectedId = String(selectedTableId || "").trim();
+  if (!selectedId || action === "LINK") return task;
+  const params = task?.params && typeof task.params === "object" ? task.params : {};
+  const taskTableId = String(params.table_id || params.planet_id || "").trim();
+  if (taskTableId && taskTableId === selectedId) return task;
+  return {
+    ...task,
+    params: {
+      ...params,
+      table_id: selectedId,
+      planet_id: selectedId,
+      ...(selectedTableName ? { table_name: selectedTableName } : {}),
+    },
+  };
+}
+
 const contextMenuButtonStyle = {
   border: "1px solid rgba(113, 202, 234, 0.3)",
   background: "rgba(7, 18, 32, 0.86)",
@@ -2142,9 +2162,11 @@ export default function UniverseWorkspace({
 
   const handleCreateRow = useCallback(
     async (value) => {
-      if (!galaxyId || !selectedTableId) return false;
+      if (!galaxyId || !selectedTableId) {
+        return { ok: false, message: "Vyber planetu pred vytvorenim civilizace." };
+      }
       const trimmed = String(value || "").trim();
-      if (!trimmed) return false;
+      if (!trimmed) return { ok: false, message: "Nazev civilizace je prazdny." };
 
       setBusy(true);
       setPendingCreate(true);
@@ -2197,13 +2219,16 @@ export default function UniverseWorkspace({
         if (asteroidId) {
           setSelectedAsteroidId(asteroidId);
         }
-        return true;
+        return { ok: true, message: `Civilizace '${trimmed}' byla vytvorena.` };
       } catch (createError) {
         reportContractViolationWithRepair(createError, {
           fallbackMessage: createError?.message || "Civilizaci se nepodařilo vytvořit.",
           operation: "create",
         });
-        return false;
+        return {
+          ok: false,
+          message: createError?.message || "Vytvoreni civilizace selhalo. Zkontroluj kontrakt planety.",
+        };
       } finally {
         setPendingCreate(false);
         setBusy(false);
@@ -2223,10 +2248,12 @@ export default function UniverseWorkspace({
   const handleUpdateRow = useCallback(
     async (asteroidId, value) => {
       const targetId = String(asteroidId || "").trim();
-      if (!galaxyId || !targetId) return;
+      if (!galaxyId || !targetId) {
+        return { ok: false, message: "Neni vybrana civilizace pro upravu." };
+      }
 
       const asteroid = asteroidById.get(targetId);
-      if (!asteroid) return;
+      if (!asteroid) return { ok: false, message: "Civilizace uz neni v aktualni projekci." };
       const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
         ? Number(asteroid.current_event_seq)
         : null;
@@ -2262,16 +2289,20 @@ export default function UniverseWorkspace({
           throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo upravit: ${response.status}`);
         }
         await refreshProjection({ silent: true });
+        return { ok: true, message: "Civilizace byla upravena." };
       } catch (updateError) {
         if (isOccConflictError(updateError)) {
-          setRuntimeError(buildOccConflictMessage(updateError, "úprava civilizace"));
+          const message = buildOccConflictMessage(updateError, "úprava civilizace");
+          setRuntimeError(message);
           await refreshProjection({ silent: true });
+          return { ok: false, message };
         } else {
           reportContractViolationWithRepair(updateError, {
             fallbackMessage: updateError?.message || "Civilizaci se nepodařilo upravit.",
             operation: "mutate",
             civilizationId: targetId,
           });
+          return { ok: false, message: updateError?.message || "Uprava civilizace selhala." };
         }
       } finally {
         setPendingRowOps((prev) => {
@@ -2296,10 +2327,10 @@ export default function UniverseWorkspace({
   const handleDeleteRow = useCallback(
     async (asteroidId) => {
       const targetId = String(asteroidId || "").trim();
-      if (!galaxyId || !targetId) return;
+      if (!galaxyId || !targetId) return { ok: false, message: "Neni vybrana civilizace pro archivaci." };
 
       const asteroid = asteroidById.get(targetId);
-      if (!asteroid) return;
+      if (!asteroid) return { ok: false, message: "Civilizace uz neni v aktualni projekci." };
       const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
         ? Number(asteroid.current_event_seq)
         : null;
@@ -2326,7 +2357,7 @@ export default function UniverseWorkspace({
             if (String(selectedAsteroidId) === targetId) {
               setSelectedAsteroidId("");
             }
-            return;
+            return { ok: true, message: "Civilizace byla archivovana parser cestou." };
           } catch (parserError) {
             parserFailure = parserError;
             if (parserExecutionMode.extinguish) {
@@ -2380,6 +2411,7 @@ export default function UniverseWorkspace({
         if (String(selectedAsteroidId) === targetId) {
           setSelectedAsteroidId("");
         }
+        return { ok: true, message: "Civilizace byla archivovana." };
       } catch (deleteError) {
         if (parserAttempted && !parserTelemetryRecorded) {
           trackParserAttempt({
@@ -2392,14 +2424,17 @@ export default function UniverseWorkspace({
           parserTelemetryRecorded = true;
         }
         if (isOccConflictError(deleteError)) {
-          setRuntimeError(buildOccConflictMessage(deleteError, "zhasnutí civilizace"));
+          const message = buildOccConflictMessage(deleteError, "zhasnutí civilizace");
+          setRuntimeError(message);
           await refreshProjection({ silent: true });
+          return { ok: false, message };
         } else {
           reportContractViolationWithRepair(deleteError, {
             fallbackMessage: deleteError?.message || "Civilizaci se nepodařilo zhasnout.",
             operation: "extinguish",
             civilizationId: targetId,
           });
+          return { ok: false, message: deleteError?.message || "Archivace civilizace selhala." };
         }
       } finally {
         setPendingRowOps((prev) => {
@@ -2429,10 +2464,12 @@ export default function UniverseWorkspace({
     async (asteroidId, key, rawValue) => {
       const targetId = String(asteroidId || "").trim();
       const metadataKey = String(key || "").trim();
-      if (!galaxyId || !targetId || !metadataKey) return false;
+      if (!galaxyId || !targetId || !metadataKey) {
+        return { ok: false, message: "Vyber civilizaci a zadej klic nerostu." };
+      }
 
       const asteroid = asteroidById.get(targetId);
-      if (!asteroid) return false;
+      if (!asteroid) return { ok: false, message: "Civilizace uz neni v aktualni projekci." };
       const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
         ? Number(asteroid.current_event_seq)
         : null;
@@ -2440,7 +2477,7 @@ export default function UniverseWorkspace({
       const parsedMineralValue = parseMetadataLiteral(rawValue);
       const removeRequested = typeof parsedMineralValue === "undefined";
       if (removeRequested && !Object.prototype.hasOwnProperty.call(currentMetadata, metadataKey)) {
-        return true;
+        return { ok: true, message: `Nerost '${metadataKey}' uz je prazdny.` };
       }
 
       setBusy(true);
@@ -2505,19 +2542,26 @@ export default function UniverseWorkspace({
           throw await apiErrorFromResponse(response, `Nerost se nepodařilo uložit: ${response.status}`);
         }
         await refreshProjection({ silent: true });
-        return true;
+        return {
+          ok: true,
+          message: removeRequested
+            ? `Nerost '${metadataKey}' byl odebran (soft remove).`
+            : `Nerost '${metadataKey}' byl ulozen.`,
+        };
       } catch (metadataError) {
         if (isOccConflictError(metadataError)) {
-          setRuntimeError(buildOccConflictMessage(metadataError, "úprava nerostu"));
+          const message = buildOccConflictMessage(metadataError, "úprava nerostu");
+          setRuntimeError(message);
           await refreshProjection({ silent: true });
+          return { ok: false, message };
         } else {
           reportContractViolationWithRepair(metadataError, {
             fallbackMessage: metadataError?.message || "Nerost se nepodařilo uložit.",
             operation: "metadata",
             civilizationId: targetId,
           });
+          return { ok: false, message: metadataError?.message || `Ulozeni nerostu '${metadataKey}' selhalo.` };
         }
-        return false;
       } finally {
         setPendingRowOps((prev) => {
           const next = { ...prev };
@@ -2893,6 +2937,40 @@ export default function UniverseWorkspace({
     selectedTable,
     trackParserAttempt,
   ]);
+
+  const handleResolveCommandAmbiguity = useCallback(async () => {
+    if (!commandPreview || !selectedTableId) return;
+    const selectedTableName = selectedTable?.name || "";
+    const patchedTasks = (Array.isArray(commandPreview.tasks) ? commandPreview.tasks : []).map((task) =>
+      patchTaskToSelectedPlanet(task, {
+        selectedTableId,
+        selectedTableName,
+      })
+    );
+    setCommandPreviewBusy(true);
+    setCommandError("");
+    try {
+      const ambiguityHints = buildCommandAmbiguityHints(patchedTasks, {
+        selectedTableId,
+        selectedTableName,
+      });
+      const previewExecution = await executeTaskBatch({ tasks: patchedTasks, mode: "preview" });
+      setCommandPreview((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          selectedTableLabel: selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : prev.selectedTableLabel,
+          tasks: patchedTasks,
+          ambiguityHints,
+          previewExecution,
+        };
+      });
+    } catch (resolveError) {
+      setCommandError(resolveError?.message || "Upraveny nahled se nepodarilo ziskat.");
+    } finally {
+      setCommandPreviewBusy(false);
+    }
+  }, [commandPreview, executeTaskBatch, selectedTableId, selectedTable]);
 
   const handleExecuteCommandBar = useCallback(async () => {
     const trimmed = String(commandInput || "").trim();
@@ -3283,6 +3361,27 @@ export default function UniverseWorkspace({
                           {hint?.severity === "blocking" ? "BLOCK" : "WARN"}: {hint?.message}
                         </div>
                       ))}
+                      {commandPreview.ambiguityHints.some((hint) => hint?.severity === "blocking") &&
+                      selectedTableId ? (
+                        <button
+                          type="button"
+                          data-testid="command-bar-resolve-planet-button"
+                          onClick={() => void handleResolveCommandAmbiguity()}
+                          disabled={commandPreviewBusy || commandExecuteBusy}
+                          style={{
+                            marginTop: 2,
+                            border: "1px solid rgba(146, 229, 185, 0.42)",
+                            background: "rgba(20, 66, 44, 0.56)",
+                            color: "#d2ffe7",
+                            borderRadius: 8,
+                            padding: "7px 8px",
+                            fontSize: "var(--dv-fs-xs)",
+                            cursor: commandPreviewBusy ? "wait" : "pointer",
+                          }}
+                        >
+                          Pouzit aktivni planetu a pregenerovat nahled
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
                 </>

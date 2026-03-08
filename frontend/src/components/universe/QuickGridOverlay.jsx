@@ -129,6 +129,30 @@ function collectMineralEntries(selectedRow) {
   return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
+function normalizeWriteResult(
+  result,
+  { successMessage = "Operace byla provedena.", failureMessage = "Operace selhala." } = {}
+) {
+  if (typeof result === "boolean") {
+    return {
+      ok: result,
+      message: result ? successMessage : failureMessage,
+    };
+  }
+  if (result && typeof result === "object") {
+    const ok = Boolean(result.ok);
+    const message = String(result.message || "").trim();
+    return {
+      ok,
+      message: message || (ok ? successMessage : failureMessage),
+    };
+  }
+  return {
+    ok: false,
+    message: failureMessage,
+  };
+}
+
 export default function QuickGridOverlay({
   open,
   selectedTable,
@@ -316,13 +340,14 @@ export default function QuickGridOverlay({
           style={ghostButtonStyle}
           disabled={busy || pendingCreate || !String(createValue || "").trim() || !selectedTable}
           onClick={async () => {
-            const ok = await onCreateRow?.(createValue);
-            if (ok) {
+            const writeResult = normalizeWriteResult(await onCreateRow?.(createValue), {
+              successMessage: "Civilizace byla uspesne zapsana.",
+              failureMessage: "Zapis civilizace selhal. Zkontroluj kontrakt a vybranou planetu.",
+            });
+            if (writeResult.ok) {
               setCreateValue("");
-              setWriteFeedback("Civilizace byla uspesne zapsana.");
-            } else {
-              setWriteFeedback("Zapis civilizace selhal. Zkontroluj kontrakt a vybranou planetu.");
             }
+            setWriteFeedback(writeResult.message);
           }}
         >
           {pendingCreate ? "Pridavam..." : "Pridat civilizaci"}
@@ -367,8 +392,12 @@ export default function QuickGridOverlay({
           type="button"
           style={ghostButtonStyle}
           disabled={busy || !selectedRow || editValue === String(selectedRow?.value ?? "")}
-          onClick={() => {
-            void onUpdateRow?.(selectedRow?.id, editValue);
+          onClick={async () => {
+            const writeResult = normalizeWriteResult(await onUpdateRow?.(selectedRow?.id, editValue), {
+              successMessage: "Civilizace byla upravena.",
+              failureMessage: "Uprava civilizace selhala.",
+            });
+            setWriteFeedback(writeResult.message);
           }}
         >
           {selectedRow && pendingRowOps[String(selectedRow.id)] === "mutate" ? "Ukladam..." : "Ulozit"}
@@ -377,8 +406,12 @@ export default function QuickGridOverlay({
           type="button"
           style={{ ...ghostButtonStyle, borderColor: "rgba(255, 152, 162, 0.45)", color: "#ffd6de" }}
           disabled={busy || !selectedRow}
-          onClick={() => {
-            void onDeleteRow?.(selectedRow?.id);
+          onClick={async () => {
+            const writeResult = normalizeWriteResult(await onDeleteRow?.(selectedRow?.id), {
+              successMessage: "Civilizace byla archivovana.",
+              failureMessage: "Archivace civilizace selhala.",
+            });
+            setWriteFeedback(writeResult.message);
           }}
         >
           {selectedRow && pendingRowOps[String(selectedRow.id)] === "extinguish"
@@ -418,10 +451,17 @@ export default function QuickGridOverlay({
           style={ghostButtonStyle}
           disabled={busy || !selectedRow || !String(metadataKey || "").trim()}
           onClick={async () => {
-            const ok = await onUpsertMetadata?.(selectedRow?.id, metadataKey, metadataValue);
-            if (ok && !String(metadataValue || "").trim()) {
+            const writeResult = normalizeWriteResult(
+              await onUpsertMetadata?.(selectedRow?.id, metadataKey, metadataValue),
+              {
+                successMessage: "Nerost byl ulozen.",
+                failureMessage: "Ulozeni nerostu selhalo.",
+              }
+            );
+            if (writeResult.ok && !String(metadataValue || "").trim()) {
               setMetadataValue("");
             }
+            setWriteFeedback(writeResult.message);
           }}
         >
           {selectedRow && pendingRowOps[String(selectedRow.id)] === "metadata" ? "Ukladam..." : "Ulozit nerost"}

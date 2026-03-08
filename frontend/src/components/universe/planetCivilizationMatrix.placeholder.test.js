@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -288,6 +288,61 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
 
     expect(onUpsertMetadata).toHaveBeenCalledWith("moon-1", "amount", "");
     expect(screen.getByTestId("quick-grid-civilization-inspector").textContent).toContain("state: ANOMALY");
+  });
+
+  it("LF-03 write feedback: reports per-operation success/fail messages for create mutate archive and mineral", async () => {
+    const user = userEvent.setup();
+    const onCreateRow = vi.fn(async () => ({
+      ok: false,
+      message: "Create failed by contract",
+    }));
+    const onUpdateRow = vi.fn(async () => ({
+      ok: true,
+      message: "Mutate applied",
+    }));
+    const onDeleteRow = vi.fn(async () => ({
+      ok: false,
+      message: "Archive blocked by OCC",
+    }));
+    const onUpsertMetadata = vi.fn(async () => ({
+      ok: true,
+      message: "Mineral upsert committed",
+    }));
+
+    renderGrid({
+      onCreateRow,
+      onUpdateRow,
+      onDeleteRow,
+      onUpsertMetadata,
+    });
+
+    const createInput = screen.getByPlaceholderText("Nova hodnota civilizace...");
+    await user.type(createInput, "Moon X");
+    await user.click(screen.getByRole("button", { name: "Pridat civilizaci" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("quick-grid-write-feedback").textContent).toContain("Create failed by contract");
+    });
+
+    await user.click(screen.getByRole("button", { name: "Ulozit" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("quick-grid-write-feedback").textContent).toContain("Mutate applied");
+    });
+
+    await user.click(screen.getByRole("button", { name: "Archivovat civilizaci" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("quick-grid-write-feedback").textContent).toContain("Archive blocked by OCC");
+    });
+
+    const mineralKeyInput = screen.getByPlaceholderText("Nerost / sloupec");
+    const mineralValueInput = screen.getByPlaceholderText("Hodnota (prazdne = remove_soft)");
+    await user.clear(mineralKeyInput);
+    await user.type(mineralKeyInput, "amount");
+    await user.clear(mineralValueInput);
+    await user.type(mineralValueInput, "42");
+    await user.click(screen.getByRole("button", { name: "Ulozit nerost" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("quick-grid-write-feedback").textContent).toContain("Mineral upsert committed");
+    });
   });
 
   it("LF-04 bond builder: preview gate blocks commit on REJECT and allows commit on ALLOW", async () => {

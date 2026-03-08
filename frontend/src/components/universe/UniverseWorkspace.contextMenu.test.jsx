@@ -248,41 +248,39 @@ describe("UniverseWorkspace P0 context/branch actions", () => {
 
   it("shows blocking ambiguity hints when parser plan targets different planet", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input) => {
-        const url = String(input || "");
-        if (url.includes("/parser/plan")) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              tasks: [{ action: "INGEST", params: { table_id: "t-other", value: "Invoice mismatch" } }],
-              parser_version: "v2",
-            }),
-            text: async () => "",
-          };
-        }
-        if (url.includes("/tasks/execute-batch")) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              mode: "preview",
-              task_count: 1,
-              result: { tasks: [], civilizations: [], bonds: [] },
-            }),
-            text: async () => "",
-          };
-        }
+    const fetchMock = vi.fn(async (input) => {
+      const url = String(input || "");
+      if (url.includes("/parser/plan")) {
         return {
           ok: true,
           status: 200,
-          json: async () => ({}),
+          json: async () => ({
+            tasks: [{ action: "INGEST", params: { table_id: "t-other", value: "Invoice mismatch" } }],
+            parser_version: "v2",
+          }),
           text: async () => "",
         };
-      })
-    );
+      }
+      if (url.includes("/tasks/execute-batch")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            mode: "preview",
+            task_count: 1,
+            result: { tasks: [], civilizations: [], bonds: [] },
+          }),
+          text: async () => "",
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+        text: async () => "",
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     render(
       <UniverseWorkspace
@@ -300,5 +298,11 @@ describe("UniverseWorkspace P0 context/branch actions", () => {
 
     expect(screen.getByTestId("command-bar-ambiguity-hints").textContent).toContain("BLOCK");
     expect(screen.getByTestId("command-bar-execute-button")).toBeDisabled();
+
+    await user.click(screen.getByTestId("command-bar-resolve-planet-button"));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+    expect(screen.getByTestId("command-bar-execute-button")).not.toBeDisabled();
   });
 });
