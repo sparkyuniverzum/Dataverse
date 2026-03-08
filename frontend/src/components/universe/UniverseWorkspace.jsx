@@ -323,6 +323,7 @@ export default function UniverseWorkspace({
   const [stageZeroSchemaDraft, setStageZeroSchemaDraft] = useState(() => createStageZeroSchemaDraft());
   const [stageZeroDraggedSchemaKey, setStageZeroDraggedSchemaKey] = useState("");
   const [stageZeroCommitBusy, setStageZeroCommitBusy] = useState(false);
+  const [stageZeroCommitError, setStageZeroCommitError] = useState("");
   const [workspaceUiHydrated, setWorkspaceUiHydrated] = useState(false);
   const [planetBuilderLastValidState, setPlanetBuilderLastValidState] = useState(PLANET_BUILDER_STATE.IDLE);
   const [branchPromoteBusy, setBranchPromoteBusy] = useState(false);
@@ -412,6 +413,7 @@ export default function UniverseWorkspace({
     setStageZeroSchemaDraft(createStageZeroSchemaDraft());
     setStageZeroDraggedSchemaKey("");
     setStageZeroCommitBusy(false);
+    setStageZeroCommitError("");
     setWorkspaceUiHydrated(true);
     setPlanetBuilderLastValidState(PLANET_BUILDER_STATE.IDLE);
     setBranchPromoteBusy(false);
@@ -520,6 +522,12 @@ export default function UniverseWorkspace({
       bundleKey: String(preset?.key || ""),
     }));
   }, [stageZeroPresetCatalog]);
+  const stageZeroCommitDisabledReason = useMemo(() => {
+    if (stageZeroCommitBusy) return "Aplikace presetu prave probiha.";
+    if (!stageZeroPresetBundleKey) return "Nejdriv vyber preset.";
+    if (!stageZeroAllSchemaStepsDone) return "Dokonci vsechny schema kroky.";
+    return "";
+  }, [stageZeroAllSchemaStepsDone, stageZeroCommitBusy, stageZeroPresetBundleKey]);
   const stageZeroVisualBoost = useMemo(
     () =>
       resolveStageZeroPlanetVisualBoost(stageZeroSchemaDraft, {
@@ -1525,6 +1533,29 @@ export default function UniverseWorkspace({
     },
     [handleStageZeroDropPlanet, runBuilderGuard, stageZeroCreating]
   );
+  const handleStageZeroQuickCreatePlanet = useCallback(() => {
+    if (!runBuilderGuard(PLANET_BUILDER_ACTION.DROP_PLANET)) return;
+    const viewportRect = workspaceRef.current?.getBoundingClientRect?.();
+    const viewport = viewportRect
+      ? {
+          left: viewportRect.left,
+          top: viewportRect.top,
+          width: viewportRect.width,
+          height: viewportRect.height,
+        }
+      : {
+          left: 0,
+          top: 0,
+          width: typeof window !== "undefined" ? window.innerWidth : 1,
+          height: typeof window !== "undefined" ? window.innerHeight : 1,
+        };
+    const center = {
+      x: viewport.left + viewport.width * 0.5,
+      y: viewport.top + viewport.height * 0.5,
+      viewport,
+    };
+    void handleStageZeroDropPlanet(center);
+  }, [handleStageZeroDropPlanet, runBuilderGuard]);
 
   const handleStageZeroSchemaStep = useCallback(
     (key) => {
@@ -1589,6 +1620,7 @@ export default function UniverseWorkspace({
     }
     if (!runBuilderGuard(PLANET_BUILDER_ACTION.COMMIT_PRESET, { schemaComplete: stageZeroAllSchemaStepsDone })) return;
     setStageZeroCommitBusy(true);
+    setStageZeroCommitError("");
     setBusy(true);
     clearRuntimeIssue();
     try {
@@ -1613,6 +1645,7 @@ export default function UniverseWorkspace({
       setStageZeroSetupOpen(false);
       setQuickGridOpen(true);
     } catch (commitError) {
+      setStageZeroCommitError(commitError?.message || "Preset se nepodarilo aplikovat.");
       setRuntimeError(commitError?.message || "Preset se nepodařilo aplikovat.");
     } finally {
       setStageZeroCommitBusy(false);
@@ -1958,46 +1991,37 @@ export default function UniverseWorkspace({
       if (!galaxyId || !selectedTableId) return false;
       const trimmed = String(value || "").trim();
       if (!trimmed) return false;
-      let parserAttempted = false;
-      let fallbackAttempted = false;
-      let parserFailure = null;
-      let parserTelemetryRecorded = false;
 
       setBusy(true);
       setPendingCreate(true);
       clearRuntimeIssue();
       try {
-        const parserCommand = buildIngestMoonCommand({
-          value: trimmed,
-          tableName: selectedTable?.name || tableDisplayName(selectedTable),
-        });
-        if (parserCommand) {
-          parserAttempted = true;
-          try {
-            const parserBody = await executeParserCommand(parserCommand);
-            const parserAsteroids = Array.isArray(parserBody?.asteroids) ? parserBody.asteroids : [];
-            const asteroidId = parserAsteroids[0]?.id ? String(parserAsteroids[0].id) : "";
-            trackParserAttempt({ action: "INGEST", parserOk: true });
-            parserTelemetryRecorded = true;
-            await refreshProjection({ silent: true });
-            if (asteroidId) {
-              setSelectedAsteroidId(asteroidId);
-            }
-            return true;
-          } catch (parserError) {
-            parserFailure = parserError;
-            if (parserExecutionMode.ingest) {
-              throw parserError;
-            }
+        // Grid write path must be deterministic for selected planet.
+        // Parser-first may place row outside active planet via semantic inference.
+        if (parserExecutionMode.ingest) {
+          const parserCommand = buildIngestMoonCommand({
+            value: trimmed,
+            tableName: selectedTable?.name || tableDisplayName(selectedTable),
+          });
+          const parserBody = await executeParserCommand(parserCommand);
+          const parserAsteroids = Array.isArray(parserBody?.asteroids) ? parserBody.asteroids : [];
+          const asteroidId = parserAsteroids[0]?.id ? String(parserAsteroids[0].id) : "";
+          trackParserAttempt({ action: "INGEST", parserOk: true });
+          await refreshProjection({ silent: true });
+          if (asteroidId) {
+            setSelectedAsteroidId(asteroidId);
           }
+          return true;
         }
 
-        fallbackAttempted = true;
         const tableContract = await loadTableContract(selectedTableId);
         const minerals = buildMoonCreateMinerals({
           label: trimmed,
           contract: tableContract,
         });
+        if (!Object.prototype.hasOwnProperty.call(minerals, "label")) {
+          minerals.label = trimmed;
+        }
         const createPayload = {
           label: trimmed,
           minerals,
@@ -2026,16 +2050,6 @@ export default function UniverseWorkspace({
         }
         const payload = await response.json().catch(() => ({}));
         const asteroidId = payload?.moon_id ? String(payload.moon_id) : "";
-        if (parserAttempted) {
-          trackParserAttempt({
-            action: "INGEST",
-            parserOk: false,
-            parserError: parserFailure,
-            fallbackUsed: true,
-            fallbackOk: true,
-          });
-          parserTelemetryRecorded = true;
-        }
 
         await refreshProjection({ silent: true });
         if (asteroidId) {
@@ -2043,15 +2057,14 @@ export default function UniverseWorkspace({
         }
         return true;
       } catch (createError) {
-        if (parserAttempted && !parserTelemetryRecorded) {
+        if (parserExecutionMode.ingest) {
           trackParserAttempt({
             action: "INGEST",
             parserOk: false,
-            parserError: parserFailure || createError,
-            fallbackUsed: fallbackAttempted,
-            fallbackOk: fallbackAttempted ? false : null,
+            parserError: createError,
+            fallbackUsed: false,
+            fallbackOk: null,
           });
-          parserTelemetryRecorded = true;
         }
         reportContractViolationWithRepair(createError, {
           fallbackMessage: createError?.message || "Civilizaci se nepodařilo vytvořit.",
@@ -3042,6 +3055,23 @@ export default function UniverseWorkspace({
               Tohle je tvá stavebnice. Vezmi Planetu a přetáhni ji kamkoliv do prázdného prostoru.
             </div>
             <StageZeroDraggablePlanetCard disabled={stageZeroCreating} />
+            <button
+              type="button"
+              data-testid="stage0-quick-create-planet-button"
+              onClick={handleStageZeroQuickCreatePlanet}
+              disabled={stageZeroCreating}
+              style={{
+                border: "1px solid rgba(114, 219, 252, 0.5)",
+                background: "linear-gradient(120deg, #21bbea, #44d8ff)",
+                color: "#072737",
+                borderRadius: 10,
+                padding: "9px 10px",
+                fontWeight: 700,
+                cursor: stageZeroCreating ? "wait" : "pointer",
+              }}
+            >
+              {stageZeroCreating ? "Vytvarim planetu..." : "Vytvorit planetu doprostred"}
+            </button>
           </aside>
         ) : null}
 
@@ -3119,6 +3149,7 @@ export default function UniverseWorkspace({
                           setStageZeroPresetBundleKey(String(preset.bundleKey || preset.key || ""));
                           setStageZeroSchemaDraft(createStageZeroSchemaDraft());
                           setStageZeroDraggedSchemaKey("");
+                          setStageZeroCommitError("");
                         }}
                         disabled={locked}
                         style={{
@@ -3132,7 +3163,12 @@ export default function UniverseWorkspace({
                           textAlign: "left",
                           fontWeight: locked ? 500 : 700,
                           cursor: locked ? "not-allowed" : "pointer",
-                          boxShadow: locked ? "none" : "0 0 18px rgba(98, 223, 255, 0.24)",
+                          boxShadow:
+                            !locked && stageZeroPresetBundleKey === String(preset.bundleKey || preset.key || "")
+                              ? "0 0 24px rgba(121, 242, 255, 0.38)"
+                              : locked
+                                ? "none"
+                                : "0 0 18px rgba(98, 223, 255, 0.24)",
                           display: "grid",
                           gap: 3,
                         }}
@@ -3160,6 +3196,39 @@ export default function UniverseWorkspace({
                 >
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.92 }}>
                     Stavební plán: skládej schéma z Lego dílků (klik nebo drag & drop).
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                    <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
+                      Aktivni preset:{" "}
+                      <strong>
+                        {stageZeroPresetCards.find(
+                          (item) => String(item.bundleKey || item.key || "") === String(stageZeroPresetBundleKey || "")
+                        )?.label ||
+                          stageZeroPresetBundleKey ||
+                          "neznamy"}
+                      </strong>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="stage0-change-preset-button"
+                      onClick={() => {
+                        setStageZeroPresetSelected(false);
+                        setStageZeroSchemaDraft(createStageZeroSchemaDraft());
+                        setStageZeroDraggedSchemaKey("");
+                        setStageZeroCommitError("");
+                      }}
+                      style={{
+                        border: "1px solid rgba(114, 219, 252, 0.5)",
+                        background: "rgba(8, 22, 36, 0.72)",
+                        color: "#d7f7ff",
+                        borderRadius: 8,
+                        padding: "6px 8px",
+                        fontSize: "var(--dv-fs-xs)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Zmenit preset
+                    </button>
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
                     Vizuální odezva planety: {stageZeroSchemaSummary.completed}/{stageZeroSchemaSummary.total} dílků •
@@ -3306,41 +3375,48 @@ export default function UniverseWorkspace({
                   </div>
                 </div>
 
-                {stageZeroAllSchemaStepsDone ? (
-                  <div
+                <div
+                  style={{
+                    border: "1px solid rgba(120, 217, 247, 0.38)",
+                    borderRadius: 10,
+                    background: "rgba(8, 22, 36, 0.74)",
+                    padding: "8px 10px",
+                    display: "grid",
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
+                    {stageZeroAllSchemaStepsDone
+                      ? "Plan je kompletni. Vytvori se struktura o 3 zakonech a nasypou se 3 ukazkove zaznamy."
+                      : "Dokonci schema kroky, pak muzes zazehnout jadro."}
+                  </div>
+                  {stageZeroCommitDisabledReason ? (
+                    <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffc08f" }}>{stageZeroCommitDisabledReason}</div>
+                  ) : null}
+                  {stageZeroCommitError ? (
+                    <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffb4b4" }}>{stageZeroCommitError}</div>
+                  ) : null}
+                  <button
+                    type="button"
+                    data-testid="stage0-ignite-core-button"
+                    onClick={() => {
+                      void handleStageZeroCommitPreset();
+                    }}
+                    disabled={Boolean(stageZeroCommitDisabledReason)}
                     style={{
-                      border: "1px solid rgba(120, 217, 247, 0.38)",
+                      border: "1px solid rgba(130, 233, 255, 0.64)",
+                      background: "linear-gradient(120deg, #35c1ea, #8cecff)",
+                      color: "#062535",
                       borderRadius: 10,
-                      background: "rgba(8, 22, 36, 0.74)",
-                      padding: "8px 10px",
-                      display: "grid",
-                      gap: 8,
+                      padding: "9px 12px",
+                      fontWeight: 800,
+                      cursor: stageZeroCommitDisabledReason ? "not-allowed" : "pointer",
+                      opacity: stageZeroCommitDisabledReason ? 0.64 : 1,
                     }}
                   >
-                    <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
-                      Plán je kompletní. Vytvoří se struktura o 3 zákonech a nasypou se 3 ukázkové záznamy.
-                    </div>
-                    <button
-                      type="button"
-                      data-testid="stage0-ignite-core-button"
-                      onClick={() => {
-                        void handleStageZeroCommitPreset();
-                      }}
-                      disabled={stageZeroCommitBusy}
-                      style={{
-                        border: "1px solid rgba(130, 233, 255, 0.64)",
-                        background: "linear-gradient(120deg, #35c1ea, #8cecff)",
-                        color: "#062535",
-                        borderRadius: 10,
-                        padding: "9px 12px",
-                        fontWeight: 800,
-                        cursor: stageZeroCommitBusy ? "wait" : "pointer",
-                      }}
-                    >
-                      {stageZeroCommitBusy ? "Aplikuji..." : "Zažehnout Jádro"}
-                    </button>
-                  </div>
-                ) : null}
+                    {stageZeroCommitBusy ? "Aplikuji..." : "Zažehnout Jádro"}
+                  </button>
+                </div>
               </>
             )}
 
