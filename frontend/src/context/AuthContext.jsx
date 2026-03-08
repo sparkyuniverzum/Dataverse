@@ -260,6 +260,24 @@ export function AuthProvider({ children }) {
     return { message: "Pokud e-mail existuje v našem systému, byl na něj odeslán odkaz pro obnovu hesla." };
   }, []);
 
+  const resetPassword = useCallback(async (token, password) => {
+    if (!token) {
+      throw new Error("Chybí token pro obnovu hesla.");
+    }
+    const response = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, password }),
+    });
+
+    const bodyText = await response.text();
+    if (!response.ok) {
+      throw new Error(parseErrorMessage(bodyText, "Obnova hesla selhala. Token může být neplatný nebo expirovaný."));
+    }
+
+    return { message: "Vaše heslo bylo úspěšně změněno. Nyní se můžete přihlásit." };
+  }, []);
+
   const updateProfile = useCallback(
     async (payload) => {
       const updateData = {};
@@ -329,6 +347,7 @@ export function AuthProvider({ children }) {
       refreshSession,
       setDefaultGalaxy,
       forgotPassword,
+      resetPassword,
       updateProfile,
       deleteAccount,
     }),
@@ -343,6 +362,7 @@ export function AuthProvider({ children }) {
       register,
       user,
       forgotPassword,
+      resetPassword,
       updateProfile,
       deleteAccount,
     ]
