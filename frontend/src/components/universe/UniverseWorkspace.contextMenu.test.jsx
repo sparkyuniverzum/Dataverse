@@ -245,4 +245,60 @@ describe("UniverseWorkspace P0 context/branch actions", () => {
     expect(screen.queryByTestId("workspace-command-bar-modal")).toBeNull();
     expect(screen.getByTestId("workspace-command-result-summary").textContent).toContain("Prikaz proveden");
   });
+
+  it("shows blocking ambiguity hints when parser plan targets different planet", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input) => {
+        const url = String(input || "");
+        if (url.includes("/parser/plan")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              tasks: [{ action: "INGEST", params: { table_id: "t-other", value: "Invoice mismatch" } }],
+              parser_version: "v2",
+            }),
+            text: async () => "",
+          };
+        }
+        if (url.includes("/tasks/execute-batch")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              mode: "preview",
+              task_count: 1,
+              result: { tasks: [], civilizations: [], bonds: [] },
+            }),
+            text: async () => "",
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          text: async () => "",
+        };
+      })
+    );
+
+    render(
+      <UniverseWorkspace
+        galaxy={{ id: "g-1", name: "Milky QA" }}
+        branches={[]}
+        onboarding={null}
+        onBackToGalaxies={() => {}}
+        onLogout={() => {}}
+      />
+    );
+
+    await user.click(screen.getByTestId("workspace-open-command-bar"));
+    await user.type(screen.getByTestId("command-bar-input"), '"Invoice mismatch"');
+    await user.click(screen.getByTestId("command-bar-preview-button"));
+
+    expect(screen.getByTestId("command-bar-ambiguity-hints").textContent).toContain("BLOCK");
+    expect(screen.getByTestId("command-bar-execute-button")).toBeDisabled();
+  });
 });

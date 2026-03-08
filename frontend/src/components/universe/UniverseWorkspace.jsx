@@ -26,11 +26,7 @@ import {
   isOccConflictError,
   normalizeBondType,
 } from "../../lib/dataverseApi";
-import {
-  buildExtinguishMoonCommand,
-  buildIngestMoonCommand,
-  buildLinkMoonsCommand,
-} from "../../lib/builderParserCommand";
+import { buildExtinguishMoonCommand, buildLinkMoonsCommand } from "../../lib/builderParserCommand";
 import { PARSER_EXECUTION_MODE } from "../../lib/parserExecutionMode";
 import { createParserTelemetrySnapshot, recordParserTelemetry } from "../../lib/parserExecutionTelemetry";
 import { createWorkspaceTelemetryEvent, emitWorkspaceTelemetry } from "../../lib/workspaceTelemetry";
@@ -280,6 +276,81 @@ function buildCommandPreviewModel(command, { selectedTableLabel = "", selectedAs
     selectedAsteroidLabel: String(selectedAsteroidLabel || ""),
     warnings,
   };
+}
+
+function buildCommandAmbiguityHints(tasks, { selectedTableId = "", selectedTableName = "" } = {}) {
+  const parsedTasks = Array.isArray(tasks) ? tasks : [];
+  const hints = [];
+  const selectedTableIdNormalized = String(selectedTableId || "").trim();
+  const selectedTableNameNormalized = normalizeText(selectedTableName || "");
+  const actions = [
+    ...new Set(
+      parsedTasks
+        .map((task) =>
+          String(task?.action || "")
+            .trim()
+            .toUpperCase()
+        )
+        .filter(Boolean)
+    ),
+  ];
+  if (actions.length > 1) {
+    hints.push({
+      severity: "warning",
+      message: "Plan kombinuje vice typu akci. Pred potvrzenim over dopad.",
+    });
+  }
+  parsedTasks.forEach((task) => {
+    const action = String(task?.action || "")
+      .trim()
+      .toUpperCase();
+    const target = String(task?.target || "").trim();
+    const params = task?.params && typeof task.params === "object" ? task.params : {};
+    const taskTableId = String(params.table_id || params.planet_id || "").trim();
+    const taskTableName = normalizeText(params.table_name || "");
+
+    if ((action === "INGEST" || action === "EXTINGUISH") && !target && !taskTableId && !taskTableName) {
+      hints.push({
+        severity: "warning",
+        message: `Uloha ${action} nema explicitni cil. Parser muze zvolit jiny kontext.`,
+      });
+    }
+
+    if (selectedTableIdNormalized && taskTableId && taskTableId !== selectedTableIdNormalized) {
+      hints.push({
+        severity: "blocking",
+        message: `Uloha ${action} miri na jinou planetu (${taskTableId}) nez je aktivni vyber.`,
+      });
+      return;
+    }
+
+    if (
+      selectedTableNameNormalized &&
+      taskTableName &&
+      selectedTableNameNormalized !== taskTableName &&
+      action !== "LINK"
+    ) {
+      hints.push({
+        severity: "warning",
+        message: `Uloha ${action} uvadi odlisny table_name (${params.table_name}).`,
+      });
+    }
+  });
+
+  if (!selectedTableIdNormalized && actions.includes("INGEST")) {
+    hints.push({
+      severity: "warning",
+      message: "Neni vybrana planeta; ingest muze vytvorit radek mimo aktualni fokus.",
+    });
+  }
+
+  const seen = new Set();
+  return hints.filter((hint) => {
+    const key = `${hint.severity}:${hint.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 const contextMenuButtonStyle = {
@@ -2079,24 +2150,6 @@ export default function UniverseWorkspace({
       setPendingCreate(true);
       clearRuntimeIssue();
       try {
-        // Grid write path must be deterministic for selected planet.
-        // Parser-first may place row outside active planet via semantic inference.
-        if (parserExecutionMode.ingest) {
-          const parserCommand = buildIngestMoonCommand({
-            value: trimmed,
-            tableName: selectedTable?.name || tableDisplayName(selectedTable),
-          });
-          const parserBody = await executeParserCommand(parserCommand);
-          const parserAsteroids = Array.isArray(parserBody?.asteroids) ? parserBody.asteroids : [];
-          const asteroidId = parserAsteroids[0]?.id ? String(parserAsteroids[0].id) : "";
-          trackParserAttempt({ action: "INGEST", parserOk: true });
-          await refreshProjection({ silent: true });
-          if (asteroidId) {
-            setSelectedAsteroidId(asteroidId);
-          }
-          return true;
-        }
-
         const tableContract = await loadTableContract(selectedTableId);
         const minerals = buildMoonCreateMinerals({
           label: trimmed,
@@ -2146,15 +2199,6 @@ export default function UniverseWorkspace({
         }
         return true;
       } catch (createError) {
-        if (parserExecutionMode.ingest) {
-          trackParserAttempt({
-            action: "INGEST",
-            parserOk: false,
-            parserError: createError,
-            fallbackUsed: false,
-            fallbackOk: null,
-          });
-        }
         reportContractViolationWithRepair(createError, {
           fallbackMessage: createError?.message || "Civilizaci se nepodařilo vytvořit.",
           operation: "create",
@@ -2167,16 +2211,12 @@ export default function UniverseWorkspace({
     },
     [
       clearRuntimeIssue,
-      executeParserCommand,
       galaxyId,
       branchIdScope,
       loadTableContract,
-      parserExecutionMode,
       refreshProjection,
       reportContractViolationWithRepair,
-      selectedTable,
       selectedTableId,
-      trackParserAttempt,
     ]
   );
 
@@ -2818,10 +2858,15 @@ export default function UniverseWorkspace({
       if (!tasks.length) {
         throw new Error("Parser plan nevratil zadne ulohy.");
       }
+      const ambiguityHints = buildCommandAmbiguityHints(tasks, {
+        selectedTableId,
+        selectedTableName: selectedTable?.name || "",
+      });
       const previewExecution = await executeTaskBatch({ tasks, mode: "preview" });
       setCommandPreview({
         ...previewBase,
         tasks,
+        ambiguityHints,
         previewExecution,
       });
       trackParserAttempt({ action: actionHint, parserOk: true });
@@ -2844,6 +2889,7 @@ export default function UniverseWorkspace({
     executeTaskBatch,
     galaxyId,
     selectedAsteroidLabel,
+    selectedTableId,
     selectedTable,
     trackParserAttempt,
   ]);
@@ -3132,6 +3178,7 @@ export default function UniverseWorkspace({
                   commandPreviewBusy ||
                   !String(commandInput || "").trim() ||
                   !commandPreview ||
+                  commandPreview.ambiguityHints?.some((hint) => hint?.severity === "blocking") ||
                   commandPreview.command !== String(commandInput || "").trim()
                 }
                 style={{
@@ -3208,6 +3255,34 @@ export default function UniverseWorkspace({
                   {commandPreview.warnings.length ? (
                     <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffc08f" }}>
                       {commandPreview.warnings.join(" ")}
+                    </div>
+                  ) : null}
+                  {Array.isArray(commandPreview.ambiguityHints) && commandPreview.ambiguityHints.length ? (
+                    <div
+                      data-testid="command-bar-ambiguity-hints"
+                      style={{
+                        border: "1px solid rgba(248, 187, 128, 0.35)",
+                        background: "rgba(51, 30, 15, 0.45)",
+                        borderRadius: 8,
+                        padding: "6px 8px",
+                        display: "grid",
+                        gap: 4,
+                      }}
+                    >
+                      <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.9 }}>
+                        AMBIGUITY HINTS
+                      </div>
+                      {commandPreview.ambiguityHints.map((hint, idx) => (
+                        <div
+                          key={`${hint?.severity || "warning"}-${idx}`}
+                          style={{
+                            fontSize: "var(--dv-fs-xs)",
+                            color: hint?.severity === "blocking" ? "#ffb5b5" : "#ffd5a3",
+                          }}
+                        >
+                          {hint?.severity === "blocking" ? "BLOCK" : "WARN"}: {hint?.message}
+                        </div>
+                      ))}
                     </div>
                   ) : null}
                 </>
