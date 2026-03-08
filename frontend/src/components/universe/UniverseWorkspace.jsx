@@ -2703,7 +2703,7 @@ export default function UniverseWorkspace({
                   }}
                 >
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.92 }}>
-                    Stavebni plan: skladej schema z Lego dilku (klik nebo drag & drop).
+                    Stavební plán: skládej schéma z Lego dílků (klik nebo drag & drop).
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
                     Vizualni odezva planety: {stageZeroSchemaSummary.completed}/{stageZeroSchemaSummary.total} dilku •
