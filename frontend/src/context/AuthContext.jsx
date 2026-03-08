@@ -229,24 +229,20 @@ export function AuthProvider({ children }) {
     [completeAuth]
   );
 
-  const register = useCallback(
-    async (email, password) => {
-      const response = await fetch(`${API_BASE}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+  const register = useCallback(async (email, password) => {
+    const response = await fetch(`${API_BASE}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-      const bodyText = await response.text();
-      if (!response.ok) {
-        throw new Error(parseErrorMessage(bodyText, "Registrace selhala"));
-      }
+    const bodyText = await response.text();
+    if (!response.ok) {
+      throw new Error(parseErrorMessage(bodyText, "Registrace selhala"));
+    }
 
-      const body = parseJsonSafe(bodyText);
-      return completeAuth(body, "Backend nevrátil access/refresh token");
-    },
-    [completeAuth]
-  );
+    return { message: "Účet byl úspěšně vytvořen. Pro aktivaci prosím zkontrolujte svoji e-mailovou schránku." };
+  }, []);
 
   const forgotPassword = useCallback(async (email) => {
     const response = await fetch(`${API_BASE}/auth/forgot-password`, {

@@ -164,8 +164,34 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
+  const [successMessage, setSuccessMessage] = useState("");
 
   const title = "Vladnete svym datum. Zazehnete svou Galaxii.";
+
+  const handleFormSubmit = async (event) => {
+    event.preventDefault();
+    setSuccessMessage("");
+    try {
+      if (mode === "login") {
+        await onLogin(email.trim(), password);
+      } else if (mode === "register") {
+        const result = await onRegister(email.trim(), password);
+        if (result?.message) {
+          setSuccessMessage(result.message);
+          setEmail("");
+          setPassword("");
+        }
+      } else if (mode === "forgot-password") {
+        const result = await onForgotPassword(email.trim());
+        if (result?.message) {
+          setSuccessMessage(result.message);
+          setEmail("");
+        }
+      }
+    } catch (err) {
+      // The parent component is responsible for setting and displaying the error.
+    }
+  };
 
   return (
     <main
@@ -269,16 +295,7 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
         </article>
 
         <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (mode === "login") {
-              onLogin(email.trim(), password);
-            } else if (mode === "register") {
-              onRegister(email.trim(), password);
-            } else if (mode === "forgot-password") {
-              onForgotPassword(email.trim());
-            }
-          }}
+          onSubmit={handleFormSubmit}
           style={{
             display: "grid",
             alignContent: "center",
@@ -287,121 +304,147 @@ export default function LandingDashboard({ onLogin, onRegister, onForgotPassword
             background: "linear-gradient(170deg, rgba(6,14,27,0.86), rgba(4,9,18,0.88))",
           }}
         >
-          <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", color: "#8fd9fb" }}>
-            AUTH MODULE
-          </div>
-          <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800, lineHeight: 1.1 }}>
-            {mode === "forgot-password" ? "Obnova přístupu" : "Pripojte se k Jadru"}
-          </div>
-          <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.84 }}>
-            {mode === "forgot-password"
-              ? "Zadejte svůj e-mail, pošleme vám odkaz pro nastavení nového hesla."
-              : "Prihlaseni otevre cisty vesmir, herni plochu a sidebar. Nic navic."}
-          </div>
-
-          {mode !== "forgot-password" ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
+          {successMessage ? (
+            <>
+              <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", color: "#8fd9fb" }}>
+                AUTH MODULE
+              </div>
+              <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800, lineHeight: 1.1 }}>
+                Potvrzeni odeslano
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.84, lineHeight: "var(--dv-lh-relaxed)" }}>
+                {successMessage}
+              </div>
               <button
                 type="button"
-                onClick={() => setMode("login")}
-                data-testid="auth-mode-login"
-                style={{
-                  borderRadius: 10,
-                  border: "1px solid rgba(118, 216, 250, 0.42)",
-                  background: mode === "login" ? "rgba(48,124,168,0.88)" : "rgba(8,18,32,0.84)",
-                  color: "#e4f8ff",
-                  padding: "8px 10px",
-                  cursor: "pointer",
+                onClick={() => {
+                  setSuccessMessage("");
+                  setMode("login");
                 }}
+                style={{ ...ctaStyle(false), marginTop: 12 }}
               >
-                Vstoupit do Galaxie
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("register")}
-                data-testid="auth-mode-register"
-                style={{
-                  borderRadius: 10,
-                  border: "1px solid rgba(118, 216, 250, 0.42)",
-                  background: mode === "register" ? "rgba(48,124,168,0.88)" : "rgba(8,18,32,0.84)",
-                  color: "#e4f8ff",
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                }}
-              >
-                Stvorit Workspace
-              </button>
-            </div>
-          ) : null}
-
-          <label style={{ display: "grid", gap: 6, marginTop: mode !== "forgot-password" ? 2 : 12 }}>
-            <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>
-              E-MAIL PILOTA
-            </span>
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              placeholder="jmeno@firma.com"
-              data-testid="auth-email-input"
-              style={inputStyle}
-            />
-          </label>
-
-          {mode !== "forgot-password" ? (
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>
-                PRISTUPOVY KLIC
-              </span>
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required={mode !== "forgot-password"}
-                placeholder="********"
-                data-testid="auth-password-input"
-                style={inputStyle}
-              />
-            </label>
-          ) : null}
-
-          {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffabc3" }}>{error}</div> : null}
-
-          <button type="submit" disabled={busy} data-testid="auth-submit-button" style={ctaStyle(busy)}>
-            {busy
-              ? "Navazuji spojeni..."
-              : mode === "login"
-                ? "Vstoupit do Galaxie"
-                : mode === "register"
-                  ? "Iniciovat Hvezdu"
-                  : "Odeslat instrukce"}
-          </button>
-
-          {mode === "login" ? (
-            <div style={{ marginTop: 8, fontSize: "var(--dv-fs-xs)", textAlign: "right" }}>
-              <button type="button" onClick={() => setMode("forgot-password")} style={linkStyle}>
-                Zapomněli jste heslo?
-              </button>
-            </div>
-          ) : null}
-
-          {mode === "forgot-password" ? (
-            <div style={{ marginTop: 8, fontSize: "var(--dv-fs-xs)", textAlign: "right" }}>
-              <button type="button" onClick={() => setMode("login")} style={linkStyle}>
                 Zpět na přihlášení
               </button>
-            </div>
-          ) : null}
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-code)", color: "#8fd9fb" }}>
+                AUTH MODULE
+              </div>
+              <div style={{ fontSize: "clamp(20px, 2vw, 30px)", fontWeight: 800, lineHeight: 1.1 }}>
+                {mode === "forgot-password" ? "Obnova přístupu" : "Pripojte se k Jadru"}
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-md)", opacity: 0.84 }}>
+                {mode === "forgot-password"
+                  ? "Zadejte svůj e-mail, pošleme vám odkaz pro nastavení nového hesla."
+                  : "Prihlaseni otevre cisty vesmir, herni plochu a sidebar. Nic navic."}
+              </div>
 
-          {mode !== "forgot-password" ? (
-            <div
-              style={{ marginTop: 4, fontSize: "var(--dv-fs-xs)", opacity: 0.72, lineHeight: "var(--dv-lh-relaxed)" }}
-            >
-              Pokracovanim potvrzujete, ze chcete aktivovat datovy prostor s event sourcing historii a soft-delete
-              pravidly.
-            </div>
-          ) : null}
+              {mode !== "forgot-password" ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => setMode("login")}
+                    data-testid="auth-mode-login"
+                    style={{
+                      borderRadius: 10,
+                      border: "1px solid rgba(118, 216, 250, 0.42)",
+                      background: mode === "login" ? "rgba(48,124,168,0.88)" : "rgba(8,18,32,0.84)",
+                      color: "#e4f8ff",
+                      padding: "8px 10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Vstoupit do Galaxie
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("register")}
+                    data-testid="auth-mode-register"
+                    style={{
+                      borderRadius: 10,
+                      border: "1px solid rgba(118, 216, 250, 0.42)",
+                      background: mode === "register" ? "rgba(48,124,168,0.88)" : "rgba(8,18,32,0.84)",
+                      color: "#e4f8ff",
+                      padding: "8px 10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Stvorit Workspace
+                  </button>
+                </div>
+              ) : null}
+
+              <label style={{ display: "grid", gap: 6, marginTop: mode !== "forgot-password" ? 2 : 12 }}>
+                <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>
+                  E-MAIL PILOTA
+                </span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                  placeholder="jmeno@firma.com"
+                  data-testid="auth-email-input"
+                  style={inputStyle}
+                />
+              </label>
+
+              {mode !== "forgot-password" ? (
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8, letterSpacing: "var(--dv-tr-wide)" }}>
+                    PRISTUPOVY KLIC
+                  </span>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required={mode !== "forgot-password"}
+                    placeholder="********"
+                    data-testid="auth-password-input"
+                    style={inputStyle}
+                  />
+                </label>
+              ) : null}
+
+              {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffabc3" }}>{error}</div> : null}
+
+              <button type="submit" disabled={busy} data-testid="auth-submit-button" style={ctaStyle(busy)}>
+                {busy
+                  ? "Navazuji spojeni..."
+                  : mode === "login"
+                    ? "Vstoupit do Galaxie"
+                    : mode === "register"
+                      ? "Iniciovat Hvezdu"
+                      : "Odeslat instrukce"}
+              </button>
+
+              {mode === "login" ? (
+                <div style={{ marginTop: 8, fontSize: "var(--dv-fs-xs)", textAlign: "right" }}>
+                  <button type="button" onClick={() => setMode("forgot-password")} style={linkStyle}>
+                    Zapomněli jste heslo?
+                  </button>
+                </div>
+              ) : null}
+
+              {mode === "forgot-password" ? (
+                <div style={{ marginTop: 8, fontSize: "var(--dv-fs-xs)", textAlign: "right" }}>
+                  <button type="button" onClick={() => setMode("login")} style={linkStyle}>
+                    Zpět na přihlášení
+                  </button>
+                </div>
+              ) : null}
+
+              {mode !== "forgot-password" ? (
+                <div
+                  style={{ marginTop: 4, fontSize: "var(--dv-fs-xs)", opacity: 0.72, lineHeight: "var(--dv-lh-relaxed)" }}
+                >
+                  Pokracovanim potvrzujete, ze chcete aktivovat datovy prostor s event sourcing historii a soft-delete
+                  pravidly.
+                </div>
+              ) : null}
+            </>
+          )}
         </form>
       </section>
 
