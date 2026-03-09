@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { canTransitionLifecycle, normalizeLifecycleStateFromRow } from "./civilizationLifecycle";
+import { resolveWorkflowNextActionLabel } from "./quickGridWorkflowRail";
+import { buildRemoveSoftConfirmationKey } from "./removeSoftConfirmation";
 import { tableDisplayName } from "./workspaceFormatters";
 
 const inputStyle = {
@@ -317,6 +319,7 @@ export default function QuickGridOverlay({
   const [mineralBatchDrafts, setMineralBatchDrafts] = useState([]);
   const [batchBusy, setBatchBusy] = useState(false);
   const [writeFeedback, setWriteFeedback] = useState("");
+  const [removeSoftConfirmKey, setRemoveSoftConfirmKey] = useState("");
   const createInputRef = useRef(null);
   const metadataKeyInputRef = useRef(null);
   const metadataValueInputRef = useRef(null);
@@ -388,6 +391,14 @@ export default function QuickGridOverlay({
     );
   }, [mineralFilterQuery, selectedMinerals]);
   const parsedMineralPreview = useMemo(() => parseLiteralForPreview(metadataValue), [metadataValue]);
+  const currentRemoveSoftConfirmationKey = useMemo(
+    () =>
+      buildRemoveSoftConfirmationKey({
+        rowId: selectedRow?.id,
+        mineralKey: normalizedMetadataKey,
+      }),
+    [normalizedMetadataKey, selectedRow?.id]
+  );
   const resolvedMineralAction = useMemo(() => {
     const mode = String(mineralActionMode || "AUTO").toUpperCase();
     if (mode === "UPSERT" || mode === "REMOVE_SOFT") return mode;
@@ -503,6 +514,15 @@ export default function QuickGridOverlay({
     setMetadataValue(firstMetadataKey ? String(metadata[firstMetadataKey] ?? "") : "");
     setMineralActionMode("AUTO");
   }, [open, selectedRow]);
+  useEffect(() => {
+    if (!open) {
+      setRemoveSoftConfirmKey("");
+      return;
+    }
+    if (!currentRemoveSoftConfirmationKey || currentRemoveSoftConfirmationKey !== removeSoftConfirmKey) {
+      setRemoveSoftConfirmKey("");
+    }
+  }, [currentRemoveSoftConfirmationKey, open, removeSoftConfirmKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -947,13 +967,7 @@ export default function QuickGridOverlay({
   };
   const workflowSuggestedMineralKey =
     contractRequiredFields[0] || schemaMineralKeys[0] || selectedMinerals[0]?.key || "state";
-  const workflowNextAction = !workflowState.planetReady
-    ? "Vyber planetu"
-    : !workflowState.rowReady
-      ? "Vybrat prvni civilizaci"
-      : !workflowState.mineralReady
-        ? "Predvyplnit klic nerostu"
-        : "Ulozit nerost";
+  const workflowNextAction = resolveWorkflowNextActionLabel(workflowState);
   const selectedPrimaryLifecycleState = normalizeLifecycleStateFromRow(selectedRow);
   const canDirectArchiveSelected = Boolean(selectedRow) && selectedPrimaryLifecycleState !== "ARCHIVED";
   const canDirectUpdateSelected =
@@ -975,11 +989,29 @@ export default function QuickGridOverlay({
       setWriteFeedback(mineralValidation.message || "Nerost neprosel inline validaci.");
       return;
     }
+    if (resolvedMineralAction === "REMOVE_SOFT") {
+      const confirmationKey = buildRemoveSoftConfirmationKey({
+        rowId: selectedRow?.id,
+        mineralKey: safeKey,
+      });
+      if (!confirmationKey) {
+        setWriteFeedback("Remove_soft nelze potvrdit bez vybrane civilizace a klice.");
+        return;
+      }
+      if (removeSoftConfirmKey !== confirmationKey) {
+        setRemoveSoftConfirmKey(confirmationKey);
+        setWriteFeedback(`Potvrd remove_soft pro '${safeKey}' dalsim klikem.`);
+        return;
+      }
+    }
     const writePayloadValue = resolvedMineralAction === "REMOVE_SOFT" ? "" : metadataValue;
     const writeResult = normalizeWriteResult(await onUpsertMetadata?.(selectedRow?.id, safeKey, writePayloadValue), {
       successMessage: "Nerost byl ulozen.",
       failureMessage: "Ulozeni nerostu selhalo.",
     });
+    if (resolvedMineralAction === "REMOVE_SOFT") {
+      setRemoveSoftConfirmKey("");
+    }
     if (writeResult.ok && resolvedMineralAction === "REMOVE_SOFT") {
       setMetadataValue("");
     }
@@ -1470,7 +1502,7 @@ export default function QuickGridOverlay({
               return;
             }
             metadataValueInputRef.current?.focus?.();
-            await handleUpsertMineral();
+            setWriteFeedback("Hodnota je pripravena. Pro zapis klikni na 'Ulozit nerost'.");
           }}
         >
           Dalsi krok: {workflowNextAction}
@@ -2106,7 +2138,9 @@ export default function QuickGridOverlay({
               {selectedRow && pendingRowOps[String(selectedRow.id)] === "metadata"
                 ? "Ukladam..."
                 : resolvedMineralAction === "REMOVE_SOFT"
-                  ? "Provést remove_soft"
+                  ? removeSoftConfirmKey === currentRemoveSoftConfirmationKey
+                    ? "Potvrdit remove_soft"
+                    : "Provést remove_soft"
                   : "Ulozit nerost"}
             </button>
             <button
@@ -2118,13 +2152,25 @@ export default function QuickGridOverlay({
               onClick={async () => {
                 setMineralActionMode("REMOVE_SOFT");
                 setMetadataValue("");
-                const writeResult = normalizeWriteResult(
-                  await onUpsertMetadata?.(selectedRow?.id, normalizeMineralKey(metadataKey), ""),
-                  {
-                    successMessage: "Nerost byl odebran (soft remove).",
-                    failureMessage: "Odebrani nerostu selhalo.",
-                  }
-                );
+                const safeKey = normalizeMineralKey(metadataKey);
+                const confirmationKey = buildRemoveSoftConfirmationKey({
+                  rowId: selectedRow?.id,
+                  mineralKey: safeKey,
+                });
+                if (!confirmationKey) {
+                  setWriteFeedback("Remove_soft nelze potvrdit bez vybrane civilizace a klice.");
+                  return;
+                }
+                if (removeSoftConfirmKey !== confirmationKey) {
+                  setRemoveSoftConfirmKey(confirmationKey);
+                  setWriteFeedback(`Potvrd odebrani nerostu '${safeKey}' dalsim klikem.`);
+                  return;
+                }
+                const writeResult = normalizeWriteResult(await onUpsertMetadata?.(selectedRow?.id, safeKey, ""), {
+                  successMessage: "Nerost byl odebran (soft remove).",
+                  failureMessage: "Odebrani nerostu selhalo.",
+                });
+                setRemoveSoftConfirmKey("");
                 setWriteFeedback(writeResult.message);
                 pushPlanetEvent(writeResult.message, {
                   tone: writeResult.ok ? "ok" : "error",
@@ -2132,7 +2178,7 @@ export default function QuickGridOverlay({
                 });
               }}
             >
-              Odebrat nerost
+              {removeSoftConfirmKey === currentRemoveSoftConfirmationKey ? "Potvrdit odebrani" : "Odebrat nerost"}
             </button>
             <button
               type="button"

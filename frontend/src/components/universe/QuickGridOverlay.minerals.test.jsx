@@ -86,6 +86,8 @@ describe("QuickGridOverlay mineral editor", () => {
     await user.clear(keyInput);
     await user.type(keyInput, " Custom Amount ");
     await user.click(screen.getByRole("button", { name: "Odebrat nerost" }));
+    expect(onUpsertMetadata).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Potvrdit odebrani" }));
 
     await waitFor(() => {
       expect(onUpsertMetadata).toHaveBeenCalledWith("moon-1", "custom_amount", "");
@@ -130,8 +132,9 @@ describe("QuickGridOverlay mineral editor", () => {
     const modeSelect = within(composer).getByDisplayValue("AUTO");
     await user.selectOptions(modeSelect, "REMOVE_SOFT");
 
-    const saveButton = screen.getByRole("button", { name: "Provést remove_soft" });
-    await user.click(saveButton);
+    await user.click(screen.getByRole("button", { name: "Provést remove_soft" }));
+    expect(onUpsertMetadata).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Potvrdit remove_soft" }));
 
     await waitFor(() => {
       expect(onUpsertMetadata).toHaveBeenCalledWith("moon-1", "amount", "");
@@ -149,5 +152,18 @@ describe("QuickGridOverlay mineral editor", () => {
       expect(onUpsertMetadata).toHaveBeenCalled();
     });
     expect(screen.getByTestId("quick-grid-planet-event-log").textContent).toContain("MINERAL_UPSERT");
+  });
+
+  it("does not write mineral on workflow next-action CTA", async () => {
+    const user = userEvent.setup();
+    const onUpsertMetadata = vi.fn(async () => ({ ok: true }));
+    renderOverlay({ onUpsertMetadata });
+
+    await user.click(screen.getByTestId("quick-grid-workflow-next-action"));
+
+    expect(onUpsertMetadata).not.toHaveBeenCalled();
+    expect(screen.getByTestId("quick-grid-write-feedback").textContent).toContain(
+      "Pro zapis klikni na 'Ulozit nerost'"
+    );
   });
 });
