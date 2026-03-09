@@ -166,4 +166,22 @@ describe("QuickGridOverlay mineral editor", () => {
       "Pro zapis klikni na 'Ulozit nerost'"
     );
   });
+
+  it("shows remove_soft armed badge and clears it when mode switches to UPSERT", async () => {
+    const user = userEvent.setup();
+    const onUpsertMetadata = vi.fn(async () => ({ ok: true }));
+    renderOverlay({ onUpsertMetadata });
+
+    const composer = screen.getByTestId("quick-grid-mineral-composer");
+    const modeSelect = within(composer).getByDisplayValue("AUTO");
+    await user.selectOptions(modeSelect, "REMOVE_SOFT");
+
+    await user.click(screen.getByRole("button", { name: "Provést remove_soft" }));
+    expect(onUpsertMetadata).not.toHaveBeenCalled();
+    expect(screen.getByTestId("quick-grid-remove-soft-armed-badge").textContent).toContain("Remove_soft je pripraven");
+
+    await user.selectOptions(modeSelect, "UPSERT");
+    expect(screen.queryByTestId("quick-grid-remove-soft-armed-badge")).toBeNull();
+    expect(screen.getByRole("button", { name: "Ulozit nerost" })).not.toBeNull();
+  });
 });

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { canTransitionLifecycle, normalizeLifecycleStateFromRow } from "./civilizationLifecycle";
 import { resolveWorkflowNextActionLabel } from "./quickGridWorkflowRail";
 import { buildRemoveSoftConfirmationKey } from "./removeSoftConfirmation";
+import { resolveRemoveSoftUiState } from "./removeSoftUiState";
 import { tableDisplayName } from "./workspaceFormatters";
 
 const inputStyle = {
@@ -399,6 +400,17 @@ export default function QuickGridOverlay({
       }),
     [normalizedMetadataKey, selectedRow?.id]
   );
+  const isRemoveSoftArmed = Boolean(
+    currentRemoveSoftConfirmationKey && removeSoftConfirmKey === currentRemoveSoftConfirmationKey
+  );
+  const removeSoftUiState = useMemo(
+    () =>
+      resolveRemoveSoftUiState({
+        armed: isRemoveSoftArmed,
+        mineralKey: normalizedMetadataKey,
+      }),
+    [isRemoveSoftArmed, normalizedMetadataKey]
+  );
   const resolvedMineralAction = useMemo(() => {
     const mode = String(mineralActionMode || "AUTO").toUpperCase();
     if (mode === "UPSERT" || mode === "REMOVE_SOFT") return mode;
@@ -523,6 +535,11 @@ export default function QuickGridOverlay({
       setRemoveSoftConfirmKey("");
     }
   }, [currentRemoveSoftConfirmationKey, open, removeSoftConfirmKey]);
+  useEffect(() => {
+    if (resolvedMineralAction !== "REMOVE_SOFT" && removeSoftConfirmKey) {
+      setRemoveSoftConfirmKey("");
+    }
+  }, [removeSoftConfirmKey, resolvedMineralAction]);
 
   useEffect(() => {
     if (!open) return;
@@ -1000,7 +1017,7 @@ export default function QuickGridOverlay({
       }
       if (removeSoftConfirmKey !== confirmationKey) {
         setRemoveSoftConfirmKey(confirmationKey);
-        setWriteFeedback(`Potvrd remove_soft pro '${safeKey}' dalsim klikem.`);
+        setWriteFeedback(removeSoftUiState.confirmMessage);
         return;
       }
     }
@@ -2090,6 +2107,14 @@ export default function QuickGridOverlay({
                 {resolvedMineralAction === "REMOVE_SOFT" ? "remove key" : shortValue(parsedMineralPreview.parsed)}
               </strong>
             </div>
+            {resolvedMineralAction === "REMOVE_SOFT" && isRemoveSoftArmed ? (
+              <div
+                data-testid="quick-grid-remove-soft-armed-badge"
+                style={{ fontSize: "var(--dv-fs-2xs)", color: "#ffd5a3", opacity: 0.92 }}
+              >
+                {removeSoftUiState.badgeMessage}
+              </div>
+            ) : null}
           </div>
           <div
             style={{
@@ -2138,9 +2163,7 @@ export default function QuickGridOverlay({
               {selectedRow && pendingRowOps[String(selectedRow.id)] === "metadata"
                 ? "Ukladam..."
                 : resolvedMineralAction === "REMOVE_SOFT"
-                  ? removeSoftConfirmKey === currentRemoveSoftConfirmationKey
-                    ? "Potvrdit remove_soft"
-                    : "Provést remove_soft"
+                  ? removeSoftUiState.primaryButtonLabel
                   : "Ulozit nerost"}
             </button>
             <button
@@ -2163,7 +2186,7 @@ export default function QuickGridOverlay({
                 }
                 if (removeSoftConfirmKey !== confirmationKey) {
                   setRemoveSoftConfirmKey(confirmationKey);
-                  setWriteFeedback(`Potvrd odebrani nerostu '${safeKey}' dalsim klikem.`);
+                  setWriteFeedback(removeSoftUiState.confirmMessage);
                   return;
                 }
                 const writeResult = normalizeWriteResult(await onUpsertMetadata?.(selectedRow?.id, safeKey, ""), {
@@ -2178,7 +2201,7 @@ export default function QuickGridOverlay({
                 });
               }}
             >
-              {removeSoftConfirmKey === currentRemoveSoftConfirmationKey ? "Potvrdit odebrani" : "Odebrat nerost"}
+              {removeSoftUiState.explicitButtonLabel}
             </button>
             <button
               type="button"
