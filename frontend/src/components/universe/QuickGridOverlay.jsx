@@ -307,6 +307,7 @@ export default function QuickGridOverlay({
   const [selectedRowIds, setSelectedRowIds] = useState([]);
   const [lifecycleTargetState, setLifecycleTargetState] = useState("ACTIVE");
   const [civilizationActionMode, setCivilizationActionMode] = useState("AUTO");
+  const [showAdvancedCivilizationOps, setShowAdvancedCivilizationOps] = useState(false);
   const [rowBatchDrafts, setRowBatchDrafts] = useState([]);
   const [rowBatchBusy, setRowBatchBusy] = useState(false);
   const [metadataKey, setMetadataKey] = useState("");
@@ -1751,234 +1752,258 @@ export default function QuickGridOverlay({
             >
               {civilizationComposerApplyLabel}
             </button>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
-            <input
-              ref={createInputRef}
-              value={createValue}
-              onChange={(event) => setCreateValue(event.target.value)}
-              placeholder="Nova hodnota civilizace..."
-              style={inputStyle}
-              disabled={busy}
-            />
+            <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>
+              Primary path: pouzij composer apply. Direct tlacitka a batch akce jsou v Advanced sekci.
+            </div>
             <button
               type="button"
+              data-testid="quick-grid-civilization-advanced-toggle"
               style={ghostButtonStyle}
-              disabled={busy || rowBatchBusy || pendingCreate || !String(createValue || "").trim() || !selectedTable}
-              onClick={async () => {
-                const writeResult = normalizeWriteResult(await onCreateRow?.(createValue), {
-                  successMessage: "Civilizace byla uspesne zapsana.",
-                  failureMessage: "Zapis civilizace selhal. Zkontroluj kontrakt a vybranou planetu.",
-                });
-                if (writeResult.ok) {
-                  setCreateValue("");
-                }
-                setWriteFeedback(writeResult.message);
-                pushPlanetEvent(writeResult.message, { tone: writeResult.ok ? "ok" : "error", action: "CIV_CREATE" });
-              }}
+              onClick={() => setShowAdvancedCivilizationOps((prev) => !prev)}
             >
-              {pendingCreate ? "Pridavam..." : "Pridat civilizaci"}
-            </button>
-            <button
-              type="button"
-              style={{ ...ghostButtonStyle, borderColor: "rgba(144, 235, 175, 0.45)", color: "#d8ffea" }}
-              disabled={busy || rowBatchBusy || !String(createValue || "").trim() || !selectedTable}
-              onClick={handleQueueCreateRow}
-            >
-              + batch create
+              {showAdvancedCivilizationOps ? "Skrýt advanced operace" : "Zobrazit advanced operace"}
             </button>
           </div>
           <div
-            style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto auto", gap: 8, alignItems: "center" }}
+            data-testid="quick-grid-civilization-advanced"
+            style={{ display: showAdvancedCivilizationOps ? "grid" : "none", gap: 8 }}
           >
-            <input
-              value={editValue}
-              onChange={(event) => setEditValue(event.target.value)}
-              placeholder={
-                selectedRow ? "Upravit hodnotu vybrane civilizace..." : "Vyber civilizaci (mesic) v tabulce..."
-              }
-              style={inputStyle}
-              disabled={busy || !selectedRow}
-            />
-            <button
-              type="button"
-              style={ghostButtonStyle}
-              disabled={busy || rowBatchBusy || !canDirectUpdateSelected}
-              onClick={async () => {
-                const writeResult = normalizeWriteResult(await onUpdateRow?.(selectedRow?.id, editValue), {
-                  successMessage: "Civilizace byla upravena.",
-                  failureMessage: "Uprava civilizace selhala.",
-                });
-                setWriteFeedback(writeResult.message);
-                pushPlanetEvent(writeResult.message, { tone: writeResult.ok ? "ok" : "error", action: "CIV_UPDATE" });
-              }}
-            >
-              {selectedRow && pendingRowOps[String(selectedRow.id)] === "mutate" ? "Ukladam..." : "Ulozit"}
-            </button>
-            <button
-              type="button"
-              style={{ ...ghostButtonStyle, borderColor: "rgba(255, 152, 162, 0.45)", color: "#ffd6de" }}
-              disabled={busy || rowBatchBusy || !canDirectArchiveSelected}
-              onClick={async () => {
-                const writeResult = normalizeWriteResult(await onDeleteRow?.(selectedRow?.id), {
-                  successMessage: "Civilizace byla archivovana.",
-                  failureMessage: "Archivace civilizace selhala.",
-                });
-                setWriteFeedback(writeResult.message);
-                pushPlanetEvent(writeResult.message, { tone: writeResult.ok ? "ok" : "error", action: "CIV_ARCHIVE" });
-              }}
-            >
-              {selectedRow && pendingRowOps[String(selectedRow.id)] === "extinguish"
-                ? "Archivuji..."
-                : "Archivovat civilizaci"}
-            </button>
-            <button
-              type="button"
-              style={{ ...ghostButtonStyle, borderColor: "rgba(144, 235, 175, 0.45)", color: "#d8ffea" }}
-              disabled={busy || rowBatchBusy || !resolveBatchTargetRows().length || !String(editValue || "").trim()}
-              onClick={handleQueueUpdateRow}
-            >
-              + batch update
-            </button>
-            <button
-              type="button"
-              style={{ ...ghostButtonStyle, borderColor: "rgba(255, 194, 142, 0.45)", color: "#ffd9ae" }}
-              disabled={busy || rowBatchBusy || !resolveBatchTargetRows().length}
-              onClick={handleQueueArchiveRow}
-            >
-              + batch archive
-            </button>
-          </div>
-          <div
-            style={{
-              border: "1px solid rgba(95, 183, 218, 0.22)",
-              borderRadius: 8,
-              background: "rgba(6, 16, 28, 0.64)",
-              padding: "7px 8px",
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
-              LIFECYCLE RULES
-            </div>
-            <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.78 }}>
-              selected rows: {selectedRowsResolved.length} | invalid transition rows:{" "}
-              {lifecycleTransitionInvalidRows.length}
-            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
-              <select
-                value={lifecycleTargetState}
-                onChange={(event) => setLifecycleTargetState(String(event.target.value || "ACTIVE").toUpperCase())}
+              <input
+                ref={createInputRef}
+                value={createValue}
+                onChange={(event) => setCreateValue(event.target.value)}
+                placeholder="Nova hodnota civilizace..."
                 style={inputStyle}
+                disabled={busy}
+              />
+              <button
+                type="button"
+                style={ghostButtonStyle}
+                disabled={busy || rowBatchBusy || pendingCreate || !String(createValue || "").trim() || !selectedTable}
+                onClick={async () => {
+                  const writeResult = normalizeWriteResult(await onCreateRow?.(createValue), {
+                    successMessage: "Civilizace byla uspesne zapsana.",
+                    failureMessage: "Zapis civilizace selhal. Zkontroluj kontrakt a vybranou planetu.",
+                  });
+                  if (writeResult.ok) {
+                    setCreateValue("");
+                  }
+                  setWriteFeedback(writeResult.message);
+                  pushPlanetEvent(writeResult.message, { tone: writeResult.ok ? "ok" : "error", action: "CIV_CREATE" });
+                }}
               >
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="DRAFT">DRAFT</option>
-                <option value="ARCHIVED">ARCHIVED</option>
-              </select>
+                {pendingCreate ? "Pridavam..." : "Pridat civilizaci"}
+              </button>
               <button
                 type="button"
                 style={{ ...ghostButtonStyle, borderColor: "rgba(144, 235, 175, 0.45)", color: "#d8ffea" }}
-                disabled={
-                  busy || rowBatchBusy || !resolveBatchTargetRows().length || lifecycleTransitionInvalidRows.length > 0
-                }
-                onClick={handleQueueLifecycleTransition}
+                disabled={busy || rowBatchBusy || !String(createValue || "").trim() || !selectedTable}
+                onClick={handleQueueCreateRow}
               >
-                + batch lifecycle
+                + batch create
               </button>
             </div>
-            {lifecycleTransitionInvalidRows.length ? (
-              <div style={{ fontSize: "var(--dv-fs-2xs)", color: "#ffd5a3" }}>
-                Transition na '{lifecycleTargetState}' neni povolena pro:{" "}
-                {lifecycleTransitionInvalidRows.map((item) => item.label || item.rowId).join(", ")}
-              </div>
-            ) : null}
-          </div>
-          <div
-            data-testid="quick-grid-civilization-batch-panel"
-            style={{
-              border: "1px solid rgba(95, 183, 218, 0.22)",
-              borderRadius: 8,
-              background: "rgba(6, 16, 28, 0.64)",
-              padding: "7px 8px",
-              display: "grid",
-              gap: 4,
-            }}
-          >
-            <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
-              CIVILIZATION BATCH
-            </div>
-            <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.78 }}>
-              create: {rowBatchSummary.create} | update: {rowBatchSummary.update} | archive: {rowBatchSummary.archive} |
-              lifecycle: {rowBatchSummary.lifecycle}
-            </div>
-            {rowBatchDrafts.length ? (
-              rowBatchDrafts.slice(0, 20).map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr auto",
-                    gap: 6,
-                    alignItems: "center",
-                    fontSize: "var(--dv-fs-2xs)",
-                    opacity: 0.86,
-                  }}
-                >
-                  <span>
-                    [{item.kind}]{" "}
-                    {item.kind === "create"
-                      ? item.value
-                      : item.kind === "update"
-                        ? `${item.rowId} -> ${item.value}`
-                        : `${item.rowId} (${item.label || "archive"})`}
-                  </span>
-                  <button
-                    type="button"
-                    style={{ ...hudButtonStyle, padding: "3px 8px" }}
-                    onClick={() => {
-                      setRowBatchDrafts((prev) => prev.filter((draft) => draft.id !== item.id));
-                    }}
-                  >
-                    Odebrat
-                  </button>
-                </div>
-              ))
-            ) : (
-              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>Fronta je prazdna.</div>
-            )}
-            <button
-              type="button"
-              data-testid="quick-grid-apply-civilization-batch-button"
-              style={{ ...ghostButtonStyle, borderColor: "rgba(125, 220, 255, 0.5)", color: "#d9f7ff" }}
-              disabled={busy || rowBatchBusy || !rowBatchDrafts.length}
-              onClick={handleApplyRowBatch}
-            >
-              {rowBatchBusy ? "Ukladam civilization batch..." : `Ulozit civilization batch (${rowBatchDrafts.length})`}
-            </button>
             <div
-              data-testid="quick-grid-civilization-batch-diff-preview"
+              style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto auto", gap: 8, alignItems: "center" }}
+            >
+              <input
+                value={editValue}
+                onChange={(event) => setEditValue(event.target.value)}
+                placeholder={
+                  selectedRow ? "Upravit hodnotu vybrane civilizace..." : "Vyber civilizaci (mesic) v tabulce..."
+                }
+                style={inputStyle}
+                disabled={busy || !selectedRow}
+              />
+              <button
+                type="button"
+                style={ghostButtonStyle}
+                disabled={busy || rowBatchBusy || !canDirectUpdateSelected}
+                onClick={async () => {
+                  const writeResult = normalizeWriteResult(await onUpdateRow?.(selectedRow?.id, editValue), {
+                    successMessage: "Civilizace byla upravena.",
+                    failureMessage: "Uprava civilizace selhala.",
+                  });
+                  setWriteFeedback(writeResult.message);
+                  pushPlanetEvent(writeResult.message, { tone: writeResult.ok ? "ok" : "error", action: "CIV_UPDATE" });
+                }}
+              >
+                {selectedRow && pendingRowOps[String(selectedRow.id)] === "mutate" ? "Ukladam..." : "Ulozit"}
+              </button>
+              <button
+                type="button"
+                style={{ ...ghostButtonStyle, borderColor: "rgba(255, 152, 162, 0.45)", color: "#ffd6de" }}
+                disabled={busy || rowBatchBusy || !canDirectArchiveSelected}
+                onClick={async () => {
+                  const writeResult = normalizeWriteResult(await onDeleteRow?.(selectedRow?.id), {
+                    successMessage: "Civilizace byla archivovana.",
+                    failureMessage: "Archivace civilizace selhala.",
+                  });
+                  setWriteFeedback(writeResult.message);
+                  pushPlanetEvent(writeResult.message, {
+                    tone: writeResult.ok ? "ok" : "error",
+                    action: "CIV_ARCHIVE",
+                  });
+                }}
+              >
+                {selectedRow && pendingRowOps[String(selectedRow.id)] === "extinguish"
+                  ? "Archivuji..."
+                  : "Archivovat civilizaci"}
+              </button>
+              <button
+                type="button"
+                style={{ ...ghostButtonStyle, borderColor: "rgba(144, 235, 175, 0.45)", color: "#d8ffea" }}
+                disabled={busy || rowBatchBusy || !resolveBatchTargetRows().length || !String(editValue || "").trim()}
+                onClick={handleQueueUpdateRow}
+              >
+                + batch update
+              </button>
+              <button
+                type="button"
+                style={{ ...ghostButtonStyle, borderColor: "rgba(255, 194, 142, 0.45)", color: "#ffd9ae" }}
+                disabled={busy || rowBatchBusy || !resolveBatchTargetRows().length}
+                onClick={handleQueueArchiveRow}
+              >
+                + batch archive
+              </button>
+            </div>
+            <div
               style={{
                 border: "1px solid rgba(95, 183, 218, 0.22)",
                 borderRadius: 8,
-                background: "rgba(4, 14, 24, 0.72)",
-                padding: "6px 7px",
+                background: "rgba(6, 16, 28, 0.64)",
+                padding: "7px 8px",
+                display: "grid",
+                gap: 6,
+              }}
+            >
+              <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+                LIFECYCLE RULES
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.78 }}>
+                selected rows: {selectedRowsResolved.length} | invalid transition rows:{" "}
+                {lifecycleTransitionInvalidRows.length}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
+                <select
+                  value={lifecycleTargetState}
+                  onChange={(event) => setLifecycleTargetState(String(event.target.value || "ACTIVE").toUpperCase())}
+                  style={inputStyle}
+                >
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="ARCHIVED">ARCHIVED</option>
+                </select>
+                <button
+                  type="button"
+                  style={{ ...ghostButtonStyle, borderColor: "rgba(144, 235, 175, 0.45)", color: "#d8ffea" }}
+                  disabled={
+                    busy ||
+                    rowBatchBusy ||
+                    !resolveBatchTargetRows().length ||
+                    lifecycleTransitionInvalidRows.length > 0
+                  }
+                  onClick={handleQueueLifecycleTransition}
+                >
+                  + batch lifecycle
+                </button>
+              </div>
+              {lifecycleTransitionInvalidRows.length ? (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", color: "#ffd5a3" }}>
+                  Transition na '{lifecycleTargetState}' neni povolena pro:{" "}
+                  {lifecycleTransitionInvalidRows.map((item) => item.label || item.rowId).join(", ")}
+                </div>
+              ) : null}
+            </div>
+            <div
+              data-testid="quick-grid-civilization-batch-panel"
+              style={{
+                border: "1px solid rgba(95, 183, 218, 0.22)",
+                borderRadius: 8,
+                background: "rgba(6, 16, 28, 0.64)",
+                padding: "7px 8px",
                 display: "grid",
                 gap: 4,
               }}
             >
               <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
-                COMMIT PREVIEW DIFF
+                CIVILIZATION BATCH
               </div>
-              {rowBatchPreviewDiff.length ? (
-                rowBatchPreviewDiff.slice(0, 24).map((item) => (
-                  <div key={item.id} style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.84 }}>
-                    {item.label}
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.78 }}>
+                create: {rowBatchSummary.create} | update: {rowBatchSummary.update} | archive: {rowBatchSummary.archive}{" "}
+                | lifecycle: {rowBatchSummary.lifecycle}
+              </div>
+              {rowBatchDrafts.length ? (
+                rowBatchDrafts.slice(0, 20).map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      gap: 6,
+                      alignItems: "center",
+                      fontSize: "var(--dv-fs-2xs)",
+                      opacity: 0.86,
+                    }}
+                  >
+                    <span>
+                      [{item.kind}]{" "}
+                      {item.kind === "create"
+                        ? item.value
+                        : item.kind === "update"
+                          ? `${item.rowId} -> ${item.value}`
+                          : `${item.rowId} (${item.label || "archive"})`}
+                    </span>
+                    <button
+                      type="button"
+                      style={{ ...hudButtonStyle, padding: "3px 8px" }}
+                      onClick={() => {
+                        setRowBatchDrafts((prev) => prev.filter((draft) => draft.id !== item.id));
+                      }}
+                    >
+                      Odebrat
+                    </button>
                   </div>
                 ))
               ) : (
-                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>Zadna pending civilization zmena.</div>
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>Fronta je prazdna.</div>
               )}
+              <button
+                type="button"
+                data-testid="quick-grid-apply-civilization-batch-button"
+                style={{ ...ghostButtonStyle, borderColor: "rgba(125, 220, 255, 0.5)", color: "#d9f7ff" }}
+                disabled={busy || rowBatchBusy || !rowBatchDrafts.length}
+                onClick={handleApplyRowBatch}
+              >
+                {rowBatchBusy
+                  ? "Ukladam civilization batch..."
+                  : `Ulozit civilization batch (${rowBatchDrafts.length})`}
+              </button>
+              <div
+                data-testid="quick-grid-civilization-batch-diff-preview"
+                style={{
+                  border: "1px solid rgba(95, 183, 218, 0.22)",
+                  borderRadius: 8,
+                  background: "rgba(4, 14, 24, 0.72)",
+                  padding: "6px 7px",
+                  display: "grid",
+                  gap: 4,
+                }}
+              >
+                <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
+                  COMMIT PREVIEW DIFF
+                </div>
+                {rowBatchPreviewDiff.length ? (
+                  rowBatchPreviewDiff.slice(0, 24).map((item) => (
+                    <div key={item.id} style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.84 }}>
+                      {item.label}
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>Zadna pending civilization zmena.</div>
+                )}
+              </div>
             </div>
           </div>
         </div>

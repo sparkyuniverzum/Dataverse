@@ -71,12 +71,18 @@ function renderOverlay(overrides = {}) {
 }
 
 describe("QuickGridOverlay civilization batch", () => {
+  it("keeps direct and batch civilization operations hidden by default", () => {
+    renderOverlay();
+    expect(screen.getByTestId("quick-grid-civilization-advanced").style.display).toBe("none");
+  });
+
   it("queues create/update/archive and applies them sequentially", async () => {
     const user = userEvent.setup();
     const onCreateRow = vi.fn(async () => ({ ok: true }));
     const onUpdateRow = vi.fn(async () => ({ ok: true }));
     const onDeleteRow = vi.fn(async () => ({ ok: true }));
     renderOverlay({ onCreateRow, onUpdateRow, onDeleteRow });
+    await user.click(screen.getByTestId("quick-grid-civilization-advanced-toggle"));
 
     const createInput = screen.getByPlaceholderText("Nova hodnota civilizace...");
     await user.clear(createInput);
@@ -102,6 +108,7 @@ describe("QuickGridOverlay civilization batch", () => {
     const user = userEvent.setup();
     const onUpsertMetadata = vi.fn(async () => ({ ok: true }));
     renderOverlay({ onUpsertMetadata });
+    await user.click(screen.getByTestId("quick-grid-civilization-advanced-toggle"));
 
     const checkboxes = screen.getAllByRole("checkbox");
     await user.click(checkboxes[1]);
@@ -136,6 +143,7 @@ describe("QuickGridOverlay civilization batch", () => {
     const user = userEvent.setup();
     const onCreateRow = vi.fn(async () => ({ ok: true }));
     renderOverlay({ onCreateRow });
+    await user.click(screen.getByTestId("quick-grid-civilization-advanced-toggle"));
 
     await user.type(screen.getByPlaceholderText("Nova hodnota civilizace..."), "Moon-Composer");
 
