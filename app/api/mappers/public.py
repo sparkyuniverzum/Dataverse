@@ -35,6 +35,12 @@ from app.schemas import (
 from app.services.bond_semantics import bond_semantics
 
 
+def _read(item: Mapping[str, Any] | Any, key: str, default: Any = None) -> Any:
+    if isinstance(item, Mapping):
+        return item.get(key, default)
+    return getattr(item, key, default)
+
+
 def user_to_public(user: User) -> UserPublic:
     return UserPublic(
         id=user.id,
@@ -259,67 +265,67 @@ def constellation_summary_to_public(item: Mapping[str, Any]) -> ConstellationSum
 
 def planet_summary_to_public(item: Mapping[str, Any]) -> PlanetSummaryPublic:
     return PlanetSummaryPublic(
-        table_id=item["table_id"],
-        name=str(item.get("name") or "Planet"),
-        constellation_name=str(item.get("constellation_name") or "Uncategorized"),
-        archetype=str(item.get("archetype") or "").strip() or None,
-        contract_version=int(item.get("contract_version")) if item.get("contract_version") is not None else None,
-        is_empty=bool(item.get("is_empty", False)),
-        moons_count=int(item.get("moons_count") or 0),
-        schema_fields_count=int(item.get("schema_fields_count") or 0),
-        formula_fields_count=int(item.get("formula_fields_count") or 0),
-        internal_bonds_count=int(item.get("internal_bonds_count") or 0),
-        external_bonds_count=int(item.get("external_bonds_count") or 0),
-        guardian_rules_count=int(item.get("guardian_rules_count") or 0),
-        alerted_moons_count=int(item.get("alerted_moons_count") or 0),
-        circular_fields_count=int(item.get("circular_fields_count") or 0),
-        quality_score=int(item.get("quality_score") or 0),
-        status=str(item.get("status") or "GREEN"),
-        sector_mode=str(item.get("sector_mode") or "belt"),
+        table_id=_read(item, "table_id"),
+        name=str(_read(item, "name") or "Planet"),
+        constellation_name=str(_read(item, "constellation_name") or "Uncategorized"),
+        archetype=str(_read(item, "archetype") or "").strip() or None,
+        contract_version=int(_read(item, "contract_version")) if _read(item, "contract_version") is not None else None,
+        is_empty=bool(_read(item, "is_empty", False)),
+        moons_count=int(_read(item, "moons_count") or 0),
+        schema_fields_count=int(_read(item, "schema_fields_count") or 0),
+        formula_fields_count=int(_read(item, "formula_fields_count") or 0),
+        internal_bonds_count=int(_read(item, "internal_bonds_count") or 0),
+        external_bonds_count=int(_read(item, "external_bonds_count") or 0),
+        guardian_rules_count=int(_read(item, "guardian_rules_count") or 0),
+        alerted_moons_count=int(_read(item, "alerted_moons_count") or 0),
+        circular_fields_count=int(_read(item, "circular_fields_count") or 0),
+        quality_score=int(_read(item, "quality_score") or 0),
+        status=str(_read(item, "status") or "GREEN"),
+        sector_mode=str(_read(item, "sector_mode") or "belt"),
     )
 
 
 def moon_summary_to_public(item: Mapping[str, Any]) -> MoonSummaryPublic:
     return MoonSummaryPublic(
-        civilization_id=item["civilization_id"],
-        label=str(item.get("label") or ""),
-        table_id=item["table_id"],
-        table_name=str(item.get("table_name") or "Uncategorized"),
-        constellation_name=str(item.get("constellation_name") or "Uncategorized"),
-        planet_name=str(item.get("planet_name") or "Planet"),
-        metadata_fields_count=int(item.get("metadata_fields_count") or 0),
-        calculated_fields_count=int(item.get("calculated_fields_count") or 0),
-        guardian_rules_count=int(item.get("guardian_rules_count") or 0),
-        active_alerts_count=int(item.get("active_alerts_count") or 0),
-        circular_fields_count=int(item.get("circular_fields_count") or 0),
-        quality_score=int(item.get("quality_score") or 0),
-        status=str(item.get("status") or "GREEN"),
-        created_at=item.get("created_at"),
+        civilization_id=_read(item, "civilization_id") or _read(item, "moon_id") or _read(item, "id"),
+        label=str(_read(item, "label") or ""),
+        table_id=_read(item, "table_id"),
+        table_name=str(_read(item, "table_name") or "Uncategorized"),
+        constellation_name=str(_read(item, "constellation_name") or "Uncategorized"),
+        planet_name=str(_read(item, "planet_name") or "Planet"),
+        metadata_fields_count=int(_read(item, "metadata_fields_count") or 0),
+        calculated_fields_count=int(_read(item, "calculated_fields_count") or 0),
+        guardian_rules_count=int(_read(item, "guardian_rules_count") or 0),
+        active_alerts_count=int(_read(item, "active_alerts_count") or 0),
+        circular_fields_count=int(_read(item, "circular_fields_count") or 0),
+        quality_score=int(_read(item, "quality_score") or 0),
+        status=str(_read(item, "status") or "GREEN"),
+        created_at=_read(item, "created_at"),
     )
 
 
 def bond_summary_to_public(item: Mapping[str, Any]) -> BondSummaryPublic:
-    semantics = bond_semantics(item.get("type", "RELATION"))
+    semantics = bond_semantics(_read(item, "type", "RELATION"))
     return BondSummaryPublic(
-        bond_id=item["bond_id"],
+        bond_id=_read(item, "bond_id") or _read(item, "id"),
         type=semantics.bond_type,
-        directional=bool(item.get("directional", semantics.directional)),
-        flow_direction=str(item.get("flow_direction") or semantics.flow_direction),
-        source_civilization_id=item["source_civilization_id"],
-        target_civilization_id=item["target_civilization_id"],
-        source_label=str(item.get("source_label") or ""),
-        target_label=str(item.get("target_label") or ""),
-        source_table_id=item["source_table_id"],
-        target_table_id=item["target_table_id"],
-        source_constellation_name=str(item.get("source_constellation_name") or "Uncategorized"),
-        source_planet_name=str(item.get("source_planet_name") or "Planet"),
-        target_constellation_name=str(item.get("target_constellation_name") or "Uncategorized"),
-        target_planet_name=str(item.get("target_planet_name") or "Planet"),
-        active_alerts_count=int(item.get("active_alerts_count") or 0),
-        circular_fields_count=int(item.get("circular_fields_count") or 0),
-        quality_score=int(item.get("quality_score") or 0),
-        status=str(item.get("status") or "GREEN"),
-        created_at=item.get("created_at"),
+        directional=bool(_read(item, "directional", semantics.directional)),
+        flow_direction=str(_read(item, "flow_direction") or semantics.flow_direction),
+        source_civilization_id=_read(item, "source_civilization_id"),
+        target_civilization_id=_read(item, "target_civilization_id"),
+        source_label=str(_read(item, "source_label") or ""),
+        target_label=str(_read(item, "target_label") or ""),
+        source_table_id=_read(item, "source_table_id"),
+        target_table_id=_read(item, "target_table_id"),
+        source_constellation_name=str(_read(item, "source_constellation_name") or "Uncategorized"),
+        source_planet_name=str(_read(item, "source_planet_name") or "Planet"),
+        target_constellation_name=str(_read(item, "target_constellation_name") or "Uncategorized"),
+        target_planet_name=str(_read(item, "target_planet_name") or "Planet"),
+        active_alerts_count=int(_read(item, "active_alerts_count") or 0),
+        circular_fields_count=int(_read(item, "circular_fields_count") or 0),
+        quality_score=int(_read(item, "quality_score") or 0),
+        status=str(_read(item, "status") or "GREEN"),
+        created_at=_read(item, "created_at"),
     )
 
 

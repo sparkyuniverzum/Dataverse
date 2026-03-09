@@ -31,6 +31,30 @@ def _normalize_metadata_remove(raw_value: object) -> list[str]:
     return keys
 
 
+def _normalize_lifecycle_state(civilization: ProjectedAsteroid) -> str:
+    metadata = civilization.metadata if isinstance(civilization.metadata, dict) else {}
+    raw = metadata.get("state", metadata.get("status"))
+    state = str(raw or "").strip().upper()
+    if not state:
+        state = "ARCHIVED" if civilization.is_deleted else "ACTIVE"
+    return state
+
+
+def _can_transition_lifecycle(from_state: str, to_state: str) -> bool:
+    source = str(from_state or "").strip().upper() or "UNKNOWN"
+    target = str(to_state or "").strip().upper()
+    if not target or source == target:
+        return False
+    allowed = {
+        "DRAFT": {"ACTIVE", "ARCHIVED"},
+        "ACTIVE": {"ARCHIVED"},
+        "ANOMALY": {"ACTIVE", "ARCHIVED"},
+        "UNKNOWN": {"ACTIVE", "ARCHIVED"},
+        "ARCHIVED": set(),
+    }
+    return target in allowed.get(source, set())
+
+
 async def handle_ingest_update_family(
     self: TaskExecutorService,
     *,
@@ -329,6 +353,70 @@ async def handle_ingest_update_family(
                 removed_metadata_keys.append(key)
             if removed_metadata_keys:
                 has_change = True
+
+        current_lifecycle_state = _normalize_lifecycle_state(civilization)
+        touched_lifecycle_keys = {
+            key
+            for key in [*metadata_update.keys(), *removed_metadata_keys]
+            if str(key).strip().lower() in {"state", "status"}
+        }
+        if touched_lifecycle_keys:
+            if "state" in metadata_update and "status" in metadata_update:
+                state_value = str(metadata_update.get("state") or "").strip().upper()
+                status_value = str(metadata_update.get("status") or "").strip().upper()
+                if state_value and status_value and state_value != status_value:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail={
+                            "code": "LIFECYCLE_TRANSITION_BLOCKED",
+                            "reason": "ambiguous_state_patch",
+                            "message": "UPDATE_ASTEROID lifecycle patch is ambiguous (`state` and `status` mismatch).",
+                            "from_state": current_lifecycle_state,
+                        },
+                    )
+            if "state" in removed_metadata_keys or "status" in removed_metadata_keys:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={
+                        "code": "LIFECYCLE_TRANSITION_BLOCKED",
+                        "reason": "state_remove_not_allowed",
+                        "message": "Lifecycle state cannot be removed from civilization metadata.",
+                        "from_state": current_lifecycle_state,
+                    },
+                )
+            target_lifecycle_state = (
+                str(
+                    next_metadata.get("state", next_metadata.get("status"))
+                    or metadata_update.get("state", metadata_update.get("status"))
+                    or ""
+                )
+                .strip()
+                .upper()
+            )
+            if not _can_transition_lifecycle(current_lifecycle_state, target_lifecycle_state):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={
+                        "code": "LIFECYCLE_TRANSITION_BLOCKED",
+                        "reason": "invalid_transition",
+                        "message": (
+                            f"Lifecycle transition '{current_lifecycle_state}' -> "
+                            f"'{target_lifecycle_state or 'UNKNOWN'}' is not allowed."
+                        ),
+                        "from_state": current_lifecycle_state,
+                        "target_state": target_lifecycle_state or None,
+                    },
+                )
+        elif current_lifecycle_state == "ARCHIVED":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={
+                    "code": "LIFECYCLE_TRANSITION_BLOCKED",
+                    "reason": "archived_readonly",
+                    "message": "Archived civilization is read-only. Use lifecycle transition first.",
+                    "from_state": current_lifecycle_state,
+                },
+            )
 
         if not has_change:
             raise HTTPException(

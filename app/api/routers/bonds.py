@@ -137,6 +137,9 @@ async def validate_bond(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> BondValidateResponse:
+    class _PreviewRollback(Exception):
+        pass
+
     resolved_galaxy_id, resolved_branch_id = await resolve_scope_for_user(
         session=session,
         user=current_user,
@@ -227,6 +230,17 @@ async def validate_bond(
     execution = None
     tasks: list[AtomicTask] = []
     if operation == "create":
+        if payload.source_civilization_id == payload.target_civilization_id:
+            reasons.append(
+                BondValidateReason(
+                    code="BOND_VALIDATE_SAME_ENDPOINT",
+                    message="Source and target civilization must be different.",
+                    context={
+                        "source_civilization_id": str(payload.source_civilization_id),
+                        "target_civilization_id": str(payload.target_civilization_id),
+                    },
+                )
+            )
         tasks = [
             AtomicTask(
                 action="LINK",
@@ -280,16 +294,20 @@ async def validate_bond(
     if not reasons:
         try:
             async with transactional_context(session):
-                async with session.begin_nested() as preview_tx:
-                    execution = await services.task_executor_service.execute_tasks(
-                        session=session,
-                        tasks=tasks,
-                        user_id=current_user.id,
-                        galaxy_id=resolved_galaxy_id,
-                        branch_id=resolved_branch_id,
-                        manage_transaction=False,
-                    )
-                    await preview_tx.rollback()
+                try:
+                    async with session.begin_nested():
+                        execution = await services.task_executor_service.execute_tasks(
+                            session=session,
+                            tasks=tasks,
+                            user_id=current_user.id,
+                            galaxy_id=resolved_galaxy_id,
+                            branch_id=resolved_branch_id,
+                            manage_transaction=False,
+                        )
+                        # Dry-run only; always rollback savepoint.
+                        raise _PreviewRollback()
+                except _PreviewRollback:
+                    pass
         except HTTPException as exc:
             reasons.append(_reason_from_http_exception(exc))
         except Exception as exc:

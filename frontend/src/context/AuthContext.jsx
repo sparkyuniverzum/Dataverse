@@ -75,11 +75,15 @@ export function AuthProvider({ children }) {
 
   const fetchCurrentUser = useCallback(async (token) => {
     if (!token) return null;
-    const response = await fetch(`${API_BASE}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) return null;
-    return response.json();
+    try {
+      const response = await fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return null;
+      return response.json();
+    } catch {
+      return null;
+    }
   }, []);
 
   const refreshSession = useCallback(async () => {
@@ -93,28 +97,32 @@ export function AuthProvider({ children }) {
     }
 
     const run = (async () => {
-      const response = await fetch(`${API_BASE}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: safeRefreshToken }),
-      });
+      try {
+        const response = await fetch(`${API_BASE}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: safeRefreshToken }),
+        });
 
-      if (!response.ok) {
-        clearSession();
+        if (!response.ok) {
+          clearSession();
+          return false;
+        }
+
+        const bodyText = await response.text();
+        const body = parseJsonSafe(bodyText);
+        const nextAccessToken = String(body?.access_token || "").trim();
+        const nextRefreshToken = String(body?.refresh_token || "").trim();
+        if (!nextAccessToken || !nextRefreshToken) {
+          clearSession();
+          return false;
+        }
+
+        persistTokens(nextAccessToken, nextRefreshToken);
+        return true;
+      } catch {
         return false;
       }
-
-      const bodyText = await response.text();
-      const body = parseJsonSafe(bodyText);
-      const nextAccessToken = String(body?.access_token || "").trim();
-      const nextRefreshToken = String(body?.refresh_token || "").trim();
-      if (!nextAccessToken || !nextRefreshToken) {
-        clearSession();
-        return false;
-      }
-
-      persistTokens(nextAccessToken, nextRefreshToken);
-      return true;
     })();
 
     refreshPromiseRef.current = run;
@@ -162,30 +170,34 @@ export function AuthProvider({ children }) {
     let alive = true;
 
     async function bootstrapSession() {
-      const currentAccess = String(accessTokenRef.current || "").trim();
-      const currentRefresh = String(refreshTokenRef.current || "").trim();
+      try {
+        const currentAccess = String(accessTokenRef.current || "").trim();
+        const currentRefresh = String(refreshTokenRef.current || "").trim();
 
-      if (!currentAccess && !currentRefresh) {
-        if (alive) setIsLoading(false);
-        return;
-      }
-
-      let nextUser = await fetchCurrentUser(currentAccess);
-      if (!nextUser) {
-        const refreshed = await refreshSession();
-        if (refreshed) {
-          nextUser = await fetchCurrentUser(accessTokenRef.current);
+        if (!currentAccess && !currentRefresh) {
+          if (alive) setIsLoading(false);
+          return;
         }
-      }
 
-      if (!alive) return;
+        let nextUser = await fetchCurrentUser(currentAccess);
+        if (!nextUser) {
+          const refreshed = await refreshSession();
+          if (refreshed) {
+            nextUser = await fetchCurrentUser(accessTokenRef.current);
+          }
+        }
 
-      if (!nextUser) {
-        clearSession();
-      } else {
-        setUser(nextUser);
+        if (!alive) return;
+
+        if (!nextUser) {
+          clearSession();
+        } else {
+          setUser(nextUser);
+        }
+      } catch {
+        if (!alive) return;
       }
-      setIsLoading(false);
+      if (alive) setIsLoading(false);
     }
 
     void bootstrapSession();

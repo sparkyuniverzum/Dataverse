@@ -3,13 +3,16 @@ import { useCallback, useState } from "react";
 import {
   apiErrorFromResponse,
   apiFetch,
-  buildCivilizationWriteRouteCandidates,
   buildOccConflictMessage,
   buildTableContractUrl,
   isOccConflictError,
-  shouldFallbackToMoonAlias,
 } from "../../lib/dataverseApi";
+import {
+  buildCivilizationWriteRouteCandidates,
+  shouldFallbackToMoonAlias,
+} from "../../lib/civilizationRuntimeRouteGate";
 import { buildExtinguishMoonCommand } from "../../lib/builderParserCommand";
+import { explainLifecycleGuard } from "./civilizationLifecycle";
 import { buildMoonCreateMinerals } from "./moonWriteDefaults";
 import { mergeMetadataValue, parseMetadataLiteral } from "./rowWriteUtils";
 
@@ -152,6 +155,10 @@ export function useMoonCrudController({
 
       const asteroid = asteroidById.get(targetId);
       if (!asteroid) return { ok: false, message: "Civilizace uz neni v aktualni projekci." };
+      const mutateGuard = explainLifecycleGuard({ row: asteroid, operation: "mutate" });
+      if (!mutateGuard.allowed) {
+        return { ok: false, message: mutateGuard.message || "Civilizace nelze upravit v aktualnim lifecycle stavu." };
+      }
       const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
         ? Number(asteroid.current_event_seq)
         : null;
@@ -232,6 +239,13 @@ export function useMoonCrudController({
 
       const asteroid = asteroidById.get(targetId);
       if (!asteroid) return { ok: false, message: "Civilizace uz neni v aktualni projekci." };
+      const archiveGuard = explainLifecycleGuard({ row: asteroid, operation: "archive" });
+      if (!archiveGuard.allowed) {
+        return {
+          ok: false,
+          message: archiveGuard.message || "Civilizaci nelze archivovat v aktualnim lifecycle stavu.",
+        };
+      }
       const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
         ? Number(asteroid.current_event_seq)
         : null;
@@ -374,6 +388,26 @@ export function useMoonCrudController({
 
       const asteroid = asteroidById.get(targetId);
       if (!asteroid) return { ok: false, message: "Civilizace uz neni v aktualni projekci." };
+      const normalizedMetadataKey = String(metadataKey || "")
+        .trim()
+        .toLowerCase();
+      const mutateGuard = explainLifecycleGuard({ row: asteroid, operation: "mutate" });
+      if (!mutateGuard.allowed && normalizedMetadataKey !== "state") {
+        return { ok: false, message: mutateGuard.message || "Archivovana civilizace je read-only pro nerosty." };
+      }
+      if (normalizedMetadataKey === "state") {
+        const parsedStateTarget = String(rawValue || "")
+          .trim()
+          .toUpperCase();
+        const lifecycleGuard = explainLifecycleGuard({
+          row: asteroid,
+          operation: "transition",
+          targetState: parsedStateTarget,
+        });
+        if (!lifecycleGuard.allowed) {
+          return { ok: false, message: lifecycleGuard.message || "Lifecycle transition neni povolena." };
+        }
+      }
       const expectedEventSeq = Number.isInteger(asteroid?.current_event_seq)
         ? Number(asteroid.current_event_seq)
         : null;

@@ -135,6 +135,18 @@ class TableContractValidator:
             return None
         if key == "value":
             return value
+        if key == "label":
+            if "label" in metadata:
+                return metadata.get("label")
+            return value
+        if key == "state":
+            if "state" in metadata:
+                return metadata.get("state")
+            return metadata.get("status")
+        if key == "status":
+            if "status" in metadata:
+                return metadata.get("status")
+            return metadata.get("state")
         return metadata.get(key)
 
     @staticmethod

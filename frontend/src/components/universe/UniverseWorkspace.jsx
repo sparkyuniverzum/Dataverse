@@ -1,25 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useDraggable,
-  useDroppable,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 
 import {
   API_BASE,
   apiErrorFromResponse,
   apiFetch,
-  buildBranchPromoteUrl,
   buildOccConflictMessage,
   buildMoonImpactUrl,
+  buildPlanetExtinguishUrl,
   buildPresetsApplyUrl,
   buildPresetsCatalogUrl,
   buildParserPayload,
   buildTaskExecuteBatchUrl,
+  buildTableContractUrl,
   buildStarCorePolicyLockUrl,
   isOccConflictError,
 } from "../../lib/dataverseApi";
@@ -39,7 +32,9 @@ import StarHeartDashboard from "./StarHeartDashboard";
 import UniverseCanvas from "./UniverseCanvas";
 import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
 import WorkspaceSidebar from "./WorkspaceSidebar";
+import { WorkspaceContextMenu } from "./WorkspaceContextMenu";
 import BondBuilderPanel from "./BondBuilderPanel";
+import { resolveDragCenter, StageZeroDraggablePlanetCard, StageZeroDragGhost, StageZeroDropZone } from "./StageZeroDnd";
 import { buildStageZeroPlanetName, mapDropPointToPlanetPosition } from "./stageZeroUtils";
 import {
   STAGE_ZERO_CASHFLOW_STEPS,
@@ -48,6 +43,7 @@ import {
   buildStageZeroSchemaPreview,
   createStageZeroSchemaDraft,
   isStageZeroStepUnlocked,
+  resolveStageZeroStepsForArchetype,
   resolveStageZeroPlanetVisualBoost,
   summarizeStageZeroSchemaDraft,
 } from "./stageZeroBuilder";
@@ -87,6 +83,8 @@ import { resolveNavigationState, resolveVisualBuilderState } from "./visualBuild
 import { useCommandBarController } from "./useCommandBarController";
 import { useMoonCrudController } from "./useMoonCrudController";
 import { useBondDraftController } from "./useBondDraftController";
+import { useBranchTimelineController } from "./useBranchTimelineController";
+import { StageZeroSetupPanel } from "./StageZeroSetupPanel";
 import { useUniverseStore } from "../../store/useUniverseStore";
 
 const DEFAULT_CAMERA_STATE = {
@@ -113,104 +111,10 @@ const STAGE_ZERO_DND = Object.freeze({
   PLANET_ITEM: "stage0:planet-item",
   CANVAS_DROP_ZONE: "stage0:canvas-drop-zone",
 });
-
-function StageZeroDraggablePlanetCard({ disabled = false }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: STAGE_ZERO_DND.PLANET_ITEM,
-    disabled,
-  });
-
-  const translateStyle = transform
-    ? { transform: `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)` }
-    : null;
-
-  return (
-    <button
-      data-testid="stage0-draggable-planet-card"
-      ref={setNodeRef}
-      type="button"
-      {...attributes}
-      {...listeners}
-      disabled={disabled}
-      style={{
-        border: "1px solid rgba(137, 231, 255, 0.56)",
-        background: "radial-gradient(circle at 50% 35%, rgba(90, 218, 255, 0.42), rgba(16, 70, 102, 0.82))",
-        color: "#dfffff",
-        borderRadius: 12,
-        padding: "14px 10px",
-        fontWeight: 700,
-        cursor: disabled ? "not-allowed" : "grab",
-        textAlign: "left",
-        display: "grid",
-        gap: 4,
-        boxShadow: isDragging ? "0 0 24px rgba(105, 230, 255, 0.44)" : "0 0 14px rgba(105, 230, 255, 0.2)",
-        opacity: disabled ? 0.6 : 1,
-        ...translateStyle,
-      }}
-    >
-      <span style={{ fontSize: "var(--dv-fs-sm)" }}>Planeta</span>
-      <span style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Základní datový kontejner</span>
-    </button>
-  );
-}
-
-function StageZeroDropZone({ active = false }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: STAGE_ZERO_DND.CANVAS_DROP_ZONE,
-    disabled: !active,
-  });
-  if (!active) return null;
-  return (
-    <div
-      ref={setNodeRef}
-      data-testid="stage0-drop-zone"
-      data-stage-zero-drop-zone="true"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 57,
-        pointerEvents: "auto",
-        border: isOver ? "2px solid rgba(125, 226, 255, 0.74)" : "2px dashed rgba(125, 226, 255, 0.36)",
-        boxShadow: isOver ? "inset 0 0 48px rgba(89, 209, 255, 0.24)" : "inset 0 0 24px rgba(89, 209, 255, 0.1)",
-        opacity: isOver ? 1 : 0.82,
-        transition: "opacity 160ms ease, border-color 180ms ease, box-shadow 180ms ease",
-      }}
-    />
-  );
-}
-
-function StageZeroDragGhost() {
-  return (
-    <div
-      style={{
-        width: 160,
-        borderRadius: 12,
-        border: "1px solid rgba(144, 233, 255, 0.66)",
-        background: "radial-gradient(circle at 50% 35%, rgba(103, 226, 255, 0.34), rgba(12, 54, 78, 0.44))",
-        color: "#defdff",
-        padding: "12px 10px",
-        backdropFilter: "blur(3px)",
-        boxShadow: "0 0 26px rgba(97, 221, 255, 0.32)",
-        opacity: 0.86,
-        pointerEvents: "none",
-      }}
-    >
-      <div style={{ fontSize: "var(--dv-fs-sm)", fontWeight: 700 }}>Hologram planety</div>
-      <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>Pusť mě do prostoru</div>
-    </div>
-  );
-}
-
-function resolveDragCenter(event) {
-  const translated = event?.active?.rect?.current?.translated;
-  const initial = event?.active?.rect?.current?.initial;
-  const rect = translated || initial;
-  if (!rect) return null;
-  return {
-    x: Number(rect.left) + Number(rect.width) / 2,
-    y: Number(rect.top) + Number(rect.height) / 2,
-  };
-}
+const STAGE_ZERO_ASSEMBLY_MODE = Object.freeze({
+  LEGO: "lego",
+  MANUAL: "manual",
+});
 
 function nextIdempotencyKey(prefix) {
   const safePrefix = String(prefix || "ui").trim() || "ui";
@@ -223,18 +127,6 @@ function nextIdempotencyKey(prefix) {
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
-
-const contextMenuButtonStyle = {
-  border: "1px solid rgba(113, 202, 234, 0.3)",
-  background: "rgba(7, 18, 32, 0.86)",
-  color: "#d5f5ff",
-  borderRadius: 8,
-  padding: "7px 9px",
-  fontSize: "var(--dv-fs-xs)",
-  lineHeight: "var(--dv-lh-base)",
-  textAlign: "left",
-  cursor: "pointer",
-};
 
 export default function UniverseWorkspace({
   galaxy,
@@ -262,6 +154,7 @@ export default function UniverseWorkspace({
     starPlanetPhysicsByTableId,
     starPulseByEntity,
     starPulseLastEventSeq,
+    recentStreamEvents,
     setRuntimeError,
     clearRuntimeError,
     refreshProjection,
@@ -293,6 +186,7 @@ export default function UniverseWorkspace({
   const [stageZeroPlanetName, setStageZeroPlanetName] = useState("");
   const [stageZeroPresetSelected, setStageZeroPresetSelected] = useState(false);
   const [stageZeroPresetBundleKey, setStageZeroPresetBundleKey] = useState("");
+  const [stageZeroAssemblyMode, setStageZeroAssemblyMode] = useState(STAGE_ZERO_ASSEMBLY_MODE.LEGO);
   const [stageZeroPresetCatalog, setStageZeroPresetCatalog] = useState([]);
   const [stageZeroPresetCatalogLoading, setStageZeroPresetCatalogLoading] = useState(false);
   const [stageZeroPresetCatalogError, setStageZeroPresetCatalogError] = useState("");
@@ -302,13 +196,10 @@ export default function UniverseWorkspace({
   const [stageZeroCommitError, setStageZeroCommitError] = useState("");
   const [workspaceUiHydrated, setWorkspaceUiHydrated] = useState(false);
   const [planetBuilderLastValidState, setPlanetBuilderLastValidState] = useState(PLANET_BUILDER_STATE.IDLE);
-  const [branchPromoteBusy, setBranchPromoteBusy] = useState(false);
-  const [branchPromoteSummary, setBranchPromoteSummary] = useState("");
-  const [branchCreateName, setBranchCreateName] = useState("");
-  const [branchCreateBusy, setBranchCreateBusy] = useState(false);
   const [moonImpact, setMoonImpact] = useState(null);
   const [moonImpactLoading, setMoonImpactLoading] = useState(false);
   const [moonImpactError, setMoonImpactError] = useState("");
+  const [selectedTableContract, setSelectedTableContract] = useState(null);
   const [contextMenu, setContextMenu] = useState({
     open: false,
     kind: "",
@@ -380,10 +271,6 @@ export default function UniverseWorkspace({
     setStageZeroCommitError("");
     setWorkspaceUiHydrated(true);
     setPlanetBuilderLastValidState(PLANET_BUILDER_STATE.IDLE);
-    setBranchPromoteBusy(false);
-    setBranchPromoteSummary("");
-    setBranchCreateName("");
-    setBranchCreateBusy(false);
     setContextMenu({
       open: false,
       kind: "",
@@ -462,21 +349,13 @@ export default function UniverseWorkspace({
       stageZeroSetupOpen ||
       stageZeroBuilderOpen ||
       stageZeroCommitBusy);
-  const stageZeroSchemaSummary = useMemo(
-    () => summarizeStageZeroSchemaDraft(stageZeroSchemaDraft),
-    [stageZeroSchemaDraft]
-  );
-  const stageZeroAllSchemaStepsDone = stageZeroSchemaSummary.allDone;
-  const stageZeroSchemaPreview = useMemo(
-    () => buildStageZeroSchemaPreview(stageZeroSchemaDraft),
-    [stageZeroSchemaDraft]
-  );
   const stageZeroPresetCards = useMemo(() => {
     if (Array.isArray(stageZeroPresetCatalog) && stageZeroPresetCatalog.length > 0) {
       return stageZeroPresetCatalog.map((preset) => ({
         key: String(preset?.key || ""),
         bundleKey: String(preset?.bundle_key || preset?.key || ""),
         label: String(preset?.name || preset?.key || "Preset"),
+        archetype: String(preset?.archetype || "stream"),
         locked: !preset?.is_unlocked,
         lockReason: String(preset?.lock_reason || ""),
       }));
@@ -486,6 +365,26 @@ export default function UniverseWorkspace({
       bundleKey: String(preset?.key || ""),
     }));
   }, [stageZeroPresetCatalog]);
+  const stageZeroSelectedPreset = useMemo(
+    () =>
+      stageZeroPresetCards.find(
+        (item) => String(item.bundleKey || item.key || "") === String(stageZeroPresetBundleKey || "")
+      ) || null,
+    [stageZeroPresetBundleKey, stageZeroPresetCards]
+  );
+  const stageZeroSteps = useMemo(
+    () => resolveStageZeroStepsForArchetype(stageZeroSelectedPreset?.archetype),
+    [stageZeroSelectedPreset?.archetype]
+  );
+  const stageZeroSchemaSummary = useMemo(
+    () => summarizeStageZeroSchemaDraft(stageZeroSchemaDraft, stageZeroSteps),
+    [stageZeroSchemaDraft, stageZeroSteps]
+  );
+  const stageZeroAllSchemaStepsDone = stageZeroSchemaSummary.allDone;
+  const stageZeroSchemaPreview = useMemo(
+    () => buildStageZeroSchemaPreview(stageZeroSchemaDraft, stageZeroSteps),
+    [stageZeroSchemaDraft, stageZeroSteps]
+  );
   const stageZeroCommitDisabledReason = useMemo(() => {
     if (stageZeroCommitBusy) return "Aplikace presetu prave probiha.";
     if (!stageZeroPresetBundleKey) return "Nejdriv vyber preset.";
@@ -496,8 +395,9 @@ export default function UniverseWorkspace({
     () =>
       resolveStageZeroPlanetVisualBoost(stageZeroSchemaDraft, {
         enabled: stageZeroSetupOpen && stageZeroPresetSelected,
+        steps: stageZeroSteps,
       }),
-    [stageZeroPresetSelected, stageZeroSchemaDraft, stageZeroSetupOpen]
+    [stageZeroPresetSelected, stageZeroSchemaDraft, stageZeroSetupOpen, stageZeroSteps]
   );
   const stageZeroCameraMicroNudgeKey = useMemo(
     () =>
@@ -1041,6 +941,38 @@ export default function UniverseWorkspace({
     () => (selectedTableId ? tableById.get(String(selectedTableId)) || null : null),
     [selectedTableId, tableById]
   );
+  const loadSelectedTableContract = useCallback(
+    async (tableId) => {
+      const targetTableId = String(tableId || "").trim();
+      if (!targetTableId || !galaxyId) {
+        setSelectedTableContract(null);
+        return null;
+      }
+      const response = await apiFetch(
+        `${buildTableContractUrl(API_BASE, targetTableId, galaxyId)}${branchIdScope ? `&branch_id=${encodeURIComponent(branchIdScope)}` : ""}`
+      );
+      if (!response.ok) {
+        throw await apiErrorFromResponse(response, `Kontrakt planety nelze nacist: ${response.status}`);
+      }
+      const body = await response.json().catch(() => null);
+      setSelectedTableContract(body && typeof body === "object" ? body : null);
+      return body;
+    },
+    [branchIdScope, galaxyId]
+  );
+  useEffect(() => {
+    if (!selectedTableId || !galaxyId) {
+      setSelectedTableContract(null);
+      return;
+    }
+    let cancelled = false;
+    loadSelectedTableContract(selectedTableId).catch(() => {
+      if (!cancelled) setSelectedTableContract(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [galaxyId, loadSelectedTableContract, selectedTableId]);
   const selectedTableNode = useMemo(
     () => (selectedTableId ? tableNodeById.get(String(selectedTableId)) || null : null),
     [selectedTableId, tableNodeById]
@@ -1089,17 +1021,6 @@ export default function UniverseWorkspace({
         quickGridOpen,
       }),
     [quickGridOpen, selectedAsteroidId, selectedTableId]
-  );
-  const visualBuilderState = useMemo(
-    () =>
-      resolveVisualBuilderState({
-        loading,
-        runtimeError: error,
-        navigationState: visualBuilderNavigationState,
-        bondState: bondDraft.state,
-        planetBuilderState,
-      }),
-    [bondDraft.state, error, loading, planetBuilderState, visualBuilderNavigationState]
   );
   const planetMoonGuidance = useMemo(
     () =>
@@ -1209,11 +1130,21 @@ export default function UniverseWorkspace({
           setStageZeroPresetSelected(true);
         }
         if (!stageZeroPresetBundleKey) {
-          setStageZeroPresetBundleKey("personal_cashflow");
+          const fallbackPreset =
+            stageZeroPresetCards.find((item) => !item?.locked) ||
+            STAGE_ZERO_PRESET_CARDS.find((item) => !item?.locked) ||
+            null;
+          const fallbackBundleKey = String(fallbackPreset?.bundleKey || fallbackPreset?.key || "").trim();
+          if (fallbackBundleKey) {
+            setStageZeroPresetBundleKey(fallbackBundleKey);
+            setStageZeroSchemaDraft(
+              createStageZeroSchemaDraft(resolveStageZeroStepsForArchetype(fallbackPreset?.archetype))
+            );
+          }
         }
       }
     },
-    [clearRuntimeIssue, stageZeroPresetBundleKey, stageZeroPresetSelected]
+    [clearRuntimeIssue, stageZeroPresetBundleKey, stageZeroPresetCards, stageZeroPresetSelected]
   );
 
   const handleCreatePlanetAtDrop = useCallback(
@@ -1263,11 +1194,13 @@ export default function UniverseWorkspace({
         } else {
           setStageZeroSetupOpen(false);
         }
+        return { ok: true, message: `Planeta '${planetName}' byla vytvorena.` };
       } catch (createError) {
         setRuntimeError(createError?.message || "Planetu se nepodařilo vytvořit.");
         if (!allowOutsideStageZero) {
           setStageZeroFlow(STAGE_ZERO_FLOW.BLUEPRINT);
         }
+        return { ok: false, message: createError?.message || "Planetu se nepodarilo vytvorit." };
       } finally {
         setStageZeroCreating(false);
         setStageZeroDragging(false);
@@ -1287,6 +1220,27 @@ export default function UniverseWorkspace({
       tableNodes.length,
     ]
   );
+  const resolveWorkspaceViewportCenter = useCallback(() => {
+    const viewportRect = workspaceRef.current?.getBoundingClientRect?.();
+    const viewport = viewportRect
+      ? {
+          left: viewportRect.left,
+          top: viewportRect.top,
+          width: viewportRect.width,
+          height: viewportRect.height,
+        }
+      : {
+          left: 0,
+          top: 0,
+          width: typeof window !== "undefined" ? window.innerWidth : 1,
+          height: typeof window !== "undefined" ? window.innerHeight : 1,
+        };
+    return {
+      x: viewport.left + viewport.width * 0.5,
+      y: viewport.top + viewport.height * 0.5,
+      viewport,
+    };
+  }, []);
 
   const handleStageZeroDndStart = useCallback(
     (event) => {
@@ -1361,50 +1315,129 @@ export default function UniverseWorkspace({
   const handleStageZeroQuickCreatePlanet = useCallback(() => {
     if (!runBuilderGuard(PLANET_BUILDER_ACTION.START_DRAG_PLANET)) return;
     if (!runBuilderGuard(PLANET_BUILDER_ACTION.DROP_PLANET)) return;
-    const viewportRect = workspaceRef.current?.getBoundingClientRect?.();
-    const viewport = viewportRect
-      ? {
-          left: viewportRect.left,
-          top: viewportRect.top,
-          width: viewportRect.width,
-          height: viewportRect.height,
-        }
-      : {
-          left: 0,
-          top: 0,
-          width: typeof window !== "undefined" ? window.innerWidth : 1,
-          height: typeof window !== "undefined" ? window.innerHeight : 1,
-        };
-    const center = {
-      x: viewport.left + viewport.width * 0.5,
-      y: viewport.top + viewport.height * 0.5,
-      viewport,
-    };
+    const center = resolveWorkspaceViewportCenter();
     void handleCreatePlanetAtDrop(center);
-  }, [handleCreatePlanetAtDrop, runBuilderGuard]);
+  }, [handleCreatePlanetAtDrop, resolveWorkspaceViewportCenter, runBuilderGuard]);
   const handleAddPlanetFromSidebar = useCallback(() => {
     if (!galaxyId || stageZeroCreating) return;
-    const viewportRect = workspaceRef.current?.getBoundingClientRect?.();
-    const viewport = viewportRect
-      ? {
-          left: viewportRect.left,
-          top: viewportRect.top,
-          width: viewportRect.width,
-          height: viewportRect.height,
-        }
-      : {
-          left: 0,
-          top: 0,
-          width: typeof window !== "undefined" ? window.innerWidth : 1,
-          height: typeof window !== "undefined" ? window.innerHeight : 1,
-        };
-    const center = {
-      x: viewport.left + viewport.width * 0.5,
-      y: viewport.top + viewport.height * 0.5,
-      viewport,
-    };
+    const center = resolveWorkspaceViewportCenter();
     void handleCreatePlanetAtDrop(center, { allowOutsideStageZero: true, openSetupPanel: false });
-  }, [galaxyId, handleCreatePlanetAtDrop, stageZeroCreating]);
+  }, [galaxyId, handleCreatePlanetAtDrop, resolveWorkspaceViewportCenter, stageZeroCreating]);
+  const handleCreatePlanetFromOverlay = useCallback(async () => {
+    if (!galaxyId || stageZeroCreating) {
+      return { ok: false, message: "Planetu ted nelze vytvorit." };
+    }
+    const center = resolveWorkspaceViewportCenter();
+    return handleCreatePlanetAtDrop(center, { allowOutsideStageZero: true, openSetupPanel: false });
+  }, [galaxyId, handleCreatePlanetAtDrop, resolveWorkspaceViewportCenter, stageZeroCreating]);
+  const handleExtinguishPlanet = useCallback(
+    async (tableId) => {
+      const targetTableId = String(tableId || "").trim();
+      if (!galaxyId || !targetTableId) {
+        return { ok: false, message: "Vyber planetu pro extinguish." };
+      }
+      const targetTable =
+        (Array.isArray(tables) ? tables : []).find((item) => String(item?.table_id || "") === String(targetTableId)) ||
+        null;
+      const targetRowsCount =
+        targetTable && Array.isArray(targetTable?.members)
+          ? targetTable.members.length
+          : targetTableId === String(selectedTableId || "")
+            ? tableRows.length
+            : 0;
+      if (targetRowsCount > 0) {
+        return { ok: false, message: "Extinguish planety je povoleny jen pro prazdnou planetu (0 civilizaci)." };
+      }
+
+      setBusy(true);
+      clearRuntimeIssue();
+      try {
+        const response = await apiFetch(
+          buildPlanetExtinguishUrl(API_BASE, targetTableId, {
+            galaxyId,
+            ...(branchIdScope ? { branchId: branchIdScope } : {}),
+          }),
+          { method: "PATCH" }
+        );
+        if (!response.ok) {
+          throw await apiErrorFromResponse(response, `Extinguish planety selhal: ${response.status}`);
+        }
+        await response.json().catch(() => null);
+        await refreshProjection({ silent: true });
+        handlePlanetSelect("", { source: "grid" });
+        return { ok: true, message: "Planeta byla extinguishnuta." };
+      } catch (extinguishError) {
+        return { ok: false, message: extinguishError?.message || "Extinguish planety selhal." };
+      } finally {
+        setBusy(false);
+      }
+    },
+    [
+      branchIdScope,
+      clearRuntimeIssue,
+      galaxyId,
+      handlePlanetSelect,
+      refreshProjection,
+      selectedTableId,
+      tableRows.length,
+      tables,
+    ]
+  );
+  const handleApplyTableContractFromOverlay = useCallback(
+    async (fields = []) => {
+      const targetTableId = String(selectedTableId || "").trim();
+      if (!galaxyId || !targetTableId) {
+        return { ok: false, message: "Vyber planetu pro contract update." };
+      }
+      const normalizedFields = (Array.isArray(fields) ? fields : [])
+        .map((item) => ({
+          fieldKey: String(item?.fieldKey || "").trim(),
+          fieldType: String(item?.fieldType || "string")
+            .trim()
+            .toLowerCase(),
+        }))
+        .filter((item) => Boolean(item.fieldKey));
+      if (!normalizedFields.length) {
+        return { ok: false, message: "Schema composer je prazdny." };
+      }
+
+      setBusy(true);
+      clearRuntimeIssue();
+      try {
+        const fieldTypes = { value: "string" };
+        normalizedFields.forEach((item) => {
+          fieldTypes[item.fieldKey] = item.fieldType || "string";
+        });
+        const requiredFields = normalizedFields.map((item) => item.fieldKey);
+        const response = await apiFetch(`${API_BASE}/contracts/${targetTableId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            galaxy_id: galaxyId,
+            required_fields: requiredFields,
+            field_types: fieldTypes,
+            unique_rules: [],
+            validators: [],
+            auto_semantics: [],
+            formula_registry: [],
+            physics_rulebook: { rules: [], defaults: {} },
+          }),
+        });
+        if (!response.ok) {
+          throw await apiErrorFromResponse(response, `Schema kontrakt se nepodarilo ulozit: ${response.status}`);
+        }
+        await response.json().catch(() => null);
+        await refreshProjection({ silent: true });
+        await loadSelectedTableContract(targetTableId).catch(() => null);
+        return { ok: true, message: "Schema kontrakt byl ulozen." };
+      } catch (contractError) {
+        return { ok: false, message: contractError?.message || "Schema kontrakt se nepodarilo ulozit." };
+      } finally {
+        setBusy(false);
+      }
+    },
+    [clearRuntimeIssue, galaxyId, loadSelectedTableContract, refreshProjection, selectedTableId]
+  );
 
   const handleStageZeroSchemaStep = useCallback(
     (key) => {
@@ -1432,73 +1465,149 @@ export default function UniverseWorkspace({
       if (!stageZeroPresetSelected) return;
       const normalizedKey = String(targetKey || "").trim();
       if (!normalizedKey) return;
-      if (!isStageZeroStepUnlocked(targetIndex, stageZeroSchemaDraft)) return;
+      if (!isStageZeroStepUnlocked(targetIndex, stageZeroSchemaDraft, stageZeroSteps)) return;
       if (stageZeroDraggedSchemaKey && stageZeroDraggedSchemaKey !== normalizedKey) {
         return;
       }
       handleStageZeroSchemaStep(normalizedKey);
     },
-    [handleStageZeroSchemaStep, stageZeroDraggedSchemaKey, stageZeroPresetSelected, stageZeroSchemaDraft]
+    [
+      handleStageZeroSchemaStep,
+      stageZeroDraggedSchemaKey,
+      stageZeroPresetSelected,
+      stageZeroSchemaDraft,
+      stageZeroSteps,
+    ]
   );
-
-  const handleStageZeroCommitPreset = useCallback(async () => {
-    if (
-      !galaxyId ||
-      !selectedTableId ||
-      !selectedTable ||
-      !stageZeroAllSchemaStepsDone ||
-      stageZeroCommitBusy ||
-      !stageZeroPresetBundleKey
-    ) {
-      return;
-    }
-    if (!runBuilderGuard(PLANET_BUILDER_ACTION.COMMIT_PRESET, { schemaComplete: stageZeroAllSchemaStepsDone })) return;
-    setStageZeroCommitBusy(true);
+  const handleStageZeroSelectPreset = useCallback(
+    (preset) => {
+      const locked = Boolean(preset?.locked);
+      if (locked) return;
+      if (!runBuilderGuard(PLANET_BUILDER_ACTION.SELECT_PRESET)) return;
+      setStageZeroPresetSelected(true);
+      setStageZeroPresetBundleKey(String(preset?.bundleKey || preset?.key || ""));
+      setStageZeroSchemaDraft(createStageZeroSchemaDraft(resolveStageZeroStepsForArchetype(preset?.archetype)));
+      setStageZeroAssemblyMode(STAGE_ZERO_ASSEMBLY_MODE.LEGO);
+      setStageZeroDraggedSchemaKey("");
+      setStageZeroCommitError("");
+    },
+    [runBuilderGuard]
+  );
+  const handleStageZeroChangePreset = useCallback(() => {
+    setStageZeroPresetSelected(false);
+    setStageZeroSchemaDraft(createStageZeroSchemaDraft());
+    setStageZeroAssemblyMode(STAGE_ZERO_ASSEMBLY_MODE.LEGO);
+    setStageZeroDraggedSchemaKey("");
     setStageZeroCommitError("");
-    setBusy(true);
-    clearRuntimeIssue();
-    try {
-      const applyResponse = await apiFetch(buildPresetsApplyUrl(API_BASE), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bundle_key: stageZeroPresetBundleKey,
-          mode: "commit",
-          conflict_strategy: "skip",
-          seed_rows: true,
-          galaxy_id: galaxyId,
-          planet_id: selectedTableId,
-          ...(branchIdScope ? { branch_id: branchIdScope } : {}),
-          idempotency_key: nextIdempotencyKey("stage0-preset-commit"),
-        }),
-      });
-      if (!applyResponse.ok) {
-        throw await apiErrorFromResponse(applyResponse, `Preset se nepodarilo aplikovat: ${applyResponse.status}`);
-      }
+  }, []);
+  const handleCloseStageZeroSetupPanel = useCallback(() => {
+    setStageZeroSetupOpen(false);
+    setStageZeroDraggedSchemaKey("");
+  }, []);
 
-      await refreshProjection({ silent: true });
-      setStageZeroSetupOpen(false);
-      setQuickGridOpen(true);
-    } catch (commitError) {
-      setStageZeroCommitError(commitError?.message || "Preset se nepodarilo aplikovat.");
-      setRuntimeError(commitError?.message || "Preset se nepodařilo aplikovat.");
-    } finally {
-      setStageZeroCommitBusy(false);
-      setBusy(false);
-    }
-  }, [
-    clearRuntimeIssue,
-    galaxyId,
-    branchIdScope,
-    refreshProjection,
-    runBuilderGuard,
-    selectedTable,
-    selectedTableId,
-    setRuntimeError,
-    stageZeroAllSchemaStepsDone,
-    stageZeroCommitBusy,
-    stageZeroPresetBundleKey,
-  ]);
+  const handleStageZeroCommitPreset = useCallback(
+    async ({ manualFields = [] } = {}) => {
+      if (
+        !galaxyId ||
+        !selectedTableId ||
+        !selectedTable ||
+        !stageZeroAllSchemaStepsDone ||
+        stageZeroCommitBusy ||
+        !stageZeroPresetBundleKey
+      ) {
+        return;
+      }
+      if (!runBuilderGuard(PLANET_BUILDER_ACTION.COMMIT_PRESET, { schemaComplete: stageZeroAllSchemaStepsDone }))
+        return;
+      setStageZeroCommitBusy(true);
+      setStageZeroCommitError("");
+      setBusy(true);
+      clearRuntimeIssue();
+      try {
+        if (stageZeroAssemblyMode === STAGE_ZERO_ASSEMBLY_MODE.MANUAL) {
+          const validManualFields = (Array.isArray(manualFields) ? manualFields : [])
+            .map((item) => ({
+              fieldKey: String(item?.fieldKey || "").trim(),
+              fieldType:
+                String(item?.fieldType || "string")
+                  .trim()
+                  .toLowerCase() || "string",
+            }))
+            .filter((item) => Boolean(item.fieldKey));
+          if (!validManualFields.length) {
+            throw new Error("V rucnim rezimu dopln alespon jeden schema dilek.");
+          }
+          const fieldTypes = { value: "string" };
+          validManualFields.forEach((item) => {
+            fieldTypes[item.fieldKey] = item.fieldType;
+          });
+          const requiredFields = validManualFields.map((item) => item.fieldKey);
+          const upsertResponse = await apiFetch(`${API_BASE}/contracts/${selectedTableId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              galaxy_id: galaxyId,
+              required_fields: requiredFields,
+              field_types: fieldTypes,
+              unique_rules: [],
+              validators: [],
+              auto_semantics: [],
+              formula_registry: [],
+              physics_rulebook: { rules: [], defaults: {} },
+            }),
+          });
+          if (!upsertResponse.ok) {
+            throw await apiErrorFromResponse(
+              upsertResponse,
+              `Schema kontrakt se nepodarilo ulozit: ${upsertResponse.status}`
+            );
+          }
+        } else {
+          const applyResponse = await apiFetch(buildPresetsApplyUrl(API_BASE), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              bundle_key: stageZeroPresetBundleKey,
+              mode: "commit",
+              conflict_strategy: "skip",
+              seed_rows: true,
+              galaxy_id: galaxyId,
+              planet_id: selectedTableId,
+              ...(branchIdScope ? { branch_id: branchIdScope } : {}),
+              idempotency_key: nextIdempotencyKey("stage0-preset-commit"),
+            }),
+          });
+          if (!applyResponse.ok) {
+            throw await apiErrorFromResponse(applyResponse, `Preset se nepodarilo aplikovat: ${applyResponse.status}`);
+          }
+        }
+
+        await refreshProjection({ silent: true });
+        setStageZeroSetupOpen(false);
+        setQuickGridOpen(true);
+      } catch (commitError) {
+        setStageZeroCommitError(commitError?.message || "Preset se nepodarilo aplikovat.");
+        setRuntimeError(commitError?.message || "Preset se nepodařilo aplikovat.");
+      } finally {
+        setStageZeroCommitBusy(false);
+        setBusy(false);
+      }
+    },
+    [
+      clearRuntimeIssue,
+      galaxyId,
+      branchIdScope,
+      refreshProjection,
+      runBuilderGuard,
+      selectedTable,
+      selectedTableId,
+      setRuntimeError,
+      stageZeroAllSchemaStepsDone,
+      stageZeroAssemblyMode,
+      stageZeroCommitBusy,
+      stageZeroPresetBundleKey,
+    ]
+  );
 
   const executeParserCommand = useCallback(
     async (command) => {
@@ -1635,10 +1744,45 @@ export default function UniverseWorkspace({
     parserExecutionMode,
     nextIdempotencyKey,
   });
+  const {
+    branchPromoteBusy,
+    branchPromoteSummary,
+    setBranchPromoteSummary,
+    branchCreateName,
+    setBranchCreateName,
+    branchCreateBusy,
+    resetBranchTimelineState,
+    handlePromoteSelectedBranch,
+    handleCreateBranch,
+  } = useBranchTimelineController({
+    apiBase: API_BASE,
+    galaxyId,
+    selectedBranchId,
+    setBusy,
+    clearRuntimeIssue,
+    refreshProjection,
+    onRefreshScopes,
+    setRuntimeError,
+    selectBranch,
+  });
+  const visualBuilderState = useMemo(
+    () =>
+      resolveVisualBuilderState({
+        loading,
+        runtimeError: error,
+        navigationState: visualBuilderNavigationState,
+        bondState: bondDraft.state,
+        planetBuilderState,
+      }),
+    [bondDraft.state, error, loading, planetBuilderState, visualBuilderNavigationState]
+  );
   useEffect(() => {
     resetMoonCrudState();
     resetBondDraftState();
   }, [galaxyId, resetBondDraftState, resetMoonCrudState]);
+  useEffect(() => {
+    resetBranchTimelineState();
+  }, [galaxyId, resetBranchTimelineState]);
 
   const handleApplyGuidedRepair = useCallback(async () => {
     const activeSuggestion = repairSuggestion;
@@ -1829,102 +1973,6 @@ export default function UniverseWorkspace({
       workspaceInteractionLocked,
     ]
   );
-  const handlePromoteSelectedBranch = useCallback(async () => {
-    const targetBranchId = String(selectedBranchId || "").trim();
-    if (!galaxyId || !targetBranchId || branchPromoteBusy) return;
-    const approved =
-      typeof window === "undefined"
-        ? true
-        : window.confirm("Promote branch do main timeline? Tato akce uzavře branch a přehraje její eventy.");
-    if (!approved) return;
-    setBusy(true);
-    setBranchPromoteBusy(true);
-    setBranchPromoteSummary("");
-    clearRuntimeIssue();
-    try {
-      const response = await apiFetch(buildBranchPromoteUrl(API_BASE, targetBranchId, galaxyId), {
-        method: "POST",
-      });
-      if (!response.ok) {
-        throw await apiErrorFromResponse(response, `Promote branch selhal: ${response.status}`);
-      }
-      const promotePayload = await response.json().catch(() => ({}));
-      const promotedEventsCount = Number.isFinite(Number(promotePayload?.promoted_events_count))
-        ? Number(promotePayload.promoted_events_count)
-        : null;
-      selectBranch("");
-      setBranchPromoteSummary(
-        promotedEventsCount === null
-          ? "Branch byl promotnut do main timeline."
-          : `Branch byl promotnut (${promotedEventsCount} eventů).`
-      );
-      await refreshProjection({ silent: true });
-      if (typeof onRefreshScopes === "function") {
-        await onRefreshScopes();
-      }
-    } catch (promoteError) {
-      setRuntimeError(promoteError?.message || "Branch se nepodařilo promotnout.");
-    } finally {
-      setBranchPromoteBusy(false);
-      setBusy(false);
-    }
-  }, [
-    selectedBranchId,
-    galaxyId,
-    branchPromoteBusy,
-    clearRuntimeIssue,
-    selectBranch,
-    refreshProjection,
-    onRefreshScopes,
-    setRuntimeError,
-  ]);
-  const handleCreateBranch = useCallback(async () => {
-    const name = String(branchCreateName || "").trim();
-    if (!galaxyId || !name || branchCreateBusy) return;
-    setBusy(true);
-    setBranchCreateBusy(true);
-    setBranchPromoteSummary("");
-    clearRuntimeIssue();
-    try {
-      const response = await apiFetch(`${API_BASE}/branches`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          galaxy_id: galaxyId,
-        }),
-      });
-      if (!response.ok) {
-        throw await apiErrorFromResponse(response, `Create branch selhal: ${response.status}`);
-      }
-      const payload = await response.json().catch(() => ({}));
-      const createdBranchId = String(payload?.id || "").trim();
-      if (createdBranchId) {
-        selectBranch(createdBranchId);
-      }
-      setBranchCreateName("");
-      if (typeof onRefreshScopes === "function") {
-        await onRefreshScopes();
-      }
-      await refreshProjection({ silent: true });
-      setBranchPromoteSummary(createdBranchId ? "Branch byl vytvořen a aktivován." : "Branch byl vytvořen.");
-    } catch (createError) {
-      setRuntimeError(createError?.message || "Branch se nepodařilo vytvořit.");
-    } finally {
-      setBranchCreateBusy(false);
-      setBusy(false);
-    }
-  }, [
-    branchCreateName,
-    galaxyId,
-    branchCreateBusy,
-    clearRuntimeIssue,
-    onRefreshScopes,
-    refreshProjection,
-    selectBranch,
-    setRuntimeError,
-  ]);
-
   useEffect(() => {
     if (!contextMenu.open) return undefined;
     const handleKeyDown = (event) => {
@@ -2637,350 +2685,35 @@ export default function UniverseWorkspace({
         ) : null}
 
         {stageZeroUiVisibility.setupPanel && selectedTableId ? (
-          <aside
-            data-testid="stage0-setup-panel"
-            style={{
-              position: "fixed",
-              right: 12,
-              top: 232,
-              zIndex: 58,
-              width: "min(420px, calc(100vw - 24px))",
-              borderRadius: 14,
-              border: "1px solid rgba(112, 203, 238, 0.34)",
-              background: "rgba(5, 13, 24, 0.88)",
-              color: "#ddf7ff",
-              padding: 12,
-              display: "grid",
-              gap: 8,
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
-              SETUP PANEL
-            </div>
-            <div style={{ fontSize: "var(--dv-fs-sm)", lineHeight: "var(--dv-lh-base)" }}>
-              Výborně. <strong>{stageZeroPlanetName || "Planeta"}</strong> slouží jako kontejner pro civilizaci (řádky
-              dat). Aby v ní nebyl chaos, nastavíme základní schéma krok za krokem.
-            </div>
-            {!stageZeroPresetSelected ? (
-              <>
-                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
-                  Vesmír nebudujeme od nuly, používáme prověřené nákresy. Vyber si pro začátek Cashflow.
-                </div>
-                {stageZeroPresetCatalogLoading ? (
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>Nacitam katalog presetu...</div>
-                ) : null}
-                {stageZeroPresetCatalogError ? (
-                  <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffc08f" }}>
-                    {stageZeroPresetCatalogError}. Pokracuji se statickym fallback katalogem.
-                  </div>
-                ) : null}
-                <div style={{ display: "grid", gap: 8 }}>
-                  {stageZeroPresetCards.map((preset) => {
-                    const locked = Boolean(preset.locked);
-                    return (
-                      <button
-                        key={preset.key}
-                        type="button"
-                        data-testid={`stage0-preset-${preset.key}`}
-                        onClick={() => {
-                          if (locked) return;
-                          if (!runBuilderGuard(PLANET_BUILDER_ACTION.SELECT_PRESET)) return;
-                          setStageZeroPresetSelected(true);
-                          setStageZeroPresetBundleKey(String(preset.bundleKey || preset.key || ""));
-                          setStageZeroSchemaDraft(createStageZeroSchemaDraft());
-                          setStageZeroDraggedSchemaKey("");
-                          setStageZeroCommitError("");
-                        }}
-                        disabled={locked}
-                        style={{
-                          border: locked ? "1px solid rgba(110, 198, 229, 0.2)" : "1px solid rgba(142, 234, 255, 0.62)",
-                          background: locked
-                            ? "rgba(7, 18, 32, 0.8)"
-                            : "linear-gradient(120deg, rgba(35, 165, 207, 0.42), rgba(88, 226, 255, 0.2))",
-                          color: locked ? "#8fb9c9" : "#dcfcff",
-                          borderRadius: 10,
-                          padding: "10px 11px",
-                          textAlign: "left",
-                          fontWeight: locked ? 500 : 700,
-                          cursor: locked ? "not-allowed" : "pointer",
-                          boxShadow:
-                            !locked && stageZeroPresetBundleKey === String(preset.bundleKey || preset.key || "")
-                              ? "0 0 24px rgba(121, 242, 255, 0.38)"
-                              : locked
-                                ? "none"
-                                : "0 0 18px rgba(98, 223, 255, 0.24)",
-                          display: "grid",
-                          gap: 3,
-                        }}
-                      >
-                        <span>{preset.label}</span>
-                        {locked ? (
-                          <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>{preset.lockReason}</span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              <>
-                <div
-                  style={{
-                    border: "1px solid rgba(95, 188, 220, 0.26)",
-                    borderRadius: 10,
-                    background: "rgba(7, 18, 32, 0.74)",
-                    padding: "8px 9px",
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.92 }}>
-                    Stavební plán: skládej schéma z Lego dílků (klik nebo drag & drop).
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                    <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
-                      Aktivni preset:{" "}
-                      <strong>
-                        {stageZeroPresetCards.find(
-                          (item) => String(item.bundleKey || item.key || "") === String(stageZeroPresetBundleKey || "")
-                        )?.label ||
-                          stageZeroPresetBundleKey ||
-                          "neznamy"}
-                      </strong>
-                    </div>
-                    <button
-                      type="button"
-                      data-testid="stage0-change-preset-button"
-                      onClick={() => {
-                        setStageZeroPresetSelected(false);
-                        setStageZeroSchemaDraft(createStageZeroSchemaDraft());
-                        setStageZeroDraggedSchemaKey("");
-                        setStageZeroCommitError("");
-                      }}
-                      style={{
-                        border: "1px solid rgba(114, 219, 252, 0.5)",
-                        background: "rgba(8, 22, 36, 0.72)",
-                        color: "#d7f7ff",
-                        borderRadius: 8,
-                        padding: "6px 8px",
-                        fontSize: "var(--dv-fs-xs)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Zmenit preset
-                    </button>
-                  </div>
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
-                    Vizuální odezva planety: {stageZeroSchemaSummary.completed}/{stageZeroSchemaSummary.total} dílků •
-                    zář +{Math.round(stageZeroVisualBoost.emissiveBoost * 100)}%
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {STAGE_ZERO_CASHFLOW_STEPS.map((step, index) => {
-                    const unlocked = isStageZeroStepUnlocked(index, stageZeroSchemaDraft);
-                    const done = Boolean(stageZeroSchemaDraft[step.key]);
-                    return (
-                      <button
-                        key={`tray-${step.key}`}
-                        type="button"
-                        data-testid={`stage0-tray-${step.key}`}
-                        draggable={unlocked && !done}
-                        onDragStart={(event) => {
-                          if (!unlocked || done) return;
-                          event.dataTransfer.effectAllowed = "move";
-                          event.dataTransfer.setData("text/plain", step.key);
-                          handleStageZeroSchemaBlockDragStart(step.key);
-                        }}
-                        onDragEnd={handleStageZeroSchemaBlockDragEnd}
-                        onClick={() => {
-                          if (!unlocked || done) return;
-                          handleStageZeroSchemaStep(step.key);
-                        }}
-                        disabled={!unlocked || done}
-                        style={{
-                          border: done ? "1px solid rgba(120, 232, 182, 0.6)" : "1px solid rgba(114, 219, 252, 0.5)",
-                          background: done
-                            ? "linear-gradient(120deg, rgba(30, 94, 67, 0.9), rgba(30, 136, 92, 0.7))"
-                            : "linear-gradient(120deg, rgba(33, 187, 234, 0.24), rgba(68, 216, 255, 0.14))",
-                          color: done ? "#d8ffea" : "#d7f7ff",
-                          borderRadius: 9,
-                          padding: "7px 10px",
-                          fontSize: "var(--dv-fs-xs)",
-                          cursor: !unlocked || done ? "default" : "grab",
-                          opacity: unlocked ? 1 : 0.58,
-                        }}
-                      >
-                        {done ? "✓ " : "+ "}
-                        {step.blockLabel}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {STAGE_ZERO_CASHFLOW_STEPS.map((step, index) => {
-                  const unlocked = isStageZeroStepUnlocked(index, stageZeroSchemaDraft);
-                  const done = Boolean(stageZeroSchemaDraft[step.key]);
-                  const isDragTarget = stageZeroDraggedSchemaKey && stageZeroDraggedSchemaKey === step.key;
-                  return (
-                    <div
-                      key={step.key}
-                      onDragOver={(event) => {
-                        if (!unlocked || done) return;
-                        event.preventDefault();
-                      }}
-                      onDrop={(event) => {
-                        if (!unlocked || done) return;
-                        event.preventDefault();
-                        const droppedKey = String(
-                          event.dataTransfer?.getData("text/plain") || stageZeroDraggedSchemaKey || ""
-                        );
-                        if (droppedKey !== step.key) {
-                          setStageZeroDraggedSchemaKey("");
-                          return;
-                        }
-                        handleStageZeroSchemaBlockDrop(step.key, index);
-                      }}
-                      style={{
-                        border: done
-                          ? "1px solid rgba(116, 228, 170, 0.36)"
-                          : isDragTarget
-                            ? "1px solid rgba(144, 233, 255, 0.72)"
-                            : "1px solid rgba(98, 188, 220, 0.24)",
-                        borderRadius: 10,
-                        background: done ? "rgba(15, 44, 34, 0.78)" : "rgba(6, 17, 30, 0.7)",
-                        padding: "8px 9px",
-                        display: "grid",
-                        gap: 8,
-                        opacity: unlocked ? 1 : 0.58,
-                        transition: "border-color 150ms ease, box-shadow 150ms ease",
-                        boxShadow: isDragTarget ? "0 0 16px rgba(98, 223, 255, 0.24)" : "none",
-                      }}
-                    >
-                      <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>
-                        {step.title}: <strong>{step.sentence}</strong> {step.instruction}
-                      </div>
-                      <div
-                        style={{
-                          border: "1px dashed rgba(114, 219, 252, 0.34)",
-                          borderRadius: 8,
-                          padding: "7px 9px",
-                          fontSize: "var(--dv-fs-xs)",
-                          color: done ? "#d9ffea" : "#a0d4e4",
-                        }}
-                      >
-                        {done
-                          ? `Slot osazen: ${step.blockLabel} ✓`
-                          : "Slot prázdný: přetáhni díl sem nebo klikni na díl v trayi."}
-                      </div>
-                      <button
-                        type="button"
-                        data-testid={`stage0-schema-add-${step.key}`}
-                        onClick={() => handleStageZeroSchemaStep(step.key)}
-                        disabled={!unlocked || done}
-                        style={{
-                          border: "1px solid rgba(114, 219, 252, 0.5)",
-                          background: done ? "rgba(25, 75, 58, 0.86)" : "linear-gradient(120deg, #21bbea, #44d8ff)",
-                          color: done ? "#d7ffe5" : "#072737",
-                          borderRadius: 9,
-                          padding: "7px 10px",
-                          fontWeight: 700,
-                          cursor: !unlocked || done ? "default" : "pointer",
-                        }}
-                      >
-                        {done ? "Přidáno ✓" : `+ ${step.blockLabel}`}
-                      </button>
-                    </div>
-                  );
-                })}
-
-                <div
-                  style={{
-                    border: "1px solid rgba(95, 188, 220, 0.26)",
-                    borderRadius: 10,
-                    background: "rgba(7, 18, 32, 0.74)",
-                    padding: "8px 9px",
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>Průběžný preview planety</div>
-                  {stageZeroSchemaPreview.map((item) => (
-                    <div key={item.key} style={{ fontSize: "var(--dv-fs-xs)", opacity: item.done ? 0.96 : 0.58 }}>
-                      {item.done ? "✓" : "○"} {item.label} <span style={{ opacity: 0.74 }}>({item.type})</span>
-                    </div>
-                  ))}
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>
-                    Po zažehnutí jádra se vloží 3 ukázkové civilizační řádky do gridu.
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    border: "1px solid rgba(120, 217, 247, 0.38)",
-                    borderRadius: 10,
-                    background: "rgba(8, 22, 36, 0.74)",
-                    padding: "8px 10px",
-                    display: "grid",
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
-                    {stageZeroAllSchemaStepsDone
-                      ? "Plan je kompletni. Vytvori se struktura o 3 zakonech a nasypou se 3 ukazkove zaznamy."
-                      : "Dokonci schema kroky, pak muzes zazehnout jadro."}
-                  </div>
-                  {stageZeroCommitDisabledReason ? (
-                    <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffc08f" }}>{stageZeroCommitDisabledReason}</div>
-                  ) : null}
-                  {stageZeroCommitError ? (
-                    <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffb4b4" }}>{stageZeroCommitError}</div>
-                  ) : null}
-                  <button
-                    type="button"
-                    data-testid="stage0-ignite-core-button"
-                    onClick={() => {
-                      void handleStageZeroCommitPreset();
-                    }}
-                    disabled={Boolean(stageZeroCommitDisabledReason)}
-                    style={{
-                      border: "1px solid rgba(130, 233, 255, 0.64)",
-                      background: "linear-gradient(120deg, #35c1ea, #8cecff)",
-                      color: "#062535",
-                      borderRadius: 10,
-                      padding: "9px 12px",
-                      fontWeight: 800,
-                      cursor: stageZeroCommitDisabledReason ? "not-allowed" : "pointer",
-                      opacity: stageZeroCommitDisabledReason ? 0.64 : 1,
-                    }}
-                  >
-                    {stageZeroCommitBusy ? "Aplikuji..." : "Zažehnout Jádro"}
-                  </button>
-                </div>
-              </>
-            )}
-
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setStageZeroSetupOpen(false);
-                  setStageZeroDraggedSchemaKey("");
-                }}
-                style={{
-                  border: "1px solid rgba(113, 202, 234, 0.3)",
-                  background: "rgba(7, 18, 32, 0.86)",
-                  color: "#d5f5ff",
-                  borderRadius: 9,
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                }}
-              >
-                Zavřít panel
-              </button>
-            </div>
-          </aside>
+          <StageZeroSetupPanel
+            stageZeroPlanetName={stageZeroPlanetName}
+            stageZeroPresetSelected={stageZeroPresetSelected}
+            stageZeroPresetCatalogLoading={stageZeroPresetCatalogLoading}
+            stageZeroPresetCatalogError={stageZeroPresetCatalogError}
+            stageZeroPresetCards={stageZeroPresetCards}
+            stageZeroPresetBundleKey={stageZeroPresetBundleKey}
+            stageZeroAssemblyMode={stageZeroAssemblyMode}
+            stageZeroSchemaDraft={stageZeroSchemaDraft}
+            stageZeroSteps={stageZeroSteps}
+            stageZeroDraggedSchemaKey={stageZeroDraggedSchemaKey}
+            stageZeroSchemaSummary={stageZeroSchemaSummary}
+            stageZeroVisualBoost={stageZeroVisualBoost}
+            stageZeroSchemaPreview={stageZeroSchemaPreview}
+            stageZeroAllSchemaStepsDone={stageZeroAllSchemaStepsDone}
+            stageZeroCommitDisabledReason={stageZeroCommitDisabledReason}
+            stageZeroCommitError={stageZeroCommitError}
+            stageZeroCommitBusy={stageZeroCommitBusy}
+            onSelectPreset={handleStageZeroSelectPreset}
+            onChangePreset={handleStageZeroChangePreset}
+            onSchemaBlockDragStart={handleStageZeroSchemaBlockDragStart}
+            onSchemaBlockDragEnd={handleStageZeroSchemaBlockDragEnd}
+            onSchemaStep={handleStageZeroSchemaStep}
+            onSchemaBlockDrop={handleStageZeroSchemaBlockDrop}
+            onResetDraggedSchemaKey={handleStageZeroSchemaBlockDragEnd}
+            onAssemblyModeChange={setStageZeroAssemblyMode}
+            onCommitPreset={handleStageZeroCommitPreset}
+            onClose={handleCloseStageZeroSetupPanel}
+          />
         ) : null}
 
         {stageZeroUiVisibility.missionPanel && (
@@ -3159,88 +2892,12 @@ export default function UniverseWorkspace({
           }}
           repairAuditCount={repairAuditTrail.length}
         />
-        {contextMenu.open ? (
-          <>
-            <div
-              role="button"
-              tabIndex={-1}
-              aria-label="Close context menu"
-              onClick={closeContextMenu}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                closeContextMenu();
-              }}
-              style={{ position: "fixed", inset: 0, zIndex: 62 }}
-            />
-            <div
-              role="menu"
-              style={{
-                position: "fixed",
-                left: contextMenu.x,
-                top: contextMenu.y,
-                zIndex: 63,
-                width: 216,
-                borderRadius: 10,
-                border: "1px solid rgba(112, 207, 240, 0.36)",
-                background: "rgba(4, 12, 22, 0.95)",
-                color: "#def8ff",
-                boxShadow: "0 0 24px rgba(31, 128, 176, 0.28)",
-                padding: 6,
-                display: "grid",
-                gap: 6,
-              }}
-            >
-              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.78, padding: "2px 4px" }}>
-                {contextMenu.kind === "table" ? "PLANET MENU" : "CIVILIZATION MENU"}:{" "}
-                <strong>{contextMenu.label || contextMenu.id}</strong>
-              </div>
-              {contextMenu.kind === "table" ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void handleContextAction("focus_table")}
-                    style={contextMenuButtonStyle}
-                  >
-                    Fokus planety
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleContextAction("open_grid")}
-                    style={contextMenuButtonStyle}
-                  >
-                    Otevřít grid
-                  </button>
-                </>
-              ) : null}
-              {contextMenu.kind === "asteroid" ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void handleContextAction("focus_asteroid")}
-                    style={contextMenuButtonStyle}
-                  >
-                    Fokus civilizace
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleContextAction("open_grid")}
-                    style={contextMenuButtonStyle}
-                  >
-                    Otevřít grid
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleContextAction("extinguish_asteroid")}
-                    disabled={workspaceInteractionLocked}
-                    style={{ ...contextMenuButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
-                  >
-                    Zhasnout civilizaci
-                  </button>
-                </>
-              ) : null}
-            </div>
-          </>
-        ) : null}
+        <WorkspaceContextMenu
+          contextMenu={contextMenu}
+          interactionLocked={workspaceInteractionLocked}
+          onClose={closeContextMenu}
+          onAction={handleContextAction}
+        />
 
         <StarHeartDashboard
           open={starHeartOpen}
@@ -3267,11 +2924,19 @@ export default function UniverseWorkspace({
         <QuickGridOverlay
           open={quickGridOpen}
           selectedTable={selectedTable}
+          selectedTableId={selectedTableId}
+          tableOptions={tables}
+          tableContract={selectedTableContract}
+          backendStreamEvents={recentStreamEvents}
           tableRows={tableRows}
           gridColumns={gridColumns}
           gridFilteredRows={gridFilteredRows}
           gridSearchQuery={gridSearchQuery}
           onGridSearchChange={setGridSearchQuery}
+          onSelectTable={(tableId) => handlePlanetSelect(tableId, { source: "grid" })}
+          onCreatePlanet={handleCreatePlanetFromOverlay}
+          onExtinguishPlanet={handleExtinguishPlanet}
+          onApplyTableContract={handleApplyTableContractFromOverlay}
           selectedAsteroidId={selectedAsteroidId}
           onSelectRow={setSelectedAsteroidId}
           onCreateRow={handleCreateRow}

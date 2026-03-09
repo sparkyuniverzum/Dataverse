@@ -141,6 +141,31 @@ describe("normalizeSnapshot", () => {
     expect(row.calculated_values.tax).toBe(300);
     expect(row.current_event_seq).toBe(9);
   });
+
+  it("normalizes civilizations alias payload with planet_id and minerals into workspace asteroid shape", () => {
+    const snapshot = {
+      civilizations: [
+        {
+          civilization_id: "civ-1",
+          label: "Modely",
+          planet_id: "t-1",
+          minerals: { amount: 4200, state: "active" },
+          current_event_seq: 4,
+          is_deleted: false,
+        },
+      ],
+      bonds: [],
+    };
+
+    const result = normalizeSnapshot(snapshot);
+    expect(result.asteroids).toHaveLength(1);
+    const row = result.asteroids[0];
+    expect(row.id).toBe("civ-1");
+    expect(row.value).toBe("Modely");
+    expect(row.table_id).toBe("t-1");
+    expect(row.metadata).toMatchObject({ amount: 4200, state: "active" });
+    expect(row.minerals).toMatchObject({ amount: 4200, state: "active" });
+  });
 });
 
 describe("time machine helpers", () => {

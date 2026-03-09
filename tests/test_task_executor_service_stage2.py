@@ -235,6 +235,88 @@ def test_handle_ingest_update_family_partial_scope_reuses_existing_from_db_looku
     assert existing.id in ctx.asteroids_by_id
 
 
+def test_update_asteroid_blocks_non_lifecycle_mutation_on_archived_row() -> None:
+    service = TaskExecutorService()
+    archived = _asteroid(value="Archived Item", metadata={"state": "archived", "segment": "legacy"})
+    ctx = _context(civilizations=[archived])
+    task = AtomicTask(
+        action="UPDATE_ASTEROID",
+        params={"civilization_id": str(archived.id), "metadata": {"segment": "new"}},
+    )
+
+    async def _noop_expected(**kwargs):  # noqa: ANN003
+        return None
+
+    service._enforce_expected_entity_event_seq = _noop_expected  # type: ignore[method-assign]
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
+
+    assert exc.value.status_code == 422
+    assert isinstance(exc.value.detail, dict)
+    assert exc.value.detail.get("code") == "LIFECYCLE_TRANSITION_BLOCKED"
+    assert exc.value.detail.get("reason") == "archived_readonly"
+
+
+def test_update_asteroid_blocks_invalid_lifecycle_transition() -> None:
+    service = TaskExecutorService()
+    archived = _asteroid(value="Archived Item", metadata={"state": "archived"})
+    ctx = _context(civilizations=[archived])
+    task = AtomicTask(
+        action="UPDATE_ASTEROID",
+        params={"civilization_id": str(archived.id), "metadata": {"state": "active"}},
+    )
+
+    async def _noop_expected(**kwargs):  # noqa: ANN003
+        return None
+
+    service._enforce_expected_entity_event_seq = _noop_expected  # type: ignore[method-assign]
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
+
+    assert exc.value.status_code == 422
+    assert isinstance(exc.value.detail, dict)
+    assert exc.value.detail.get("code") == "LIFECYCLE_TRANSITION_BLOCKED"
+    assert exc.value.detail.get("reason") == "invalid_transition"
+    assert exc.value.detail.get("from_state") == "ARCHIVED"
+
+
+def test_update_asteroid_allows_active_to_archived_transition() -> None:
+    service = TaskExecutorService()
+    active = _asteroid(value="Active Item", metadata={"state": "active"})
+    ctx = _context(civilizations=[active])
+    task = AtomicTask(
+        action="UPDATE_ASTEROID",
+        params={"civilization_id": str(active.id), "metadata": {"state": "archived"}},
+    )
+    seq = {"value": int(active.current_event_seq)}
+
+    async def _noop_expected(**kwargs):  # noqa: ANN003
+        return None
+
+    async def _noop_validate(**kwargs):  # noqa: ANN003
+        return None
+
+    async def _noop_auto_semantics(**kwargs):  # noqa: ANN003
+        return None
+
+    async def _append_event(*, entity_id, event_type, payload):  # noqa: ANN001
+        seq["value"] += 1
+        return type("Evt", (), {"timestamp": datetime.now(UTC), "event_seq": seq["value"]})
+
+    service._enforce_expected_entity_event_seq = _noop_expected  # type: ignore[method-assign]
+    service._validate_table_contract_write = _noop_validate  # type: ignore[method-assign]
+    service._apply_auto_semantics_for_asteroid = _noop_auto_semantics  # type: ignore[method-assign]
+    ctx.append_and_project_event = _append_event  # type: ignore[assignment]
+
+    handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
+
+    assert handled is True
+    assert ctx.result.civilizations
+    assert ctx.result.civilizations[0].metadata.get("state") == "archived"
+
+
 def test_load_auto_semantic_rules_reads_from_physics_defaults_registry() -> None:
     service = TaskExecutorService()
     civilization = _asteroid(value="Alice", metadata={"table": "General > People"})

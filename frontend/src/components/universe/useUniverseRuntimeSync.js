@@ -28,6 +28,28 @@ import {
 const STREAM_RECONNECT_DELAY_MS = 900;
 const STAR_TELEMETRY_THROTTLE_MS = 4000;
 const STAR_PULSE_RETENTION_MS = 18000;
+const STREAM_EVENT_LOG_LIMIT = 40;
+
+function normalizeStreamEvent(frame, cursor) {
+  const data = frame?.data && typeof frame.data === "object" ? frame.data : {};
+  const eventType = String(data?.event_type || data?.type || frame?.event || "message")
+    .trim()
+    .toUpperCase();
+  const code = String(data?.code || data?.detail?.code || "").trim();
+  const message = String(data?.message || data?.detail?.message || data?.reason || "").trim();
+  const idPart = String(frame?.id || "").trim();
+  const cursorPart = Number.isFinite(Number(cursor)) ? String(Math.floor(Number(cursor))) : "na";
+  const key = `${frame?.event || "message"}:${cursorPart}:${idPart}:${eventType}:${code}`;
+  return {
+    id: key,
+    cursor: Number.isFinite(Number(cursor)) ? Math.floor(Number(cursor)) : null,
+    event: String(frame?.event || "message"),
+    eventType,
+    code,
+    message,
+    at: Date.now(),
+  };
+}
 
 export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
   const [snapshot, setSnapshot] = useState({ asteroids: [], bonds: [] });
@@ -42,6 +64,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
   const [starPlanetPhysicsByTableId, setStarPlanetPhysicsByTableId] = useState({});
   const [starPulseByEntity, setStarPulseByEntity] = useState({});
   const [starPulseLastEventSeq, setStarPulseLastEventSeq] = useState(0);
+  const [recentStreamEvents, setRecentStreamEvents] = useState([]);
 
   const activeGalaxyRef = useRef("");
   const activeScopeRef = useRef("");
@@ -50,6 +73,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
   const streamCursorRef = useRef(0);
   const pulseCursorRef = useRef(0);
   const pulseByEntityRef = useRef(new Map());
+  const streamEventKeysRef = useRef(new Set());
   const pulseInFlightRef = useRef(null);
   const pulseQueuedRef = useRef(false);
   const telemetryInFlightRef = useRef(null);
@@ -298,10 +322,12 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
     setStarPlanetPhysicsByTableId({});
     setStarPulseByEntity({});
     setStarPulseLastEventSeq(0);
+    setRecentStreamEvents([]);
 
     streamCursorRef.current = 0;
     pulseCursorRef.current = 0;
     pulseByEntityRef.current = new Map();
+    streamEventKeysRef.current = new Set();
     telemetryLastAtRef.current = 0;
 
     if (galaxyId) {
@@ -323,6 +349,13 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
       const decision = applySseFrameCursor(frame, streamCursorRef.current);
       if (decision.changed) {
         streamCursorRef.current = decision.cursor;
+      }
+      if (frame?.event === "update" || String(frame?.event || "").toLowerCase() === "error") {
+        const normalizedEvent = normalizeStreamEvent(frame, decision.cursor);
+        if (!streamEventKeysRef.current.has(normalizedEvent.id)) {
+          streamEventKeysRef.current.add(normalizedEvent.id);
+          setRecentStreamEvents((prev) => [normalizedEvent, ...prev].slice(0, STREAM_EVENT_LOG_LIMIT));
+        }
       }
       if (decision.shouldRefresh) {
         void requestStarPulse({ afterEventSeq: pulseCursorRef.current, limit: 96 });
@@ -412,6 +445,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
     starPlanetPhysicsByTableId,
     starPulseByEntity,
     starPulseLastEventSeq,
+    recentStreamEvents,
     setRuntimeError: setError,
     clearRuntimeError,
     refreshProjection,

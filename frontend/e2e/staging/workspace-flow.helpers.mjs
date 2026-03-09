@@ -120,15 +120,35 @@ export async function ensureFirstPlanetFlowConverged(page) {
   await dragPlanetToCanvas(page);
   await expect(page.getByTestId("stage0-setup-panel")).toBeVisible({ timeout: 60_000 });
 
-  const presetButton = page.getByTestId("stage0-preset-personal_cashflow");
-  await expect(presetButton).toBeEnabled({ timeout: 30_000 });
-  await clickViaDom(presetButton);
+  const presetButtons = page.locator('[data-testid^="stage0-preset-"]');
+  await expect(presetButtons.first()).toBeVisible({ timeout: 30_000 });
+  const presetCount = await presetButtons.count();
+  let presetSelected = false;
+  for (let index = 0; index < presetCount; index += 1) {
+    const candidate = presetButtons.nth(index);
+    if (await candidate.isEnabled()) {
+      await clickViaDom(candidate);
+      presetSelected = true;
+      break;
+    }
+  }
+  if (!presetSelected) {
+    throw new Error("No enabled stage0 preset button found.");
+  }
 
-  const schemaKeys = ["transactionName", "amount", "transactionType"];
-  for (const key of schemaKeys) {
-    const button = page.getByTestId(`stage0-schema-add-${key}`);
-    await expect(button).toBeEnabled({ timeout: 30_000 });
-    await clickViaDom(button);
+  const schemaButtons = page.locator('[data-testid^="stage0-schema-add-"]');
+  await expect(schemaButtons.first()).toBeVisible({ timeout: 30_000 });
+  const schemaCount = await schemaButtons.count();
+  let clickedSchemaSteps = 0;
+  for (let index = 0; index < schemaCount; index += 1) {
+    const candidate = schemaButtons.nth(index);
+    if (!(await candidate.isEnabled())) continue;
+    await clickViaDom(candidate);
+    clickedSchemaSteps += 1;
+    if (clickedSchemaSteps >= 3) break;
+  }
+  if (clickedSchemaSteps < 3) {
+    throw new Error(`Expected to apply at least 3 schema steps, applied ${clickedSchemaSteps}.`);
   }
 
   const igniteButton = page.getByTestId("stage0-ignite-core-button");

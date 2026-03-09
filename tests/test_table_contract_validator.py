@@ -105,3 +105,41 @@ def test_raise_contract_violation_includes_capability_source() -> None:
     assert detail["source"] == "moon_capability"
     assert detail["capability_key"] == "lifecycle-governance"
     assert detail["capability_id"] == "11111111-1111-1111-1111-111111111111"
+
+
+def test_extract_contract_field_uses_value_as_label_fallback() -> None:
+    assert (
+        TableContractValidator._extract_contract_field(
+            value="Entity Alpha",
+            metadata={},
+            field="label",
+        )
+        == "Entity Alpha"
+    )
+    assert (
+        TableContractValidator._extract_contract_field(
+            value="Entity Alpha",
+            metadata={"label": "Custom Label"},
+            field="label",
+        )
+        == "Custom Label"
+    )
+
+
+def test_extract_contract_field_supports_state_status_aliases() -> None:
+    assert (
+        TableContractValidator._extract_contract_field(
+            value="Entity Alpha",
+            metadata={"status": "active"},
+            field="state",
+        )
+        == "active"
+    )
+    assert (
+        TableContractValidator._extract_contract_field(
+            value="Entity Alpha",
+            metadata={"state": "active"},
+            field="status",
+        )
+        == "active"
+    )

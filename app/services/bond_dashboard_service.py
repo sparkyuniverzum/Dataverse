@@ -98,12 +98,28 @@ class BondDashboardService:
 
         rows: list[dict[str, Any]] = []
         for bond in bonds:
-            source = asteroid_by_id.get(bond.source_civilization_id)
-            target = asteroid_by_id.get(bond.target_civilization_id)
+            if isinstance(bond, dict):
+                source_id = bond.get("source_civilization_id")
+                target_id = bond.get("target_civilization_id")
+                bond_id = bond.get("id")
+                bond_type_raw = bond.get("type")
+                bond_created_at = bond.get("created_at")
+            else:
+                source_id = getattr(bond, "source_civilization_id", None)
+                target_id = getattr(bond, "target_civilization_id", None)
+                bond_id = getattr(bond, "id", None)
+                bond_type_raw = getattr(bond, "type", None)
+                bond_created_at = getattr(bond, "created_at", None)
+
+            if not isinstance(source_id, UUID) or not isinstance(target_id, UUID) or not isinstance(bond_id, UUID):
+                continue
+
+            source = asteroid_by_id.get(source_id)
+            target = asteroid_by_id.get(target_id)
             if source is None or target is None:
                 continue
 
-            semantics = bond_semantics(bond.type)
+            semantics = bond_semantics(bond_type_raw)
             bond_type = semantics.bond_type
             directional = semantics.directional
             flow_direction = semantics.flow_direction
@@ -121,7 +137,7 @@ class BondDashboardService:
 
             rows.append(
                 {
-                    "bond_id": bond.id,
+                    "bond_id": bond_id,
                     "type": bond_type,
                     "directional": directional,
                     "flow_direction": flow_direction,
@@ -139,7 +155,7 @@ class BondDashboardService:
                     "circular_fields_count": circular_count,
                     "quality_score": quality_score,
                     "status": status,
-                    "created_at": bond.created_at,
+                    "created_at": bond_created_at,
                 }
             )
 
