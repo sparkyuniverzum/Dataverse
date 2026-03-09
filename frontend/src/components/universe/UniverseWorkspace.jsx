@@ -85,6 +85,7 @@ import { useMoonCrudController } from "./useMoonCrudController";
 import { useBondDraftController } from "./useBondDraftController";
 import { useBranchTimelineController } from "./useBranchTimelineController";
 import { StageZeroSetupPanel } from "./StageZeroSetupPanel";
+import { buildMergedTableContractPayload } from "./tableContractMerge";
 import { useUniverseStore } from "../../store/useUniverseStore";
 
 const DEFAULT_CAMERA_STATE = {
@@ -1404,24 +1405,19 @@ export default function UniverseWorkspace({
       setBusy(true);
       clearRuntimeIssue();
       try {
-        const fieldTypes = { value: "string" };
-        normalizedFields.forEach((item) => {
-          fieldTypes[item.fieldKey] = item.fieldType || "string";
+        const existingContract =
+          selectedTableContract && String(selectedTable?.table_id || "") === String(targetTableId)
+            ? selectedTableContract
+            : await loadSelectedTableContract(targetTableId).catch(() => null);
+        const payload = buildMergedTableContractPayload({
+          galaxyId,
+          existingContract,
+          composerFields: normalizedFields,
         });
-        const requiredFields = normalizedFields.map((item) => item.fieldKey);
         const response = await apiFetch(`${API_BASE}/contracts/${targetTableId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            galaxy_id: galaxyId,
-            required_fields: requiredFields,
-            field_types: fieldTypes,
-            unique_rules: [],
-            validators: [],
-            auto_semantics: [],
-            formula_registry: [],
-            physics_rulebook: { rules: [], defaults: {} },
-          }),
+          body: JSON.stringify(payload),
         });
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Schema kontrakt se nepodarilo ulozit: ${response.status}`);
@@ -1436,7 +1432,15 @@ export default function UniverseWorkspace({
         setBusy(false);
       }
     },
-    [clearRuntimeIssue, galaxyId, loadSelectedTableContract, refreshProjection, selectedTableId]
+    [
+      clearRuntimeIssue,
+      galaxyId,
+      loadSelectedTableContract,
+      refreshProjection,
+      selectedTable,
+      selectedTableContract,
+      selectedTableId,
+    ]
   );
 
   const handleStageZeroSchemaStep = useCallback(
@@ -1537,24 +1541,19 @@ export default function UniverseWorkspace({
           if (!validManualFields.length) {
             throw new Error("V rucnim rezimu dopln alespon jeden schema dilek.");
           }
-          const fieldTypes = { value: "string" };
-          validManualFields.forEach((item) => {
-            fieldTypes[item.fieldKey] = item.fieldType;
+          const existingContract =
+            selectedTableContract && String(selectedTable?.table_id || "") === String(selectedTableId)
+              ? selectedTableContract
+              : await loadSelectedTableContract(selectedTableId).catch(() => null);
+          const payload = buildMergedTableContractPayload({
+            galaxyId,
+            existingContract,
+            composerFields: validManualFields,
           });
-          const requiredFields = validManualFields.map((item) => item.fieldKey);
           const upsertResponse = await apiFetch(`${API_BASE}/contracts/${selectedTableId}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              galaxy_id: galaxyId,
-              required_fields: requiredFields,
-              field_types: fieldTypes,
-              unique_rules: [],
-              validators: [],
-              auto_semantics: [],
-              formula_registry: [],
-              physics_rulebook: { rules: [], defaults: {} },
-            }),
+            body: JSON.stringify(payload),
           });
           if (!upsertResponse.ok) {
             throw await apiErrorFromResponse(
@@ -1600,12 +1599,14 @@ export default function UniverseWorkspace({
       refreshProjection,
       runBuilderGuard,
       selectedTable,
+      selectedTableContract,
       selectedTableId,
       setRuntimeError,
       stageZeroAllSchemaStepsDone,
       stageZeroAssemblyMode,
       stageZeroCommitBusy,
       stageZeroPresetBundleKey,
+      loadSelectedTableContract,
     ]
   );
 
@@ -2703,6 +2704,8 @@ export default function UniverseWorkspace({
             stageZeroCommitDisabledReason={stageZeroCommitDisabledReason}
             stageZeroCommitError={stageZeroCommitError}
             stageZeroCommitBusy={stageZeroCommitBusy}
+            stageZeroExistingContract={selectedTableContract}
+            onClearCommitError={() => setStageZeroCommitError("")}
             onSelectPreset={handleStageZeroSelectPreset}
             onChangePreset={handleStageZeroChangePreset}
             onSchemaBlockDragStart={handleStageZeroSchemaBlockDragStart}

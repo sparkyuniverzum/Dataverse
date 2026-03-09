@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { isStageZeroStepUnlocked } from "./stageZeroBuilder";
+import { StageZeroContractRecoveryCard } from "./StageZeroContractRecoveryCard";
+import { buildStageZeroCommitPreview } from "./stageZeroCommitPreview";
 
 export function StageZeroSetupPanel({
   stageZeroPlanetName,
@@ -20,6 +22,8 @@ export function StageZeroSetupPanel({
   stageZeroCommitDisabledReason,
   stageZeroCommitError,
   stageZeroCommitBusy,
+  stageZeroExistingContract,
+  onClearCommitError,
   onSelectPreset,
   onChangePreset,
   onSchemaBlockDragStart,
@@ -50,6 +54,54 @@ export function StageZeroSetupPanel({
   useEffect(() => {
     setManualFields(defaultManualFields);
   }, [defaultManualFields, stageZeroPresetBundleKey]);
+  const commitPreview = useMemo(
+    () =>
+      buildStageZeroCommitPreview({
+        assemblyMode: stageZeroAssemblyMode,
+        stageZeroSteps,
+        stageZeroSchemaDraft,
+        manualFields,
+        existingContract: stageZeroExistingContract,
+      }),
+    [manualFields, stageZeroAssemblyMode, stageZeroExistingContract, stageZeroSchemaDraft, stageZeroSteps]
+  );
+  const knownFieldKeys = useMemo(
+    () => (Array.isArray(stageZeroSteps) ? stageZeroSteps : []).map((item) => String(item?.fieldKey || "").trim()),
+    [stageZeroSteps]
+  );
+  const applyMissingFieldsAutofix = (missingFieldKeys = []) => {
+    const recoverable = (Array.isArray(missingFieldKeys) ? missingFieldKeys : [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+    if (!recoverable.length) return;
+
+    if (isManualAssembly) {
+      setManualFields((prev) => {
+        const next = { ...prev };
+        (Array.isArray(stageZeroSteps) ? stageZeroSteps : []).forEach((step) => {
+          const key = String(step?.fieldKey || "").trim();
+          if (!key || !recoverable.includes(key)) return;
+          next[step.key] = {
+            fieldKey: key,
+            fieldType:
+              String(step?.fieldType || "string")
+                .trim()
+                .toLowerCase() || "string",
+          };
+        });
+        return next;
+      });
+    }
+
+    (Array.isArray(stageZeroSteps) ? stageZeroSteps : []).forEach((step) => {
+      const key = String(step?.fieldKey || "").trim();
+      if (!key || !recoverable.includes(key)) return;
+      if (!stageZeroSchemaDraft?.[step.key]) {
+        onSchemaStep(step.key);
+      }
+    });
+    onClearCommitError?.();
+  };
 
   return (
     <aside
@@ -450,9 +502,47 @@ export function StageZeroSetupPanel({
                 ? "Plan je kompletni. Vytvori se struktura o 3 zakonech a nasypou se 3 ukazkove zaznamy."
                 : "Dokonci schema kroky, pak muzes zazehnout jadro."}
             </div>
+            <div
+              data-testid="stage0-commit-preview"
+              style={{
+                border: "1px dashed rgba(118, 220, 249, 0.32)",
+                borderRadius: 8,
+                background: "rgba(5, 16, 29, 0.72)",
+                padding: "7px 8px",
+                display: "grid",
+                gap: 5,
+              }}
+            >
+              <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.84 }}>
+                COMMIT PREVIEW
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.8 }}>
+                mode: <strong>{commitPreview.mode === "manual" ? "manual contract commit" : "preset commit"}</strong> |
+                required delta: <strong>+{commitPreview.summary.requiredAddedCount}</strong> | type changes:{" "}
+                <strong>{commitPreview.summary.fieldTypeChangedCount}</strong>
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.8 }}>
+                final field map:{" "}
+                {commitPreview.composerFields.length
+                  ? commitPreview.composerFields.map((item) => `${item.fieldKey}:${item.fieldType}`).join(", ")
+                  : "n/a"}
+              </div>
+              {commitPreview.estimated ? (
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.7 }}>
+                  Preview je odhad podle slozenych dilku. Final commit probiha pres preset apply endpoint.
+                </div>
+              ) : null}
+            </div>
             {stageZeroCommitDisabledReason ? (
               <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffc08f" }}>{stageZeroCommitDisabledReason}</div>
             ) : null}
+            <StageZeroContractRecoveryCard
+              errorMessage={stageZeroCommitError}
+              knownFieldKeys={knownFieldKeys}
+              onAutofix={applyMissingFieldsAutofix}
+              onOpenSchema={() => onAssemblyModeChange("manual")}
+              onRevalidate={() => onClearCommitError?.()}
+            />
             {stageZeroCommitError ? (
               <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffb4b4" }}>{stageZeroCommitError}</div>
             ) : null}
