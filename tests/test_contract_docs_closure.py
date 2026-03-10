@@ -54,6 +54,27 @@ def test_contract_closure_docs_exist_with_required_sections() -> None:
             "Civilization = row instance on a planet.",
             "## 13. Definition of Done (go/no-go)",
         ],
+        "docs/contracts/canonical-ux-ontology-v1.md": [
+            "## 5. Domain truth",
+            "Moon is a capability module attached to a planet contract.",
+            "Civilization is a row instance on a planet.",
+            "## 6. Runtime truth",
+            "/civilizations*",
+            "/moons*",
+            "## 7. UX language",
+            "UX must not use `moon` as an unqualified synonym for row instance in new flows.",
+            "## 9. Entity ontology",
+            "## 10. Interaction ontology",
+        ],
+        "docs/contracts/ux-rework-blueprint-v1.md": [
+            "## 3. Implementation Prime Directive",
+            "User experience is the primary implementation criterion.",
+            "Dataverse is a system for understanding, designing, changing, and comparing workspace reality over time.",
+            "Moon capability != Civilization row",
+            "## 14. Rollout roadmap",
+            "## 15. Implementation slices",
+            "Shared Workspace State Contract",
+        ],
     }
 
     for relative_path, snippets in expected.items():
@@ -84,5 +105,36 @@ def test_runtime_alias_migration_adr_exists_with_required_sections() -> None:
         "Migration phases",
         "/moons*",
         "/civilizations*",
+    ):
+        assert snippet in body
+
+
+def test_canonical_ux_ontology_doc_links_domain_runtime_and_ux_layers() -> None:
+    body = _read_doc("docs/contracts/canonical-ux-ontology-v1.md")
+    for snippet in (
+        "domain truth",
+        "runtime truth",
+        "UX language",
+        "Entity ontology",
+        "Interaction ontology",
+        "Moon is a capability module attached to a planet contract.",
+        "Civilization is a row instance on a planet.",
+        "UX must not use `moon` as an unqualified synonym for row instance in new flows.",
+    ):
+        assert snippet in body
+
+
+def test_ux_rework_blueprint_doc_contains_prime_directive_and_rollout() -> None:
+    body = _read_doc("docs/contracts/ux-rework-blueprint-v1.md")
+    for snippet in (
+        "Implementation Prime Directive",
+        "User experience is the primary implementation criterion.",
+        "workspace reality over time",
+        "Moon capability != Civilization row",
+        "Rollout roadmap",
+        "Implementation slices",
+        "Shared Workspace State Contract",
+        "Parser elevation",
+        "Full UX Closure Pass",
     ):
         assert snippet in body
