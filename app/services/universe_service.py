@@ -16,7 +16,7 @@ from app.services.universe.event_projection import (
     project_state_from_branch,
     project_state_from_events,
 )
-from app.services.universe.read_model_projection import (
+from app.services.universe.runtime_projection_from_read_models import (
     _load_calc_state_by_civilization_id as rm_load_calc_state_by_civilization_id,
     _load_physics_state_by_bond_id as rm_load_physics_state_by_bond_id,
     _load_physics_state_by_civilization_id as rm_load_physics_state_by_civilization_id,

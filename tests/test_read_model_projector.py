@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.read_model_projector import ReadModelProjector
+from app.services.projection.read_model_projector import ReadModelProjector
 
 
 def test_metadata_update_may_skip_rollups_for_plain_patch_without_global_dependencies() -> None:

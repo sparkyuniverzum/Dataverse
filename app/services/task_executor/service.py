@@ -22,7 +22,7 @@ from app.services.parser2.intents import (
     BulkIntent,
     Intent,
 )
-from app.services.read_model_projector import ReadModelProjector
+from app.services.projection.read_model_projector import ReadModelProjector
 from app.services.table_contract_effective import EffectiveTableContract
 from app.services.task_executor.contract_validation import TableContractValidator
 from app.services.task_executor.families.bond_mutation import handle_link_and_bond_mutation_family

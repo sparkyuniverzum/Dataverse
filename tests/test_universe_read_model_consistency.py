@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.services.universe import read_model_projection as rm_projection
+from app.services.universe import runtime_projection_from_read_models as rm_projection
 from app.services.universe.types import ProjectedAsteroid
 
 

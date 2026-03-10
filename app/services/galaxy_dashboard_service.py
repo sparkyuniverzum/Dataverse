@@ -6,7 +6,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import GalaxyActivityRM, GalaxyHealthRM, GalaxySummaryRM
-from app.services.read_model_projector import ReadModelProjector
+from app.services.projection.read_model_projector import ReadModelProjector
 
 
 class GalaxyDashboardService:

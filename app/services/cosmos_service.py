@@ -15,7 +15,7 @@ from app.services.db_advisory_lock import acquire_transaction_lock
 from app.services.event_store_service import EventStoreService
 from app.services.galaxy_scope_service import resolve_user_galaxy_for_user
 from app.services.moon_capability_matrix import ensure_capability_matrix_transition
-from app.services.read_model_projector import ReadModelProjector
+from app.services.projection.read_model_projector import ReadModelProjector
 from app.services.table_contract_effective import EffectiveTableContract, compile_effective_table_contract
 from app.services.universe.types import derive_table_id, normalize_table_name
 
