@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import Request
 
 from app.api.routers.bonds import router as bonds_router
@@ -17,10 +19,20 @@ from app.api.routers.tasks import router as tasks_router
 from app.api.routers.universe import router as universe_router
 from app.app_factory import create_app
 from app.logging_config import configure_json_logging
+from app.middleware.resilience import RateLimitConfig, create_rate_limit_middleware
 from app.modules.auth.router import router as auth_router
 
 configure_json_logging()
 app = create_app()
+app.middleware("http")(
+    create_rate_limit_middleware(
+        RateLimitConfig(
+            enabled=str(os.getenv("DATAVERSE_RATE_LIMIT_ENABLED", "1")).strip() not in {"0", "false", "False"},
+            max_requests=int(os.getenv("DATAVERSE_RATE_LIMIT_MAX_REQUESTS", "300")),
+            window_seconds=int(os.getenv("DATAVERSE_RATE_LIMIT_WINDOW_SECONDS", "60")),
+        )
+    )
+)
 
 
 def _is_moons_alias_path(path: str) -> bool:

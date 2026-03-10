@@ -223,6 +223,7 @@ Progress note (2026-03-10):
 5. PRH-2D started: internal outbox trigger/status endpoints via operator service.
 6. PRH-3A started: structured outbox logs with trace/correlation propagation across operator -> runner -> relay.
 7. PRH-3B started: global JSON log formatter with required structured field contract.
+8. PRH-3C started: rate-limit middleware baseline + async circuit-breaker helper with contract tests.
 
 ## 4. Risk register
 
