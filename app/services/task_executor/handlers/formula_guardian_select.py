@@ -7,7 +7,7 @@ from fastapi import HTTPException, status
 from app.services.parser2.intents import AddGuardianIntent, Intent, SelectNodesIntent, SetFormulaIntent
 
 if TYPE_CHECKING:
-    from app.services.task_executor_service import TaskExecutorService, _TaskExecutionContext
+    from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 
 class FormulaGuardianSelectHandler:

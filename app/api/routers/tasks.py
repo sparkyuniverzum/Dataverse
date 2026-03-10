@@ -15,7 +15,7 @@ from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import TaskBatchExecuteRequest, TaskBatchExecuteResponse
 from app.services.parser_types import AtomicTask
-from app.services.task_batch_execution_service import execute_atomic_tasks_preview
+from app.services.task_executor.preview import execute_atomic_tasks_preview
 
 router = APIRouter(tags=["tasks"])
 

@@ -31,7 +31,7 @@ from app.services.preset_bundle_service import PresetBundleService
 from app.services.runtime_shutdown_service import RuntimeShutdownService
 from app.services.schema_preset_service import SchemaPresetService
 from app.services.star_core_service import StarCoreService
-from app.services.task_executor_service import TaskExecutorService
+from app.services.task_executor.service import TaskExecutorService
 from app.services.universe_service import UniverseService
 
 

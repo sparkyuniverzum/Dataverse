@@ -9,7 +9,7 @@ from app.services.parser_types import AtomicTask
 from app.services.universe_service import ProjectedAsteroid, derive_table_name, split_constellation_and_planet_name
 
 if TYPE_CHECKING:
-    from app.services.task_executor_service import TaskExecutorService, _TaskExecutionContext
+    from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 
 def _normalize_metadata_remove(raw_value: object) -> list[str]:

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.services.table_contract_effective import EffectiveTableContract
-    from app.services.task_executor_service import (
+    from app.services.task_executor.service import (
         TaskExecutorService,
         _TaskExecutionContext,
     )

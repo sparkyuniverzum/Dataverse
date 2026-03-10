@@ -1,12 +1,20 @@
 # Backend Legacy Cleanup Sprint v1
 
-Status: proposed
+Status: in progress
 Date: 2026-03-10
 Owner: Backend Runtime
 Depends on:
 - `docs/contracts/platform-runtime-hardening-sprint-plan-v1.md`
 - `docs/contracts/parser-v2-spec.md`
 - `docs/contracts/planet-civilization-delivery-canonical-v1.md`
+
+Execution log:
+- [x] 2026-03-10: `CLC-1` parser boundary cleanup completed; parser v2 namespace made canonical, legacy parser kept behind compatibility shim.
+- [x] 2026-03-10: `CLC-2` task executor package normalization completed; executor moved under `app/services/task_executor/` with top-level shims preserved.
+- [ ] next: `CLC-3` outbox package consolidation
+
+Evidence:
+- `CLC-2`: `pytest -q tests/test_task_executor_service_stage2.py tests/test_task_batch_execution_service.py tests/test_runtime_shutdown_service.py` -> `23 passed in 5.47s`
 
 ## 1. Goal
 

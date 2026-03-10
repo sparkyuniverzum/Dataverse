@@ -9,7 +9,7 @@ from app.services.parser2.intents import ExtinguishNodeIntent, Intent
 from app.services.universe_service import ProjectedAsteroid
 
 if TYPE_CHECKING:
-    from app.services.task_executor_service import TaskExecutorService, _TaskExecutionContext
+    from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 
 class ExtinguishHandler:

@@ -32,7 +32,7 @@ from app.schemas import (
     SchemaPresetContractPreviewPublic,
     SchemaPresetSeedPlanPublic,
 )
-from app.services.task_executor_service import TaskExecutionResult
+from app.services.task_executor.models import TaskExecutionResult
 
 router = APIRouter(tags=["presets"])
 

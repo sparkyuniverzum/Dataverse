@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ImportError, ImportJob
 from app.services.parser_types import AtomicTask
-from app.services.task_executor_service import TaskExecutorService
+from app.services.task_executor.service import TaskExecutorService
 from app.services.universe_service import UniverseService
 
 

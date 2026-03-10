@@ -11,7 +11,8 @@ from app.models import TableContract
 from app.presets.bundle_presets import BundleDefinition, get_preset_bundle, list_preset_bundles
 from app.services.parser_types import AtomicTask
 from app.services.schema_preset_service import PresetApplyPlan, SchemaPresetService
-from app.services.task_executor_service import TaskExecutionResult, TaskExecutorService
+from app.services.task_executor.models import TaskExecutionResult
+from app.services.task_executor.service import TaskExecutorService
 from app.services.universe_service import ProjectedAsteroid, UniverseService, derive_table_id, derive_table_name
 
 

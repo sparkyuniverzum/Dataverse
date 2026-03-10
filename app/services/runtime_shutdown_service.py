@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.logging_helpers import structured_log_extra
 from app.services.outbox_relay_runner_service import OutboxRelayRunnerService
-from app.services.task_executor_service import TaskExecutorService
+from app.services.task_executor.service import TaskExecutorService
 
 logger = logging.getLogger(__name__)
 

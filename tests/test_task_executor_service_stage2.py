@@ -12,8 +12,10 @@ from fastapi import HTTPException
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.services.parser_types import AtomicTask
-from app.services.task_executor_service import (
+from app.services.task_executor.models import (
     TaskExecutionResult,
+)
+from app.services.task_executor.service import (
     TaskExecutorService,
     _TaskExecutionContext,
 )
