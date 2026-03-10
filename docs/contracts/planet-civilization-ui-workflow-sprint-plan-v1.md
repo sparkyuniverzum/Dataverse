@@ -133,7 +133,10 @@ Gate:
 
 Open items for closure:
 1. [ ] Complete release hardening pass with full BE integration gate (`pytest -q tests/test_api_integration.py`) in final release profile.
-2. [ ] Finalize moon-impact + guided-repair traceability as one explicit workflow-log path in runtime UI.
+2. [x] Finalize moon-impact + guided-repair traceability as one explicit workflow-log path in runtime UI.
+   - Done 2026-03-10.
+   - Evidence: `frontend/src/components/universe/workflowEventBridge.js`, `UniverseWorkspace.jsx` (`runtimeWorkflowEvents` bridge), `QuickGridOverlay.jsx` (`IMPACT_REPAIR` filter + unified log ingest), tests:
+     `npm --prefix frontend run test -- src/components/universe/workflowEventBridge.test.js src/components/universe/QuickGridOverlay.civilizations.test.jsx` -> green.
 3. [ ] Freeze operator runbook note for this UI block in release docs.
 
 ## 3. Execution order (prioritizovano dle nejvetsiho zasahu + nejvetsi pocitove hodnoty)

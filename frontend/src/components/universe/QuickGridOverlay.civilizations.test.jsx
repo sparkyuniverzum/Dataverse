@@ -307,4 +307,32 @@ describe("QuickGridOverlay civilization batch", () => {
     await user.type(screen.getByTestId("quick-grid-workflow-log-search"), "server update");
     expect(log.textContent).toContain("server update");
   });
+
+  it("ingests runtime moon-impact and repair events into unified workflow log", async () => {
+    const user = userEvent.setup();
+    renderOverlay({
+      runtimeWorkflowEvents: [
+        {
+          id: "wf-1",
+          action: "MOON_IMPACT_READY",
+          message: "Moon impact ready pro Core > Planet: rules 3, violations 1.",
+          tone: "warn",
+        },
+        {
+          id: "wf-2",
+          action: "REPAIR_APPLY_OK",
+          message: "Guided repair aplikovan (auto) #repair-1.",
+          tone: "ok",
+        },
+      ],
+    });
+
+    const log = screen.getByTestId("quick-grid-planet-event-log");
+    expect(log.textContent).toContain("MOON_IMPACT_READY");
+    expect(log.textContent).toContain("REPAIR_APPLY_OK");
+
+    await user.selectOptions(screen.getByTestId("quick-grid-workflow-log-filter"), "IMPACT_REPAIR");
+    expect(log.textContent).toContain("MOON_IMPACT_READY");
+    expect(log.textContent).toContain("REPAIR_APPLY_OK");
+  });
 });

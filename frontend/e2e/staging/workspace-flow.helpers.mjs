@@ -271,14 +271,27 @@ export async function ensureWorkspaceReadyForGrid(page) {
   if (await isVisible(overlay)) return;
 
   const openGridButton = page.getByTestId("workspace-open-grid-button").first();
+  const addPlanetButton = page.getByTestId("workspace-add-planet-button").first();
+
+  await expect
+    .poll(
+      async () => {
+        const canOpenGrid = (await isVisible(openGridButton)) && (await openGridButton.isEnabled().catch(() => false));
+        if (canOpenGrid) return "grid-open-ready";
+
+        const canAddPlanet =
+          (await isVisible(addPlanetButton)) && (await addPlanetButton.isEnabled().catch(() => false));
+        if (canAddPlanet) return "can-add-planet";
+
+        return "pending";
+      },
+      { timeout: 45_000 }
+    )
+    .not.toBe("pending");
+
   const canOpenGrid = (await isVisible(openGridButton)) && (await openGridButton.isEnabled().catch(() => false));
   if (canOpenGrid) return;
 
-  const addPlanetButton = page.getByTestId("workspace-add-planet-button").first();
-  const canAddPlanet = (await isVisible(addPlanetButton)) && (await addPlanetButton.isEnabled().catch(() => false));
-  if (!canAddPlanet) {
-    throw new Error("Workspace is not grid-ready and sidebar add-planet path is not available.");
-  }
   await addPlanetButton.dispatchEvent("click");
   await expect
     .poll(

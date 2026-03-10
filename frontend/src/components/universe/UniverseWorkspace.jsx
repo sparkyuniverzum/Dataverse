@@ -77,6 +77,14 @@ import {
   resolveWorkspaceKeyboardAction,
 } from "./previewAccessibility";
 import { buildContractViolationMessage } from "./workspaceContractExplainability";
+import {
+  buildGuidedRepairApplyFailEvent,
+  buildGuidedRepairApplyOkEvent,
+  buildGuidedRepairSuggestedEvent,
+  buildMoonImpactErrorEvent,
+  buildMoonImpactLoadEvent,
+  buildMoonImpactReadyEvent,
+} from "./workflowEventBridge";
 import { readWorkspaceUiState, writeWorkspaceUiState } from "./workspaceUiPersistence";
 import { collectGridColumns, normalizeText, readGridCell, tableDisplayName, valueToLabel } from "./workspaceFormatters";
 import { resolveNavigationState, resolveVisualBuilderState } from "./visualBuilderStateMachine";
@@ -179,6 +187,7 @@ export default function UniverseWorkspace({
   const [repairSuggestion, setRepairSuggestion] = useState(null);
   const [repairApplyBusy, setRepairApplyBusy] = useState(false);
   const [repairAuditTrail, setRepairAuditTrail] = useState([]);
+  const [runtimeWorkflowEvents, setRuntimeWorkflowEvents] = useState([]);
   const [stageZeroFlow, setStageZeroFlow] = useState(STAGE_ZERO_FLOW.INTRO);
   const [stageZeroDragging, setStageZeroDragging] = useState(false);
   const [stageZeroDropHover, setStageZeroDropHover] = useState(false);
@@ -255,6 +264,7 @@ export default function UniverseWorkspace({
     setRepairSuggestion(null);
     setRepairApplyBusy(false);
     setRepairAuditTrail([]);
+    setRuntimeWorkflowEvents([]);
     setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
     setStageZeroDragging(false);
     setStageZeroDropHover(false);
@@ -683,6 +693,11 @@ export default function UniverseWorkspace({
     const loadMoonImpact = async () => {
       setMoonImpactLoading(true);
       setMoonImpactError("");
+      appendRuntimeWorkflowEvent(
+        buildMoonImpactLoadEvent({
+          planetLabel: selectedTableId,
+        })
+      );
       try {
         const response = await apiFetch(
           buildMoonImpactUrl(API_BASE, selectedTableId, {
@@ -699,11 +714,23 @@ export default function UniverseWorkspace({
         const payload = await response.json();
         if (!cancelled) {
           setMoonImpact(payload && typeof payload === "object" ? payload : null);
+          appendRuntimeWorkflowEvent(
+            buildMoonImpactReadyEvent({
+              planetLabel: selectedTableId,
+              payload,
+            })
+          );
         }
       } catch (loadError) {
         if (!cancelled) {
           setMoonImpact(null);
           setMoonImpactError(String(loadError?.message || "Moon impact nelze načíst"));
+          appendRuntimeWorkflowEvent(
+            buildMoonImpactErrorEvent({
+              planetLabel: selectedTableId,
+              errorMessage: loadError?.message || "Moon impact nelze načíst",
+            })
+          );
         }
       } finally {
         if (!cancelled) {
@@ -716,7 +743,7 @@ export default function UniverseWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [branchIdScope, galaxyId, selectedTableId]);
+  }, [appendRuntimeWorkflowEvent, branchIdScope, galaxyId, selectedTableId]);
 
   const layout = useMemo(
     () =>
@@ -1063,6 +1090,15 @@ export default function UniverseWorkspace({
     if (!entry) return;
     setRepairAuditTrail((prev) => [entry, ...prev].slice(0, 32));
   }, []);
+  const appendRuntimeWorkflowEvent = useCallback((eventItem) => {
+    if (!eventItem || typeof eventItem !== "object") return;
+    const eventId = String(eventItem.id || "").trim();
+    if (!eventId) return;
+    setRuntimeWorkflowEvents((prev) => {
+      if (prev.some((item) => String(item?.id || "").trim() === eventId)) return prev;
+      return [eventItem, ...prev].slice(0, 48);
+    });
+  }, []);
   const clearRuntimeIssue = useCallback(() => {
     clearRuntimeError();
     setRepairSuggestion(null);
@@ -1078,10 +1114,15 @@ export default function UniverseWorkspace({
             stage: "planned",
           })
         );
+        appendRuntimeWorkflowEvent(
+          buildGuidedRepairSuggestedEvent({
+            suggestion,
+          })
+        );
       }
       setRuntimeError(suggestion ? `${message} | ${buildGuidedRepairMessage(suggestion)}` : message);
     },
-    [appendRepairAudit, setRuntimeError]
+    [appendRepairAudit, appendRuntimeWorkflowEvent, setRuntimeError]
   );
   const runBuilderGuard = useCallback(
     (action, { schemaComplete = stageZeroAllSchemaStepsDone } = {}) => {
@@ -1842,6 +1883,11 @@ export default function UniverseWorkspace({
         strategy_key: activeSuggestion.strategy_key || null,
         repair_id: activeSuggestion.repair_id || activeSuggestion.id || null,
       });
+      appendRuntimeWorkflowEvent(
+        buildGuidedRepairApplyOkEvent({
+          suggestion: activeSuggestion,
+        })
+      );
     } catch (applyError) {
       appendRepairAudit(
         buildGuidedRepairAuditRecord(activeSuggestion, {
@@ -1856,6 +1902,12 @@ export default function UniverseWorkspace({
         strategy_key: activeSuggestion.strategy_key || null,
         repair_id: activeSuggestion.repair_id || activeSuggestion.id || null,
       });
+      appendRuntimeWorkflowEvent(
+        buildGuidedRepairApplyFailEvent({
+          suggestion: activeSuggestion,
+          errorMessage: applyError?.message || "Guided repair failed.",
+        })
+      );
       if (isOccConflictError(applyError)) {
         setRuntimeError(buildOccConflictMessage(applyError, "guided repair"));
         await refreshProjection({ silent: true });
@@ -1871,6 +1923,7 @@ export default function UniverseWorkspace({
       setBusy(false);
     }
   }, [
+    appendRuntimeWorkflowEvent,
     appendRepairAudit,
     asteroidById,
     galaxyId,
@@ -2936,6 +2989,7 @@ export default function UniverseWorkspace({
           tableOptions={tables}
           tableContract={selectedTableContract}
           backendStreamEvents={recentStreamEvents}
+          runtimeWorkflowEvents={runtimeWorkflowEvents}
           tableRows={tableRows}
           gridColumns={gridColumns}
           gridFilteredRows={gridFilteredRows}

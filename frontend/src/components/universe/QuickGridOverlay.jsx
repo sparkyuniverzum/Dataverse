@@ -253,6 +253,7 @@ export default function QuickGridOverlay({
   tableOptions = [],
   tableContract = null,
   backendStreamEvents = [],
+  runtimeWorkflowEvents = [],
   tableRows,
   gridColumns,
   gridFilteredRows,
@@ -306,6 +307,7 @@ export default function QuickGridOverlay({
   const metadataValueInputRef = useRef(null);
   const planetToastTimerRef = useRef(null);
   const backendEventSeenRef = useRef(new Set());
+  const runtimeWorkflowEventSeenRef = useRef(new Set());
   const firstSelectableRowId = useMemo(() => {
     const rows = Array.isArray(tableRows) ? tableRows : [];
     return rows.length ? String(rows[0]?.id || "") : "";
@@ -610,6 +612,27 @@ export default function QuickGridOverlay({
         pushPlanetEvent(summary, { tone, action: "BE_STREAM", toast: false });
       });
   }, [backendStreamEvents, open]);
+  useEffect(() => {
+    if (!open) return;
+    const items = Array.isArray(runtimeWorkflowEvents) ? runtimeWorkflowEvents : [];
+    items
+      .slice()
+      .reverse()
+      .forEach((eventItem) => {
+        const id = String(eventItem?.id || "").trim();
+        if (!id || runtimeWorkflowEventSeenRef.current.has(id)) return;
+        runtimeWorkflowEventSeenRef.current.add(id);
+        const action = String(eventItem?.action || "RUNTIME")
+          .trim()
+          .toUpperCase();
+        const message = String(eventItem?.message || "").trim();
+        if (!message) return;
+        const tone = String(eventItem?.tone || "info")
+          .trim()
+          .toLowerCase();
+        pushPlanetEvent(message, { tone, action, toast: false });
+      });
+  }, [open, runtimeWorkflowEvents]);
   const rowBatchSummary = useMemo(() => {
     const summary = { create: 0, update: 0, archive: 0, lifecycle: 0 };
     rowBatchDrafts.forEach((item) => {
@@ -680,6 +703,8 @@ export default function QuickGridOverlay({
       const action = String(item?.action || "").toUpperCase();
       const tone = String(item?.tone || "").toLowerCase();
       if (filter === "BE_STREAM" && action !== "BE_STREAM") return false;
+      if (filter === "IMPACT_REPAIR" && !(action.startsWith("MOON_IMPACT") || action.startsWith("REPAIR_")))
+        return false;
       if (filter === "UI" && action === "BE_STREAM") return false;
       if (filter === "ERROR" && tone !== "error") return false;
       if (!query) return true;
@@ -2553,6 +2578,7 @@ export default function QuickGridOverlay({
             <option value="ALL">ALL</option>
             <option value="UI">UI</option>
             <option value="BE_STREAM">BE_STREAM</option>
+            <option value="IMPACT_REPAIR">IMPACT_REPAIR</option>
             <option value="ERROR">ERROR</option>
           </select>
           <input

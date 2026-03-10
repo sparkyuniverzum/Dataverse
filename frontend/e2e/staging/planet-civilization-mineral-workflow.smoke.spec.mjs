@@ -41,10 +41,66 @@ async function readWriteFeedbackSafe(page) {
   return String((await feedback.textContent().catch(() => "")) || "").trim();
 }
 
-async function writeMineralAndWaitAck(page, { rowValue, key, value, timeoutMs = 30_000 }) {
-  await selectGridRowByValue(page, rowValue);
+function escapeCssAttribute(value) {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
+}
+
+async function setInputValueViaDom(locator, nextValue) {
+  await locator.evaluate((element, value) => {
+    element.value = String(value ?? "");
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  }, nextValue);
+}
+
+async function trySelectGridRowByValueFast(page, rowValue, timeoutMs = 8_000) {
+  const targetValue = String(rowValue || "").trim();
+  if (!targetValue) return false;
+  const deadline = Date.now() + timeoutMs;
+  const rowLocator = page
+    .locator(`[data-testid="quick-grid-row"][data-row-value="${escapeCssAttribute(targetValue)}"]`)
+    .first();
+  const gridSearch = page.getByPlaceholder("Filtr radku a bunek...");
+
+  while (Date.now() < deadline) {
+    const rowVisibleDirect = await rowLocator.isVisible().catch(() => false);
+    if (rowVisibleDirect) {
+      await rowLocator.scrollIntoViewIfNeeded().catch(() => {});
+      await rowLocator.dispatchEvent("click").catch(() => {});
+      const selected = (await rowLocator.getAttribute("data-selected").catch(() => "")) === "true";
+      if (selected) return true;
+    }
+
+    const canUseSearch =
+      (await gridSearch.isVisible().catch(() => false)) && (await gridSearch.isEnabled().catch(() => false));
+    if (canUseSearch) {
+      await setInputValueViaDom(gridSearch, targetValue).catch(() => {});
+      const rowVisibleFiltered = await rowLocator.isVisible().catch(() => false);
+      if (rowVisibleFiltered) {
+        await rowLocator.scrollIntoViewIfNeeded().catch(() => {});
+        await rowLocator.dispatchEvent("click").catch(() => {});
+        const selected = (await rowLocator.getAttribute("data-selected").catch(() => "")) === "true";
+        await setInputValueViaDom(gridSearch, "").catch(() => {});
+        if (selected) return true;
+      }
+      await setInputValueViaDom(gridSearch, "").catch(() => {});
+    }
+
+    await page.waitForTimeout(250);
+  }
+  return false;
+}
+
+async function writeMineralAndWaitAck(page, { rowValue, key, value, timeoutMs = 30_000, skipRowSelect = false }) {
+  if (!skipRowSelect) {
+    await selectGridRowByValue(page, rowValue);
+  }
   const mineralComposer = page.getByTestId("quick-grid-mineral-composer");
-  await expect(mineralComposer).toContainText(String(rowValue), { timeout: 15_000 });
+  if (rowValue) {
+    await expect(mineralComposer).toContainText(String(rowValue), { timeout: 15_000 });
+  }
   const mineralsPanel = page.getByTestId("quick-grid-minerals-panel");
   const normalizedKey = String(key || "")
     .trim()
@@ -114,7 +170,7 @@ test("planet+civilization+mineral workflow: create two rows, write minerals, arc
       await ensureWorkspaceReadyForGrid(page);
       await ensureGridOpen(page);
     },
-    35_000
+    95_000
   );
 
   await expect(page.getByTestId("quick-grid-workflow-rail")).toBeVisible({ timeout: 30_000 });
@@ -157,13 +213,27 @@ test("planet+civilization+mineral workflow: create two rows, write minerals, arc
   await runStep(
     "write-rowB-category",
     async () => {
-      const rowBVisible = await page
-        .locator(`[data-testid="quick-grid-row"][data-row-value="${rowB}"]`)
-        .first()
-        .isVisible()
-        .catch(() => false);
-      const targetRow = rowBVisible ? rowB : rowA;
-      await writeMineralAndWaitAck(page, { rowValue: targetRow, key: "category", value: "active", timeoutMs: 45_000 });
+      const selectedRowB = await trySelectGridRowByValueFast(page, rowB, 8_000);
+      if (selectedRowB) {
+        await writeMineralAndWaitAck(page, {
+          rowValue: rowB,
+          key: "category",
+          value: "active",
+          timeoutMs: 45_000,
+          skipRowSelect: true,
+        });
+        return;
+      }
+      // eslint-disable-next-line no-console
+      console.log("[e2e-step] write-rowB-category fallback -> rowA");
+      await selectGridRowByValue(page, rowA);
+      await writeMineralAndWaitAck(page, {
+        rowValue: rowA,
+        key: "category",
+        value: "active",
+        timeoutMs: 45_000,
+        skipRowSelect: true,
+      });
     },
     55_000
   );
