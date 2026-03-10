@@ -109,3 +109,11 @@ export async function ensureAuthBootstrapUser(request, apiBase) {
     },
   };
 }
+
+export async function loginIntoWorkspace(page, user) {
+  await page.goto("/");
+  await page.getByTestId("auth-mode-login").click();
+  await page.getByTestId("auth-email-input").fill(String(user?.email || ""));
+  await page.getByTestId("auth-password-input").fill(String(user?.password || ""));
+  await page.getByTestId("auth-submit-button").click();
+}

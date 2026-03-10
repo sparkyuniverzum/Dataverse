@@ -23,6 +23,12 @@ Scope: `frontend/e2e/staging/`
 3. `npm --prefix frontend run test:e2e -- e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs`
 4. `npm --prefix frontend run test:e2e:planet-moon-preview`
 
+## Execution Cadence
+
+1. Do not run all canonical smokes after each micro-change.
+2. During active implementation, prefer focused unit/helper tests and one targeted smoke only when needed.
+3. Run full canonical smoke set as a bundled regression gate after multiple completed blocks.
+
 ## Failure Triage
 
 1. Inspect `frontend/test-results/*/error-context.md` first.

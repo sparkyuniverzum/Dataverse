@@ -4,6 +4,7 @@ import {
   ensureAuthBootstrapUser,
   isApiReachable,
   isBrowserCorsReady,
+  loginIntoWorkspace,
   resolveApiBase,
   resolveFrontendBase,
 } from "./auth-bootstrap.mjs";
@@ -45,11 +46,7 @@ test("planet+moon preview smoke: lifecycle write converges to grid and sidebar g
   const user = await ensureAuthBootstrapUser(request, apiBase);
 
   await runStep("login", async () => {
-    await page.goto("/");
-    await page.getByTestId("auth-mode-login").click();
-    await page.getByTestId("auth-email-input").fill(user.email);
-    await page.getByTestId("auth-password-input").fill(user.password);
-    await page.getByTestId("auth-submit-button").click();
+    await loginIntoWorkspace(page, user);
   });
 
   await runStep(

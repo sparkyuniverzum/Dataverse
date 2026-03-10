@@ -1,6 +1,6 @@
 # Planet/Civilization UI Workflow Sprint Plan v1
 
-Status: active (UI-WF-1/2/3 completed, UI-WF-4 partial)
+Status: closed (UI-WF-1/2/3/4 completed)
 Date: 2026-03-09
 Owner: FE Lead + UX Lead + BE Contract Owner
 Depends on:
@@ -37,7 +37,7 @@ Prioritizacni logika:
 - [x] `UI-WF-1` foundation + flow unification: gate set passed
 - [x] `UI-WF-2` mineral complete workflow: gate set passed
 - [x] `UI-WF-3` civilization complete workflow: gate set passed
-- [ ] `UI-WF-4` planet+moon integration + release hardening: remaining closure
+- [x] `UI-WF-4` planet+moon integration + release hardening: closure completed
 
 Evidence:
 1. `npm --prefix frontend run test:e2e:workspace-starlock` -> `1 passed`
@@ -132,12 +132,22 @@ Gate:
 - `pytest -q tests/test_api_integration.py`
 
 Open items for closure:
-1. [ ] Complete release hardening pass with full BE integration gate (`pytest -q tests/test_api_integration.py`) in final release profile.
+1. [x] Complete release hardening pass with full BE integration gate (`pytest -q tests/test_api_integration.py`) in final release profile.
+   - Done 2026-03-10.
+   - Evidence: `pytest -q tests/test_api_integration.py` -> `99 passed, 1 skipped in 32.85s`.
+   - Note: skipped scenario (`Bundle 'personal_cashflow' is not available in this environment.`) is onboarding-content availability, outside current UI-WF-4 runtime closure scope.
 2. [x] Finalize moon-impact + guided-repair traceability as one explicit workflow-log path in runtime UI.
    - Done 2026-03-10.
    - Evidence: `frontend/src/components/universe/workflowEventBridge.js`, `UniverseWorkspace.jsx` (`runtimeWorkflowEvents` bridge), `QuickGridOverlay.jsx` (`IMPACT_REPAIR` filter + unified log ingest), tests:
      `npm --prefix frontend run test -- src/components/universe/workflowEventBridge.test.js src/components/universe/QuickGridOverlay.civilizations.test.jsx` -> green.
-3. [ ] Freeze operator runbook note for this UI block in release docs.
+3. [x] Freeze operator runbook note for this UI block in release docs.
+   - Done 2026-03-10.
+   - Evidence: `docs/release/v1-rollout-runbook.md` section `UI-WF-4 Operator Runbook Note (2026-03-10)`.
+
+Closure record (2026-03-10):
+1. UI-WF-4 scope items are complete.
+2. Required FE staging smokes were executed green in this cycle.
+3. BE hardening gate executed with passing result and one accepted onboarding-related skip.
 
 ## 3. Execution order (prioritizovano dle nejvetsiho zasahu + nejvetsi pocitove hodnoty)
 

@@ -4,13 +4,11 @@ import {
   ensureAuthBootstrapUser,
   isApiReachable,
   isBrowserCorsReady,
+  loginIntoWorkspace,
   resolveApiBase,
   resolveFrontendBase,
 } from "./auth-bootstrap.mjs";
-
-function buildWorkspaceName() {
-  return `E2E Workspace ${Date.now()}`;
-}
+import { clickViaDom, ensureWorkspaceEntered } from "./workspace-flow.helpers.mjs";
 
 async function isVisible(locator) {
   try {
@@ -18,78 +16,6 @@ async function isVisible(locator) {
   } catch {
     return false;
   }
-}
-
-async function ensureWorkspaceEntered(page) {
-  await page.waitForLoadState("domcontentloaded");
-  const workspaceEntry = page.getByTestId("workspace-open-star-heart-button").first();
-  const workspaceRoot = page.getByTestId("workspace-root").first();
-  const galaxyGate = page.getByTestId("galaxy-gate-screen").first();
-  const stage0StarLockGate = page.getByTestId("stage0-star-lock-gate").first();
-  const stage0IntroGate = page.getByTestId("stage0-intro-gate").first();
-  const stage0SetupPanel = page.getByTestId("stage0-setup-panel").first();
-  const quickGridOverlay = page.getByTestId("quick-grid-overlay").first();
-  const authSubmitButton = page.getByTestId("auth-submit-button").first();
-
-  const deadline = Date.now() + 90_000;
-  let reloaded = false;
-  while (Date.now() < deadline) {
-    if (await isVisible(workspaceRoot)) return;
-    if (await isVisible(workspaceEntry)) return;
-    if (await isVisible(stage0StarLockGate)) return;
-    if (await isVisible(stage0IntroGate)) return;
-    if (await isVisible(stage0SetupPanel)) return;
-    if (await isVisible(quickGridOverlay)) return;
-
-    if (await isVisible(authSubmitButton)) {
-      if (await authSubmitButton.isEnabled()) {
-        await authSubmitButton.click();
-      }
-    }
-
-    if (await isVisible(galaxyGate)) {
-      const enterButton = page.getByTestId("galaxy-enter-button").first();
-      if (await isVisible(enterButton)) {
-        if (await enterButton.isEnabled()) {
-          await enterButton.click();
-        }
-      }
-
-      const createButton = page.getByTestId("galaxy-create-submit").first();
-      if (await isVisible(createButton)) {
-        const createInput = page.getByTestId("galaxy-create-input").first();
-        const value = String((await createInput.inputValue()) || "").trim();
-        if (!value) {
-          await createInput.fill(buildWorkspaceName());
-        }
-        if (await createButton.isEnabled()) {
-          await createButton.click();
-        }
-      }
-
-      const launchButton = page.getByTestId("galaxy-launch-submit").first();
-      if (await isVisible(launchButton)) {
-        const launchInput = page.getByTestId("galaxy-launch-input").first();
-        const value = String((await launchInput.inputValue()) || "").trim();
-        if (!value) {
-          await launchInput.fill(buildWorkspaceName());
-        }
-        if (await launchButton.isEnabled()) {
-          await launchButton.click();
-        }
-      }
-    }
-
-    if (!reloaded && Date.now() > deadline - 45_000) {
-      await page.reload({ waitUntil: "domcontentloaded" });
-      reloaded = true;
-      continue;
-    }
-
-    await page.waitForTimeout(350);
-  }
-
-  throw new Error("Workspace entry timeout: neither workspace shell nor stable galaxy gate transition completed.");
 }
 
 async function dragPlanetToCanvas(page) {
@@ -123,12 +49,6 @@ async function dragPlanetToCanvas(page) {
   await page.mouse.up();
 }
 
-async function clickViaDom(locator) {
-  await locator.evaluate((element) => {
-    element.click();
-  });
-}
-
 test("real workspace flow: star-lock -> first planet wizard -> grid convergence", async ({ page, request }) => {
   test.setTimeout(180_000);
   const apiBase = resolveApiBase();
@@ -140,11 +60,7 @@ test("real workspace flow: star-lock -> first planet wizard -> grid convergence"
 
   const user = await ensureAuthBootstrapUser(request, apiBase);
 
-  await page.goto("/");
-  await page.getByTestId("auth-mode-login").click();
-  await page.getByTestId("auth-email-input").fill(user.email);
-  await page.getByTestId("auth-password-input").fill(user.password);
-  await page.getByTestId("auth-submit-button").click();
+  await loginIntoWorkspace(page, user);
 
   await ensureWorkspaceEntered(page);
 

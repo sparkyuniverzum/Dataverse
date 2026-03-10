@@ -26,6 +26,13 @@ Scope: entire repository.
 4. After every block, agent must provide `Povel pro tebe` with exact copy/paste commands.
 5. Do not claim block completion without an explicit command list for user execution.
 
+## Test Cadence (Mandatory)
+
+1. Per implementation block: run only focused/unit or narrow-scope tests relevant to changed files.
+2. Do not request the full long-running staging e2e suite after every single block.
+3. Run long staging smokes as a bundled gate after a series of blocks, or before merge/release.
+4. If a block touches workspace entry/grid orchestration, include at most one targeted staging smoke as a spot-check.
+
 ## Fast Navigation
 
 1. Frontend runtime universe: `frontend/src/components/universe/`

@@ -297,3 +297,14 @@ Release SHA: `89f4f17`
 - Normalized closure status as of 2026-03-08:
   - `PM-P6-01` .. `PM-P6-10` are `GREEN`.
   - `LF-01` .. `LF-08` are `GREEN`.
+
+## Planet/Civilization UI-WF-4 closure addendum (2026-03-10)
+
+- UI workflow sprint closure synchronized:
+  - `docs/contracts/planet-civilization-ui-workflow-sprint-plan-v1.md` now marks `UI-WF-4` as closed.
+- Operator runbook note frozen:
+  - `docs/release/v1-rollout-runbook.md` section `UI-WF-4 Operator Runbook Note (2026-03-10)`.
+- BE release-hardening gate executed:
+  - `pytest -q tests/test_api_integration.py` -> `99 passed, 1 skipped in 32.85s`.
+- Skip classification:
+  - skipped case is onboarding bundle availability (`personal_cashflow`) and is accepted as non-blocking for current UI-WF-4 runtime closure.

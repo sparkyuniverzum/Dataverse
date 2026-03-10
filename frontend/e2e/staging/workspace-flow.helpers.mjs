@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { buildWorkspaceEntryCrashMessage, isFatalWorkspaceRuntimeText } from "../../src/lib/workspaceEntryGate";
 
 function buildWorkspaceName() {
   return `E2E Workspace ${Date.now()}`;
@@ -70,66 +71,102 @@ export async function ensureWorkspaceEntered(page) {
   const stage0SetupPanel = page.getByTestId("stage0-setup-panel").first();
   const quickGridOverlay = page.getByTestId("quick-grid-overlay").first();
   const authSubmitButton = page.getByTestId("auth-submit-button").first();
+  let runtimePageError = "";
+  let runtimeConsoleError = "";
 
-  const deadline = Date.now() + 90_000;
-  let reloaded = false;
-  while (Date.now() < deadline) {
-    if (await isVisible(workspaceRoot)) return;
-    if (await isVisible(workspaceEntry)) return;
-    if (await isVisible(stage0StarLockGate)) return;
-    if (await isVisible(stage0IntroGate)) return;
-    if (await isVisible(stage0SetupPanel)) return;
-    if (await isVisible(quickGridOverlay)) return;
+  const handlePageError = (errorLike) => {
+    if (runtimePageError) return;
+    const message = String(errorLike?.message || errorLike || "").trim();
+    if (!message) return;
+    // Any uncaught page runtime error during workspace entry is considered fatal.
+    runtimePageError = message;
+  };
 
-    if (await isVisible(authSubmitButton)) {
-      if (await authSubmitButton.isEnabled()) {
-        await authSubmitButton.click();
+  const handleConsole = (message) => {
+    if (runtimeConsoleError) return;
+    const type = String(message?.type?.() || "").toLowerCase();
+    if (!["error", "warning"].includes(type)) return;
+    const text = String(message?.text?.() || "").trim();
+    if (!isFatalWorkspaceRuntimeText(text)) return;
+    runtimeConsoleError = text;
+  };
+
+  page.on("pageerror", handlePageError);
+  page.on("console", handleConsole);
+
+  try {
+    const deadline = Date.now() + 90_000;
+    let reloaded = false;
+    while (Date.now() < deadline) {
+      if (runtimePageError || runtimeConsoleError) {
+        throw new Error(
+          buildWorkspaceEntryCrashMessage({
+            pageErrorMessage: runtimePageError,
+            consoleMessage: runtimeConsoleError,
+          })
+        );
       }
+
+      if (await isVisible(workspaceRoot)) return;
+      if (await isVisible(workspaceEntry)) return;
+      if (await isVisible(stage0StarLockGate)) return;
+      if (await isVisible(stage0IntroGate)) return;
+      if (await isVisible(stage0SetupPanel)) return;
+      if (await isVisible(quickGridOverlay)) return;
+
+      if (await isVisible(authSubmitButton)) {
+        if (await authSubmitButton.isEnabled()) {
+          await authSubmitButton.click();
+        }
+      }
+
+      if (await isVisible(galaxyGate)) {
+        const enterButton = page.getByTestId("galaxy-enter-button").first();
+        if (await isVisible(enterButton)) {
+          if (await enterButton.isEnabled()) {
+            await enterButton.click();
+          }
+        }
+
+        const createButton = page.getByTestId("galaxy-create-submit").first();
+        if (await isVisible(createButton)) {
+          const createInput = page.getByTestId("galaxy-create-input").first();
+          const value = String((await createInput.inputValue()) || "").trim();
+          if (!value) {
+            await createInput.fill(buildWorkspaceName());
+          }
+          if (await createButton.isEnabled()) {
+            await createButton.click();
+          }
+        }
+
+        const launchButton = page.getByTestId("galaxy-launch-submit").first();
+        if (await isVisible(launchButton)) {
+          const launchInput = page.getByTestId("galaxy-launch-input").first();
+          const value = String((await launchInput.inputValue()) || "").trim();
+          if (!value) {
+            await launchInput.fill(buildWorkspaceName());
+          }
+          if (await launchButton.isEnabled()) {
+            await launchButton.click();
+          }
+        }
+      }
+
+      if (!reloaded && Date.now() > deadline - 45_000) {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        reloaded = true;
+        continue;
+      }
+
+      await page.waitForTimeout(350);
     }
 
-    if (await isVisible(galaxyGate)) {
-      const enterButton = page.getByTestId("galaxy-enter-button").first();
-      if (await isVisible(enterButton)) {
-        if (await enterButton.isEnabled()) {
-          await enterButton.click();
-        }
-      }
-
-      const createButton = page.getByTestId("galaxy-create-submit").first();
-      if (await isVisible(createButton)) {
-        const createInput = page.getByTestId("galaxy-create-input").first();
-        const value = String((await createInput.inputValue()) || "").trim();
-        if (!value) {
-          await createInput.fill(buildWorkspaceName());
-        }
-        if (await createButton.isEnabled()) {
-          await createButton.click();
-        }
-      }
-
-      const launchButton = page.getByTestId("galaxy-launch-submit").first();
-      if (await isVisible(launchButton)) {
-        const launchInput = page.getByTestId("galaxy-launch-input").first();
-        const value = String((await launchInput.inputValue()) || "").trim();
-        if (!value) {
-          await launchInput.fill(buildWorkspaceName());
-        }
-        if (await launchButton.isEnabled()) {
-          await launchButton.click();
-        }
-      }
-    }
-
-    if (!reloaded && Date.now() > deadline - 45_000) {
-      await page.reload({ waitUntil: "domcontentloaded" });
-      reloaded = true;
-      continue;
-    }
-
-    await page.waitForTimeout(350);
+    throw new Error("Workspace entry timeout: neither workspace shell nor stable galaxy gate transition completed.");
+  } finally {
+    page.off("pageerror", handlePageError);
+    page.off("console", handleConsole);
   }
-
-  throw new Error("Workspace entry timeout: neither workspace shell nor stable galaxy gate transition completed.");
 }
 
 async function dragPlanetToCanvas(page) {
