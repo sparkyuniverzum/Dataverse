@@ -302,6 +302,27 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - A new rehab block must replace direct `UniverseWorkspace` mounting with smaller executable seams such as extracted helpers, controllers, or already-stable child-surface tests.
 
+### 2026-03-10 - Selection / context action seam extraction
+
+- Status: `GREEN`
+- Removed:
+  - inline selection/context branching in `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - split selection/inspector ownership between `frontend/src/components/universe/UniverseWorkspace.jsx` and `frontend/src/components/universe/WorkspaceSidebar.jsx`
+- Replaced by:
+  - `frontend/src/components/universe/selectionContextContract.js`
+  - `frontend/src/components/universe/selectionContextContract.test.js`
+  - `frontend/src/components/universe/selectionInspectorContract.js`
+  - `frontend/src/components/universe/selectionInspectorContract.test.js`
+- Reason:
+  - Selection, context menu actions, and sidebar inspector state now live in executable seams instead of ad hoc branching and split ownership inside `UniverseWorkspace` and `WorkspaceSidebar`. Slice 2 now has focused unit gates plus a sidebar render smoke, so the rehab no longer needs a transitional status.
+- Evidence:
+  - `npm --prefix frontend run test -- src/components/universe/selectionContextContract.test.js` -> passed on 2026-03-10
+  - `npm --prefix frontend run test -- src/components/universe/selectionInspectorContract.test.js` -> passed on 2026-03-10
+  - `npm --prefix frontend run test -- src/components/universe/WorkspaceSidebar.connectivity.test.jsx` -> passed on 2026-03-10
+  - `npm --prefix frontend run test -- src/components/universe/workspaceStateContract.test.js` -> passed on 2026-03-10
+- Exit condition:
+  - closed on 2026-03-10
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -313,3 +334,4 @@ No future block may close without recording replacement decisions.
 2. [x] 2026-03-10: implementation prime directive formally puts user experience above internal elegance when system laws remain preserved.
 3. [x] 2026-03-10: `Shared Workspace State Contract` was implemented as the first concrete slice.
 4. [ ] Next: close the `UniverseWorkspace` test rehab replacement from `ORANGE` to `GREEN` with focused runs.
+5. [x] 2026-03-10: Slice 2 selection ownership and inspector/sidebar state were extracted into focused seams and closed as `GREEN`.

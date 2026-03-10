@@ -8,7 +8,7 @@ import {
   patchTaskToSelectedPlanet,
   summarizeTaskRebind,
 } from "./commandBarContract";
-import { tableDisplayName } from "./workspaceFormatters";
+import { formatSelectedTableLabel } from "./selectionInspectorContract";
 
 export function useCommandBarController({
   apiBase,
@@ -16,6 +16,7 @@ export function useCommandBarController({
   branchIdScope,
   selectedTableId,
   selectedTable,
+  selectedTableLabel,
   selectedAsteroidLabel,
   tableNodes,
   tableById,
@@ -72,7 +73,7 @@ export function useCommandBarController({
     setCommandResolveSummary("");
     try {
       const previewBase = buildCommandPreviewModel(trimmed, {
-        selectedTableLabel: selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "",
+        selectedTableLabel: selectedTableLabel || formatSelectedTableLabel(selectedTable),
         selectedAsteroidLabel,
       });
       const planResponse = await apiFetch(buildParserPlanUrl(apiBase), {
@@ -137,6 +138,7 @@ export function useCommandBarController({
     galaxyId,
     selectedAsteroidLabel,
     selectedTableId,
+    selectedTableLabel,
     selectedTable,
     tableNodes,
     trackParserAttempt,
@@ -171,7 +173,7 @@ export function useCommandBarController({
           if (!prev) return prev;
           return {
             ...prev,
-            selectedTableLabel: resolvedTable ? `Tabulka: ${tableDisplayName(resolvedTable)}` : prev.selectedTableLabel,
+            selectedTableLabel: formatSelectedTableLabel(resolvedTable) || prev.selectedTableLabel,
             tasks: patchedTasks,
             ambiguityHints,
             previewExecution,

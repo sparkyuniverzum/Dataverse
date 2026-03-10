@@ -91,7 +91,7 @@ import {
   buildMoonImpactReadyEvent,
 } from "./workflowEventBridge";
 import { readWorkspaceUiState, writeWorkspaceUiState } from "./workspaceUiPersistence";
-import { collectGridColumns, normalizeText, readGridCell, tableDisplayName, valueToLabel } from "./workspaceFormatters";
+import { collectGridColumns, normalizeText, readGridCell, valueToLabel } from "./workspaceFormatters";
 import { resolveNavigationState, resolveVisualBuilderState } from "./visualBuilderStateMachine";
 import { useCommandBarController } from "./useCommandBarController";
 import { useMoonCrudController } from "./useMoonCrudController";
@@ -100,6 +100,12 @@ import { useBranchTimelineController } from "./useBranchTimelineController";
 import { StageZeroSetupPanel } from "./StageZeroSetupPanel";
 import { StageZeroSetupPanelProvider } from "./StageZeroSetupPanelContext";
 import { buildMergedTableContractPayload } from "./tableContractMerge";
+import { formatSelectedTableLabel, resolveSelectionInspectorModel } from "./selectionInspectorContract";
+import {
+  resolveContextActionPlan,
+  resolveContextMenuPlacement,
+  resolveMoonSelectionPatch,
+} from "./selectionContextContract";
 import { resolveWorkspaceStateContract } from "./workspaceStateContract";
 import { useUniverseStore } from "../../store/useUniverseStore";
 
@@ -1066,11 +1072,18 @@ export default function UniverseWorkspace({
     );
   }, [gridColumns, gridSearchQuery, tableRows]);
 
-  const selectedAsteroidLabel = useMemo(() => {
-    if (!selectedAsteroidId) return "";
-    const asteroid = asteroidById.get(String(selectedAsteroidId));
-    return asteroid ? valueToLabel(asteroid.value) : "";
-  }, [asteroidById, selectedAsteroidId]);
+  const selectionInspectorModel = useMemo(
+    () =>
+      resolveSelectionInspectorModel({
+        selectedTable,
+        selectedCivilizationId: selectedAsteroidId,
+        civilizationRows: tableRows,
+        civilizationById: asteroidById,
+        moonImpact,
+      }),
+    [asteroidById, moonImpact, selectedAsteroidId, selectedTable, tableRows]
+  );
+  const selectedAsteroidLabel = selectionInspectorModel.selectedCivilizationLabel;
   const bondDraftOptions = useMemo(
     () =>
       tableRows.map((row) => ({
@@ -1816,6 +1829,7 @@ export default function UniverseWorkspace({
     branchIdScope,
     selectedTableId,
     selectedTable,
+    selectedTableLabel: selectionInspectorModel.selectedTableLabel,
     selectedAsteroidLabel,
     tableNodes,
     tableById,
@@ -2125,61 +2139,61 @@ export default function UniverseWorkspace({
     },
     [quickGridOpen, workspaceInteractionLocked]
   );
+  const handleMoonSelect = useCallback(
+    (moonId, { openGrid = false } = {}) => {
+      const selectionPatch = resolveMoonSelectionPatch({
+        moonId,
+        previousQuickGridOpen: quickGridOpen,
+        openGrid,
+      });
+      setSelectedAsteroidId(selectionPatch.selectedAsteroidId);
+      setQuickGridOpen(selectionPatch.quickGridOpen);
+    },
+    [quickGridOpen]
+  );
   const closeContextMenu = useCallback(() => {
     setContextMenu((prev) => (prev.open ? { ...prev, open: false } : prev));
   }, []);
   const handleOpenContext = useCallback(({ kind = "", id = "", label = "", x = 0, y = 0 } = {}) => {
-    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1600;
-    const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 900;
-    const menuWidth = 220;
-    const menuHeight = 170;
-    const clampedX = clamp(Number(x || 0), 8, Math.max(8, viewportWidth - menuWidth - 8));
-    const clampedY = clamp(Number(y || 0), 8, Math.max(8, viewportHeight - menuHeight - 8));
-    setContextMenu({
-      open: true,
-      kind: String(kind || ""),
-      id: String(id || ""),
-      label: String(label || ""),
-      x: clampedX,
-      y: clampedY,
-    });
+    setContextMenu(
+      resolveContextMenuPlacement({
+        kind,
+        id,
+        label,
+        x,
+        y,
+        viewportWidth: typeof window !== "undefined" ? window.innerWidth : 1600,
+        viewportHeight: typeof window !== "undefined" ? window.innerHeight : 900,
+      })
+    );
   }, []);
   const handleContextAction = useCallback(
     async (actionKey) => {
-      const targetId = String(contextMenu.id || "").trim();
-      const targetKind = String(contextMenu.kind || "").trim();
+      const plan = resolveContextActionPlan({
+        actionKey,
+        contextMenu,
+        interactionLocked: workspaceInteractionLocked,
+        previousQuickGridOpen: quickGridOpen,
+      });
       closeContextMenu();
-      if (!targetId) return;
-      if (actionKey === "focus_table" && targetKind === "table") {
-        handlePlanetSelect(targetId, { source: "context" });
-        return;
-      }
-      if (actionKey === "focus_asteroid" && targetKind === "asteroid") {
-        setSelectedAsteroidId(targetId);
-        setQuickGridOpen(true);
-        return;
-      }
-      if (actionKey === "open_grid") {
-        if (targetKind === "table") {
-          handlePlanetSelect(targetId, { source: "context" });
-        } else if (targetKind === "asteroid") {
-          setSelectedAsteroidId(targetId);
+      if (plan.type === "noop") return;
+      if (plan.type === "selection") {
+        if (Object.prototype.hasOwnProperty.call(plan.patch || {}, "selectedTableId")) {
+          setSelectedTableId(String(plan.patch.selectedTableId || ""));
         }
-        setQuickGridOpen(true);
+        if (Object.prototype.hasOwnProperty.call(plan.patch || {}, "selectedAsteroidId")) {
+          setSelectedAsteroidId(String(plan.patch.selectedAsteroidId || ""));
+        }
+        if (Object.prototype.hasOwnProperty.call(plan.patch || {}, "quickGridOpen")) {
+          setQuickGridOpen(Boolean(plan.patch.quickGridOpen));
+        }
         return;
       }
-      if (actionKey === "extinguish_asteroid" && targetKind === "asteroid" && !workspaceInteractionLocked) {
-        await handleDeleteRow(targetId);
+      if (plan.type === "delete_asteroid") {
+        await handleDeleteRow(plan.targetId);
       }
     },
-    [
-      closeContextMenu,
-      contextMenu.id,
-      contextMenu.kind,
-      handleDeleteRow,
-      handlePlanetSelect,
-      workspaceInteractionLocked,
-    ]
+    [closeContextMenu, contextMenu, handleDeleteRow, quickGridOpen, workspaceInteractionLocked]
   );
   useEffect(() => {
     if (!contextMenu.open) return undefined;
@@ -2285,7 +2299,7 @@ export default function UniverseWorkspace({
     workspaceInteractionLocked,
   ]);
 
-  const selectedTableLabel = selectedTable ? `Tabulka: ${tableDisplayName(selectedTable)}` : "";
+  const selectedTableLabel = selectionInspectorModel.selectedTableLabel || formatSelectedTableLabel(selectedTable);
   const guidanceSeverityColor = resolvePreviewSeverityColor(planetMoonGuidance.severity);
 
   return (
@@ -2643,7 +2657,7 @@ export default function UniverseWorkspace({
           onClearStarFocus={handleClearStarFocus}
           onSelectTable={(tableId) => handlePlanetSelect(tableId, { source: "canvas" })}
           onSelectAsteroid={(asteroidId) => {
-            setSelectedAsteroidId(String(asteroidId || ""));
+            handleMoonSelect(asteroidId);
           }}
           onOpenContext={handleOpenContext}
           onLinkStart={(draft) => setLinkDraft(draft)}
@@ -3047,16 +3061,12 @@ export default function UniverseWorkspace({
           busy={busy}
           error={error}
           selectedTableId={selectedTableId}
-          selectedTableLabel={selectedTableLabel}
-          selectedAsteroidLabel={selectedAsteroidLabel}
-          moonRows={tableRows}
-          moonImpact={moonImpact}
+          selectionInspector={selectionInspectorModel}
           moonImpactLoading={moonImpactLoading}
           moonImpactError={moonImpactError}
-          selectedMoonId={selectedAsteroidId}
           onSelectTable={(tableId) => handlePlanetSelect(tableId, { source: "sidebar" })}
           onSelectMoon={(moonId) => {
-            setSelectedAsteroidId(String(moonId || ""));
+            handleMoonSelect(moonId);
           }}
           onOpenGrid={() => setQuickGridOpen(true)}
           onAddPlanet={() => {
@@ -3129,7 +3139,9 @@ export default function UniverseWorkspace({
           onExtinguishPlanet={handleExtinguishPlanet}
           onApplyTableContract={handleApplyTableContractFromOverlay}
           selectedAsteroidId={selectedAsteroidId}
-          onSelectRow={setSelectedAsteroidId}
+          onSelectRow={(rowId) => {
+            handleMoonSelect(rowId);
+          }}
           onCreateRow={handleCreateRow}
           onUpdateRow={handleUpdateRow}
           onDeleteRow={handleDeleteRow}

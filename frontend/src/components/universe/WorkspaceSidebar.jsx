@@ -1,5 +1,4 @@
 import { resolvePreviewSeverityColor } from "./previewAccessibility";
-import { deriveCivilizationInspectorModel } from "./civilizationInspectorModel";
 
 const inputStyle = {
   width: "100%",
@@ -85,13 +84,9 @@ export default function WorkspaceSidebar({
   busy,
   error,
   selectedTableId,
-  selectedTableLabel,
-  selectedAsteroidLabel,
-  moonRows = [],
-  moonImpact = null,
+  selectionInspector = null,
   moonImpactLoading = false,
   moonImpactError = "",
-  selectedMoonId = "",
   onSelectTable,
   onSelectMoon = null,
   onOpenGrid,
@@ -116,12 +111,14 @@ export default function WorkspaceSidebar({
   const connectivityBadgeLabel = String(runtimeConnectivity?.badgeLabel || "online");
   const connectivityMessage = String(runtimeConnectivity?.sidebarMessage || "").trim();
   const connectivityOffline = runtimeConnectivity?.writeBlocked === true;
-  const safeMoonRows = Array.isArray(moonRows) ? moonRows : [];
-  const selectedMoon =
-    safeMoonRows.find((row) => String(row?.id || "") === String(selectedMoonId || "")) ||
-    safeMoonRows.find((row) => String(row?.value || "") === String(selectedAsteroidLabel || "")) ||
-    null;
-  const moonInspector = deriveCivilizationInspectorModel(selectedMoon, moonImpact, selectedMoonId);
+  const inspectorModel = selectionInspector && typeof selectionInspector === "object" ? selectionInspector : {};
+  const selectedTableLabel = String(inspectorModel.selectedTableLabel || "").trim();
+  const selectedCivilizationLabel = String(inspectorModel.selectedCivilizationLabel || "").trim();
+  const orbitCivilizations = Array.isArray(inspectorModel.orbitCivilizations) ? inspectorModel.orbitCivilizations : [];
+  const selectedMoon = inspectorModel.selectedCivilization || null;
+  const moonInspector =
+    inspectorModel.inspector && typeof inspectorModel.inspector === "object" ? inspectorModel.inspector : null;
+  const selectedMoonId = String(inspectorModel.selectedCivilizationId || "").trim();
 
   return (
     <aside
@@ -331,9 +328,9 @@ export default function WorkspaceSidebar({
       <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
         {selectedTableLabel || "Vyber planetu kliknutim v prostoru."}
       </div>
-      {selectedAsteroidLabel ? (
+      {selectedCivilizationLabel ? (
         <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
-          Vybrana civilizace: <strong>{selectedAsteroidLabel}</strong>
+          Vybrana civilizace: <strong>{selectedCivilizationLabel}</strong>
         </div>
       ) : null}
       {selectedTableId ? (
@@ -351,17 +348,17 @@ export default function WorkspaceSidebar({
             CIVILIZATION ORBIT
           </div>
           <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>
-            Civilizace kolem planety: <strong>{safeMoonRows.length}</strong> | 1 klik = Inspector
+            Civilizace kolem planety: <strong>{orbitCivilizations.length}</strong> | 1 klik = Inspector
           </div>
-          {safeMoonRows.length ? (
+          {orbitCivilizations.length ? (
             <div
               data-testid="moon-orbit-list"
               style={{ display: "grid", gap: 5, maxHeight: 156, overflow: "auto", paddingRight: 2 }}
             >
-              {safeMoonRows.map((moon) => {
+              {orbitCivilizations.map((moon) => {
                 const moonId = String(moon?.id || "").trim();
-                const selected = moonId && moonId === String(selectedMoonId || "");
-                const label = String(moon?.value || moonId || "Civilizace");
+                const selected = moon?.selected === true;
+                const label = String(moon?.label || moonId || "Civilizace");
                 return (
                   <button
                     key={moonId || label}
@@ -393,7 +390,7 @@ export default function WorkspaceSidebar({
           ) : (
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.68 }}>Planeta zatim nema civilizacni zaznamy.</div>
           )}
-          {selectedMoon ? (
+          {selectedMoon && moonInspector ? (
             <div
               data-testid="moon-inspector-card"
               style={{
