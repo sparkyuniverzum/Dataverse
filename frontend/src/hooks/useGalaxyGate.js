@@ -8,8 +8,11 @@ import {
   normalizeOnboardingPublic,
 } from "../lib/workspaceScopeContract";
 import { useUniverseStore } from "../store/useUniverseStore";
-
-const SELECTED_GALAXY_STORAGE_KEY = "dataverse_selected_galaxy_id";
+import {
+  clearPersistedSelectedGalaxyId,
+  readPersistedSelectedGalaxyId,
+  writePersistedSelectedGalaxyId,
+} from "./galaxyGateStorage";
 
 async function parseApiError(response, fallback) {
   const text = await response.text();
@@ -30,7 +33,7 @@ async function parseApiError(response, fallback) {
   return text;
 }
 
-export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, setDefaultGalaxy }) {
+export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, setDefaultGalaxy, authUserId = "" }) {
   const { selectedGalaxyId, selectGalaxy, setLevel } = useUniverseStore();
 
   const [galaxies, setGalaxies] = useState([]);
@@ -42,6 +45,7 @@ export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, setDefau
   const [onboardingByGalaxyId, setOnboardingByGalaxyId] = useState({});
 
   const restoreAttemptedRef = useRef(false);
+  const lastAuthenticatedUserIdRef = useRef("");
 
   const selectedGalaxy = useMemo(
     () => galaxies.find((item) => String(item.id) === String(selectedGalaxyId || "")) || null,
@@ -51,19 +55,20 @@ export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, setDefau
   useEffect(() => {
     if (isAuthLoading) return;
     if (!isAuthenticated) {
-      localStorage.removeItem(SELECTED_GALAXY_STORAGE_KEY);
+      clearPersistedSelectedGalaxyId(localStorage, lastAuthenticatedUserIdRef.current);
       return;
     }
+    lastAuthenticatedUserIdRef.current = String(authUserId || "").trim();
     if (selectedGalaxyId) {
-      localStorage.setItem(SELECTED_GALAXY_STORAGE_KEY, selectedGalaxyId);
+      writePersistedSelectedGalaxyId(localStorage, authUserId, selectedGalaxyId);
       return;
     }
     // On hard reload we first render with empty selectedGalaxyId.
     // Keep persisted value until restore attempt runs to avoid wiping resume state.
     if (restoreAttemptedRef.current) {
-      localStorage.removeItem(SELECTED_GALAXY_STORAGE_KEY);
+      clearPersistedSelectedGalaxyId(localStorage, authUserId);
     }
-  }, [isAuthLoading, isAuthenticated, selectedGalaxyId]);
+  }, [authUserId, isAuthLoading, isAuthenticated, selectedGalaxyId]);
 
   useEffect(() => {
     if (isAuthLoading) return;
@@ -77,14 +82,14 @@ export function useGalaxyGate({ isAuthenticated, isAuthLoading = false, setDefau
       return;
     }
     if (!restoreAttemptedRef.current && !selectedGalaxyId) {
-      const restored = String(localStorage.getItem(SELECTED_GALAXY_STORAGE_KEY) || "").trim();
+      const restored = readPersistedSelectedGalaxyId(localStorage, authUserId);
       if (restored) {
         selectGalaxy(restored);
       }
       restoreAttemptedRef.current = true;
     }
     setLevel(selectedGalaxyId ? 2 : 1);
-  }, [isAuthLoading, isAuthenticated, selectGalaxy, selectedGalaxyId, setLevel]);
+  }, [authUserId, isAuthLoading, isAuthenticated, selectGalaxy, selectedGalaxyId, setLevel]);
 
   const loadGalaxies = useCallback(async () => {
     if (!isAuthenticated) return;

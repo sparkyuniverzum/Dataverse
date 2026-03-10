@@ -2,6 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { API_BASE, configureApiAuth } from "../lib/dataverseApi";
 import { normalizeGalaxyPublic } from "../lib/workspaceScopeContract";
+import {
+  AUTH_SESSION_STATUS,
+  classifyAuthHttpStatus,
+  classifyAuthRuntimeError,
+  shouldClearSessionAfterBootstrap,
+} from "./authSessionRuntime";
 
 const LEGACY_ACCESS_TOKEN_KEY = "dataverse_auth_token";
 const ACCESS_TOKEN_KEY = "dataverse_auth_access_token";
@@ -41,6 +47,7 @@ export function AuthProvider({ children }) {
   const refreshTokenRef = useRef(refreshToken);
   const refreshPromiseRef = useRef(null);
   const refreshSessionRef = useRef(async () => false);
+  const lastRefreshStatusRef = useRef(AUTH_SESSION_STATUS.OK);
 
   const persistTokens = useCallback((nextAccessToken, nextRefreshToken) => {
     const safeAccess = String(nextAccessToken || "");
@@ -74,15 +81,19 @@ export function AuthProvider({ children }) {
   }, []);
 
   const fetchCurrentUser = useCallback(async (token) => {
-    if (!token) return null;
+    if (!token) {
+      return { status: AUTH_SESSION_STATUS.MISSING_TOKEN, user: null };
+    }
     try {
       const response = await fetch(`${API_BASE}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) return null;
-      return response.json();
-    } catch {
-      return null;
+      if (!response.ok) {
+        return { status: classifyAuthHttpStatus(response.status), user: null };
+      }
+      return { status: AUTH_SESSION_STATUS.OK, user: await response.json() };
+    } catch (error) {
+      return { status: classifyAuthRuntimeError(error), user: null };
     }
   }, []);
 
@@ -92,6 +103,7 @@ export function AuthProvider({ children }) {
 
     const safeRefreshToken = String(refreshTokenRef.current || "").trim();
     if (!safeRefreshToken) {
+      lastRefreshStatusRef.current = AUTH_SESSION_STATUS.MISSING_TOKEN;
       clearSession();
       return false;
     }
@@ -105,7 +117,11 @@ export function AuthProvider({ children }) {
         });
 
         if (!response.ok) {
-          clearSession();
+          const refreshStatus = classifyAuthHttpStatus(response.status);
+          lastRefreshStatusRef.current = refreshStatus;
+          if (refreshStatus === AUTH_SESSION_STATUS.AUTH_INVALID) {
+            clearSession();
+          }
           return false;
         }
 
@@ -114,13 +130,16 @@ export function AuthProvider({ children }) {
         const nextAccessToken = String(body?.access_token || "").trim();
         const nextRefreshToken = String(body?.refresh_token || "").trim();
         if (!nextAccessToken || !nextRefreshToken) {
+          lastRefreshStatusRef.current = AUTH_SESSION_STATUS.INVALID_PAYLOAD;
           clearSession();
           return false;
         }
 
         persistTokens(nextAccessToken, nextRefreshToken);
+        lastRefreshStatusRef.current = AUTH_SESSION_STATUS.OK;
         return true;
-      } catch {
+      } catch (error) {
+        lastRefreshStatusRef.current = classifyAuthRuntimeError(error);
         return false;
       }
     })();
@@ -179,18 +198,34 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        let nextUser = await fetchCurrentUser(currentAccess);
-        if (!nextUser) {
+        let userResult = await fetchCurrentUser(currentAccess);
+        const initialUserStatus = userResult.status;
+        let nextUser = userResult.user;
+        let refreshAttempted = false;
+        let retryUserStatus = AUTH_SESSION_STATUS.OK;
+        if (!nextUser && userResult.status === AUTH_SESSION_STATUS.AUTH_INVALID) {
+          refreshAttempted = true;
           const refreshed = await refreshSession();
           if (refreshed) {
-            nextUser = await fetchCurrentUser(accessTokenRef.current);
+            userResult = await fetchCurrentUser(accessTokenRef.current);
+            nextUser = userResult.user;
+            retryUserStatus = userResult.status;
           }
         }
 
         if (!alive) return;
 
         if (!nextUser) {
-          clearSession();
+          if (
+            shouldClearSessionAfterBootstrap({
+              initialUserStatus,
+              refreshAttempted,
+              refreshStatus: lastRefreshStatusRef.current,
+              retryUserStatus,
+            })
+          ) {
+            clearSession();
+          }
         } else {
           setUser(nextUser);
         }

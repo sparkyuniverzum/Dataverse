@@ -19,6 +19,7 @@ export default function App() {
     isAuthenticated,
     isAuthLoading: isLoading,
     setDefaultGalaxy,
+    authUserId: user?.id || "",
   });
   const {
     selectedGalaxy,

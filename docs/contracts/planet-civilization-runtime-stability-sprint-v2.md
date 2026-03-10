@@ -123,3 +123,20 @@ Bundled long gates (after multi-block bundle, not per block):
 3. [ ] `RSV2-3` offline continuity patch merged with focused tests green.
 4. [ ] `RSV2-4` performance slice merged with focused tests green.
 5. [ ] bundled long gates rerun green after `RSV2-1..RSV2-4`.
+
+## 8. Related FE closure before RSV2
+
+Closed immediately before this sprint so runtime hardening starts from a cleaner FE builder baseline:
+1. `SZ-A` single derived builder UI state introduced (`planetBuilderUiState`).
+2. `SZ-B` Stage Zero prop-drilling replaced with local context adapter.
+3. `SZ-C` builder consistency guard added and remaining shadow boolean usage reduced.
+4. Placeholder Wave1 test matrix aligned with current bond preview + remove_soft UI contracts.
+
+Evidence:
+1. `npm --prefix frontend run test -- src/components/universe/planetCivilizationMatrix.placeholder.test.js --passWithNoTests=false` -> `177 passed`
+2. `npm --prefix frontend run test -- src/components/universe/planetBuilderConsistencyGuard.test.js src/components/universe/planetBuilderUiState.test.js src/components/universe/planetBuilderFlow.test.js src/components/universe/StageZeroSetupPanel.preview.test.jsx` -> `17 passed`
+3. `npm --prefix frontend run test:e2e:workspace-starlock` -> `1 passed`
+
+Reason to record here:
+1. `RSV2-*` blocks assume Stage Zero/builder render flow no longer depends on widespread shadow UI booleans.
+2. Runtime/auth/offline work should build on this reduced coupling baseline, not reopen builder state ownership.
