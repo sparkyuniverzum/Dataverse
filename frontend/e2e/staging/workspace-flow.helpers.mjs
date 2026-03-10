@@ -355,8 +355,21 @@ export async function selectGridRowByValue(page, rowValue) {
   if (!targetValue) {
     throw new Error("selectGridRowByValue requires non-empty rowValue.");
   }
+  const directRow = page
+    .locator(`[data-testid="quick-grid-row"][data-row-value="${escapeCssAttribute(targetValue)}"]`)
+    .first();
+  const directVisible = await directRow.isVisible().catch(() => false);
+  if (directVisible) {
+    await directRow.scrollIntoViewIfNeeded().catch(() => {});
+    await directRow.dispatchEvent("click");
+    await expect(directRow).toHaveAttribute("data-selected", "true", { timeout: 15_000 });
+    await expect(directRow).toHaveAttribute("data-row-value", targetValue, { timeout: 15_000 });
+    return;
+  }
+
   const gridSearch = page.getByPlaceholder("Filtr radku a bunek...");
-  if (await isVisible(gridSearch)) {
+  const canUseSearch = (await isVisible(gridSearch)) && (await gridSearch.isEnabled().catch(() => false));
+  if (canUseSearch) {
     await setInputValueViaDom(gridSearch, "");
     await setInputValueViaDom(gridSearch, targetValue);
   }
@@ -368,7 +381,7 @@ export async function selectGridRowByValue(page, rowValue) {
   await row.dispatchEvent("click");
   await expect(row).toHaveAttribute("data-selected", "true", { timeout: 15_000 });
   await expect(row).toHaveAttribute("data-row-value", targetValue, { timeout: 15_000 });
-  if (await isVisible(gridSearch)) {
+  if (canUseSearch) {
     await setInputValueViaDom(gridSearch, "");
   }
 }

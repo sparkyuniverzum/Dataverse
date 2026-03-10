@@ -135,6 +135,13 @@ export default function StarHeartDashboard({
     : 0;
   const parserSuccessRate = parserAttempts > 0 ? Math.round((parserSuccess / parserAttempts) * 100) : 0;
   const fallbackRate = parserAttempts > 0 ? Math.round((fallbackUsed / parserAttempts) * 100) : 0;
+  const routeFamily =
+    parserTelemetry?.by_route_family && typeof parserTelemetry.by_route_family === "object"
+      ? parserTelemetry.by_route_family
+      : {};
+  const routeCanonical = Number.isFinite(Number(routeFamily.canonical)) ? Number(routeFamily.canonical) : 0;
+  const routeAlias = Number.isFinite(Number(routeFamily.alias)) ? Number(routeFamily.alias) : 0;
+  const routeParser = Number.isFinite(Number(routeFamily.parser)) ? Number(routeFamily.parser) : 0;
   const physicalProfileVersion = Number.isFinite(Number(starPhysicsProfile?.profile_version))
     ? Number(starPhysicsProfile.profile_version)
     : Number.isFinite(Number(starCoreProfile?.physicalProfileVersion))
@@ -267,6 +274,10 @@ export default function StarHeartDashboard({
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
               Fallback fail: <strong>{fallbackFailed}</strong> | Posledni parser error:{" "}
               <strong>{String(parserTelemetry?.last_error || "n/a")}</strong>
+            </div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
+              Route family: canonical <strong>{routeCanonical}</strong> | alias <strong>{routeAlias}</strong> | parser{" "}
+              <strong>{routeParser}</strong>
             </div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
               LINK: <strong>{parserModeLabel(parserExecutionMode?.link)}</strong> | INGEST:{" "}

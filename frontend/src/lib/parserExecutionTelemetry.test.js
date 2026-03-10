@@ -28,17 +28,28 @@ describe("parser execution telemetry", () => {
         extinguish: 0,
         other: 0,
       },
+      by_route_family: {
+        canonical: 0,
+        alias: 0,
+        parser: 0,
+        unknown: 0,
+      },
       last_error: "parser crashed",
       last_error_at: null,
     });
   });
 
   it("counts parser success by action", () => {
-    const next = recordParserTelemetry(EMPTY_PARSER_TELEMETRY, { action: "link", parserOk: true });
+    const next = recordParserTelemetry(EMPTY_PARSER_TELEMETRY, {
+      action: "link",
+      parserOk: true,
+      routeFamily: "parser",
+    });
     expect(next.attempts).toBe(1);
     expect(next.parser_success).toBe(1);
     expect(next.parser_failed).toBe(0);
     expect(next.by_action.link).toBe(1);
+    expect(next.by_route_family.parser).toBe(1);
   });
 
   it("counts parser failure and fallback result", () => {
@@ -48,6 +59,7 @@ describe("parser execution telemetry", () => {
       parserError: new Error("not supported"),
       fallbackUsed: true,
       fallbackOk: true,
+      routeFamily: "alias",
     });
     expect(failed.attempts).toBe(1);
     expect(failed.parser_failed).toBe(1);
@@ -55,6 +67,7 @@ describe("parser execution telemetry", () => {
     expect(failed.fallback_success).toBe(1);
     expect(failed.fallback_failed).toBe(0);
     expect(failed.by_action.ingest).toBe(1);
+    expect(failed.by_route_family.alias).toBe(1);
     expect(failed.last_error).toBe("not supported");
     expect(failed.last_error_at).toMatch(/T/);
   });

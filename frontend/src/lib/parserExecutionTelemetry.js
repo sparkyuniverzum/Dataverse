@@ -18,6 +18,12 @@ export const EMPTY_PARSER_TELEMETRY = Object.freeze({
     extinguish: 0,
     other: 0,
   }),
+  by_route_family: Object.freeze({
+    canonical: 0,
+    alias: 0,
+    parser: 0,
+    unknown: 0,
+  }),
   last_error: "",
   last_error_at: null,
 });
@@ -38,14 +44,32 @@ function normalizeActionKey(rawAction) {
   return ACTION_KEYS.OTHER;
 }
 
+function normalizeRouteFamily(rawRouteFamily) {
+  const normalized = String(rawRouteFamily || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "canonical") return "canonical";
+  if (normalized === "alias") return "alias";
+  if (normalized === "parser") return "parser";
+  return "unknown";
+}
+
 export function createParserTelemetrySnapshot(raw = EMPTY_PARSER_TELEMETRY) {
   const source = raw && typeof raw === "object" ? raw : EMPTY_PARSER_TELEMETRY;
   const byActionSource = source.by_action && typeof source.by_action === "object" ? source.by_action : {};
+  const byRouteFamilySource =
+    source.by_route_family && typeof source.by_route_family === "object" ? source.by_route_family : {};
   const byAction = {
     link: toNonNegativeInt(byActionSource.link),
     ingest: toNonNegativeInt(byActionSource.ingest),
     extinguish: toNonNegativeInt(byActionSource.extinguish),
     other: toNonNegativeInt(byActionSource.other),
+  };
+  const byRouteFamily = {
+    canonical: toNonNegativeInt(byRouteFamilySource.canonical),
+    alias: toNonNegativeInt(byRouteFamilySource.alias),
+    parser: toNonNegativeInt(byRouteFamilySource.parser),
+    unknown: toNonNegativeInt(byRouteFamilySource.unknown),
   };
 
   return {
@@ -56,6 +80,7 @@ export function createParserTelemetrySnapshot(raw = EMPTY_PARSER_TELEMETRY) {
     fallback_success: toNonNegativeInt(source.fallback_success),
     fallback_failed: toNonNegativeInt(source.fallback_failed),
     by_action: byAction,
+    by_route_family: byRouteFamily,
     last_error: String(source.last_error || "").trim(),
     last_error_at:
       typeof source.last_error_at === "string" && source.last_error_at.trim() ? source.last_error_at : null,
@@ -64,17 +89,27 @@ export function createParserTelemetrySnapshot(raw = EMPTY_PARSER_TELEMETRY) {
 
 export function recordParserTelemetry(
   current,
-  { action = "OTHER", parserOk = false, parserError = null, fallbackUsed = false, fallbackOk = null } = {}
+  {
+    action = "OTHER",
+    parserOk = false,
+    parserError = null,
+    fallbackUsed = false,
+    fallbackOk = null,
+    routeFamily = "unknown",
+  } = {}
 ) {
   const snapshot = createParserTelemetrySnapshot(current);
   const actionKey = normalizeActionKey(action);
+  const routeFamilyKey = normalizeRouteFamily(routeFamily);
   const next = {
     ...snapshot,
     by_action: { ...snapshot.by_action },
+    by_route_family: { ...snapshot.by_route_family },
     attempts: snapshot.attempts + 1,
   };
 
   next.by_action[actionKey] = toNonNegativeInt(next.by_action[actionKey]) + 1;
+  next.by_route_family[routeFamilyKey] = toNonNegativeInt(next.by_route_family[routeFamilyKey]) + 1;
   if (parserOk) {
     next.parser_success += 1;
     return next;

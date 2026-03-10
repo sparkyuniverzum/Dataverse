@@ -253,6 +253,7 @@ export function useMoonCrudController({
       let fallbackAttempted = false;
       let parserFailure = null;
       let parserTelemetryRecorded = false;
+      let routeFamilyUsed = "unknown";
 
       setBusy(true);
       setPendingRowOps((prev) => ({ ...prev, [targetId]: "extinguish" }));
@@ -266,7 +267,8 @@ export function useMoonCrudController({
           parserAttempted = true;
           try {
             await executeParserCommand(parserCommand);
-            trackParserAttempt({ action: "EXTINGUISH", parserOk: true });
+            routeFamilyUsed = "parser";
+            trackParserAttempt({ action: "EXTINGUISH", parserOk: true, routeFamily: routeFamilyUsed });
             parserTelemetryRecorded = true;
             await refreshProjection({ silent: true });
             if (String(selectedAsteroidId) === targetId) {
@@ -302,10 +304,12 @@ export function useMoonCrudController({
         let response = await apiFetch(buildExtinguishUrl(primaryExtinguishBaseUrl), {
           method: "PATCH",
         });
+        routeFamilyUsed = "canonical";
         if (shouldFallbackToMoonAlias(response.status)) {
           response = await apiFetch(buildExtinguishUrl(legacyExtinguishBaseUrl), {
             method: "PATCH",
           });
+          routeFamilyUsed = "alias";
         }
 
         if (!response.ok) {
@@ -318,6 +322,7 @@ export function useMoonCrudController({
             parserError: parserFailure,
             fallbackUsed: true,
             fallbackOk: true,
+            routeFamily: routeFamilyUsed,
           });
           parserTelemetryRecorded = true;
         }
@@ -335,6 +340,7 @@ export function useMoonCrudController({
             parserError: parserFailure || deleteError,
             fallbackUsed: fallbackAttempted,
             fallbackOk: fallbackAttempted ? false : null,
+            routeFamily: fallbackAttempted ? routeFamilyUsed : "parser",
           });
           parserTelemetryRecorded = true;
         }

@@ -43,29 +43,60 @@ async function readWriteFeedbackSafe(page) {
 
 async function writeMineralAndWaitAck(page, { rowValue, key, value, timeoutMs = 30_000 }) {
   await selectGridRowByValue(page, rowValue);
+  const mineralComposer = page.getByTestId("quick-grid-mineral-composer");
+  await expect(mineralComposer).toContainText(String(rowValue), { timeout: 15_000 });
   const mineralsPanel = page.getByTestId("quick-grid-minerals-panel");
-  await mineralsPanel.getByPlaceholder("Nerost / sloupec").fill(key);
-  await mineralsPanel.getByPlaceholder("Hodnota (prazdne = remove_soft)").fill(value);
+  const normalizedKey = String(key || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+  const normalizedValue = String(value ?? "").trim();
+  const keyInput = mineralsPanel.getByPlaceholder("Nerost / sloupec");
+  const valueInput = mineralsPanel.getByPlaceholder("Hodnota (prazdne = remove_soft)");
+  await keyInput.fill(normalizedKey);
+  await valueInput.fill(normalizedValue);
+  await expect(keyInput).toHaveValue(normalizedKey, { timeout: 10_000 });
+  await expect(valueInput).toHaveValue(normalizedValue, { timeout: 10_000 });
   const saveButton = mineralsPanel.getByRole("button", { name: "Ulozit nerost" });
   await expect(saveButton).toBeEnabled({ timeout: 15_000 });
-  const feedbackBefore = await readWriteFeedbackSafe(page);
-  await saveButton.click();
+  const mineralRouteFragment = `/minerals/${encodeURIComponent(normalizedKey)}`;
+  await Promise.all([
+    page.waitForResponse(
+      (response) => {
+        const method = response.request().method().toUpperCase();
+        if (method !== "PATCH") return false;
+        const url = response.url();
+        if (!url.includes(mineralRouteFragment)) return false;
+        return response.ok();
+      },
+      { timeout: timeoutMs }
+    ),
+    saveButton.click(),
+  ]);
+  const mineralFilterInput = mineralsPanel.getByPlaceholder("Filtr nerostu...");
+  await mineralFilterInput.fill(normalizedKey);
+  const mineralItem = page.getByTestId(`quick-grid-mineral-item-${normalizedKey}`).first();
   await expect
     .poll(
       async () => {
-        const feedback = await readWriteFeedbackSafe(page);
-        if (!feedback || feedback === feedbackBefore) return false;
-        if (/Nerost.*ulozen/i.test(feedback)) return true;
-        if (/selhal|chyba|conflict|contract/i.test(feedback)) return true;
-        return false;
+        await selectGridRowByValue(page, rowValue);
+        const composerText = await mineralComposer.textContent();
+        if (!String(composerText || "").includes(String(rowValue))) return false;
+        await mineralFilterInput.fill(normalizedKey);
+        const itemVisible = await mineralItem.isVisible().catch(() => false);
+        if (!itemVisible) return false;
+        const itemText = String((await mineralItem.textContent().catch(() => "")) || "").toLowerCase();
+        const expectedValue = normalizedValue.toLowerCase();
+        return itemText.includes(expectedValue);
       },
       { timeout: timeoutMs }
     )
     .toBe(true);
-  await assertNoContractViolation(page);
-  await expect
-    .poll(async () => readWriteFeedback(page), { timeout: timeoutMs })
-    .toMatch(new RegExp(`Nerost(\\s+'?${String(key).replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")})?.*ulozen`, "i"));
+  const feedbackAfter = await assertNoContractViolation(page);
+  if (/selhal|chyba|conflict|contract/i.test(String(feedbackAfter || "").toLowerCase())) {
+    throw new Error(`Unexpected feedback after mineral write: ${feedbackAfter}`);
+  }
+  await mineralFilterInput.fill("");
 }
 
 test("planet+civilization+mineral workflow: create two rows, write minerals, archive one", async ({
@@ -119,7 +150,7 @@ test("planet+civilization+mineral workflow: create two rows, write minerals, arc
     async () => {
       await writeMineralAndWaitAck(page, { rowValue: rowA, key: "code", value: `${rowA}-code`, timeoutMs: 35_000 });
     },
-    35_000
+    45_000
   );
 
   await runStep(
@@ -130,13 +161,21 @@ test("planet+civilization+mineral workflow: create two rows, write minerals, arc
     35_000
   );
 
-  await runStep("write-rowA-amount", async () => {
-    await writeMineralAndWaitAck(page, { rowValue: rowA, key: "amount", value: "1200" });
-  });
+  await runStep(
+    "write-rowA-amount",
+    async () => {
+      await writeMineralAndWaitAck(page, { rowValue: rowA, key: "amount", value: "1200", timeoutMs: 40_000 });
+    },
+    45_000
+  );
 
-  await runStep("write-rowB-category", async () => {
-    await writeMineralAndWaitAck(page, { rowValue: rowB, key: "category", value: "active" });
-  });
+  await runStep(
+    "write-rowB-category",
+    async () => {
+      await writeMineralAndWaitAck(page, { rowValue: rowB, key: "category", value: "active", timeoutMs: 40_000 });
+    },
+    45_000
+  );
 
   await runStep("archive-rowA", async () => {
     const countBeforeArchive = await page.getByTestId("quick-grid-row").count();

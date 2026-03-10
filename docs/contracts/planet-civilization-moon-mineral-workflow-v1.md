@@ -117,10 +117,11 @@ UI should auto-select first available row when grid opens and no row is selected
    - removed from active grid and active 3D members
 4. [x] Reopen grid:
    - first available row auto-selected
-5. [ ] Alias interoperability:
+5. [x] Alias interoperability:
    - canonical `/civilizations*` and compatibility `/moons*` produce same FE row behavior
 
 Evidence (2026-03-10):
 1. `npm --prefix frontend run test:e2e:planet-civilization-mineral-workflow` -> `1 passed`
 2. `npm --prefix frontend run test:e2e:planet-moon-preview` -> `1 passed`
 3. `npm --prefix frontend run test:e2e:workspace-starlock` -> `1 passed`
+4. `npm --prefix frontend run test -- src/lib/civilizationRuntimeRouteGate.test.js src/lib/parserExecutionTelemetry.test.js` -> `7 passed`

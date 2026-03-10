@@ -68,9 +68,9 @@ describe("civilizationRuntimeRouteGate", () => {
     expect(shouldFallbackToMoonAlias(409)).toBe(false);
   });
 
-  it("guards UniverseWorkspace runtime writes against direct moon-primary regressions", () => {
-    const workspacePath = fileURLToPath(new URL("../components/universe/UniverseWorkspace.jsx", import.meta.url));
-    const source = readFileSync(workspacePath, "utf-8");
+  it("guards civilization runtime write controller against direct moon-primary regressions", () => {
+    const controllerPath = fileURLToPath(new URL("../components/universe/useMoonCrudController.js", import.meta.url));
+    const source = readFileSync(controllerPath, "utf-8");
 
     expect(source).toContain("buildCivilizationWriteRouteCandidates");
     expect(source).toContain("shouldFallbackToMoonAlias");
