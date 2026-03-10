@@ -18,6 +18,7 @@ import {
 import { applySseFrameCursor, drainSseBuffer, parseSseFrame, sleep } from "./runtimeSyncUtils";
 import { classifyRuntimeDeltaFrame, createBoundedStreamDedupe } from "./runtimeDeltaSync";
 import { applyRuntimeEventBatchToSnapshot } from "./runtimeProjectionPatch";
+import { buildRuntimeNormalizationSignal } from "./runtimeNormalizationSignal";
 import {
   normalizeStarDomains,
   normalizeStarPhysicsProfile,
@@ -81,6 +82,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
   const pulseQueuedRef = useRef(false);
   const telemetryInFlightRef = useRef(null);
   const telemetryLastAtRef = useRef(0);
+  const lastNormalizationSignalKeyRef = useRef("");
 
   const mergePulsePayload = useCallback((payload, scopeKey) => {
     if (activeScopeRef.current !== scopeKey) return;
@@ -271,6 +273,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
           }
 
           const [snapshotBody, tablesBody] = await Promise.all([snapshotResponse.json(), tablesResponse.json()]);
+          const normalizationSignal = buildRuntimeNormalizationSignal(snapshotBody || {}, { scopeKey });
           const normalized = normalizeSnapshot(snapshotBody || {});
           const nextTables = Array.isArray(tablesBody?.tables) ? tablesBody.tables : [];
 
@@ -280,6 +283,10 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
           setSnapshot(normalized);
           snapshotRef.current = normalized;
           setTables(nextTables);
+          if (normalizationSignal && lastNormalizationSignalKeyRef.current !== normalizationSignal.id) {
+            lastNormalizationSignalKeyRef.current = normalizationSignal.id;
+            setRecentStreamEvents((prev) => [normalizationSignal, ...prev].slice(0, STREAM_EVENT_LOG_LIMIT));
+          }
           setError("");
           void refreshStarTelemetry();
         } catch (loadError) {
@@ -334,6 +341,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
     pulseByEntityRef.current = new Map();
     streamEventKeysRef.current = createBoundedStreamDedupe();
     telemetryLastAtRef.current = 0;
+    lastNormalizationSignalKeyRef.current = "";
 
     if (galaxyId) {
       void refreshProjection();
