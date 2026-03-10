@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { apiErrorFromResponse, apiFetch, buildBranchPromoteUrl } from "../../lib/dataverseApi";
+import { buildBranchTimelineSummary } from "./timelineRewriteContract";
 
 export function useBranchTimelineController({
   apiBase,
@@ -48,11 +49,7 @@ export function useBranchTimelineController({
         ? Number(promotePayload.promoted_events_count)
         : null;
       selectBranch("");
-      setBranchPromoteSummary(
-        promotedEventsCount === null
-          ? "Branch byl promotnut do main timeline."
-          : `Branch byl promotnut (${promotedEventsCount} eventů).`
-      );
+      setBranchPromoteSummary(buildBranchTimelineSummary({ mode: "promote", promotedEventsCount }));
       await refreshProjection({ silent: true });
       if (typeof onRefreshScopes === "function") {
         await onRefreshScopes();
@@ -105,7 +102,7 @@ export function useBranchTimelineController({
         await onRefreshScopes();
       }
       await refreshProjection({ silent: true });
-      setBranchPromoteSummary(createdBranchId ? "Branch byl vytvořen a aktivován." : "Branch byl vytvořen.");
+      setBranchPromoteSummary(buildBranchTimelineSummary({ mode: "create", createdBranchId }));
     } catch (createError) {
       setRuntimeError(createError?.message || "Branch se nepodařilo vytvořit.");
     } finally {

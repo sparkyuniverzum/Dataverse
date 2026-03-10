@@ -6,6 +6,11 @@ import { resolveWorkflowNextActionLabel } from "./quickGridWorkflowRail";
 import { buildOfflineWriteGuardMessage } from "./runtimeConnectivityState";
 import { buildRemoveSoftConfirmationKey } from "./removeSoftConfirmation";
 import { resolveRemoveSoftUiState } from "./removeSoftUiState";
+import {
+  filterTimelineEntries,
+  mapBackendStreamEventToTimelineEntry,
+  mapRuntimeWorkflowEventToTimelineEntry,
+} from "./timelineRewriteContract";
 import { tableDisplayName } from "./workspaceFormatters";
 
 const inputStyle = {
@@ -608,19 +613,11 @@ export default function QuickGridOverlay({
       .slice()
       .reverse()
       .forEach((eventItem) => {
-        const id = String(eventItem?.id || "").trim();
-        if (!id || backendEventSeenRef.current.has(id)) return;
+        const entry = mapBackendStreamEventToTimelineEntry(eventItem);
+        const id = String(entry?.id || "").trim();
+        if (!entry || !id || backendEventSeenRef.current.has(id)) return;
         backendEventSeenRef.current.add(id);
-        const eventType = String(eventItem?.eventType || eventItem?.event || "UPDATE")
-          .trim()
-          .toUpperCase();
-        const code = String(eventItem?.code || "").trim();
-        const cursor =
-          eventItem?.cursor === null || typeof eventItem?.cursor === "undefined" ? "n/a" : String(eventItem.cursor);
-        const message = String(eventItem?.message || "").trim();
-        const summary = `[cursor ${cursor}] ${eventType}${code ? `/${code}` : ""}${message ? ` ${message}` : ""}`;
-        const tone = code.includes("ERROR") ? "error" : code.includes("CONFLICT") ? "warn" : "info";
-        pushPlanetEvent(summary, { tone, action: "BE_STREAM", toast: false });
+        pushPlanetEvent(entry.message, { tone: entry.tone, action: entry.action, toast: false });
       });
   }, [backendStreamEvents, open]);
   useEffect(() => {
@@ -630,18 +627,11 @@ export default function QuickGridOverlay({
       .slice()
       .reverse()
       .forEach((eventItem) => {
-        const id = String(eventItem?.id || "").trim();
-        if (!id || runtimeWorkflowEventSeenRef.current.has(id)) return;
+        const entry = mapRuntimeWorkflowEventToTimelineEntry(eventItem);
+        const id = String(entry?.id || "").trim();
+        if (!entry || !id || runtimeWorkflowEventSeenRef.current.has(id)) return;
         runtimeWorkflowEventSeenRef.current.add(id);
-        const action = String(eventItem?.action || "RUNTIME")
-          .trim()
-          .toUpperCase();
-        const message = String(eventItem?.message || "").trim();
-        if (!message) return;
-        const tone = String(eventItem?.tone || "info")
-          .trim()
-          .toLowerCase();
-        pushPlanetEvent(message, { tone, action, toast: false });
+        pushPlanetEvent(entry.message, { tone: entry.tone, action: entry.action, toast: false });
       });
   }, [open, runtimeWorkflowEvents]);
   const rowBatchSummary = useMemo(() => {
@@ -705,22 +695,9 @@ export default function QuickGridOverlay({
     [rowBatchDrafts, rowsById]
   );
   const filteredWorkflowLog = useMemo(() => {
-    const filter = String(workflowLogFilter || "ALL").toUpperCase();
-    const query = String(workflowLogQuery || "")
-      .trim()
-      .toLowerCase();
-    const source = Array.isArray(planetEventLog) ? planetEventLog : [];
-    return source.filter((item) => {
-      const action = String(item?.action || "").toUpperCase();
-      const tone = String(item?.tone || "").toLowerCase();
-      if (filter === "BE_STREAM" && action !== "BE_STREAM") return false;
-      if (filter === "IMPACT_REPAIR" && !(action.startsWith("MOON_IMPACT") || action.startsWith("REPAIR_")))
-        return false;
-      if (filter === "UI" && action === "BE_STREAM") return false;
-      if (filter === "ERROR" && tone !== "error") return false;
-      if (!query) return true;
-      const message = String(item?.message || "").toLowerCase();
-      return action.toLowerCase().includes(query) || message.includes(query);
+    return filterTimelineEntries(planetEventLog, {
+      filter: workflowLogFilter,
+      query: workflowLogQuery,
     });
   }, [planetEventLog, workflowLogFilter, workflowLogQuery]);
   const composerTargetRows = useMemo(() => {
