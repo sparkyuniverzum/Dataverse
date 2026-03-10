@@ -57,13 +57,6 @@ async def register(
             user_agent=_request_user_agent(request),
             ip_address=_request_ip_address(request),
         )
-        await ensure_onboarding_progress_safe(
-            session=session,
-            services=services,
-            user_id=result.user.id,
-            galaxy_id=result.default_galaxy.id,
-            context="auth.register",
-        )
     await commit_if_active(session)
     return AuthResponse(
         access_token=result.tokens.access_token,
