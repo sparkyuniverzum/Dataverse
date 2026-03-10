@@ -16,6 +16,7 @@ import {
   normalizeSnapshot,
 } from "../../lib/dataverseApi";
 import { applySseFrameCursor, drainSseBuffer, parseSseFrame, sleep } from "./runtimeSyncUtils";
+import { classifyRuntimeDeltaFrame, createBoundedStreamDedupe } from "./runtimeDeltaSync";
 import {
   normalizeStarDomains,
   normalizeStarPhysicsProfile,
@@ -73,7 +74,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
   const streamCursorRef = useRef(0);
   const pulseCursorRef = useRef(0);
   const pulseByEntityRef = useRef(new Map());
-  const streamEventKeysRef = useRef(new Set());
+  const streamEventKeysRef = useRef(createBoundedStreamDedupe());
   const pulseInFlightRef = useRef(null);
   const pulseQueuedRef = useRef(false);
   const telemetryInFlightRef = useRef(null);
@@ -327,7 +328,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
     streamCursorRef.current = 0;
     pulseCursorRef.current = 0;
     pulseByEntityRef.current = new Map();
-    streamEventKeysRef.current = new Set();
+    streamEventKeysRef.current = createBoundedStreamDedupe();
     telemetryLastAtRef.current = 0;
 
     if (galaxyId) {
@@ -352,14 +353,18 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
       }
       if (frame?.event === "update" || String(frame?.event || "").toLowerCase() === "error") {
         const normalizedEvent = normalizeStreamEvent(frame, decision.cursor);
-        if (!streamEventKeysRef.current.has(normalizedEvent.id)) {
-          streamEventKeysRef.current.add(normalizedEvent.id);
+        if (streamEventKeysRef.current.remember(normalizedEvent.id)) {
           setRecentStreamEvents((prev) => [normalizedEvent, ...prev].slice(0, STREAM_EVENT_LOG_LIMIT));
         }
       }
-      if (decision.shouldRefresh) {
+      const deltaDecision = classifyRuntimeDeltaFrame(frame, decision);
+      if (deltaDecision.shouldRequestPulse) {
         void requestStarPulse({ afterEventSeq: pulseCursorRef.current, limit: 96 });
+      }
+      if (deltaDecision.shouldRefreshTelemetry) {
         void refreshStarTelemetry();
+      }
+      if (deltaDecision.shouldRefreshProjection) {
         consumeRefresh();
       }
     };
