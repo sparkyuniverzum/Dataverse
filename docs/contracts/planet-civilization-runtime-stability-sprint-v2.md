@@ -109,7 +109,8 @@ Focused gates per block:
    - `npm --prefix frontend run test -- src/hooks/useConnectivityState.test.js src/components/app/appConnectivityNoticeState.test.js src/components/app/AppConnectivityNotice.test.jsx src/components/universe/runtimeConnectivityState.test.js`
    - `npm --prefix frontend run test -- src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx`
 4. `RSV2-4`
-   - `npm --prefix frontend run test -- src/components/universe/scene/physicsSystem.test.js src/components/universe/scene/performanceBudget.test.js`
+   - `npm --prefix frontend run test -- src/lib/snapshotNormalization.test.js src/lib/snapshotNormalizationBudget.test.js src/lib/dataverseApi.test.js`
+   - `npm --prefix frontend run test -- src/components/universe/runtimeNormalizationSignal.test.js src/components/universe/useUniverseRuntimeSync.test.js src/components/universe/runtimeSyncUtils.test.js`
 
 Bundled long gates (after multi-block bundle, not per block):
 1. `npm --prefix frontend run test:e2e:workspace-starlock`
@@ -122,7 +123,7 @@ Bundled long gates (after multi-block bundle, not per block):
 1. [x] `RSV2-1` auth/session patch set merged with focused tests green. Done 2026-03-10.
 2. [x] `RSV2-2` stream delta + bounded dedupe merged with focused tests green. Done 2026-03-10.
 3. [x] `RSV2-3` offline continuity patch merged with focused tests green. Done 2026-03-10.
-4. [ ] `RSV2-4` performance slice merged with focused tests green.
+4. [x] `RSV2-4` performance slice merged with focused tests green. Done 2026-03-10.
 5. [ ] bundled long gates rerun green after `RSV2-1..RSV2-4`.
 
 ## 8. Related FE closure before RSV2
@@ -210,3 +211,28 @@ Recommended bundled regression before `RSV2-4`:
 
 Next implementation slice:
 1. `RSV2-4A`: normalization hot-path split and lightweight performance budget helper, covered by focused tests only
+
+## 12. RSV2-4 closure evidence
+
+Implemented slices:
+1. `RSV2-4A` snapshot normalization split into small slice helpers instead of one all-in-one branch in `dataverseApi`.
+2. `RSV2-4A` lightweight snapshot normalization budget classifier added for heavy payload detection.
+3. `RSV2-4B` heavy snapshot normalization signal added to runtime sync path as operator-readable perf hint.
+4. `RSV2-4B` heavy normalization signal deduped inside runtime sync to avoid repetitive noise.
+
+Evidence:
+1. `npm --prefix frontend run format:check` -> green
+2. `npm --prefix frontend run test -- src/lib/snapshotNormalization.test.js src/lib/snapshotNormalizationBudget.test.js src/lib/dataverseApi.test.js` -> `30 passed`
+3. `npm --prefix frontend run test -- src/components/universe/runtimeNormalizationSignal.test.js src/lib/snapshotNormalizationBudget.test.js src/components/universe/useUniverseRuntimeSync.test.js src/components/universe/runtimeSyncUtils.test.js` -> `15 passed`
+
+Closed outcomes:
+1. normalization hot path is now split into smaller helpers and ready for future worker/off-main-thread migration
+2. heavy snapshot payloads have an explicit budget classifier instead of implicit guesswork
+3. runtime sync can surface operator-readable heavy normalization signals without widening global state
+
+Recommended bundled focused regression for full RSV2 closure:
+1. `npm --prefix frontend run format:check`
+2. `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/hooks/useGalaxyGate.test.js src/hooks/useConnectivityState.test.js src/components/app/appConnectivityNoticeState.test.js src/components/app/AppConnectivityNotice.test.jsx src/components/universe/runtimeConnectivityState.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx src/lib/snapshotNormalization.test.js src/lib/snapshotNormalizationBudget.test.js src/lib/dataverseApi.test.js src/components/universe/runtimeNormalizationSignal.test.js src/components/universe/useUniverseRuntimeSync.test.js src/components/universe/runtimeSyncUtils.test.js src/components/universe/workflowEventBridge.test.js`
+
+Next implementation slice:
+1. bundled long-gate rerun and full `RSV2` sprint closure
