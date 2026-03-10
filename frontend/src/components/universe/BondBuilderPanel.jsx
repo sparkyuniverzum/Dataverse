@@ -238,15 +238,17 @@ export default function BondBuilderPanel({
           PRE-COMMIT VALIDATION
         </div>
         <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
-          decision: <strong>{String(preview?.decision || "n/a")}</strong> | blocking:{" "}
+          decision: <strong data-testid="bond-preview-status">{String(preview?.decision || "n/a")}</strong> | blocking:{" "}
           <strong>{preview?.blocking ? "true" : "false"}</strong>
         </div>
         {reasonRows.length ? (
-          reasonRows.map((row, index) => (
-            <div key={`${row.code}-${index}`} style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
-              [{row.severity}] {row.code}: {row.message}
-            </div>
-          ))
+          <div data-testid="bond-preview-reasons" style={{ display: "grid", gap: 4 }}>
+            {reasonRows.map((row, index) => (
+              <div key={`${row.code}-${index}`} style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
+                [{row.severity}] {row.code}: {row.message}
+              </div>
+            ))}
+          </div>
         ) : (
           <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.72 }}>
             Preview ještě neproběhlo nebo nevrátilo žádné reasons.

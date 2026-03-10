@@ -284,7 +284,9 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
     await user.clear(mineralKeyInput);
     await user.type(mineralKeyInput, "amount");
     await user.clear(mineralValueInput);
-    await user.click(screen.getByRole("button", { name: "Ulozit nerost" }));
+    await user.click(screen.getByRole("button", { name: "Provést remove_soft" }));
+    expect(onUpsertMetadata).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Potvrdit remove_soft" }));
 
     expect(onUpsertMetadata).toHaveBeenCalledWith("moon-1", "amount", "");
     expect(screen.getByTestId("quick-grid-civilization-inspector").textContent).toContain("state: ANOMALY");
@@ -316,6 +318,8 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
       onUpsertMetadata,
     });
 
+    await user.click(screen.getByTestId("quick-grid-civilization-advanced-toggle"));
+
     const createInput = screen.getByPlaceholderText("Nova hodnota civilizace...");
     await user.type(createInput, "Moon X");
     await user.click(screen.getByRole("button", { name: "Pridat civilizaci" }));
@@ -323,6 +327,9 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
       expect(screen.getByTestId("quick-grid-write-feedback").textContent).toContain("Create failed by contract");
     });
 
+    const editInput = screen.getByPlaceholderText("Upravit hodnotu vybrane civilizace...");
+    await user.clear(editInput);
+    await user.type(editInput, "Moon X mutated");
     await user.click(screen.getByRole("button", { name: "Ulozit" }));
     await waitFor(() => {
       expect(screen.getByTestId("quick-grid-write-feedback").textContent).toContain("Mutate applied");
