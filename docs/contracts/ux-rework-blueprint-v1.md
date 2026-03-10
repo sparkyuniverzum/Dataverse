@@ -323,6 +323,21 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closed on 2026-03-10
 
+### 2026-03-10 - Unified Draft Rail seam extraction
+
+- Status: `GREEN`
+- Removed:
+  - inline draft-rail decision logic in `frontend/src/components/universe/UniverseWorkspace.jsx`
+- Replaced by:
+  - `frontend/src/components/universe/draftRailContract.js`
+  - `frontend/src/components/universe/draftRailContract.test.js`
+- Reason:
+  - Command bar and bond draft state are now normalized through one executable seam instead of scattered inline checks in `UniverseWorkspace`. This gives Slice 3 a focused contract for active rail, blocking state, and summary ownership without expanding the workspace monolith.
+- Evidence:
+  - `npm --prefix frontend run test -- src/components/universe/draftRailContract.test.js src/components/universe/selectionContextContract.test.js src/components/universe/selectionInspectorContract.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/workspaceStateContract.test.js` -> passed on 2026-03-10 (`5` files, `18` tests)
+- Exit condition:
+  - closed on 2026-03-10
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -335,3 +350,4 @@ No future block may close without recording replacement decisions.
 3. [x] 2026-03-10: `Shared Workspace State Contract` was implemented as the first concrete slice.
 4. [ ] Next: close the `UniverseWorkspace` test rehab replacement from `ORANGE` to `GREEN` with focused runs.
 5. [x] 2026-03-10: Slice 2 selection ownership and inspector/sidebar state were extracted into focused seams and closed as `GREEN`.
+6. [x] 2026-03-10: Slice 3 unified draft rail was extracted into a focused seam and closed as `GREEN`.
