@@ -50,6 +50,96 @@ Gate:
 - `pytest -q tests -k "outbox or event_store or event_contract"`
 - `pytest -q tests/test_api_integration.py -k "idempotency or replay"`
 
+## 2.1 PRH-1 implementation blocks (ready to execute)
+
+### Block PRH-1A (event envelope + persistence contract)
+
+Goal:
+- freeze canonical event envelope and persist event records in one place.
+
+Implementation tasks:
+1. Add explicit event envelope schema module (typed dataclass/pydantic model).
+2. Add/normalize event persistence contract in `event_store_service.py` (append + query by status/type).
+3. Add DB migration for outbox/event table minimal fields:
+   - `id`, `event_type`, `aggregate_id`, `payload_json`, `trace_id`, `correlation_id`, `status`, `created_at`, `available_at`, `attempt_count`, `last_error`.
+4. Add contract docs note for envelope fields and status lifecycle.
+
+Exit criteria:
+1. Envelope validation rejects missing required fields.
+2. Event can be written/read with deterministic status defaults (`pending`).
+3. Migration is backward-compatible.
+
+Focused gate:
+- `pytest -q tests -k "event_envelope or event_store_contract"`
+- `python -m py_compile app/services/universe/event_store_service.py`
+
+### Block PRH-1B (transactional outbox write path)
+
+Goal:
+- write business entity and outbox event atomically in one DB transaction.
+
+Implementation tasks:
+1. Introduce outbox repository method that accepts active DB session/transaction.
+2. In selected pilot write flow, replace direct cross-module call with:
+   - business write
+   - outbox append in same transaction
+3. Add rollback test where business write fails and outbox row is not committed.
+4. Add rollback test where outbox append fails and business write is not committed.
+
+Exit criteria:
+1. No partial commit state (business yes / event no, or event yes / business no).
+2. Pilot flow no longer depends on direct module-to-module synchronous call.
+
+Focused gate:
+- `pytest -q tests -k "transactional_outbox or atomic_write"`
+- `pytest -q tests/test_api_integration.py -k "pilot and outbox"`
+
+### Block PRH-1C (relay skeleton + retry semantics)
+
+Goal:
+- deliver outbox events asynchronously with deterministic retry behavior.
+
+Implementation tasks:
+1. Add relay worker/service that fetches `pending` events by batch.
+2. Add publish adapter interface (`publish(event)`) with fake/in-memory implementation for tests.
+3. Implement status transitions:
+   - `pending -> published`
+   - `pending -> failed` with `attempt_count` and `last_error`
+   - retry re-queues failed events by `available_at`.
+4. Add idempotency helper for consumers (`event_id` dedupe store/check).
+
+Exit criteria:
+1. Successful publish marks event `published`.
+2. Failed publish increments attempts and keeps event retryable.
+3. Re-running relay over same already-published event is safe.
+
+Focused gate:
+- `pytest -q tests -k "outbox_relay or relay_retry or consumer_idempotent"`
+- `pytest -q tests/test_api_integration.py -k "replay or idempotency"`
+
+### Block PRH-1D (pilot flow decoupling validation)
+
+Goal:
+- prove end-to-end decoupling on one real workflow (onboarding -> downstream provisioning).
+
+Implementation tasks:
+1. Modify pilot service to emit event only (no direct downstream call).
+2. Implement consumer side handler for provisioning path.
+3. Add operator/API status field for eventual consistency visibility.
+4. Add integration test for:
+   - success path
+   - delayed consumer
+   - duplicate event delivery
+
+Exit criteria:
+1. Original request latency no longer depends on downstream module execution.
+2. Downstream failure is recoverable by retry, not by request replay.
+3. Integration tests pass consistently.
+
+Focused gate:
+- `pytest -q tests/test_api_integration.py -k "onboarding and event and provision"`
+- `pytest -q tests -k "event_consumer and duplicate_delivery"`
+
 ### Sprint PRH-2 (decoupled workflow pilot: onboarding -> universe)
 
 Goal:
