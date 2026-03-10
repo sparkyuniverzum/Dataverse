@@ -26,7 +26,9 @@ import {
 import { resolveCivilizationSelectionPatch } from "../../lib/civilizationWorkspaceSelectionGate";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import LinkHoverTooltip from "./LinkHoverTooltip";
+import { ParserComposerModal } from "./ParserComposerModal";
 import { resolveEntityLaws, resolveLinkLaws, resolveStarCoreProfile } from "./lawResolver";
+import { resolveParserComposerModel } from "./parserComposerContract";
 import QuickGridOverlay from "./QuickGridOverlay";
 import StarHeartDashboard from "./StarHeartDashboard";
 import UniverseCanvas from "./UniverseCanvas";
@@ -1955,6 +1957,15 @@ export default function UniverseWorkspace({
       selectedTableId,
     ]
   );
+  const parserComposer = useMemo(
+    () =>
+      resolveParserComposerModel({
+        draftState: draftRailState,
+        tableNodes,
+        commandResolveTableId,
+      }),
+    [commandResolveTableId, draftRailState, tableNodes]
+  );
   const visualBuilderState = useMemo(
     () =>
       resolveVisualBuilderState({
@@ -2389,277 +2400,26 @@ export default function UniverseWorkspace({
         ) : null}
       </div>
 
-      {draftRailState.command.open ? (
-        <section
-          data-testid="workspace-command-bar-modal"
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 63,
-            display: "grid",
-            placeItems: "start center",
-            paddingTop: 48,
-            background: "radial-gradient(circle at 50% 20%, rgba(19, 42, 66, 0.2), rgba(2, 6, 14, 0.74))",
-          }}
-        >
-          <article
-            style={{
-              width: "min(760px, calc(100vw - 24px))",
-              borderRadius: 14,
-              border: "1px solid rgba(126, 216, 250, 0.38)",
-              background: "rgba(5, 13, 24, 0.94)",
-              color: "#d8f8ff",
-              padding: 14,
-              display: "grid",
-              gap: 10,
-              boxShadow: "0 0 24px rgba(46, 145, 189, 0.24)",
-            }}
-          >
-            <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.82 }}>
-              COMMAND BAR
-            </div>
-            <input
-              ref={commandInputRef}
-              data-testid="command-bar-input"
-              value={commandInput}
-              onChange={(event) => setCommandInput(event.target.value)}
-              placeholder='Např. "Invoice 2026" (table: Finance > Cashflow, amount: 1250, status: paid)'
-              style={{
-                width: "100%",
-                borderRadius: 10,
-                border: "1px solid rgba(112, 205, 238, 0.24)",
-                background: "rgba(4, 10, 18, 0.92)",
-                color: "#ddf7ff",
-                padding: "10px 11px",
-                fontSize: "var(--dv-fs-sm)",
-                lineHeight: "var(--dv-lh-base)",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                data-testid="command-bar-preview-button"
-                onClick={() => void handleBuildCommandPreview()}
-                disabled={!draftRailState.command.canPreview}
-                style={{
-                  border: "1px solid rgba(114, 219, 252, 0.5)",
-                  background: "linear-gradient(120deg, #21bbea, #44d8ff)",
-                  color: "#072737",
-                  borderRadius: 9,
-                  padding: "8px 10px",
-                  fontWeight: 700,
-                  cursor: draftRailState.command.previewBusy ? "wait" : "pointer",
-                }}
-              >
-                {draftRailState.command.previewBusy ? "Generuji nahled..." : "Nahled"}
-              </button>
-              <button
-                type="button"
-                data-testid="command-bar-execute-button"
-                onClick={() => void handleExecuteCommandBar()}
-                disabled={!draftRailState.command.canExecute}
-                style={{
-                  border: "1px solid rgba(128, 226, 182, 0.52)",
-                  background: "linear-gradient(120deg, #2bbd82, #7ee5af)",
-                  color: "#073323",
-                  borderRadius: 9,
-                  padding: "8px 10px",
-                  fontWeight: 700,
-                  cursor: draftRailState.command.executeBusy ? "wait" : "pointer",
-                }}
-              >
-                {draftRailState.command.executeBusy ? "Provadim..." : "Potvrdit a vykonat"}
-              </button>
-              <button
-                type="button"
-                data-testid="command-bar-cancel-button"
-                onClick={handleCloseCommandBar}
-                style={{
-                  border: "1px solid rgba(113, 202, 234, 0.3)",
-                  background: "rgba(7, 18, 32, 0.86)",
-                  color: "#d5f5ff",
-                  borderRadius: 9,
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                }}
-              >
-                Zavrit
-              </button>
-            </div>
-            <div
-              style={{
-                border: "1px solid rgba(95, 188, 220, 0.26)",
-                borderRadius: 10,
-                background: "rgba(7, 18, 32, 0.74)",
-                padding: "8px 9px",
-                display: "grid",
-                gap: 4,
-              }}
-            >
-              <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
-                Nahled je backend preview (bez zapisu). Trvaly zapis probiha az po potvrzeni.
-              </div>
-              {draftRailState.command.preview ? (
-                <>
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
-                    Akce: <strong>{draftRailState.command.preview.action}</strong>
-                  </div>
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-                    Plan uloh:{" "}
-                    <strong>
-                      {Array.isArray(draftRailState.command.preview.tasks)
-                        ? draftRailState.command.preview.tasks.length
-                        : 0}
-                    </strong>
-                  </div>
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
-                    Kontext: {draftRailState.command.preview.selectedTableLabel || "bez aktivni planety"}
-                  </div>
-                  <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
-                    Nahled dopadu: civilizace{" "}
-                    <strong>
-                      {Array.isArray(draftRailState.command.preview.previewExecution?.result?.civilizations)
-                        ? draftRailState.command.preview.previewExecution.result.civilizations.length
-                        : 0}
-                    </strong>{" "}
-                    | vazby{" "}
-                    <strong>
-                      {Array.isArray(draftRailState.command.preview.previewExecution?.result?.bonds)
-                        ? draftRailState.command.preview.previewExecution.result.bonds.length
-                        : 0}
-                    </strong>
-                  </div>
-                  {draftRailState.command.preview.entities.length ? (
-                    <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
-                      Entity: {draftRailState.command.preview.entities.join(", ")}
-                    </div>
-                  ) : null}
-                  {draftRailState.command.preview.warnings.length ? (
-                    <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffc08f" }}>
-                      {draftRailState.command.preview.warnings.join(" ")}
-                    </div>
-                  ) : null}
-                  {Array.isArray(draftRailState.command.preview.ambiguityHints) &&
-                  draftRailState.command.preview.ambiguityHints.length ? (
-                    <div
-                      data-testid="command-bar-ambiguity-hints"
-                      style={{
-                        border: "1px solid rgba(248, 187, 128, 0.35)",
-                        background: "rgba(51, 30, 15, 0.45)",
-                        borderRadius: 8,
-                        padding: "6px 8px",
-                        display: "grid",
-                        gap: 4,
-                      }}
-                    >
-                      <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.9 }}>
-                        AMBIGUITY HINTS
-                      </div>
-                      {draftRailState.command.preview.ambiguityHints.map((hint, idx) => (
-                        <div
-                          key={`${hint?.severity || "warning"}-${idx}`}
-                          style={{
-                            fontSize: "var(--dv-fs-xs)",
-                            color: hint?.severity === "blocking" ? "#ffb5b5" : "#ffd5a3",
-                          }}
-                        >
-                          {hint?.severity === "blocking" ? "BLOCK" : "WARN"}: {hint?.message}
-                        </div>
-                      ))}
-                      {draftRailState.command.showResolveAction ? (
-                        draftRailState.command.showResolveToActivePlanet ? (
-                          <button
-                            type="button"
-                            data-testid="command-bar-resolve-planet-button"
-                            onClick={() => void handleResolveCommandAmbiguity()}
-                            disabled={draftRailState.command.busy}
-                            style={{
-                              marginTop: 2,
-                              border: "1px solid rgba(146, 229, 185, 0.42)",
-                              background: "rgba(20, 66, 44, 0.56)",
-                              color: "#d2ffe7",
-                              borderRadius: 8,
-                              padding: "7px 8px",
-                              fontSize: "var(--dv-fs-xs)",
-                              cursor: draftRailState.command.previewBusy ? "wait" : "pointer",
-                            }}
-                          >
-                            Pouzit aktivni planetu a pregenerovat nahled
-                          </button>
-                        ) : draftRailState.command.showResolvePlanetPicker ? (
-                          <div style={{ display: "grid", gap: 6, marginTop: 4 }}>
-                            <select
-                              data-testid="command-bar-resolve-planet-select"
-                              value={commandResolveTableId}
-                              onChange={(event) => setCommandResolveTableId(String(event.target.value || ""))}
-                              style={{
-                                border: "1px solid rgba(113, 202, 234, 0.3)",
-                                background: "rgba(7, 18, 32, 0.86)",
-                                color: "#d5f5ff",
-                                borderRadius: 8,
-                                padding: "7px 8px",
-                                fontSize: "var(--dv-fs-xs)",
-                              }}
-                            >
-                              <option value="">Vyber cilovou planetu</option>
-                              {tableNodes.map((node) => (
-                                <option key={String(node.id)} value={String(node.id)}>
-                                  {node.entityName} &gt; {node.label}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              data-testid="command-bar-resolve-planet-picker-button"
-                              onClick={() => void handleResolveCommandAmbiguity(commandResolveTableId)}
-                              disabled={!commandResolveTableId || draftRailState.command.busy}
-                              style={{
-                                border: "1px solid rgba(146, 229, 185, 0.42)",
-                                background: "rgba(20, 66, 44, 0.56)",
-                                color: "#d2ffe7",
-                                borderRadius: 8,
-                                padding: "7px 8px",
-                                fontSize: "var(--dv-fs-xs)",
-                                cursor: draftRailState.command.previewBusy ? "wait" : "pointer",
-                              }}
-                            >
-                              Vybrat planetu a pregenerovat nahled
-                            </button>
-                          </div>
-                        ) : null
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {draftRailState.command.resolveSummary ? (
-                    <div
-                      data-testid="command-bar-resolve-summary"
-                      style={{
-                        border: "1px solid rgba(124, 219, 170, 0.38)",
-                        background: "rgba(18, 60, 39, 0.46)",
-                        borderRadius: 8,
-                        padding: "6px 8px",
-                        fontSize: "var(--dv-fs-xs)",
-                        color: "#d7ffe9",
-                      }}
-                    >
-                      {draftRailState.command.resolveSummary}
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>Vloz prikaz a klikni na Nahled.</div>
-              )}
-              {draftRailState.command.error ? (
-                <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffb4b4" }}>{draftRailState.command.error}</div>
-              ) : null}
-            </div>
-          </article>
-        </section>
-      ) : null}
+      <ParserComposerModal
+        composer={parserComposer}
+        commandInputRef={commandInputRef}
+        commandInput={commandInput}
+        onCommandInputChange={setCommandInput}
+        onPreview={() => {
+          void handleBuildCommandPreview();
+        }}
+        onExecute={() => {
+          void handleExecuteCommandBar();
+        }}
+        onClose={handleCloseCommandBar}
+        onResolveToActivePlanet={() => {
+          void handleResolveCommandAmbiguity();
+        }}
+        onResolveTableChange={setCommandResolveTableId}
+        onResolveToPickedPlanet={() => {
+          void handleResolveCommandAmbiguity(commandResolveTableId);
+        }}
+      />
 
       <DndContext
         sensors={dndSensors}
