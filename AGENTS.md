@@ -25,6 +25,7 @@ Scope: entire repository.
 3. User handles: running requested tests and performing git commit.
 4. After every block, agent must provide `Povel pro tebe` with exact copy/paste commands.
 5. Do not claim block completion without an explicit command list for user execution.
+6. For UX-first, refactor, or product-experience work, load and follow `docs/upgrade/human-agent-alignment-protocol-v1.md` before claiming scope, success, or closure.
 
 ## Test Cadence (Mandatory)
 

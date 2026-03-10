@@ -53,6 +53,7 @@ Staging wrappers (canonical, repo-standard):
    - changed files,
    - exact commands to run,
    - done vs remaining items.
+5. For UX-first or product-experience work, `docs/upgrade/human-agent-alignment-protocol-v1.md` is the mandatory interpretation layer above normal block execution.
 
 ## 6. Canonical gate commands
 
