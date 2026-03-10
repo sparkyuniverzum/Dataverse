@@ -209,10 +209,10 @@ Gate:
 2. [x] PRH-1 relay + retry semantics implemented and passing.
 3. [ ] PRH-2 onboarding flow decoupled to event-driven path.
 4. [ ] PRH-3 OpenTelemetry trace propagation operational.
-5. [ ] PRH-3 structured JSON logging contract enforced.
-6. [ ] PRH-3 resilience middleware enabled (rate limit + circuit breaker).
-7. [ ] PRH-4 DB routing abstraction implemented (single-DB compatible).
-8. [ ] PRH-4 graceful shutdown verified with in-flight task drain.
+5. [x] PRH-3 structured JSON logging contract enforced.
+6. [x] PRH-3 resilience middleware enabled (rate limit + circuit breaker).
+7. [x] PRH-4 DB routing abstraction implemented (single-DB compatible).
+8. [x] PRH-4 graceful shutdown verified with in-flight task drain.
 9. [ ] Release runbook updated with new operational procedures.
 
 Progress note (2026-03-10):
@@ -221,16 +221,16 @@ Progress note (2026-03-10):
 3. PRH-2B started: relay max-attempts policy with `dead_letter` terminal status + migration.
 4. PRH-2C started: run-once relay runner orchestration + structured summary payload.
 5. PRH-2D started: internal outbox trigger/status endpoints via operator service.
-6. PRH-3A started: structured outbox logs with trace/correlation propagation across operator -> runner -> relay.
-7. PRH-3B started: global JSON log formatter with required structured field contract.
-8. PRH-3C started: rate-limit middleware baseline + async circuit-breaker helper with contract tests.
-9. PRH-3D started: unified resilience error envelope for 429/503 + circuit-open guard on outbox run endpoint.
-10. PRH-4A started: DB read/write router skeleton with single-DB backward-compatible default.
-11. PRH-4B started: dashboard + star-core router wiring switched to read-session for GET endpoints.
-12. PRH-4C started: additional read-heavy routers switched to read-session for GET endpoints with route wiring coverage tests.
-13. PRH-4D started: lifecycle shutdown orchestration (intake gate + in-flight drain + outbox flush + DB dispose) with focused tests.
-14. PRH-3E started: request trace-context middleware + structured log fallback + optional OpenTelemetry bootstrap.
-15. PRH-3F started: light integration metric `trace_coverage_api_requests >= 95%` validated via middleware+router endpoint test.
+6. PRH-3A completed: structured outbox logs with trace/correlation propagation across operator -> runner -> relay.
+7. PRH-3B completed: global JSON log formatter with required structured field contract.
+8. PRH-3C completed: rate-limit middleware baseline + async circuit-breaker helper with contract tests.
+9. PRH-3D completed: unified resilience error envelope for 429/503 + circuit-open guard on outbox run endpoint.
+10. PRH-4A completed: DB read/write router skeleton with single-DB backward-compatible default.
+11. PRH-4B completed: dashboard + star-core router wiring switched to read-session for GET endpoints.
+12. PRH-4C completed: additional read-heavy routers switched to read-session for GET endpoints with route wiring coverage tests.
+13. PRH-4D completed: lifecycle shutdown orchestration (intake gate + in-flight drain + outbox flush + DB dispose) with focused tests.
+14. PRH-3E completed: request trace-context middleware + structured log fallback + optional OpenTelemetry bootstrap.
+15. PRH-3F completed: light integration metric `trace_coverage_api_requests >= 95%` validated via middleware+router endpoint test.
 
 ## 4. Risk register
 
