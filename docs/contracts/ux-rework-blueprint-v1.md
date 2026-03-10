@@ -416,6 +416,50 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closed on 2026-03-10
 
+### 2026-03-10 - Timeline Rewrite seam extraction
+
+- Status: `GREEN`
+- Removed:
+  - none
+- Replaced by:
+  - `frontend/src/components/universe/timelineRewriteContract.js`
+  - `frontend/src/components/universe/timelineRewriteContract.test.js`
+- Created:
+  - `frontend/src/components/universe/timelineRewriteContract.js`
+  - `frontend/src/components/universe/timelineRewriteContract.test.js`
+- Changed:
+  - `frontend/src/components/universe/useBranchTimelineController.js`
+  - `frontend/src/components/universe/QuickGridOverlay.jsx`
+- Reason:
+  - Timeline/log normalization, backend/runtime event mapping, and workflow filtering now run through one executable seam instead of ad hoc inline logic in multiple places. This closes Slice 6 without extending `UniverseWorkspace`.
+- Evidence:
+  - `npm --prefix frontend run test -- src/components/universe/timelineRewriteContract.test.js src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx` -> passed on 2026-03-10 (`3` files, `25` tests)
+  - `npm --prefix frontend run format:check` -> passed on 2026-03-10
+- Exit condition:
+  - closed on 2026-03-10
+
+### 2026-03-10 - Branch Visibility Layer seam extraction
+
+- Status: `GREEN`
+- Removed:
+  - none
+- Replaced by:
+  - `frontend/src/components/universe/branchVisibilityContract.js`
+  - `frontend/src/components/universe/branchVisibilityContract.test.js`
+- Created:
+  - `frontend/src/components/universe/branchVisibilityContract.js`
+  - `frontend/src/components/universe/branchVisibilityContract.test.js`
+- Changed:
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - `frontend/src/components/universe/WorkspaceSidebar.jsx`
+- Reason:
+  - Branch visibility, selected branch validity, scope label rendering, and selection transition behavior now come from one contract seam shared by workspace orchestration and sidebar. This closes Slice 7 and prevents branch visibility drift between scope logic and UI controls.
+- Evidence:
+  - `npm --prefix frontend run test -- src/components/universe/branchVisibilityContract.test.js src/components/universe/timelineRewriteContract.test.js src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx src/components/universe/WorkspaceSidebar.connectivity.test.jsx` -> passed on 2026-03-10 (`5` files, `30` tests)
+  - `npm --prefix frontend run format:check` -> passed on 2026-03-10
+- Exit condition:
+  - closed on 2026-03-10
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -431,4 +475,6 @@ No future block may close without recording replacement decisions.
 6. [x] 2026-03-10: Slice 3 unified draft rail was extracted into a focused seam and closed as `GREEN`.
 7. [x] 2026-03-10: Slice 4 `Parser Composer Elevation` was extracted into focused presenter and modal seams and closed as `GREEN`.
 8. [x] 2026-03-10: Slice 5 `Grid / Canvas Truth Alignment` extracted shared focus truth between `QuickGridOverlay`, selection state, and canvas focus and closed as `GREEN`.
-9. [ ] Next: Slice 6 `Timeline Rewrite` should extract timeline/log ownership and explainability surface seams from `UniverseWorkspace`.
+9. [x] 2026-03-10: Slice 6 `Timeline Rewrite` extracted timeline/log ownership and explainability seams from `UniverseWorkspace` and closed as `GREEN`.
+10. [x] 2026-03-10: Slice 7 `Branch Visibility Layer` extracted branch visibility and scope ownership seams from `UniverseWorkspace` and `WorkspaceSidebar` and closed as `GREEN`.
+11. [ ] Next: Slice 8 `Compare and Time Travel Layer` should extract compare scope and historical inspect seams from `UniverseWorkspace`.

@@ -1,4 +1,5 @@
 import { resolvePreviewSeverityColor } from "./previewAccessibility";
+import { resolveBranchVisibilityModel } from "./branchVisibilityContract";
 
 const inputStyle = {
   width: "100%",
@@ -119,6 +120,7 @@ export default function WorkspaceSidebar({
   const moonInspector =
     inspectorModel.inspector && typeof inspectorModel.inspector === "object" ? inspectorModel.inspector : null;
   const selectedMoonId = String(inspectorModel.selectedCivilizationId || "").trim();
+  const branchVisibility = resolveBranchVisibilityModel({ branches, selectedBranchId });
 
   return (
     <aside
@@ -145,7 +147,7 @@ export default function WorkspaceSidebar({
       </div>
       <div style={{ display: "grid", gap: 4, fontSize: "var(--dv-fs-xs)", opacity: 0.86 }}>
         <div>
-          Aktivni branches: <strong>{Array.isArray(branches) ? branches.length : 0}</strong>
+          Aktivni branches: <strong>{branchVisibility.activeBranchCount}</strong>
         </div>
         <div>
           Onboarding: <strong>{String(onboarding?.current_stage_key || "n/a")}</strong>
@@ -161,7 +163,7 @@ export default function WorkspaceSidebar({
         </span>
         <select
           data-testid="workspace-branch-select"
-          value={String(selectedBranchId || "")}
+          value={branchVisibility.selectedBranchId}
           onChange={(event) => {
             if (typeof onSelectBranch === "function") {
               onSelectBranch(String(event.target.value || ""));
@@ -170,15 +172,24 @@ export default function WorkspaceSidebar({
           style={selectStyle}
         >
           <option value="">Main timeline</option>
-          {(Array.isArray(branches) ? branches : [])
-            .filter((item) => !item?.deleted_at)
-            .map((branch) => (
-              <option key={String(branch.id)} value={String(branch.id)}>
-                {String(branch.name || branch.id)}
-              </option>
-            ))}
+          {branchVisibility.visibleBranches.map((branch) => (
+            <option key={String(branch.id)} value={String(branch.id)}>
+              {String(branch.label || branch.id)}
+            </option>
+          ))}
         </select>
       </label>
+      <div
+        data-testid="workspace-branch-visibility"
+        style={{
+          fontSize: "var(--dv-fs-2xs)",
+          opacity: 0.82,
+          borderLeft: "2px solid rgba(120, 220, 250, 0.4)",
+          paddingLeft: 6,
+        }}
+      >
+        Scope: <strong>{branchVisibility.scopeLabel}</strong>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6 }}>
         <input
           data-testid="workspace-branch-create-input"
@@ -213,7 +224,7 @@ export default function WorkspaceSidebar({
             onPromoteBranch();
           }
         }}
-        disabled={!selectedBranchId || branchPromoteBusy}
+        disabled={!branchVisibility.hasSelectedBranch || branchPromoteBusy}
         style={ghostButtonStyle}
       >
         {branchPromoteBusy ? "Promoting..." : "Promote branch"}

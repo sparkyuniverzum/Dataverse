@@ -104,6 +104,7 @@ import { StageZeroSetupPanelProvider } from "./StageZeroSetupPanelContext";
 import { buildMergedTableContractPayload } from "./tableContractMerge";
 import { resolveDraftRailState } from "./draftRailContract";
 import { resolveGridCanvasTruthModel } from "./gridCanvasTruthContract";
+import { resolveBranchSelectionTransition, resolveBranchVisibilityModel } from "./branchVisibilityContract";
 import { formatSelectedTableLabel, resolveSelectionInspectorModel } from "./selectionInspectorContract";
 import {
   resolveContextActionPlan,
@@ -167,7 +168,11 @@ export default function UniverseWorkspace({
   const runtimeConnectivity = useRuntimeConnectivityState();
   const selectedBranchId = useUniverseStore((state) => String(state.selectedBranchId || ""));
   const selectBranch = useUniverseStore((state) => state.selectBranch);
-  const branchIdScope = selectedBranchId || null;
+  const branchVisibility = useMemo(
+    () => resolveBranchVisibilityModel({ branches, selectedBranchId }),
+    [branches, selectedBranchId]
+  );
+  const branchIdScope = branchVisibility.selectedBranchId || null;
 
   const {
     snapshot,
@@ -312,14 +317,10 @@ export default function UniverseWorkspace({
   }, [galaxyId]);
 
   useEffect(() => {
-    if (!selectedBranchId) return;
-    const exists = (Array.isArray(branches) ? branches : []).some(
-      (item) => !item?.deleted_at && String(item?.id || "") === selectedBranchId
-    );
-    if (!exists) {
+    if (branchVisibility.shouldResetSelection) {
       selectBranch("");
     }
-  }, [branches, selectBranch, selectedBranchId]);
+  }, [branchVisibility.shouldResetSelection, selectBranch]);
 
   useEffect(() => {
     if (!workspaceUiHydrated) return;
@@ -1945,7 +1946,7 @@ export default function UniverseWorkspace({
   } = useBranchTimelineController({
     apiBase: API_BASE,
     galaxyId,
-    selectedBranchId,
+    selectedBranchId: branchVisibility.selectedBranchId,
     setBusy,
     clearRuntimeIssue,
     refreshProjection,
@@ -2013,7 +2014,7 @@ export default function UniverseWorkspace({
       resolveWorkspaceStateContract({
         scope: {
           galaxyId,
-          selectedBranchId,
+          selectedBranchId: branchVisibility.selectedBranchId,
           historicalMode: false,
         },
         selection: {
@@ -2059,7 +2060,7 @@ export default function UniverseWorkspace({
       quickGridOpen,
       runtimeConnectivity,
       gridCanvasTruth.selectedCivilizationId,
-      selectedBranchId,
+      branchVisibility.selectedBranchId,
       selectedTableId,
       stageZeroCommitBusy,
     ]
@@ -2860,12 +2861,18 @@ export default function UniverseWorkspace({
 
         <WorkspaceSidebar
           galaxy={galaxy}
-          branches={branches}
-          selectedBranchId={selectedBranchId}
+          branches={branchVisibility.visibleBranches}
+          selectedBranchId={branchVisibility.selectedBranchId}
           onSelectBranch={(branchId) => {
-            selectBranch(branchId);
-            setBranchPromoteSummary("");
-            if (!branchId) {
+            const transition = resolveBranchSelectionTransition({
+              nextBranchId: branchId,
+              branchCreateName,
+            });
+            selectBranch(transition.selectedBranchId);
+            if (transition.shouldClearPromoteSummary) {
+              setBranchPromoteSummary("");
+            }
+            if (transition.shouldClearBranchCreateName) {
               setBranchCreateName("");
             }
           }}
