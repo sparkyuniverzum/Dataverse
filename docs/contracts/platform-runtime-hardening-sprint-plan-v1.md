@@ -238,3 +238,19 @@ Gate:
 1. Implement in small blocks with focused tests after each block.
 2. Run long integration gates only after a bundle of completed blocks.
 3. Do not expand monolith modules; split into focused adapters/services.
+
+## 7. PRH-1A contract freeze note (event envelope + outbox lifecycle)
+
+Canonical event envelope fields:
+1. `event_id` (UUID)
+2. `event_type` (string)
+3. `occurred_at` (UTC datetime)
+4. `aggregate_id` (UUID)
+5. `payload` (JSON object)
+6. `trace_id` (string)
+7. `correlation_id` (string)
+
+Canonical outbox lifecycle:
+1. `pending` (ready for relay pickup)
+2. `published` (successfully emitted)
+3. `failed` (publish failed, retryable by policy using `available_at` + `attempt_count`)

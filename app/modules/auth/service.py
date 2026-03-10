@@ -21,6 +21,7 @@ from app.modules.auth.security import (
     utc_now,
     verify_password,
 )
+from app.services.event_envelope import build_domain_event_envelope
 from app.services.event_store_service import EventStoreService
 from app.services.task_executor.occ_guards import OccGuards
 from app.services.universe_service import UniverseService
@@ -127,6 +128,21 @@ class AuthService:
         requested_name = str(galaxy_name or "").strip()
         default_name = requested_name if requested_name else "My Galaxy"
         default_galaxy = await self.repository.create_galaxy(session=session, user_id=user.id, name=default_name)
+        outbox_envelope = build_domain_event_envelope(
+            event_type="user.created",
+            aggregate_id=user.id,
+            payload={
+                "user_id": str(user.id),
+                "email": normalized_email,
+                "default_galaxy_id": str(default_galaxy.id),
+            },
+            trace_id=f"auth.register:{user.id}",
+            correlation_id=f"auth.register:{user.id}",
+        )
+        await self.event_store.append_outbox_event(
+            session=session,
+            envelope=outbox_envelope,
+        )
         _, tokens = await self._create_session_tokens(
             session=session,
             user_id=user.id,
