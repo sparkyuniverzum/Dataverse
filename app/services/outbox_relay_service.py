@@ -20,6 +20,7 @@ class OutboxRelayResult:
     scanned: int
     published: int
     failed: int
+    dead_lettered: int
 
 
 class NoopOutboxPublisher:
@@ -35,10 +36,12 @@ class OutboxRelayService:
         event_store: EventStoreService | None = None,
         publisher: OutboxPublisher | None = None,
         retry_delay_seconds: int = 30,
+        max_attempts: int = 5,
     ) -> None:
         self.event_store = event_store or EventStoreService()
         self.publisher = publisher or NoopOutboxPublisher()
         self.retry_delay_seconds = max(1, int(retry_delay_seconds))
+        self.max_attempts = max(1, int(max_attempts))
 
     async def relay_pending(
         self,
@@ -56,6 +59,7 @@ class OutboxRelayService:
         )
         published_count = 0
         failed_count = 0
+        dead_letter_count = 0
         for event in events:
             try:
                 await self.publisher.publish(session, event)
@@ -64,12 +68,22 @@ class OutboxRelayService:
                 event.last_error = None
                 published_count += 1
             except Exception as exc:
-                event.status = OutboxStatus.FAILED.value
-                event.attempt_count = int(event.attempt_count or 0) + 1
+                next_attempt = int(event.attempt_count or 0) + 1
+                event.attempt_count = next_attempt
                 event.last_error = str(exc)
-                event.available_at = now + timedelta(seconds=self.retry_delay_seconds)
-                failed_count += 1
-        return OutboxRelayResult(scanned=len(events), published=published_count, failed=failed_count)
+                if next_attempt >= self.max_attempts:
+                    event.status = OutboxStatus.DEAD_LETTER.value
+                    dead_letter_count += 1
+                else:
+                    event.status = OutboxStatus.FAILED.value
+                    event.available_at = now + timedelta(seconds=self.retry_delay_seconds)
+                    failed_count += 1
+        return OutboxRelayResult(
+            scanned=len(events),
+            published=published_count,
+            failed=failed_count,
+            dead_lettered=dead_letter_count,
+        )
 
     async def requeue_failed(
         self,

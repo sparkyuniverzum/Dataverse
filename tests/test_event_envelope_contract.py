@@ -44,3 +44,4 @@ def test_outbox_status_enum_values_are_stable() -> None:
     assert OutboxStatus.PENDING.value == "pending"
     assert OutboxStatus.PUBLISHED.value == "published"
     assert OutboxStatus.FAILED.value == "failed"
+    assert OutboxStatus.DEAD_LETTER.value == "dead_letter"

@@ -497,7 +497,7 @@ class Event(Base):
 class OutboxEvent(Base):
     __tablename__ = "event_outbox"
     __table_args__ = (
-        CheckConstraint("status in ('pending','published','failed')", name="ck_event_outbox_status"),
+        CheckConstraint("status in ('pending','published','failed','dead_letter')", name="ck_event_outbox_status"),
         Index("ix_event_outbox_status_available_at", "status", "available_at"),
     )
 

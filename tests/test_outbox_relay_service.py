@@ -61,6 +61,7 @@ def test_relay_pending_marks_success_as_published() -> None:
     assert result.scanned == 1
     assert result.published == 1
     assert result.failed == 0
+    assert result.dead_lettered == 0
     assert event.status == "published"
     assert event.published_at is not None
     assert event.last_error is None
@@ -79,9 +80,28 @@ def test_relay_pending_marks_failure_with_retry_metadata() -> None:
     assert result.scanned == 1
     assert result.published == 0
     assert result.failed == 1
+    assert result.dead_lettered == 0
     assert event.status == "failed"
     assert event.attempt_count == 3
     assert event.last_error == "publish_failed"
+
+
+def test_relay_pending_moves_event_to_dead_letter_after_max_attempts() -> None:
+    event = _OutboxEventStub(id=uuid4(), status="pending", attempt_count=2)
+    service = OutboxRelayService(
+        event_store=_EventStoreStub(pending=[event]),  # type: ignore[arg-type]
+        publisher=_PublisherFail(),
+        max_attempts=3,
+    )
+
+    result = asyncio.run(service.relay_pending(session=object(), batch_size=10))
+
+    assert result.scanned == 1
+    assert result.published == 0
+    assert result.failed == 0
+    assert result.dead_lettered == 1
+    assert event.status == "dead_letter"
+    assert event.attempt_count == 3
 
 
 def test_requeue_failed_moves_events_back_to_pending() -> None:

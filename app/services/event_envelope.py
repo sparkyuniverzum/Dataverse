@@ -12,6 +12,7 @@ class OutboxStatus(StrEnum):
     PENDING = "pending"
     PUBLISHED = "published"
     FAILED = "failed"
+    DEAD_LETTER = "dead_letter"
 
 
 class DomainEventEnvelope(BaseModel):

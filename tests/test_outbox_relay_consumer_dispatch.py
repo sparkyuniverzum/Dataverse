@@ -59,6 +59,7 @@ def test_relay_dispatches_pending_event_to_bound_consumer() -> None:
     assert result.scanned == 1
     assert result.published == 1
     assert result.failed == 0
+    assert result.dead_lettered == 0
     assert consumer.calls == 1
     assert event.status == "published"
 
@@ -78,6 +79,7 @@ def test_relay_marks_failed_when_consumer_raises() -> None:
     assert result.scanned == 1
     assert result.published == 0
     assert result.failed == 1
+    assert result.dead_lettered == 0
     assert consumer.calls == 1
     assert event.status == "failed"
     assert event.attempt_count == 1

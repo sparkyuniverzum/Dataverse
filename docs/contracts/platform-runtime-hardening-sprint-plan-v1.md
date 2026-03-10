@@ -218,6 +218,7 @@ Gate:
 Progress note (2026-03-10):
 1. PRH-1A/1B/1C/1D implemented and test-covered.
 2. PRH-2A started: outbox consumer registry + in-process relay dispatch wiring landed.
+3. PRH-2B started: relay max-attempts policy with `dead_letter` terminal status + migration.
 
 ## 4. Risk register
 
