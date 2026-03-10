@@ -100,6 +100,7 @@ import { useBranchTimelineController } from "./useBranchTimelineController";
 import { StageZeroSetupPanel } from "./StageZeroSetupPanel";
 import { StageZeroSetupPanelProvider } from "./StageZeroSetupPanelContext";
 import { buildMergedTableContractPayload } from "./tableContractMerge";
+import { resolveWorkspaceStateContract } from "./workspaceStateContract";
 import { useUniverseStore } from "../../store/useUniverseStore";
 
 const DEFAULT_CAMERA_STATE = {
@@ -1915,6 +1916,62 @@ export default function UniverseWorkspace({
       }),
     [bondDraft.state, error, loading, planetBuilderState, visualBuilderNavigationState]
   );
+  const workspaceState = useMemo(
+    () =>
+      resolveWorkspaceStateContract({
+        scope: {
+          galaxyId,
+          selectedBranchId,
+          historicalMode: false,
+        },
+        selection: {
+          selectedTableId,
+          selectedAsteroidId,
+          quickGridOpen,
+        },
+        draft: {
+          commandBarOpen,
+          commandPreviewBusy,
+          commandExecuteBusy,
+          commandError,
+          pendingCreate,
+          pendingRowOps,
+          bondDraftState: bondDraft.state,
+          bondPreviewBusy,
+          bondCommitBusy,
+          branchCreateBusy,
+          branchPromoteBusy,
+          stageZeroCommitBusy,
+        },
+        sync: {
+          loading,
+          error,
+          runtimeConnectivity,
+        },
+      }),
+    [
+      bondCommitBusy,
+      bondDraft.state,
+      bondPreviewBusy,
+      branchCreateBusy,
+      branchPromoteBusy,
+      commandBarOpen,
+      commandError,
+      commandExecuteBusy,
+      commandPreviewBusy,
+      error,
+      galaxyId,
+      loading,
+      pendingCreate,
+      pendingRowOps,
+      quickGridOpen,
+      runtimeConnectivity,
+      selectedAsteroidId,
+      selectedBranchId,
+      selectedTableId,
+      stageZeroCommitBusy,
+    ]
+  );
   useEffect(() => {
     resetMoonCrudState();
     resetBondDraftState();
@@ -2235,6 +2292,13 @@ export default function UniverseWorkspace({
     <main
       ref={workspaceRef}
       data-testid="workspace-root"
+      data-workspace-attention={workspaceState.overallAttention}
+      data-workspace-branch-mode={workspaceState.scope.branchMode}
+      data-workspace-time-mode={workspaceState.scope.timeMode}
+      data-workspace-selection={workspaceState.selection.selectionKind}
+      data-workspace-surface-mode={workspaceState.mode.surfaceMode}
+      data-workspace-draft={workspaceState.draft.hasActiveDraft ? "active" : "idle"}
+      data-workspace-sync-attention={workspaceState.sync.attention}
       data-reduced-motion={reducedMotion ? "true" : "false"}
       aria-label="Dataverse workspace"
       style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#020205" }}
