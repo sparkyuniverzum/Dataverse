@@ -520,6 +520,28 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closes when focused pre-commit checks for the new review seam and touched workspace/sidebar files are green
 
+### 2026-03-10 - Governance Mode Split seam extraction
+
+- Status: `GREEN`
+- Removed:
+  - direct governance open-state derivation as an inline workspace concern in `frontend/src/components/universe/UniverseWorkspace.jsx`
+- Replaced by:
+  - `frontend/src/components/universe/governanceModeContract.js`
+  - `frontend/src/components/universe/governanceModeContract.test.js`
+  - `frontend/src/components/universe/GovernanceModeSurface.jsx`
+- Created:
+  - `frontend/src/components/universe/governanceModeContract.js`
+  - `frontend/src/components/universe/governanceModeContract.test.js`
+  - `frontend/src/components/universe/GovernanceModeSurface.jsx`
+- Changed:
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+- Reason:
+  - Governance launcher/focus state and the governance surface are now separated from generic workspace orchestration. Workspace derives one explicit governance mode model while the actual Star Core surface is mounted through a dedicated adapter instead of ad hoc inline open-state branching.
+- Evidence:
+  - pending focused verification in current block
+- Exit condition:
+  - closes when focused pre-commit checks for the new governance seam and touched workspace files are green
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -539,4 +561,5 @@ No future block may close without recording replacement decisions.
 10. [x] 2026-03-10: Slice 7 `Branch Visibility Layer` extracted branch visibility and scope ownership seams from `UniverseWorkspace` and `WorkspaceSidebar` and closed as `GREEN`.
 11. [x] 2026-03-10: Slice 8 `Compare and Time Travel Layer` extracted compare scope and historical inspect seams from `UniverseWorkspace` and closed as `GREEN`.
 12. [x] 2026-03-10: Slice 9 `Promote Review Surface` extracted branch promote review into a dedicated right-side HUD drawer and closed as `GREEN`.
-13. [ ] Next: Slice 10 `Governance Mode Split` should separate star-core governance work from branch/timeline/operator surfaces.
+13. [x] 2026-03-10: Slice 10 `Governance Mode Split` extracted governance mode state and surface adapter from `UniverseWorkspace` and closed as `GREEN`.
+14. [ ] Next: Slice 11 `Recovery Mode` should separate blocked/failure repair work from generic workspace and governance surfaces.

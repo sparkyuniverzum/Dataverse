@@ -30,7 +30,7 @@ import { ParserComposerModal } from "./ParserComposerModal";
 import { resolveEntityLaws, resolveLinkLaws, resolveStarCoreProfile } from "./lawResolver";
 import { resolveParserComposerModel } from "./parserComposerContract";
 import QuickGridOverlay from "./QuickGridOverlay";
-import StarHeartDashboard from "./StarHeartDashboard";
+import { GovernanceModeSurface } from "./GovernanceModeSurface";
 import UniverseCanvas from "./UniverseCanvas";
 import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
 import WorkspaceSidebar from "./WorkspaceSidebar";
@@ -107,6 +107,7 @@ import { resolveDraftRailState } from "./draftRailContract";
 import { resolveGridCanvasTruthModel } from "./gridCanvasTruthContract";
 import { resolveBranchSelectionTransition, resolveBranchVisibilityModel } from "./branchVisibilityContract";
 import { resolvePromoteReviewModel } from "./promoteReviewContract";
+import { resolveGovernanceModeModel } from "./governanceModeContract";
 import {
   resolveCompareTimeTravelModel,
   resolveHistoricalInspectActivation,
@@ -671,10 +672,15 @@ export default function UniverseWorkspace({
     }),
     [starCoreProfile, starPulseLastEventSeq]
   );
-  const starHeartOpen =
-    starControlPhase === STAR_CONTROL_PHASE.STAR_HEART_DASHBOARD_OPEN ||
-    starControlPhase === STAR_CONTROL_PHASE.APPLY_PROFILE ||
-    starControlPhase === STAR_CONTROL_PHASE.LOCKED;
+  const governanceMode = useMemo(
+    () =>
+      resolveGovernanceModeModel({
+        phase: starControlPhase,
+        locked: starPolicyLocked,
+        error: starControlError,
+      }),
+    [starControlError, starControlPhase, starPolicyLocked]
+  );
 
   useEffect(() => {
     const policyProfileKey = String(starPolicy?.profile_key || starCoreProfile?.profile?.key || "ORIGIN").toUpperCase();
@@ -2398,7 +2404,7 @@ export default function UniverseWorkspace({
         canOpenGrid: Boolean(selectedTableId) && !workspaceInteractionLocked,
         canOpenStarHeart: true,
         quickGridOpen,
-        starHeartOpen,
+        starHeartOpen: governanceMode.open,
         stageZeroSetupOpen: planetBuilderUiState.setupPanelOpen,
       });
       if (!action) return;
@@ -2433,7 +2439,7 @@ export default function UniverseWorkspace({
     selectedTableId,
     commandBarOpen,
     planetBuilderUiState.setupPanelOpen,
-    starHeartOpen,
+    governanceMode.open,
     workspaceInteractionLocked,
   ]);
 
@@ -2449,7 +2455,7 @@ export default function UniverseWorkspace({
       data-workspace-time-mode={workspaceState.scope.timeMode}
       data-workspace-selection={workspaceState.selection.selectionKind}
       data-workspace-surface-mode={workspaceState.mode.surfaceMode}
-      data-workspace-cinematic-mode={promoteReview.cinematicMode}
+      data-workspace-cinematic-mode={governanceMode.open ? governanceMode.cinematicMode : promoteReview.cinematicMode}
       data-workspace-draft={workspaceState.draft.hasActiveDraft ? "active" : "idle"}
       data-workspace-active-rail={draftRailState.activeRail}
       data-workspace-sync-attention={workspaceState.sync.attention}
@@ -2462,8 +2468,16 @@ export default function UniverseWorkspace({
         overflow: "hidden",
         background: "#020205",
         transition: "filter 220ms ease, transform 220ms ease, opacity 220ms ease",
-        filter: promoteReview.open ? "saturate(1.08) contrast(1.04) brightness(0.96)" : "none",
-        transform: promoteReview.open ? "translateX(-10px) scale(0.992)" : "none",
+        filter: governanceMode.open
+          ? "saturate(1.12) contrast(1.05) brightness(0.9)"
+          : promoteReview.open
+            ? "saturate(1.08) contrast(1.04) brightness(0.96)"
+            : "none",
+        transform: governanceMode.open
+          ? "translateX(-14px) scale(0.988)"
+          : promoteReview.open
+            ? "translateX(-10px) scale(0.992)"
+            : "none",
       }}
     >
       <div style={{ position: "fixed", left: 12, top: 12, zIndex: 62, display: "grid", gap: 6 }}>
@@ -2537,9 +2551,9 @@ export default function UniverseWorkspace({
           asteroidLinks={asteroidLinks}
           cameraState={DEFAULT_CAMERA_STATE}
           starCore={starCoreForCanvas}
-          starFocused={starControlPhase === STAR_CONTROL_PHASE.STAR_FOCUSED}
-          starControlOpen={starHeartOpen}
-          starDiveActive={starHeartOpen}
+          starFocused={governanceMode.focusActive}
+          starControlOpen={governanceMode.open}
+          starDiveActive={governanceMode.open}
           selectedTableId={selectedTableId}
           selectedAsteroidId={gridCanvasTruth.selectedCivilizationId}
           cameraFocusOffset={planetBuilderUiState.cameraFocusOffset}
@@ -3037,8 +3051,8 @@ export default function UniverseWorkspace({
           }}
         />
 
-        <StarHeartDashboard
-          open={starHeartOpen}
+        <GovernanceModeSurface
+          governanceMode={governanceMode}
           phase={starControlPhase}
           starCoreProfile={starCoreProfile}
           starPolicy={starPolicy}
