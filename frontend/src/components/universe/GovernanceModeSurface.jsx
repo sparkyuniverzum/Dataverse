@@ -22,7 +22,11 @@ export function GovernanceModeSurface({
   if (!governanceMode?.open) return null;
 
   return (
-    <div data-testid="governance-mode-surface" data-governance-mode={governanceMode.mode}>
+    <div
+      data-testid="governance-mode-surface"
+      data-governance-mode={governanceMode.mode}
+      data-governance-focus={governanceMode.focusActive ? "active" : "idle"}
+    >
       <StarHeartDashboard
         open={governanceMode.open}
         phase={phase}

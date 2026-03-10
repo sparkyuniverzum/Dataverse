@@ -5,6 +5,7 @@ import {
   createPrimaryButtonStyle,
   SURFACE_TONE,
 } from "./surfaceVisualTokens";
+import { resolveSurfaceCopy } from "./operatingCenterUxContract";
 
 const panelStyle = createFloatingDrawerStyle(SURFACE_TONE.RECOVERY);
 const ghostButtonStyle = createGhostButtonStyle(SURFACE_TONE.RECOVERY);
@@ -12,15 +13,14 @@ const primaryButtonStyle = createPrimaryButtonStyle(SURFACE_TONE.RECOVERY);
 
 export function RecoveryModeDrawer({ recovery, onClose, onApplyRepair }) {
   if (!recovery?.open) return null;
+  const copy = resolveSurfaceCopy("recovery");
 
   return (
     <aside data-testid="recovery-mode-drawer" style={panelStyle}>
       <div style={{ display: "grid", gap: 4 }}>
-        <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "0.18em", opacity: 0.78 }}>RECOVERY MODE</div>
+        <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "0.18em", opacity: 0.78 }}>{copy.eyebrow}</div>
         <div style={{ fontSize: "var(--dv-fs-lg)", fontWeight: 700 }}>{recovery.title}</div>
-        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
-          Blokovany nebo degradovany workspace stav je oddeleny do jednoho opravneho surface.
-        </div>
+        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>{copy.subtitle}</div>
       </div>
 
       {recovery.hasRuntimeError ? (
@@ -85,7 +85,7 @@ export function RecoveryModeDrawer({ recovery, onClose, onApplyRepair }) {
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button type="button" data-testid="recovery-mode-close" onClick={onClose} style={ghostButtonStyle}>
-          Zavrit recovery
+          {copy.closeLabel}
         </button>
       </div>
     </aside>

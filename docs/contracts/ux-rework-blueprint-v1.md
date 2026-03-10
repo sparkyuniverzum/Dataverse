@@ -610,6 +610,32 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closes when focused pre-commit checks for the new layout token layer and rewired shell surfaces are green
 
+### 2026-03-10 - Full UX Closure Pass
+
+- Status: `GREEN`
+- Removed:
+  - inconsistent launcher copy and split workspace cinematic presentation wiring across `frontend/src/components/universe/WorkspaceSidebar.jsx` and `frontend/src/components/universe/UniverseWorkspace.jsx`
+- Replaced by:
+  - `frontend/src/components/universe/operatingCenterUxContract.js`
+  - `frontend/src/components/universe/operatingCenterUxContract.test.js`
+- Created:
+  - `frontend/src/components/universe/operatingCenterUxContract.js`
+  - `frontend/src/components/universe/operatingCenterUxContract.test.js`
+- Changed:
+  - `frontend/src/components/universe/PromoteReviewDrawer.jsx`
+  - `frontend/src/components/universe/RecoveryModeDrawer.jsx`
+  - `frontend/src/components/universe/GovernanceModeSurface.jsx`
+  - `frontend/src/components/universe/StarHeartDashboard.jsx`
+  - `frontend/src/components/universe/WorkspaceSidebar.jsx`
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js`
+- Reason:
+  - The operating-center surfaces now share one UX copy and presentation contract for launcher labels, header rhythm, close semantics, and workspace cinematic priority. This closes the remaining polish gap without adding another monolithic shell layer.
+- Evidence:
+  - pending focused verification in current block
+- Exit condition:
+  - closes when focused pre-commit checks for the new UX contract and touched surfaces are green
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -633,4 +659,4 @@ No future block may close without recording replacement decisions.
 14. [x] 2026-03-10: Slice 11 `Recovery Mode` extracted blocked/repair work into a dedicated recovery surface and closed as `GREEN`.
 15. [x] 2026-03-10: Slice 12 `Visual Token System` consolidated the new surfaces onto one shared token layer and closed as `GREEN`.
 16. [x] 2026-03-10: Slice 13 `Layout Hardening` normalized shell spacing, layering, and responsive behavior across the extracted surfaces and closed as `GREEN`.
-17. [ ] Next: Slice 14 `Full UX Closure Pass` should close the remaining polish and coherence gaps across the full operating-center experience.
+17. [x] 2026-03-10: Slice 14 `Full UX Closure Pass` aligned operating-center copy, close semantics, and workspace cinematic presentation and closed as `GREEN`.

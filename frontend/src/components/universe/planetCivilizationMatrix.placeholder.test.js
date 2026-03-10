@@ -201,7 +201,7 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
     await user.click(screen.getByTestId("workspace-branch-create-button"));
     expect(onCreateBranch).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "Open promote review" }));
+    await user.click(screen.getByRole("button", { name: "Otevrit reality transfer review" }));
     expect(onOpenPromoteReview).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("branch-promote-summary").textContent).toContain("promotnut");
   });

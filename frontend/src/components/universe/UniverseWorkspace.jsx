@@ -111,6 +111,7 @@ import { resolveBranchSelectionTransition, resolveBranchVisibilityModel } from "
 import { resolvePromoteReviewModel } from "./promoteReviewContract";
 import { resolveGovernanceModeModel } from "./governanceModeContract";
 import { resolveRecoveryModeModel } from "./recoveryModeContract";
+import { resolveWorkspacePresentationMode } from "./operatingCenterUxContract";
 import {
   resolveCompareTimeTravelModel,
   resolveHistoricalInspectActivation,
@@ -2146,6 +2147,10 @@ export default function UniverseWorkspace({
       }),
     [error, repairApplyBusy, repairAuditTrail.length, repairSuggestion, recoveryModeOpen, scopedRuntimeConnectivity]
   );
+  const workspacePresentation = useMemo(
+    () => resolveWorkspacePresentationMode({ governanceMode, promoteReview, recoveryMode }),
+    [governanceMode, promoteReview, recoveryMode]
+  );
   useEffect(() => {
     resetMoonCrudState();
     resetBondDraftState();
@@ -2471,7 +2476,7 @@ export default function UniverseWorkspace({
       data-workspace-time-mode={workspaceState.scope.timeMode}
       data-workspace-selection={workspaceState.selection.selectionKind}
       data-workspace-surface-mode={workspaceState.mode.surfaceMode}
-      data-workspace-cinematic-mode={governanceMode.open ? governanceMode.cinematicMode : promoteReview.cinematicMode}
+      data-workspace-cinematic-mode={workspacePresentation.cinematicMode}
       data-workspace-draft={workspaceState.draft.hasActiveDraft ? "active" : "idle"}
       data-workspace-active-rail={draftRailState.activeRail}
       data-workspace-sync-attention={workspaceState.sync.attention}
@@ -2484,20 +2489,8 @@ export default function UniverseWorkspace({
         overflow: "hidden",
         background: "#020205",
         transition: "filter 220ms ease, transform 220ms ease, opacity 220ms ease",
-        filter: governanceMode.open
-          ? "saturate(1.12) contrast(1.05) brightness(0.9)"
-          : recoveryMode.open
-            ? "saturate(1.04) contrast(1.03) brightness(0.94)"
-            : promoteReview.open
-              ? "saturate(1.08) contrast(1.04) brightness(0.96)"
-              : "none",
-        transform: governanceMode.open
-          ? "translateX(-14px) scale(0.988)"
-          : recoveryMode.open
-            ? "translateX(-8px) scale(0.994)"
-            : promoteReview.open
-              ? "translateX(-10px) scale(0.992)"
-              : "none",
+        filter: workspacePresentation.filter,
+        transform: workspacePresentation.transform,
       }}
     >
       <div

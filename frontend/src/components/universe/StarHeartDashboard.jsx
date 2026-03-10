@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { STAR_CORE_PROFILES, STAR_PHYSICAL_PROFILES } from "./lawResolver";
+import { resolveSurfaceCopy } from "./operatingCenterUxContract";
 import { createCenteredShellLayout, createFullscreenOverlayLayout } from "./surfaceLayoutTokens";
 import { createGhostButtonStyle, createPrimaryButtonStyle, SURFACE_TONE } from "./surfaceVisualTokens";
 
@@ -114,6 +115,7 @@ export default function StarHeartDashboard({
   const physicalProfileCards = Object.values(STAR_PHYSICAL_PROFILES);
   const topDomains = (Array.isArray(starDomains) ? starDomains : []).slice(0, 5);
   const statusLabel = isLocked ? "Uzamceno" : phase === "apply_profile" ? "Aplikuji profil..." : "Pripraveno";
+  const governanceCopy = resolveSurfaceCopy("governance");
   const parserAttempts = Number.isFinite(Number(parserTelemetry?.attempts)) ? Number(parserTelemetry.attempts) : 0;
   const parserSuccess = Number.isFinite(Number(parserTelemetry?.parser_success))
     ? Number(parserTelemetry.parser_success)
@@ -198,18 +200,19 @@ export default function StarHeartDashboard({
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
           <div>
             <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wider)", opacity: 0.78 }}>
-              HEART OF STAR
+              {governanceCopy.eyebrow}
             </div>
             <div style={{ fontSize: "clamp(18px, 3vw, 26px)", fontWeight: 800 }}>
               Ridici dashboard fyzikalnich zakonu galaxie
             </div>
+            <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>{governanceCopy.subtitle}</div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
               Profil <strong>{profileLabel}</strong> | preset <strong>{lawPreset}</strong> | fyzika{" "}
               <strong>{activePhysicalProfileKey}</strong> v{physicalProfileVersion} | lock <strong>{lockStatus}</strong>
             </div>
           </div>
           <button type="button" onClick={onClose} data-testid="star-heart-close-button" style={ghostButtonStyle}>
-            Zpet do vesmiru
+            {governanceCopy.closeLabel}
           </button>
         </div>
 

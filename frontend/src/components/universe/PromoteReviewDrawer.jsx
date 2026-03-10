@@ -5,6 +5,7 @@ import {
   createPrimaryButtonStyle,
   SURFACE_TONE,
 } from "./surfaceVisualTokens";
+import { resolveSurfaceCopy } from "./operatingCenterUxContract";
 
 const panelStyle = createFloatingDrawerStyle(SURFACE_TONE.PROMOTE);
 const ghostButtonStyle = createGhostButtonStyle(SURFACE_TONE.PROMOTE);
@@ -12,16 +13,14 @@ const primaryButtonStyle = createPrimaryButtonStyle(SURFACE_TONE.PROMOTE);
 
 export function PromoteReviewDrawer({ review, onClose, onConfirm }) {
   if (!review?.open) return null;
+  const copy = resolveSurfaceCopy("promote");
 
   return (
     <aside data-testid="promote-review-drawer" style={panelStyle}>
       <div style={{ display: "grid", gap: 4 }}>
-        <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "0.18em", opacity: 0.78 }}>PROMOTE REVIEW</div>
+        <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "0.18em", opacity: 0.78 }}>{copy.eyebrow}</div>
         <div style={{ fontSize: "var(--dv-fs-lg)", fontWeight: 700 }}>{review.title}</div>
-        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
-          Review surface pro reality transfer. 3D workspace zustava aktivni a slouzi jako kontext pro finalni
-          rozhodnuti.
-        </div>
+        <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>{copy.subtitle}</div>
       </div>
 
       <div
@@ -100,7 +99,7 @@ export function PromoteReviewDrawer({ review, onClose, onConfirm }) {
 
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
         <button type="button" data-testid="promote-review-close" onClick={onClose} style={ghostButtonStyle}>
-          Zavrit review
+          {copy.closeLabel}
         </button>
         <button
           type="button"

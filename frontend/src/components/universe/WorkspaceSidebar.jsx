@@ -1,5 +1,6 @@
 import { resolvePreviewSeverityColor } from "./previewAccessibility";
 import { resolveBranchVisibilityModel } from "./branchVisibilityContract";
+import { resolveSurfaceCopy } from "./operatingCenterUxContract";
 import { createHudRailLayout } from "./surfaceLayoutTokens";
 
 const inputStyle = {
@@ -132,6 +133,8 @@ export default function WorkspaceSidebar({
     inspectorModel.inspector && typeof inspectorModel.inspector === "object" ? inspectorModel.inspector : null;
   const selectedMoonId = String(inspectorModel.selectedCivilizationId || "").trim();
   const branchVisibility = resolveBranchVisibilityModel({ branches, selectedBranchId });
+  const promoteCopy = resolveSurfaceCopy("promote");
+  const recoveryCopy = resolveSurfaceCopy("recovery");
   const shellStyle = {
     ...createHudRailLayout(),
     borderRadius: 14,
@@ -312,7 +315,11 @@ export default function WorkspaceSidebar({
         disabled={!branchVisibility.hasSelectedBranch || branchPromoteBusy}
         style={ghostButtonStyle}
       >
-        {branchPromoteReviewOpen ? "Review otevren" : branchPromoteBusy ? "Promoting..." : "Open promote review"}
+        {branchPromoteReviewOpen
+          ? promoteCopy.launcherOpen
+          : branchPromoteBusy
+            ? "Promoting..."
+            : promoteCopy.launcherClosed}
       </button>
       {branchPromoteSummary ? (
         <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }} data-testid="branch-promote-summary">
@@ -612,7 +619,7 @@ export default function WorkspaceSidebar({
               }
             }}
           >
-            {recoveryModeActive ? "Recovery otevren" : "Open recovery mode"}
+            {recoveryModeActive ? recoveryCopy.launcherOpen : recoveryCopy.launcherClosed}
           </button>
         </div>
       ) : null}
