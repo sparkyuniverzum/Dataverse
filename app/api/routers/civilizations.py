@@ -13,7 +13,7 @@ from app.db import get_session
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import CivilizationIngestRequest, CivilizationMutateRequest, CivilizationResponse
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 
 router = APIRouter(tags=["civilizations"])
 

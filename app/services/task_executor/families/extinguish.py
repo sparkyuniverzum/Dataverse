@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 from app.services.universe_service import ProjectedAsteroid
 
 if TYPE_CHECKING:

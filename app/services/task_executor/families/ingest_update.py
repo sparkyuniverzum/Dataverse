@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException, status
 
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 from app.services.universe_service import ProjectedAsteroid, derive_table_name, split_constellation_and_planet_name
 
 if TYPE_CHECKING:

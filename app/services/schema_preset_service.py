@@ -16,7 +16,7 @@ from app.presets.schema_presets import (
     list_schema_presets,
 )
 from app.services.cosmos_service import CosmosService
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 from app.services.task_executor_service import TaskExecutionResult, TaskExecutorService
 from app.services.universe_service import UniverseService
 

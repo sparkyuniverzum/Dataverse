@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
 
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 
 if TYPE_CHECKING:
     from app.services.task_executor_service import TaskExecutorService, _TaskExecutionContext

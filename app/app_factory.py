@@ -25,7 +25,7 @@ from app.services.outbox_publisher_service import InProcessOutboxPublisher
 from app.services.outbox_relay_runner_service import OutboxRelayRunnerService
 from app.services.outbox_relay_service import OutboxRelayService
 from app.services.parser2 import Parser2ExecutorBridge, Parser2SemanticPlanner
-from app.services.parser_service import ParserService
+from app.services.parser_legacy_service import ParserService
 from app.services.planet_dashboard_service import PlanetDashboardService
 from app.services.preset_bundle_service import PresetBundleService
 from app.services.runtime_shutdown_service import RuntimeShutdownService

@@ -27,7 +27,7 @@ from app.schemas import (
     MoonRowContract,
     civilization_snapshot_to_moon_row,
 )
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 
 router = APIRouter(tags=["moons"])
 

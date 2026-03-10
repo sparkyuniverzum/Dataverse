@@ -5,7 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 from app.services.task_executor_service import TaskExecutionResult
 
 

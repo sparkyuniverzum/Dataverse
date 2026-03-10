@@ -28,7 +28,7 @@ from app.schemas import (
     BondValidateResponse,
 )
 from app.services.bond_semantics import bond_semantics, normalize_bond_type
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 
 router = APIRouter(tags=["bonds"])
 

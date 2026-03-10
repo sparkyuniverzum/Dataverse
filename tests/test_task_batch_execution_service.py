@@ -7,7 +7,7 @@ from uuid import uuid4
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 from app.services.task_batch_execution_service import execute_atomic_tasks_preview
 
 

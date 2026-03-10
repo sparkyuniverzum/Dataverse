@@ -19,7 +19,7 @@ from app.services.parser2.intents import (
     SetFormulaIntent,
     UpsertNodeIntent,
 )
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 
 
 @dataclass(frozen=True)

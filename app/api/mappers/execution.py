@@ -14,7 +14,7 @@ from app.schemas import (
     build_moon_facts,
 )
 from app.services.bond_semantics import bond_semantics
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 from app.services.task_executor_service import TaskExecutionResult
 from app.services.universe_service import (
     DEFAULT_GALAXY_ID,

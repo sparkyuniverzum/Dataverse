@@ -18,7 +18,7 @@ from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import ParseCommandPlanResponse, ParseCommandRequest, ParseCommandResponse
 from app.services.parser_command_service import ScopedContext, resolve_tasks_for_payload
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 
 router = APIRouter(tags=["parser"])
 

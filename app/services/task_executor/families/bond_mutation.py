@@ -9,7 +9,7 @@ from sqlalchemy import and_, func, or_, select
 from app.models import Bond
 from app.services.bond_semantics import normalize_bond_type
 from app.services.db_advisory_lock import acquire_transaction_lock
-from app.services.parser_service import AtomicTask
+from app.services.parser_types import AtomicTask
 from app.services.universe_service import ProjectedBond
 
 if TYPE_CHECKING:
