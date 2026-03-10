@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
+from app.api.error_envelopes import resilience_error_detail
+
 
 @dataclass(frozen=True)
 class RateLimitConfig:
@@ -57,11 +59,12 @@ def create_rate_limit_middleware(config: RateLimitConfig):
         key = _request_key(request)
         allowed, retry_after = limiter.check(key=key, now_ts=now)
         if not allowed:
-            detail = {
-                "code": "RATE_LIMIT_EXCEEDED",
-                "message": "Too many requests.",
-                "retry_after_seconds": retry_after,
-            }
+            detail = resilience_error_detail(
+                code="RATE_LIMIT_EXCEEDED",
+                message="Too many requests.",
+                service="http.rate_limiter",
+                retry_after_seconds=retry_after,
+            )
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 content={"detail": detail},

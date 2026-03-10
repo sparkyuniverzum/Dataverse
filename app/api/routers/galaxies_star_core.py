@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.error_envelopes import resilience_error_detail
 from app.api.mappers.public import (
     star_core_domain_metrics_to_public,
     star_core_physics_migration_to_public,
@@ -33,6 +34,7 @@ from app.schemas import (
     StarCorePulseResponse,
     StarCoreRuntimePublic,
 )
+from app.services.circuit_breaker import CircuitBreakerOpenError
 
 router = APIRouter(tags=["galaxies"])
 
@@ -303,14 +305,26 @@ async def star_core_outbox_run_once(
 ) -> StarCoreOutboxRunOnceResponse:
     _ = current_user
     trace_id, correlation_id = resolve_trace_context(request)
-    async with transactional_context(session):
-        summary = await services.outbox_operator_service.trigger_run_once(
-            session=session,
-            requeue_limit=payload.requeue_limit,
-            relay_batch_size=payload.relay_batch_size,
-            trace_id=trace_id,
-            correlation_id=correlation_id,
-        )
+    try:
+        async with transactional_context(session):
+            summary = await services.outbox_operator_service.trigger_run_once(
+                session=session,
+                requeue_limit=payload.requeue_limit,
+                relay_batch_size=payload.relay_batch_size,
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+            )
+    except CircuitBreakerOpenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=resilience_error_detail(
+                code="CIRCUIT_OPEN",
+                message="Outbox run is temporarily unavailable.",
+                service="outbox.operator",
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+            ),
+        ) from exc
     await commit_if_active(session)
     status_snapshot = services.outbox_operator_service.snapshot()
     return StarCoreOutboxRunOnceResponse(

@@ -224,6 +224,7 @@ Progress note (2026-03-10):
 6. PRH-3A started: structured outbox logs with trace/correlation propagation across operator -> runner -> relay.
 7. PRH-3B started: global JSON log formatter with required structured field contract.
 8. PRH-3C started: rate-limit middleware baseline + async circuit-breaker helper with contract tests.
+9. PRH-3D started: unified resilience error envelope for 429/503 + circuit-open guard on outbox run endpoint.
 
 ## 4. Risk register
 

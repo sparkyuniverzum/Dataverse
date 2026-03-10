@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
+import pytest
+
 from app.services.outbox_operator_service import OutboxOperatorService
 from app.services.outbox_relay_runner_service import OutboxRunOnceSummary
 
@@ -33,6 +35,14 @@ class _RunnerStub:
             "correlation_id": correlation_id,
         }
         return self.summary
+
+
+class _BreakerOpenStub:
+    async def call(self, operation):
+        _ = operation
+        from app.services.circuit_breaker import CircuitBreakerOpenError
+
+        raise CircuitBreakerOpenError("Circuit breaker is open.")
 
 
 def test_snapshot_is_idle_before_any_run() -> None:
@@ -88,3 +98,29 @@ def test_trigger_run_once_updates_latest_summary_and_run_count() -> None:
     assert snapshot.state == "ready"
     assert snapshot.run_count == 1
     assert snapshot.latest == summary
+
+
+def test_trigger_run_once_propagates_circuit_open_without_mutating_state() -> None:
+    summary = OutboxRunOnceSummary(
+        requeued=0,
+        scanned=0,
+        published=0,
+        failed=0,
+        dead_lettered=0,
+        completed_at="2026-03-10T01:23:45+00:00",
+    )
+    runner = _RunnerStub(summary=summary)
+    service = OutboxOperatorService(
+        runner=runner,  # type: ignore[arg-type]
+        circuit_breaker=_BreakerOpenStub(),  # type: ignore[arg-type]
+    )
+
+    from app.services.circuit_breaker import CircuitBreakerOpenError
+
+    with pytest.raises(CircuitBreakerOpenError):
+        asyncio.run(service.trigger_run_once(session=object()))
+
+    snapshot = service.snapshot()
+    assert runner.calls == 0
+    assert snapshot.run_count == 0
+    assert snapshot.latest is None

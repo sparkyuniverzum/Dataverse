@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.circuit_breaker import AsyncCircuitBreaker, CircuitBreakerOpenError
 from app.services.logging_helpers import structured_log_extra
 from app.services.outbox_relay_runner_service import OutboxRelayRunnerService, OutboxRunOnceSummary
 
@@ -22,8 +23,17 @@ class OutboxOperatorStatusSnapshot:
 
 
 class OutboxOperatorService:
-    def __init__(self, *, runner: OutboxRelayRunnerService | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        runner: OutboxRelayRunnerService | None = None,
+        circuit_breaker: AsyncCircuitBreaker | None = None,
+    ) -> None:
         self.runner = runner or OutboxRelayRunnerService()
+        self.circuit_breaker = circuit_breaker or AsyncCircuitBreaker(
+            failure_threshold=3,
+            recovery_timeout_seconds=20.0,
+        )
         self._run_count = 0
         self._latest: OutboxRunOnceSummary | None = None
 
@@ -48,13 +58,29 @@ class OutboxOperatorService:
                 run_count_before=self._run_count,
             ),
         )
-        summary = await self.runner.run_once(
-            session=session,
-            requeue_limit=requeue_limit,
-            relay_batch_size=relay_batch_size,
-            trace_id=trace_id,
-            correlation_id=correlation_id,
-        )
+        try:
+            summary = await self.circuit_breaker.call(
+                lambda: self.runner.run_once(
+                    session=session,
+                    requeue_limit=requeue_limit,
+                    relay_batch_size=relay_batch_size,
+                    trace_id=trace_id,
+                    correlation_id=correlation_id,
+                )
+            )
+        except CircuitBreakerOpenError:
+            logger.warning(
+                "outbox.operator.run_once.rejected",
+                extra=structured_log_extra(
+                    event_name="outbox.operator.run_once.rejected",
+                    module="outbox.operator",
+                    trace_id=trace_id,
+                    correlation_id=correlation_id,
+                    reason="circuit_open",
+                    run_count_before=self._run_count,
+                ),
+            )
+            raise
         self._latest = summary
         self._run_count += 1
         logger.info(
