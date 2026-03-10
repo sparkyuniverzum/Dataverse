@@ -9,8 +9,8 @@ from uuid import uuid4
 from app.modules.auth.service import AuthService
 from app.services.event_consumers.onboarding_bootstrap_consumer import OnboardingBootstrapConsumer
 from app.services.event_consumers.registry import OutboxConsumerRegistry
-from app.services.outbox_publisher_service import InProcessOutboxPublisher
-from app.services.outbox_relay_service import OutboxRelayService
+from app.services.outbox.publisher import InProcessOutboxPublisher
+from app.services.outbox.relay import OutboxRelayService
 
 
 @dataclass

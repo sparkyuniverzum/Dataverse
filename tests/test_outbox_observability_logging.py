@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.services.outbox_operator_service import OutboxOperatorService
-from app.services.outbox_relay_runner_service import OutboxRelayRunnerService
-from app.services.outbox_relay_service import OutboxRelayResult, OutboxRelayService
+from app.services.outbox.operator import OutboxOperatorService
+from app.services.outbox.relay import OutboxRelayResult, OutboxRelayService
+from app.services.outbox.runner import OutboxRelayRunnerService
 from app.services.trace_context import bind_trace_context, reset_trace_context
 
 

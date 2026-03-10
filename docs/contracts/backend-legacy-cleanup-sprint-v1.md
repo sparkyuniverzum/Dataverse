@@ -11,10 +11,13 @@ Depends on:
 Execution log:
 - [x] 2026-03-10: `CLC-1` parser boundary cleanup completed; parser v2 namespace made canonical, legacy parser kept behind compatibility shim.
 - [x] 2026-03-10: `CLC-2` task executor package normalization completed; executor moved under `app/services/task_executor/` with top-level shims preserved.
-- [ ] next: `CLC-3` outbox package consolidation
+- [x] 2026-03-10: `CLC-3` outbox package consolidation completed; outbox roles moved under `app/services/outbox/` with top-level shims preserved.
+- [ ] next: `CLC-4` projection naming cleanup
 
 Evidence:
 - `CLC-2`: `pytest -q tests/test_task_executor_service_stage2.py tests/test_task_batch_execution_service.py tests/test_runtime_shutdown_service.py` -> `23 passed in 5.47s`
+- `CLC-3`: `PYTHONPATH=. pytest -q tests/test_outbox_relay_service.py tests/test_outbox_relay_runner_service.py tests/test_outbox_operator_service.py tests/test_outbox_relay_consumer_dispatch.py tests/test_outbox_observability_logging.py` -> `14 passed in 5.94s`
+- `CLC-3`: `PYTHONPATH=. pytest -q tests/test_auth_onboarding_event_driven_flow.py` -> `1 passed in 7.69s` (`passlib` deprecation warning only)
 
 ## 1. Goal
 

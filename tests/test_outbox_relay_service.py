@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.services.outbox_relay_service import OutboxRelayService
+from app.services.outbox.relay import OutboxRelayService
 
 
 @dataclass

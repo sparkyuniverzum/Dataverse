@@ -20,10 +20,10 @@ from app.services.idempotency_service import IdempotencyService
 from app.services.io_service import ImportExportService
 from app.services.moon_dashboard_service import MoonDashboardService
 from app.services.onboarding_service import OnboardingService
-from app.services.outbox_operator_service import OutboxOperatorService
-from app.services.outbox_publisher_service import InProcessOutboxPublisher
-from app.services.outbox_relay_runner_service import OutboxRelayRunnerService
-from app.services.outbox_relay_service import OutboxRelayService
+from app.services.outbox.operator import OutboxOperatorService
+from app.services.outbox.publisher import InProcessOutboxPublisher
+from app.services.outbox.relay import OutboxRelayService
+from app.services.outbox.runner import OutboxRelayRunnerService
 from app.services.parser2 import Parser2ExecutorBridge, Parser2SemanticPlanner
 from app.services.parser_legacy_service import ParserService
 from app.services.planet_dashboard_service import PlanetDashboardService
