@@ -60,4 +60,4 @@ Completed on 2026-03-10 after canonical v1 closure and before next runtime sprin
 ## 6. Remaining open items
 
 1. [x] 2026-03-10: no blocking open items in delivery closure scope for v1.
-2. [ ] Next iteration tracked in `docs/contracts/planet-civilization-runtime-stability-sprint-v2.md`.
+2. [x] 2026-03-10: next iteration moved through `docs/contracts/planet-civilization-runtime-stability-sprint-v2.md` and subsequent UX closure in `docs/contracts/ux-rework-blueprint-v1.md`.

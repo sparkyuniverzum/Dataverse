@@ -222,7 +222,7 @@ export default function StarHeartDashboard({
               AKTIVITA
             </div>
             <div style={{ fontSize: "var(--dv-fs-sm)" }}>
-              Write/min: <strong>{writesPerMinute}</strong>
+              Zapisy/min: <strong>{writesPerMinute}</strong>
             </div>
             <div style={{ fontSize: "var(--dv-fs-sm)" }}>
               Eventy v okne: <strong>{eventsCount}</strong>
@@ -243,7 +243,7 @@ export default function StarHeartDashboard({
               </strong>
             </div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
-              Locked at: <strong>{formatLockTime(starPolicy?.locked_at)}</strong>
+              Uzamceno: <strong>{formatLockTime(starPolicy?.locked_at)}</strong>
             </div>
             <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.76 }}>
               Topologie: <strong>{String(starCoreProfile?.topologyMode || "single_star_per_galaxy")}</strong> | Rezim:{" "}

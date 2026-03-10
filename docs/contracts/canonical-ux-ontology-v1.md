@@ -903,4 +903,4 @@ Errors must map to:
 
 1. [x] 2026-03-10: ontology conflict between Moon capability and Civilization row is explicitly separated for UX work.
 2. [x] 2026-03-10: entity behavior and allowed interaction baseline is defined for `Galaxy`, `Star`, `Planet`, `Moon`, `Civilization`, `Mineral`, `Bond`, `Branch`, and `Star Core`.
-3. [ ] Next: define workspace surfaces and end-to-end user journeys on top of this ontology without reintroducing alias drift.
+3. [x] 2026-03-10: workspace surfaces and end-to-end user journeys were defined through `docs/contracts/ux-rework-blueprint-v1.md` and closed in Slice 1-14 without reintroducing alias drift.

@@ -30,10 +30,10 @@ export function PromoteReviewDrawer({ review, onClose, onConfirm }) {
         })}
       >
         <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>
-          Branch: <strong>{review.branchLabel}</strong>
+          Vetev: <strong>{review.branchLabel}</strong>
         </div>
         <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
-          Cil: <strong>main timeline</strong>
+          Cil: <strong>hlavni timeline</strong>
         </div>
         <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.82 }}>
           Rezim: <strong>{review.badgeLabel}</strong>
@@ -113,7 +113,7 @@ export function PromoteReviewDrawer({ review, onClose, onConfirm }) {
             opacity: review.canConfirm ? 1 : 0.56,
           }}
         >
-          {review.busy ? "Promoting..." : "Potvrdit reality transfer"}
+          {review.busy ? "Promotuji..." : "Potvrdit reality transfer"}
         </button>
       </div>
     </aside>

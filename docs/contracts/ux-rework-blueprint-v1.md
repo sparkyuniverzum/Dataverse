@@ -516,9 +516,10 @@ No future block may close without recording replacement decisions.
 - Reason:
   - Promote review is now separated from generic branch controls through a dedicated right-side HUD drawer and a focused review seam. This keeps branch scope/create controls lightweight while moving reality transfer into its own review surface with explicit confirm state and workspace-aware cinematic shift.
 - Evidence:
-  - pending focused verification in current block
+  - `npm --prefix frontend run test -- src/components/universe/promoteReviewContract.test.js src/components/universe/planetCivilizationMatrix.placeholder.test.js --reporter=dot` -> `2 files passed, 12 tests passed`
+  - `npm --prefix frontend run test -- src/components/universe/promoteReviewContract.test.js src/components/universe/governanceModeContract.test.js src/components/universe/recoveryModeContract.test.js src/components/universe/surfaceVisualTokens.test.js src/components/universe/surfaceLayoutTokens.test.js src/components/universe/operatingCenterUxContract.test.js --reporter=dot` -> `6 files passed, 12 tests passed`
 - Exit condition:
-  - closes when focused pre-commit checks for the new review seam and touched workspace/sidebar files are green
+  - closed on 2026-03-10
 
 ### 2026-03-10 - Governance Mode Split seam extraction
 
@@ -538,9 +539,10 @@ No future block may close without recording replacement decisions.
 - Reason:
   - Governance launcher/focus state and the governance surface are now separated from generic workspace orchestration. Workspace derives one explicit governance mode model while the actual Star Core surface is mounted through a dedicated adapter instead of ad hoc inline open-state branching.
 - Evidence:
-  - pending focused verification in current block
+  - `npm --prefix frontend run test -- src/components/universe/governanceModeContract.test.js src/components/universe/accessibilityPreview.test.jsx --reporter=dot` -> `2 files passed, 6 tests passed`
+  - `npm --prefix frontend run test -- src/components/universe/promoteReviewContract.test.js src/components/universe/governanceModeContract.test.js src/components/universe/recoveryModeContract.test.js src/components/universe/surfaceVisualTokens.test.js src/components/universe/surfaceLayoutTokens.test.js src/components/universe/operatingCenterUxContract.test.js --reporter=dot` -> `6 files passed, 12 tests passed`
 - Exit condition:
-  - closes when focused pre-commit checks for the new governance seam and touched workspace files are green
+  - closed on 2026-03-10
 
 ### 2026-03-10 - Recovery Mode seam extraction
 
@@ -561,9 +563,10 @@ No future block may close without recording replacement decisions.
 - Reason:
   - Blocked runtime states, connectivity degradation, and guided repair actions now resolve through one dedicated recovery surface instead of being mixed into the generic sidebar. Sidebar keeps only a compact recovery launcher/summary while Recovery Mode owns the actionable repair state.
 - Evidence:
-  - pending focused verification in current block
+  - `npm --prefix frontend run test -- src/components/universe/recoveryModeContract.test.js --reporter=dot` -> focused seam gate passed on 2026-03-10
+  - `npm --prefix frontend run test -- src/components/universe/promoteReviewContract.test.js src/components/universe/governanceModeContract.test.js src/components/universe/recoveryModeContract.test.js src/components/universe/surfaceVisualTokens.test.js src/components/universe/surfaceLayoutTokens.test.js src/components/universe/operatingCenterUxContract.test.js --reporter=dot` -> `6 files passed, 12 tests passed`
 - Exit condition:
-  - closes when focused pre-commit checks for the new recovery seam and touched workspace/sidebar files are green
+  - closed on 2026-03-10
 
 ### 2026-03-10 - Visual Token System extraction
 
@@ -583,9 +586,10 @@ No future block may close without recording replacement decisions.
 - Reason:
   - The new right-side and governance surfaces now share one intentional token layer for shell, ghost CTA, primary CTA, and card tone primitives instead of each surface carrying its own duplicated visual constants.
 - Evidence:
-  - pending focused verification in current block
+  - `npm --prefix frontend run test -- src/components/universe/surfaceVisualTokens.test.js --reporter=dot` -> `1 file passed, 2 tests passed`
+  - `npm --prefix frontend run test -- src/components/universe/promoteReviewContract.test.js src/components/universe/governanceModeContract.test.js src/components/universe/recoveryModeContract.test.js src/components/universe/surfaceVisualTokens.test.js src/components/universe/surfaceLayoutTokens.test.js src/components/universe/operatingCenterUxContract.test.js --reporter=dot` -> `6 files passed, 12 tests passed`
 - Exit condition:
-  - closes when focused pre-commit checks for the new token layer and rewired surfaces are green
+  - closed on 2026-03-10
 
 ### 2026-03-10 - Layout Hardening extraction
 
@@ -606,9 +610,10 @@ No future block may close without recording replacement decisions.
 - Reason:
   - The extracted HUD surfaces now share one layout scale for spacing, stacking, viewport clamps, and fixed anchoring instead of each surface carrying its own shell positioning math. This closes Slice 13 by hardening responsive behavior and layer order without re-expanding `UniverseWorkspace`.
 - Evidence:
-  - pending focused verification in current block
+  - `npm --prefix frontend run test -- src/components/universe/surfaceLayoutTokens.test.js --reporter=dot` -> `1 file passed, 2 tests passed`
+  - `npm --prefix frontend run test -- src/components/universe/promoteReviewContract.test.js src/components/universe/governanceModeContract.test.js src/components/universe/recoveryModeContract.test.js src/components/universe/surfaceVisualTokens.test.js src/components/universe/surfaceLayoutTokens.test.js src/components/universe/operatingCenterUxContract.test.js --reporter=dot` -> `6 files passed, 12 tests passed`
 - Exit condition:
-  - closes when focused pre-commit checks for the new layout token layer and rewired shell surfaces are green
+  - closed on 2026-03-10
 
 ### 2026-03-10 - Full UX Closure Pass
 
@@ -632,9 +637,11 @@ No future block may close without recording replacement decisions.
 - Reason:
   - The operating-center surfaces now share one UX copy and presentation contract for launcher labels, header rhythm, close semantics, and workspace cinematic priority. This closes the remaining polish gap without adding another monolithic shell layer.
 - Evidence:
-  - pending focused verification in current block
+  - `npm --prefix frontend run test -- src/components/universe/operatingCenterUxContract.test.js --reporter=dot` -> `1 file passed, 2 tests passed`
+  - `npm --prefix frontend run test -- src/components/universe/promoteReviewContract.test.js src/components/universe/governanceModeContract.test.js src/components/universe/recoveryModeContract.test.js src/components/universe/surfaceVisualTokens.test.js src/components/universe/surfaceLayoutTokens.test.js src/components/universe/operatingCenterUxContract.test.js --reporter=dot` -> `6 files passed, 12 tests passed`
+  - `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> `2 passed`
 - Exit condition:
-  - closes when focused pre-commit checks for the new UX contract and touched surfaces are green
+  - closed on 2026-03-10
 
 ## 19. Evidence
 

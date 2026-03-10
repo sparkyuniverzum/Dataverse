@@ -162,7 +162,7 @@ export default function WorkspaceSidebar({
           Onboarding: <strong>{String(onboarding?.current_stage_key || "n/a")}</strong>
         </div>
         <div>
-          Rezim: <strong>{String(onboarding?.mode || "n/a")}</strong> | Can advance:{" "}
+          Rezim: <strong>{String(onboarding?.mode || "n/a")}</strong> | Muze pokracovat:{" "}
           <strong>{onboarding?.can_advance ? "ano" : "ne"}</strong>
         </div>
       </div>
@@ -180,7 +180,7 @@ export default function WorkspaceSidebar({
           }}
           style={selectStyle}
         >
-          <option value="">Main timeline</option>
+          <option value="">Hlavni timeline</option>
           {branchVisibility.visibleBranches.map((branch) => (
             <option key={String(branch.id)} value={String(branch.id)}>
               {String(branch.label || branch.id)}
@@ -197,7 +197,7 @@ export default function WorkspaceSidebar({
           paddingLeft: 6,
         }}
       >
-        Scope: <strong>{branchVisibility.scopeLabel}</strong>
+        Scope vetve: <strong>{branchVisibility.scopeLabel}</strong>
       </div>
       <div
         style={{
@@ -238,7 +238,7 @@ export default function WorkspaceSidebar({
             disabled={!String(historicalAsOfDraft || "").trim()}
             style={ghostButtonStyle}
           >
-            Inspect
+            Prozkoumat
           </button>
           <button
             type="button"
@@ -251,11 +251,11 @@ export default function WorkspaceSidebar({
             disabled={!historicalMode}
             style={ghostButtonStyle}
           >
-            Current
+            Aktualni
           </button>
         </div>
         <label style={{ display: "grid", gap: 4 }}>
-          <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>Compare branch</span>
+          <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>Porovnat s vetvi</span>
           <select
             data-testid="workspace-compare-branch-select"
             value={String(selectedCompareBranchId || "")}
@@ -275,7 +275,7 @@ export default function WorkspaceSidebar({
           </select>
         </label>
         <div data-testid="workspace-compare-summary" style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
-          {compareSummary || "Compare vypnuto."}
+          {compareSummary || "Porovnani je vypnute."}
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6 }}>
@@ -301,7 +301,7 @@ export default function WorkspaceSidebar({
           disabled={branchCreateBusy || !String(branchCreateName || "").trim()}
           style={ghostButtonStyle}
         >
-          {branchCreateBusy ? "Creating..." : "Create"}
+          {branchCreateBusy ? "Vytvarim..." : "Vytvorit"}
         </button>
       </div>
       <button
@@ -318,7 +318,7 @@ export default function WorkspaceSidebar({
         {branchPromoteReviewOpen
           ? promoteCopy.launcherOpen
           : branchPromoteBusy
-            ? "Promoting..."
+            ? "Promotuji..."
             : promoteCopy.launcherClosed}
       </button>
       {branchPromoteSummary ? (
@@ -451,7 +451,7 @@ export default function WorkspaceSidebar({
             CIVILIZATION ORBIT
           </div>
           <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>
-            Civilizace kolem planety: <strong>{orbitCivilizations.length}</strong> | 1 klik = Inspector
+            Civilizace kolem planety: <strong>{orbitCivilizations.length}</strong> | 1 klik = inspektor
           </div>
           {orbitCivilizations.length ? (
             <div
@@ -570,7 +570,7 @@ export default function WorkspaceSidebar({
           Otevrit grid
         </button>
         <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
-          {loading ? "..." : "Refresh"}
+          {loading ? "..." : "Obnovit"}
         </button>
         <button type="button" onClick={onBackToGalaxies} style={ghostButtonStyle}>
           Vyber galaxie
@@ -581,7 +581,7 @@ export default function WorkspaceSidebar({
           data-testid="auth-logout-button"
           style={{ ...ghostButtonStyle, borderColor: "rgba(255, 161, 185, 0.4)", color: "#ffd2df" }}
         >
-          Logout
+          Odhlasit
         </button>
       </div>
 
