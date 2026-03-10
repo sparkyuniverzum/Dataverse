@@ -1,3 +1,5 @@
+import { normalizeApiErrorPayload } from "../lib/dataverseApi";
+
 export const AUTH_SESSION_STATUS = Object.freeze({
   OK: "ok",
   AUTH_INVALID: "auth_invalid",
@@ -13,6 +15,21 @@ export function classifyAuthHttpStatus(status) {
     return AUTH_SESSION_STATUS.AUTH_INVALID;
   }
   return AUTH_SESSION_STATUS.RETRYABLE_ERROR;
+}
+
+export function normalizeAuthApiFailure({ status = 0, bodyText = "", fallbackMessage = "Request failed" } = {}) {
+  const payload = (() => {
+    try {
+      return bodyText ? JSON.parse(String(bodyText)) : null;
+    } catch {
+      return bodyText ? { detail: String(bodyText) } : null;
+    }
+  })();
+  const normalized = normalizeApiErrorPayload(payload, { status, fallbackMessage });
+  return {
+    ...normalized,
+    sessionStatus: classifyAuthHttpStatus(status),
+  };
 }
 
 export function classifyAuthRuntimeError(error) {
@@ -51,4 +68,12 @@ export function shouldClearSessionAfterBootstrap({
     );
   }
   return retryUserStatus === AUTH_SESSION_STATUS.AUTH_INVALID;
+}
+
+export function shouldClearSessionAfterRefreshFailure(status) {
+  return (
+    status === AUTH_SESSION_STATUS.AUTH_INVALID ||
+    status === AUTH_SESSION_STATUS.MISSING_TOKEN ||
+    status === AUTH_SESSION_STATUS.INVALID_PAYLOAD
+  );
 }

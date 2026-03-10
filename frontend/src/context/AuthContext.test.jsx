@@ -4,6 +4,8 @@ import {
   AUTH_SESSION_STATUS,
   classifyAuthHttpStatus,
   classifyAuthRuntimeError,
+  normalizeAuthApiFailure,
+  shouldClearSessionAfterRefreshFailure,
   shouldClearSessionAfterBootstrap,
 } from "./authSessionRuntime";
 
@@ -49,5 +51,34 @@ describe("authSessionRuntime", () => {
         retryUserStatus: AUTH_SESSION_STATUS.OK,
       })
     ).toBe(false);
+  });
+
+  it("normalizes auth api failures into message + session status", () => {
+    expect(
+      normalizeAuthApiFailure({
+        status: 401,
+        bodyText: JSON.stringify({ detail: { code: "AUTH_INVALID", message: "Session expired" } }),
+        fallbackMessage: "Auth failed",
+      })
+    ).toMatchObject({
+      status: 401,
+      code: "AUTH_INVALID",
+      message: "Session expired",
+      sessionStatus: AUTH_SESSION_STATUS.AUTH_INVALID,
+    });
+
+    expect(
+      normalizeAuthApiFailure({
+        status: 503,
+        bodyText: "",
+        fallbackMessage: "Auth failed",
+      }).sessionStatus
+    ).toBe(AUTH_SESSION_STATUS.RETRYABLE_ERROR);
+  });
+
+  it("clears session only for hard refresh failure statuses", () => {
+    expect(shouldClearSessionAfterRefreshFailure(AUTH_SESSION_STATUS.AUTH_INVALID)).toBe(true);
+    expect(shouldClearSessionAfterRefreshFailure(AUTH_SESSION_STATUS.INVALID_PAYLOAD)).toBe(true);
+    expect(shouldClearSessionAfterRefreshFailure(AUTH_SESSION_STATUS.NETWORK_ERROR)).toBe(false);
   });
 });

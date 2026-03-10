@@ -6,6 +6,8 @@ import {
   AUTH_SESSION_STATUS,
   classifyAuthHttpStatus,
   classifyAuthRuntimeError,
+  normalizeAuthApiFailure,
+  shouldClearSessionAfterRefreshFailure,
   shouldClearSessionAfterBootstrap,
 } from "./authSessionRuntime";
 
@@ -16,14 +18,7 @@ const REFRESH_TOKEN_KEY = "dataverse_auth_refresh_token";
 const AuthContext = createContext(null);
 
 function parseErrorMessage(bodyText, fallback) {
-  try {
-    const parsed = JSON.parse(bodyText);
-    if (typeof parsed?.detail === "string" && parsed.detail) return parsed.detail;
-    if (typeof parsed?.detail?.message === "string" && parsed.detail.message) return parsed.detail.message;
-  } catch {
-    // Ignore invalid JSON response body and use fallback below.
-  }
-  return bodyText || fallback;
+  return normalizeAuthApiFailure({ bodyText, fallbackMessage: fallback }).message;
 }
 
 function parseJsonSafe(text) {
@@ -69,6 +64,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const clearSession = useCallback(() => {
+    refreshPromiseRef.current = null;
+    lastRefreshStatusRef.current = AUTH_SESSION_STATUS.OK;
     accessTokenRef.current = "";
     refreshTokenRef.current = "";
     setAccessToken("");
@@ -117,9 +114,14 @@ export function AuthProvider({ children }) {
         });
 
         if (!response.ok) {
-          const refreshStatus = classifyAuthHttpStatus(response.status);
+          const refreshError = normalizeAuthApiFailure({
+            status: response.status,
+            bodyText: await response.text(),
+            fallbackMessage: "Obnova session selhala.",
+          });
+          const refreshStatus = refreshError.sessionStatus;
           lastRefreshStatusRef.current = refreshStatus;
-          if (refreshStatus === AUTH_SESSION_STATUS.AUTH_INVALID) {
+          if (shouldClearSessionAfterRefreshFailure(refreshStatus)) {
             clearSession();
           }
           return false;
