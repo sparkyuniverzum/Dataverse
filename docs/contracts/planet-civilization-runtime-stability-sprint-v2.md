@@ -102,7 +102,7 @@ Done criteria:
 
 Focused gates per block:
 1. `RSV2-1`
-   - `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/lib/useGalaxyGate.test.js`
+   - `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/hooks/useGalaxyGate.test.js`
 2. `RSV2-2`
    - `npm --prefix frontend run test -- src/lib/useUniverseRuntimeSync.test.js src/components/universe/workflowEventBridge.test.js`
 3. `RSV2-3`
@@ -118,7 +118,7 @@ Bundled long gates (after multi-block bundle, not per block):
 
 ## 7. Remaining open items
 
-1. [ ] `RSV2-1` auth/session patch set merged with focused tests green.
+1. [x] `RSV2-1` auth/session patch set merged with focused tests green. Done 2026-03-10.
 2. [ ] `RSV2-2` stream delta + bounded dedupe merged with focused tests green.
 3. [ ] `RSV2-3` offline continuity patch merged with focused tests green.
 4. [ ] `RSV2-4` performance slice merged with focused tests green.
@@ -140,3 +140,23 @@ Evidence:
 Reason to record here:
 1. `RSV2-*` blocks assume Stage Zero/builder render flow no longer depends on widespread shadow UI booleans.
 2. Runtime/auth/offline work should build on this reduced coupling baseline, not reopen builder state ownership.
+
+## 9. RSV2-1 closure evidence
+
+Implemented slices:
+1. `RSV2-1A` network-vs-auth split in auth bootstrap/refresh flow.
+2. `RSV2-1A` selected galaxy persistence scoped per authenticated user.
+3. `RSV2-1B` normalized auth failure envelope helper and deterministic refresh cleanup rules.
+4. `RSV2-1B` session runtime refs reset on local logout/clear.
+
+Evidence:
+1. `npm --prefix frontend run format:check` -> green
+2. `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/hooks/useGalaxyGate.test.js` -> `10 passed`
+
+Closed outcomes:
+1. transient network failure no longer implies forced logout during bootstrap/refresh path
+2. explicit `401/403` remains the only auth-invalid session signal
+3. stale selected galaxy no longer crosses account boundary via one global key
+
+Next implementation slice:
+1. `RSV2-2A`: introduce runtime delta patch helper + bounded event-id dedupe primitive, covered by focused tests only

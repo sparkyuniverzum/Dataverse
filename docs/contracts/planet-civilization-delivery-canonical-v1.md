@@ -39,6 +39,7 @@ Delivery ownership and closure evidence were spread across multiple planning and
 5. `npm --prefix frontend run test -- src/components/universe/planetCivilizationMatrix.placeholder.test.js --passWithNoTests=false` -> `177 passed`
 6. `npm --prefix frontend run test -- src/components/universe/planetBuilderConsistencyGuard.test.js src/components/universe/planetBuilderUiState.test.js src/components/universe/planetBuilderFlow.test.js src/components/universe/StageZeroSetupPanel.preview.test.jsx` -> `17 passed`
 7. `npm --prefix frontend run test:e2e:workspace-starlock` -> `1 passed`
+8. `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/hooks/useGalaxyGate.test.js` -> `10 passed`
 
 ## 5. Post-closure FE cleanup completed
 
@@ -47,6 +48,7 @@ Completed on 2026-03-10 after canonical v1 closure and before next runtime sprin
 2. Stage Zero setup panel prop-drilling was replaced with local context adapter.
 3. Builder consistency guard was added to detect legacy/FSM mismatch in dev mode.
 4. Placeholder matrix tests were realigned with current bond preview and remove_soft UI contracts.
+5. Auth/session bootstrap no longer treats transient network failures as forced logout and selected galaxy persistence is scoped per authenticated user.
 
 ## 6. Remaining open items
 
