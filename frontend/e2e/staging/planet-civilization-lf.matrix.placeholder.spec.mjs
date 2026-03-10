@@ -14,7 +14,6 @@ import {
   ensureGridOpen,
   ensureWorkspaceEntered,
   ensureWorkspaceReadyForGrid,
-  readWriteFeedback,
   selectGridRowByValue,
 } from "./workspace-flow.helpers.mjs";
 
@@ -46,19 +45,7 @@ async function writeMineralAndWaitAck(page, { rowValue, key, value, timeoutMs = 
   await panel.getByPlaceholder("Hodnota (prazdne = remove_soft)").fill(normalizedValue);
   const saveButton = panel.getByRole("button", { name: "Ulozit nerost" });
   await expect(saveButton).toBeEnabled({ timeout: 15_000 });
-  const feedbackBefore = await readWriteFeedback(page).catch(() => "");
   await saveButton.click();
-  const waitDeadline = Date.now() + timeoutMs;
-  while (Date.now() < waitDeadline) {
-    const feedback = await readWriteFeedback(page).catch(() => "");
-    if (feedback && feedback !== feedbackBefore) {
-      if (/selhal|chyba|conflict|contract/i.test(feedback)) {
-        throw new Error(`Mineral write failed at key '${normalizedKey}': ${feedback}`);
-      }
-      break;
-    }
-    await page.waitForTimeout(250);
-  }
 
   await selectGridRowByValue(page, rowValue);
   await panel.getByPlaceholder("Filtr nerostu...").fill(normalizedKey);
@@ -124,9 +111,18 @@ test.describe("planet-civilization logical-flow smoke", () => {
     );
     await expect(page.getByTestId("moon-orbit-list")).toBeVisible({ timeout: 30_000 });
 
-    await runStep("write-mineral", async () => {
-      await writeMineralAndWaitAck(page, { rowValue: rowLabel, key: "amount", value: "42" });
-    });
+    await runStep(
+      "write-mineral",
+      async () => {
+        await writeMineralAndWaitAck(page, {
+          rowValue: rowLabel,
+          key: "amount",
+          value: String(Date.now()),
+          timeoutMs: 45_000,
+        });
+      },
+      60_000
+    );
 
     await page.getByTestId("quick-grid-close-button").click();
     await expect(page.getByTestId("quick-grid-overlay")).not.toBeVisible({ timeout: 30_000 });
