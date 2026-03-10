@@ -104,6 +104,7 @@ export function resolvePlanetBuilderUiState({
     state: currentState,
     effectiveState,
     stageZeroActive,
+    stageZeroRequiresStarLock,
     setupPanelOpen,
     builderTargetEnabled,
     visibility,

@@ -69,6 +69,10 @@ import {
   resolvePlanetBuilderState,
 } from "./planetBuilderFlow";
 import { resolvePlanetMoonCausalGuidance } from "./planetMoonCausalGuidance";
+import {
+  buildPlanetBuilderConsistencyMessage,
+  shouldWarnPlanetBuilderConsistency,
+} from "./planetBuilderConsistencyGuard";
 import { resolvePlanetBuilderUiState } from "./planetBuilderUiState";
 import {
   observeReducedMotionPreference,
@@ -376,24 +380,6 @@ export default function UniverseWorkspace({
     if (!stageZeroAllSchemaStepsDone) return "Dokonci vsechny schema kroky.";
     return "";
   }, [stageZeroAllSchemaStepsDone, stageZeroCommitBusy, stageZeroPresetBundleKey]);
-  const stageZeroVisualBoost = useMemo(
-    () =>
-      resolveStageZeroPlanetVisualBoost(stageZeroSchemaDraft, {
-        enabled: stageZeroSetupOpen && stageZeroPresetSelected,
-        steps: stageZeroSteps,
-      }),
-    [stageZeroPresetSelected, stageZeroSchemaDraft, stageZeroSetupOpen, stageZeroSteps]
-  );
-  const stageZeroCameraMicroNudgeKey = useMemo(
-    () =>
-      buildStageZeroCameraMicroNudgeKey({
-        setupOpen: stageZeroSetupOpen,
-        presetSelected: stageZeroPresetSelected,
-        tableId: selectedTableId,
-        completed: stageZeroSchemaSummary.completed,
-      }),
-    [selectedTableId, stageZeroPresetSelected, stageZeroSchemaSummary.completed, stageZeroSetupOpen]
-  );
   const planetBuilderState = useMemo(
     () =>
       resolvePlanetBuilderState({
@@ -469,12 +455,42 @@ export default function UniverseWorkspace({
   );
   const stageZeroUiVisibility = planetBuilderUiState.visibility;
   const workspaceInteractionLocked = planetBuilderUiState.workspaceInteractionLocked;
+  const stageZeroVisualBoost = useMemo(
+    () =>
+      resolveStageZeroPlanetVisualBoost(stageZeroSchemaDraft, {
+        enabled: planetBuilderUiState.setupPanelOpen && stageZeroPresetSelected,
+        steps: stageZeroSteps,
+      }),
+    [planetBuilderUiState.setupPanelOpen, stageZeroPresetSelected, stageZeroSchemaDraft, stageZeroSteps]
+  );
+  const stageZeroCameraMicroNudgeKey = useMemo(
+    () =>
+      buildStageZeroCameraMicroNudgeKey({
+        setupOpen: planetBuilderUiState.setupPanelOpen,
+        presetSelected: stageZeroPresetSelected,
+        tableId: selectedTableId,
+        completed: stageZeroSchemaSummary.completed,
+      }),
+    [planetBuilderUiState.setupPanelOpen, selectedTableId, stageZeroPresetSelected, stageZeroSchemaSummary.completed]
+  );
 
   useEffect(() => {
     if (planetBuilderState !== PLANET_BUILDER_STATE.ERROR_RECOVERABLE) {
       setPlanetBuilderLastValidState(planetBuilderState);
     }
   }, [planetBuilderState]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (!shouldWarnPlanetBuilderConsistency({ violations: planetBuilderUiState.invariantViolations })) return;
+    console.warn(
+      buildPlanetBuilderConsistencyMessage({
+        violations: planetBuilderUiState.invariantViolations,
+        state: planetBuilderUiState.state,
+        effectiveState: planetBuilderUiState.effectiveState,
+      })
+    );
+  }, [planetBuilderUiState.effectiveState, planetBuilderUiState.invariantViolations, planetBuilderUiState.state]);
 
   useEffect(() => {
     if (!tables.length) {
@@ -527,11 +543,11 @@ export default function UniverseWorkspace({
   }, [galaxyId]);
 
   useEffect(() => {
-    const waitingForProjectionBootstrap = stageZeroActive && quickGridOpen && loading;
+    const waitingForProjectionBootstrap = planetBuilderUiState.stageZeroActive && quickGridOpen && loading;
     if (waitingForProjectionBootstrap) {
       return;
     }
-    if (!stageZeroActive) {
+    if (!planetBuilderUiState.stageZeroActive) {
       setStageZeroDragging(false);
       setStageZeroDropHover(false);
       setStageZeroDraggedSchemaKey("");
@@ -543,7 +559,7 @@ export default function UniverseWorkspace({
     if (quickGridOpen) {
       setQuickGridOpen(false);
     }
-    if (stageZeroRequiresStarLock) {
+    if (planetBuilderUiState.stageZeroRequiresStarLock) {
       setStageZeroDragging(false);
       setStageZeroDropHover(false);
       setStageZeroDraggedSchemaKey("");
@@ -556,7 +572,13 @@ export default function UniverseWorkspace({
     if (stageZeroFlow === STAGE_ZERO_FLOW.COMPLETE) {
       setStageZeroFlow(STAGE_ZERO_FLOW.INTRO);
     }
-  }, [loading, quickGridOpen, stageZeroActive, stageZeroFlow, stageZeroRequiresStarLock]);
+  }, [
+    loading,
+    planetBuilderUiState.stageZeroActive,
+    planetBuilderUiState.stageZeroRequiresStarLock,
+    quickGridOpen,
+    stageZeroFlow,
+  ]);
 
   const asteroidById = useMemo(
     () => new Map((Array.isArray(snapshot.asteroids) ? snapshot.asteroids : []).map((item) => [String(item.id), item])),
@@ -1197,7 +1219,12 @@ export default function UniverseWorkspace({
   const handleCreatePlanetAtDrop = useCallback(
     async (dropPayload, { allowOutsideStageZero = false, openSetupPanel = true } = {}) => {
       if (!galaxyId || stageZeroCreating) return;
-      if (!allowOutsideStageZero && (!stageZeroActive || stageZeroRequiresStarLock)) return;
+      if (
+        !allowOutsideStageZero &&
+        (!planetBuilderUiState.stageZeroActive || planetBuilderUiState.stageZeroRequiresStarLock)
+      ) {
+        return;
+      }
       const visualPosition = mapDropPointToPlanetPosition(dropPayload, dropPayload?.viewport);
       const suffix = Math.random().toString(36).slice(2, 6);
       const planetName = buildStageZeroPlanetName({ existingCount: tableNodes.length, suffix });
@@ -1258,11 +1285,11 @@ export default function UniverseWorkspace({
     [
       clearRuntimeIssue,
       galaxyId,
+      planetBuilderUiState.stageZeroActive,
+      planetBuilderUiState.stageZeroRequiresStarLock,
       refreshProjection,
       setRuntimeError,
-      stageZeroActive,
       stageZeroCreating,
-      stageZeroRequiresStarLock,
       branchIdScope,
       tableNodes.length,
     ]
