@@ -69,7 +69,7 @@ import {
   resolvePlanetBuilderState,
 } from "./planetBuilderFlow";
 import { resolvePlanetMoonCausalGuidance } from "./planetMoonCausalGuidance";
-import { resolveStageZeroVisibility } from "./stageZeroVisibility";
+import { resolvePlanetBuilderUiState } from "./planetBuilderUiState";
 import {
   observeReducedMotionPreference,
   readReducedMotionPreference,
@@ -333,34 +333,6 @@ export default function UniverseWorkspace({
     !stageZeroCreating &&
     !stageZeroSetupOpen;
   const stageZeroDropMode = stageZeroBuilderOpen && stageZeroDragging;
-  const stageZeroUiVisibility = useMemo(
-    () =>
-      resolveStageZeroVisibility({
-        stageZeroActive,
-        stageZeroRequiresStarLock,
-        stageZeroFlow,
-        stageZeroSetupOpen,
-        stageZeroBuilderOpen,
-        stageZeroDropMode,
-        stageZeroCreating,
-      }),
-    [
-      stageZeroActive,
-      stageZeroBuilderOpen,
-      stageZeroCreating,
-      stageZeroDropMode,
-      stageZeroFlow,
-      stageZeroRequiresStarLock,
-      stageZeroSetupOpen,
-    ]
-  );
-  const shouldLockSidebarFromSetup = stageZeroSetupOpen && !hasPlanets;
-  const workspaceInteractionLocked =
-    stageZeroActive &&
-    (stageZeroUiVisibility.canvasInteractionLocked ||
-      shouldLockSidebarFromSetup ||
-      stageZeroBuilderOpen ||
-      stageZeroCommitBusy);
   const stageZeroPresetCards = useMemo(() => {
     if (Array.isArray(stageZeroPresetCatalog) && stageZeroPresetCatalog.length > 0) {
       return stageZeroPresetCatalog.map((preset) => ({
@@ -465,6 +437,37 @@ export default function UniverseWorkspace({
       }),
     [planetBuilderLastValidState, planetBuilderState]
   );
+  const planetBuilderUiState = useMemo(
+    () =>
+      resolvePlanetBuilderUiState({
+        planetBuilderState,
+        recoveryState: planetBuilderRecoveryState,
+        stageZeroCreating,
+        stageZeroDropMode,
+        stageZeroCommitBusy,
+        selectedTableId,
+        selectedAsteroidId,
+        stageZeroPresetSelected,
+        hasPlanets,
+        legacyStageZeroActive: stageZeroActive,
+        legacySetupOpen: stageZeroSetupOpen,
+      }),
+    [
+      hasPlanets,
+      planetBuilderRecoveryState,
+      planetBuilderState,
+      selectedAsteroidId,
+      selectedTableId,
+      stageZeroActive,
+      stageZeroCommitBusy,
+      stageZeroCreating,
+      stageZeroDropMode,
+      stageZeroPresetSelected,
+      stageZeroSetupOpen,
+    ]
+  );
+  const stageZeroUiVisibility = planetBuilderUiState.visibility;
+  const workspaceInteractionLocked = planetBuilderUiState.workspaceInteractionLocked;
 
   useEffect(() => {
     if (planetBuilderState !== PLANET_BUILDER_STATE.ERROR_RECOVERABLE) {
@@ -793,7 +796,7 @@ export default function UniverseWorkspace({
         const backendPhysics = authoritative.physics;
         const backendStatus = authoritative.status;
         const isStageZeroBuilderTarget =
-          stageZeroSetupOpen && stageZeroPresetSelected && String(selectedTableId || "") === String(node.id || "");
+          planetBuilderUiState.builderTargetEnabled && String(selectedTableId || "") === String(node.id || "");
         const builderPhysics = isStageZeroBuilderTarget
           ? {
               radiusFactor: clamp(
@@ -852,8 +855,7 @@ export default function UniverseWorkspace({
       layout,
       selectedTableId,
       stageZeroAllSchemaStepsDone,
-      stageZeroPresetSelected,
-      stageZeroSetupOpen,
+      planetBuilderUiState.builderTargetEnabled,
       stageZeroVisualBoost.auraFactorBoost,
       stageZeroVisualBoost.emissiveBoost,
       stageZeroVisualBoost.previewMoonCount,
@@ -1065,8 +1067,8 @@ export default function UniverseWorkspace({
     () =>
       resolvePlanetMoonCausalGuidance({
         planetBuilderNarrative,
-        stageZeroActive,
-        stageZeroSetupOpen,
+        stageZeroActive: planetBuilderUiState.stageZeroActive,
+        stageZeroSetupOpen: planetBuilderUiState.setupPanelOpen,
         stageZeroPresetSelected,
         stageZeroSchemaSummary,
         stageZeroAllSchemaStepsDone,
@@ -1080,17 +1082,17 @@ export default function UniverseWorkspace({
       }),
     [
       planetBuilderNarrative,
+      planetBuilderUiState.setupPanelOpen,
+      planetBuilderUiState.stageZeroActive,
       quickGridOpen,
       selectedAsteroidLabel,
       selectedAsteroidNode,
       selectedTable,
       selectedTableNode,
-      stageZeroActive,
       stageZeroAllSchemaStepsDone,
       stageZeroCommitBusy,
       stageZeroPresetSelected,
       stageZeroSchemaSummary,
-      stageZeroSetupOpen,
     ]
   );
 
@@ -2099,7 +2101,7 @@ export default function UniverseWorkspace({
         canOpenStarHeart: true,
         quickGridOpen,
         starHeartOpen,
-        stageZeroSetupOpen,
+        stageZeroSetupOpen: planetBuilderUiState.setupPanelOpen,
       });
       if (!action) return;
       event.preventDefault();
@@ -2132,7 +2134,7 @@ export default function UniverseWorkspace({
     quickGridOpen,
     selectedTableId,
     commandBarOpen,
-    stageZeroSetupOpen,
+    planetBuilderUiState.setupPanelOpen,
     starHeartOpen,
     workspaceInteractionLocked,
   ]);
@@ -2476,10 +2478,10 @@ export default function UniverseWorkspace({
           starDiveActive={starHeartOpen}
           selectedTableId={selectedTableId}
           selectedAsteroidId={selectedAsteroidId}
-          cameraFocusOffset={stageZeroSetupOpen && selectedTableId && !selectedAsteroidId ? [140, 0, 0] : [0, 0, 0]}
+          cameraFocusOffset={planetBuilderUiState.cameraFocusOffset}
           cameraMicroNudgeKey={stageZeroCameraMicroNudgeKey}
           linkDraft={linkDraft}
-          builderDropActive={stageZeroDropMode || stageZeroCreating}
+          builderDropActive={stageZeroUiVisibility.dropZone}
           builderDropHover={stageZeroDropHover}
           hideMouseGuide={minimalShell}
           reducedMotion={reducedMotion}

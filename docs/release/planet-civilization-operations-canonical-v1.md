@@ -37,4 +37,5 @@ Operational actions were split across several files, increasing incident-time lo
 
 ## 5. Remaining open items
 
-1. [x] 2026-03-10: no blocking open items for v1 operations closure; future changes require new canonical v2 document.
+1. [x] 2026-03-10: no blocking open items for v1 operations closure.
+2. [ ] Runtime stability follow-up tracked in `docs/contracts/planet-civilization-runtime-stability-sprint-v2.md`.

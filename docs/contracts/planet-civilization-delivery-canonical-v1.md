@@ -39,4 +39,5 @@ Delivery ownership and closure evidence were spread across multiple planning and
 
 ## 5. Remaining open items
 
-1. [x] 2026-03-10: no blocking open items in delivery closure scope; next iteration must start in a new versioned canonical document.
+1. [x] 2026-03-10: no blocking open items in delivery closure scope for v1.
+2. [ ] Next iteration tracked in `docs/contracts/planet-civilization-runtime-stability-sprint-v2.md`.
