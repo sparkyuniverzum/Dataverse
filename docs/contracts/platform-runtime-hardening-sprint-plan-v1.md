@@ -225,6 +225,7 @@ Progress note (2026-03-10):
 7. PRH-3B started: global JSON log formatter with required structured field contract.
 8. PRH-3C started: rate-limit middleware baseline + async circuit-breaker helper with contract tests.
 9. PRH-3D started: unified resilience error envelope for 429/503 + circuit-open guard on outbox run endpoint.
+10. PRH-4A started: DB read/write router skeleton with single-DB backward-compatible default.
 
 ## 4. Risk register
 

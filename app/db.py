@@ -4,6 +4,8 @@ from urllib.parse import quote_plus
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.db_router import DbRouter
+
 
 def resolve_database_url() -> str:
     explicit = (os.getenv("DATABASE_URL") or "").strip()
@@ -22,11 +24,29 @@ def resolve_database_url() -> str:
 
 
 DATABASE_URL = resolve_database_url()
+DATABASE_READ_URL = (os.getenv("DATABASE_READ_URL") or "").strip()
 
 engine = create_async_engine(DATABASE_URL, echo=False)
+read_engine = create_async_engine(DATABASE_READ_URL, echo=False) if DATABASE_READ_URL else engine
 AsyncSessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+AsyncReadSessionLocal = (
+    async_sessionmaker(bind=read_engine, class_=AsyncSession, expire_on_commit=False)
+    if DATABASE_READ_URL
+    else AsyncSessionLocal
+)
+db_router = DbRouter(write_factory=AsyncSessionLocal, read_factory=AsyncReadSessionLocal)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
+    async with db_router.write_session() as session:
+        yield session
+
+
+async def get_write_session() -> AsyncGenerator[AsyncSession, None]:
+    async with db_router.write_session() as session:
+        yield session
+
+
+async def get_read_session() -> AsyncGenerator[AsyncSession, None]:
+    async with db_router.read_session() as session:
         yield session

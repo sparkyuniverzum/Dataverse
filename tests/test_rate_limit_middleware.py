@@ -46,6 +46,7 @@ def test_rate_limit_returns_429_with_stable_envelope() -> None:
     assert blocked.status_code == 429
     assert blocked.headers.get("Retry-After") is not None
     assert b"RATE_LIMIT_EXCEEDED" in blocked.body
+    assert b"http.rate_limiter" in blocked.body
 
 
 def test_rate_limit_is_path_scoped_for_same_client() -> None:
