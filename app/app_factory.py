@@ -18,6 +18,7 @@ from app.services.io_service import ImportExportService
 from app.services.moon_dashboard_service import MoonDashboardService
 from app.services.onboarding_service import OnboardingService
 from app.services.outbox_publisher_service import InProcessOutboxPublisher
+from app.services.outbox_relay_runner_service import OutboxRelayRunnerService
 from app.services.outbox_relay_service import OutboxRelayService
 from app.services.parser2 import Parser2ExecutorBridge, Parser2SemanticPlanner
 from app.services.parser_service import ParserService
@@ -33,6 +34,7 @@ from app.services.universe_service import UniverseService
 class ServiceContainer:
     event_store: EventStoreService
     outbox_relay_service: OutboxRelayService
+    outbox_relay_runner_service: OutboxRelayRunnerService
     universe_service: UniverseService
     parser_service: ParserService
     parser2_planner: Parser2SemanticPlanner
@@ -103,6 +105,7 @@ def create_services() -> ServiceContainer:
         event_store=event_store,
         publisher=InProcessOutboxPublisher(registry=outbox_consumer_registry),
     )
+    outbox_relay_runner_service = OutboxRelayRunnerService(relay_service=outbox_relay_service)
     schema_preset_service = SchemaPresetService(
         universe_service=universe_service,
         cosmos_service=cosmos_service,
@@ -117,6 +120,7 @@ def create_services() -> ServiceContainer:
     return ServiceContainer(
         event_store=event_store,
         outbox_relay_service=outbox_relay_service,
+        outbox_relay_runner_service=outbox_relay_runner_service,
         universe_service=universe_service,
         parser_service=parser_service,
         parser2_planner=parser2_planner,
