@@ -21,6 +21,9 @@ from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
     StarCoreDomainMetricsResponse,
+    StarCoreOutboxRunOnceRequest,
+    StarCoreOutboxRunOnceResponse,
+    StarCoreOutboxStatusResponse,
     StarCorePhysicsProfileMigrateRequest,
     StarCorePhysicsProfileMigrateResponse,
     StarCorePhysicsProfilePublic,
@@ -284,3 +287,68 @@ async def star_core_domain_metrics(
         window_events=window_events,
     )
     return star_core_domain_metrics_to_public(domain_metrics)
+
+
+@router.post(
+    "/star-core/outbox/run-once",
+    response_model=StarCoreOutboxRunOnceResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def star_core_outbox_run_once(
+    payload: StarCoreOutboxRunOnceRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> StarCoreOutboxRunOnceResponse:
+    _ = current_user
+    async with transactional_context(session):
+        summary = await services.outbox_operator_service.trigger_run_once(
+            session=session,
+            requeue_limit=payload.requeue_limit,
+            relay_batch_size=payload.relay_batch_size,
+        )
+    await commit_if_active(session)
+    status_snapshot = services.outbox_operator_service.snapshot()
+    return StarCoreOutboxRunOnceResponse(
+        state=status_snapshot.state,
+        run_count=status_snapshot.run_count,
+        requeued=summary.requeued,
+        scanned=summary.scanned,
+        published=summary.published,
+        failed=summary.failed,
+        dead_lettered=summary.dead_lettered,
+        completed_at=summary.completed_at,
+    )
+
+
+@router.get(
+    "/star-core/outbox/status",
+    response_model=StarCoreOutboxStatusResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def star_core_outbox_status(
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> StarCoreOutboxStatusResponse:
+    _ = current_user
+    snapshot = services.outbox_operator_service.snapshot()
+    latest = snapshot.latest
+    latest_payload = (
+        StarCoreOutboxRunOnceResponse(
+            state=snapshot.state,
+            run_count=snapshot.run_count,
+            requeued=latest.requeued,
+            scanned=latest.scanned,
+            published=latest.published,
+            failed=latest.failed,
+            dead_lettered=latest.dead_lettered,
+            completed_at=latest.completed_at,
+        )
+        if latest is not None
+        else None
+    )
+    return StarCoreOutboxStatusResponse(
+        state=snapshot.state,
+        run_count=snapshot.run_count,
+        latest=latest_payload,
+    )

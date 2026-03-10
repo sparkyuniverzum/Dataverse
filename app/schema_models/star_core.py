@@ -129,3 +129,25 @@ class StarCorePlanetPhysicsItemPublic(BaseModel):
 class StarCorePlanetPhysicsResponse(BaseModel):
     as_of_event_seq: int
     items: list[StarCorePlanetPhysicsItemPublic] = Field(default_factory=list)
+
+
+class StarCoreOutboxRunOnceRequest(BaseModel):
+    requeue_limit: int = Field(default=128, ge=1, le=4096)
+    relay_batch_size: int = Field(default=64, ge=1, le=2048)
+
+
+class StarCoreOutboxRunOnceResponse(BaseModel):
+    state: str = "ready"
+    run_count: int = 0
+    requeued: int = 0
+    scanned: int = 0
+    published: int = 0
+    failed: int = 0
+    dead_lettered: int = 0
+    completed_at: datetime
+
+
+class StarCoreOutboxStatusResponse(BaseModel):
+    state: str = "idle"
+    run_count: int = 0
+    latest: StarCoreOutboxRunOnceResponse | None = None
