@@ -41,6 +41,8 @@ Delivery ownership and closure evidence were spread across multiple planning and
 7. `npm --prefix frontend run test:e2e:workspace-starlock` -> `1 passed`
 8. `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/hooks/useGalaxyGate.test.js` -> `10 passed`
 9. `npm --prefix frontend run test -- src/components/universe/useUniverseRuntimeSync.test.js src/components/universe/runtimeProjectionPatch.test.js src/components/universe/runtimeSyncUtils.test.js src/components/universe/workflowEventBridge.test.js` -> `16 passed`
+10. `npm --prefix frontend run test -- src/components/universe/runtimeConnectivityState.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx` -> `26 passed`
+11. `npm --prefix frontend run test -- src/hooks/useConnectivityState.test.js src/components/app/appConnectivityNoticeState.test.js src/components/app/AppConnectivityNotice.test.jsx src/components/universe/runtimeConnectivityState.test.js` -> `10 passed`
 
 ## 5. Post-closure FE cleanup completed
 
@@ -51,6 +53,7 @@ Completed on 2026-03-10 after canonical v1 closure and before next runtime sprin
 4. Placeholder matrix tests were realigned with current bond preview and remove_soft UI contracts.
 5. Auth/session bootstrap no longer treats transient network failures as forced logout and selected galaxy persistence is scoped per authenticated user.
 6. Runtime sync now uses bounded stream dedupe and safe local snapshot patching before projection refresh fallback.
+7. Offline continuity now spans workspace write guards, app entry notices, and galaxy gate action locking through one shared connectivity source.
 
 ## 6. Remaining open items
 

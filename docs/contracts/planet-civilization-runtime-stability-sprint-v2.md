@@ -106,7 +106,8 @@ Focused gates per block:
 2. `RSV2-2`
    - `npm --prefix frontend run test -- src/components/universe/useUniverseRuntimeSync.test.js src/components/universe/runtimeProjectionPatch.test.js src/components/universe/runtimeSyncUtils.test.js src/components/universe/workflowEventBridge.test.js`
 3. `RSV2-3`
-   - `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx`
+   - `npm --prefix frontend run test -- src/hooks/useConnectivityState.test.js src/components/app/appConnectivityNoticeState.test.js src/components/app/AppConnectivityNotice.test.jsx src/components/universe/runtimeConnectivityState.test.js`
+   - `npm --prefix frontend run test -- src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx`
 4. `RSV2-4`
    - `npm --prefix frontend run test -- src/components/universe/scene/physicsSystem.test.js src/components/universe/scene/performanceBudget.test.js`
 
@@ -120,7 +121,7 @@ Bundled long gates (after multi-block bundle, not per block):
 
 1. [x] `RSV2-1` auth/session patch set merged with focused tests green. Done 2026-03-10.
 2. [x] `RSV2-2` stream delta + bounded dedupe merged with focused tests green. Done 2026-03-10.
-3. [ ] `RSV2-3` offline continuity patch merged with focused tests green.
+3. [x] `RSV2-3` offline continuity patch merged with focused tests green. Done 2026-03-10.
 4. [ ] `RSV2-4` performance slice merged with focused tests green.
 5. [ ] bundled long gates rerun green after `RSV2-1..RSV2-4`.
 
@@ -183,3 +184,29 @@ Recommended bundled regression before `RSV2-3`:
 
 Next implementation slice:
 1. `RSV2-3A`: offline indicator + guarded write affordances while disconnected
+
+## 11. RSV2-3 closure evidence
+
+Implemented slices:
+1. `RSV2-3A` workspace runtime offline indicator and guarded write behavior for grid/operator actions.
+2. `RSV2-3A` shared browser connectivity hook extracted so workspace and app entry use one source.
+3. `RSV2-3B` app-level offline continuity notice for session boot, auth entry, and galaxy gate.
+4. `RSV2-3B` auth entry flows now surface explicit offline errors instead of vague network failures.
+5. `RSV2-3B` galaxy gate create/enter/refresh actions are explicitly locked while offline.
+
+Evidence:
+1. `npm --prefix frontend run format:check` -> green
+2. `npm --prefix frontend run test -- src/components/universe/runtimeConnectivityState.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx` -> `26 passed`
+3. `npm --prefix frontend run test -- src/hooks/useConnectivityState.test.js src/components/app/appConnectivityNoticeState.test.js src/components/app/AppConnectivityNotice.test.jsx src/components/universe/runtimeConnectivityState.test.js` -> `10 passed`
+
+Closed outcomes:
+1. offline/online runtime state is visible inside workspace and reversible without reload
+2. operator write actions are blocked explicitly during disconnect instead of failing opaquely
+3. auth/session entry surfaces continuity-aware offline messaging instead of looking like broken login
+4. galaxy gate no longer offers misleading online-only actions while disconnected
+
+Recommended bundled regression before `RSV2-4`:
+1. `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/hooks/useGalaxyGate.test.js src/hooks/useConnectivityState.test.js src/components/app/appConnectivityNoticeState.test.js src/components/app/AppConnectivityNotice.test.jsx src/components/universe/runtimeConnectivityState.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx`
+
+Next implementation slice:
+1. `RSV2-4A`: normalization hot-path split and lightweight performance budget helper, covered by focused tests only
