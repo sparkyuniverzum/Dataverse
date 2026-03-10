@@ -36,24 +36,35 @@ async function runStep(label, fn, timeoutMs = 30_000) {
 async function writeMineralAndWaitAck(page, { rowValue, key, value, timeoutMs = 30_000 }) {
   await selectGridRowByValue(page, rowValue);
   const panel = page.getByTestId("quick-grid-minerals-panel");
-  await panel.getByPlaceholder("Nerost / sloupec").fill(key);
-  await panel.getByPlaceholder("Hodnota (prazdne = remove_soft)").fill(value);
+  const normalizedKey = String(key || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+  const normalizedValue = String(value ?? "").trim();
+  await panel.getByPlaceholder("Nerost / sloupec").fill(normalizedKey);
+  await panel.getByPlaceholder("Hodnota (prazdne = remove_soft)").fill(normalizedValue);
   const saveButton = panel.getByRole("button", { name: "Ulozit nerost" });
   await expect(saveButton).toBeEnabled({ timeout: 15_000 });
   const feedbackBefore = await readWriteFeedback(page).catch(() => "");
   await saveButton.click();
-  await expect
-    .poll(
-      async () => {
-        const feedback = await readWriteFeedback(page).catch(() => "");
-        if (!feedback || feedback === feedbackBefore) return false;
-        if (/Nerost.*ulozen/i.test(feedback)) return true;
-        if (/selhal|chyba|conflict|contract/i.test(feedback)) return true;
-        return false;
-      },
-      { timeout: timeoutMs }
-    )
-    .toBe(true);
+  const waitDeadline = Date.now() + timeoutMs;
+  while (Date.now() < waitDeadline) {
+    const feedback = await readWriteFeedback(page).catch(() => "");
+    if (feedback && feedback !== feedbackBefore) {
+      if (/selhal|chyba|conflict|contract/i.test(feedback)) {
+        throw new Error(`Mineral write failed at key '${normalizedKey}': ${feedback}`);
+      }
+      break;
+    }
+    await page.waitForTimeout(250);
+  }
+
+  await selectGridRowByValue(page, rowValue);
+  await panel.getByPlaceholder("Filtr nerostu...").fill(normalizedKey);
+  await expect(
+    page.getByTestId(`quick-grid-mineral-item-${normalizedKey}`).first().filter({ hasText: normalizedValue })
+  ).toBeVisible({ timeout: timeoutMs });
+  await panel.getByPlaceholder("Filtr nerostu...").fill("");
   await assertNoContractViolation(page);
 }
 
