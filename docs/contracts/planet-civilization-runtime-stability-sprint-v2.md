@@ -1,6 +1,6 @@
 # Planet/Civilization Runtime Stability Sprint v2
 
-Status: active
+Status: closed
 Date: 2026-03-10
 Owner: FE Runtime + BE Auth/Platform
 Depends on:
@@ -124,7 +124,7 @@ Bundled long gates (after multi-block bundle, not per block):
 2. [x] `RSV2-2` stream delta + bounded dedupe merged with focused tests green. Done 2026-03-10.
 3. [x] `RSV2-3` offline continuity patch merged with focused tests green. Done 2026-03-10.
 4. [x] `RSV2-4` performance slice merged with focused tests green. Done 2026-03-10.
-5. [ ] bundled long gates rerun green after `RSV2-1..RSV2-4`.
+5. [x] bundled long gates rerun green after `RSV2-1..RSV2-4`. Done 2026-03-10.
 
 ## 8. Related FE closure before RSV2
 
@@ -234,5 +234,18 @@ Recommended bundled focused regression for full RSV2 closure:
 1. `npm --prefix frontend run format:check`
 2. `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/hooks/useGalaxyGate.test.js src/hooks/useConnectivityState.test.js src/components/app/appConnectivityNoticeState.test.js src/components/app/AppConnectivityNotice.test.jsx src/components/universe/runtimeConnectivityState.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx src/lib/snapshotNormalization.test.js src/lib/snapshotNormalizationBudget.test.js src/lib/dataverseApi.test.js src/components/universe/runtimeNormalizationSignal.test.js src/components/universe/useUniverseRuntimeSync.test.js src/components/universe/runtimeSyncUtils.test.js src/components/universe/workflowEventBridge.test.js`
 
+Bundled long-gate closure evidence:
+1. `npm --prefix frontend run test:e2e:workspace-starlock` -> `1 passed`
+2. `npm --prefix frontend run test:e2e:planet-civilization-mineral-workflow` -> `1 passed`
+3. `npm --prefix frontend run test:e2e -- e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs` -> `1 passed`
+4. `npm --prefix frontend run test:e2e:planet-moon-preview` -> `1 passed`
+5. `npm --prefix frontend run test -- src/components/universe/QuickGridOverlay.minerals.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/lib/archiveWorkflowGuard.test.js` -> `21 passed`
+6. Closure source: `docs/contracts/p2-test-stability-report-2026-03-10.md`
+
+Closed outcomes:
+1. `RSV2-1..RSV2-4` are implementation-complete and backed by the bundled staging/unit rerun.
+2. Runtime hardening closure is synchronized with the recorded FE stability evidence from 2026-03-10.
+3. The next FE refactor entry point moves back to the UX rework roadmap, starting with Slice 9 `Promote Review Surface`.
+
 Next implementation slice:
-1. bundled long-gate rerun and full `RSV2` sprint closure
+1. Slice 9 `Promote Review Surface` in `docs/contracts/ux-rework-blueprint-v1.md`
