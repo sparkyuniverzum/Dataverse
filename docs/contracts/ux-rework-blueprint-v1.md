@@ -243,13 +243,73 @@ Every future implementation block must answer:
 3. How will we know the experience actually improved?
 4. What technical tradeoff is being made and why is it justified?
 
-## 17. Evidence
+## 17. Replacement protocol
+
+Whenever new implementation replaces an existing surface, test, helper, or workflow artifact, the block must stop and classify the old artifact immediately.
+
+Mandatory status classes:
+1. `GREEN` = remains in place, not replaced
+2. `ORANGE` = transitional coexistence, explicit reason required
+3. `RED` = fully replaced, must be removed in the same block
+
+Mandatory questions:
+1. Is the old artifact still actively used?
+2. Has the new artifact fully taken over its responsibility?
+3. Does the old artifact still hold compatibility or test value?
+4. What exact risk is introduced if it remains?
+5. In which block must it disappear at the latest?
+
+Hard rule:
+If the artifact is fully replaced, has no remaining unique responsibility, and has no compatibility need, it is automatically `RED` and must be removed in the same block.
+
+`ORANGE` is allowed only when:
+1. the old artifact still carries a different unique responsibility,
+2. equivalent coverage does not yet exist,
+3. removing it would improperly mix multiple slices,
+4. a short, explicit compatibility bridge is still required.
+
+No future block may close without recording replacement decisions.
+
+## 18. Replacement ledger
+
+### 2026-03-10 - Shared Workspace State Contract / UniverseWorkspace test rehab
+
+- Status: `ORANGE`
+- Removed:
+  - `frontend/src/components/universe/UniverseWorkspace.contextMenu.test.jsx`
+- Replaced by:
+  - `frontend/src/components/universe/UniverseWorkspace.navigation.test.jsx`
+  - `frontend/src/components/universe/UniverseWorkspace.telemetry.test.jsx`
+  - `frontend/src/components/universe/UniverseWorkspace.commandBar.test.jsx`
+  - `frontend/src/components/universe/UniverseWorkspace.gridMutations.test.jsx`
+- Reason:
+  - The previous UniverseWorkspace test file had grown into a monolithic mixed-responsibility suite. It was replaced by focused suites split by behavior domain so each failure maps to one responsibility and one narrow validation target.
+- Exit condition:
+  - Replacement moves from `ORANGE` to `GREEN` after focused test runs confirm the new suite set.
+
+### 2026-03-10 - UniverseWorkspace direct jsdom suite rollback
+
+- Status: `RED`
+- Removed:
+  - `frontend/src/components/universe/UniverseWorkspace.navigation.test.jsx`
+  - `frontend/src/components/universe/UniverseWorkspace.telemetry.test.jsx`
+  - `frontend/src/components/universe/UniverseWorkspace.commandBar.test.jsx`
+  - `frontend/src/components/universe/UniverseWorkspace.gridMutations.test.jsx`
+- Replaced by:
+  - no direct replacement yet
+- Reason:
+  - Focused Vitest runs reported `0 tests` for every direct `UniverseWorkspace` jsdom suite. That means these files are not a valid executable test surface in the current frontend runtime shape and must not remain in the repository as false coverage.
+- Exit condition:
+  - A new rehab block must replace direct `UniverseWorkspace` mounting with smaller executable seams such as extracted helpers, controllers, or already-stable child-surface tests.
+
+## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
 2. All supporting contracts listed in `Depends on` remain the normative reference set
 
-## 18. Remaining open items
+## 20. Remaining open items
 
 1. [x] 2026-03-10: the UX rework direction is consolidated into one official blueprint document.
 2. [x] 2026-03-10: implementation prime directive formally puts user experience above internal elegance when system laws remain preserved.
-3. [ ] Next: begin implementation with `Shared Workspace State Contract` as the first concrete slice.
+3. [x] 2026-03-10: `Shared Workspace State Contract` was implemented as the first concrete slice.
+4. [ ] Next: close the `UniverseWorkspace` test rehab replacement from `ORANGE` to `GREEN` with focused runs.

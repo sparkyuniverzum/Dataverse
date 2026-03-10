@@ -74,6 +74,11 @@ def test_contract_closure_docs_exist_with_required_sections() -> None:
             "## 14. Rollout roadmap",
             "## 15. Implementation slices",
             "Shared Workspace State Contract",
+            "## 17. Replacement protocol",
+            "## 18. Replacement ledger",
+            "UniverseWorkspace.contextMenu.test.jsx",
+            "UniverseWorkspace.navigation.test.jsx",
+            "UniverseWorkspace direct jsdom suite rollback",
         ],
     }
 
@@ -136,5 +141,9 @@ def test_ux_rework_blueprint_doc_contains_prime_directive_and_rollout() -> None:
         "Shared Workspace State Contract",
         "Parser elevation",
         "Full UX Closure Pass",
+        "Replacement protocol",
+        "Replacement ledger",
+        "UniverseWorkspace.contextMenu.test.jsx",
+        "UniverseWorkspace direct jsdom suite rollback",
     ):
         assert snippet in body
