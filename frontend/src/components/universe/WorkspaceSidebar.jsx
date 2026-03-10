@@ -110,8 +110,12 @@ export default function WorkspaceSidebar({
   repairApplyBusy = false,
   onApplyRepair = null,
   repairAuditCount = 0,
+  runtimeConnectivity = null,
 }) {
   const severityColor = resolvePreviewSeverityColor(builderSeverity);
+  const connectivityBadgeLabel = String(runtimeConnectivity?.badgeLabel || "online");
+  const connectivityMessage = String(runtimeConnectivity?.sidebarMessage || "").trim();
+  const connectivityOffline = runtimeConnectivity?.writeBlocked === true;
   const safeMoonRows = Array.isArray(moonRows) ? moonRows : [];
   const selectedMoon =
     safeMoonRows.find((row) => String(row?.id || "") === String(selectedMoonId || "")) ||
@@ -228,7 +232,33 @@ export default function WorkspaceSidebar({
         <span style={hudBadgeStyle}>Vazby {bondCount}</span>
         {loading ? <span style={{ ...hudBadgeStyle, color: "#9de7ff" }}>Nacitam...</span> : null}
         {busy ? <span style={{ ...hudBadgeStyle, color: "#ffd59c" }}>Ukladam...</span> : null}
+        <span
+          data-testid="workspace-connectivity-badge"
+          style={{
+            ...hudBadgeStyle,
+            color: connectivityOffline ? "#ffd5a3" : "#b7efce",
+            borderColor: connectivityOffline ? "rgba(255, 194, 142, 0.36)" : "rgba(144, 235, 175, 0.34)",
+          }}
+        >
+          {connectivityBadgeLabel}
+        </span>
       </div>
+      {connectivityMessage && connectivityOffline ? (
+        <div
+          data-testid="workspace-connectivity-card"
+          style={{
+            border: connectivityOffline ? "1px solid rgba(255, 194, 142, 0.26)" : "1px solid rgba(108, 206, 240, 0.24)",
+            borderRadius: 10,
+            background: connectivityOffline ? "rgba(42, 24, 8, 0.56)" : "rgba(6, 18, 30, 0.56)",
+            padding: "8px 9px",
+            fontSize: "var(--dv-fs-2xs)",
+            color: connectivityOffline ? "#ffd5a3" : "#bde6f7",
+            lineHeight: "var(--dv-lh-base)",
+          }}
+        >
+          {connectivityMessage}
+        </div>
+      ) : null}
 
       {builderState ? (
         <div

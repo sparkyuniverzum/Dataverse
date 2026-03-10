@@ -80,6 +80,7 @@ import {
   resolvePreviewSeverityColor,
   resolveWorkspaceKeyboardAction,
 } from "./previewAccessibility";
+import { useRuntimeConnectivityState } from "./runtimeConnectivityState";
 import { buildContractViolationMessage } from "./workspaceContractExplainability";
 import {
   buildGuidedRepairApplyFailEvent,
@@ -152,6 +153,7 @@ export default function UniverseWorkspace({
   minimalShell = false,
 }) {
   const galaxyId = String(galaxy?.id || "");
+  const runtimeConnectivity = useRuntimeConnectivityState();
   const selectedBranchId = useUniverseStore((state) => String(state.selectedBranchId || ""));
   const selectBranch = useUniverseStore((state) => state.selectBranch);
   const branchIdScope = selectedBranchId || null;
@@ -3014,6 +3016,7 @@ export default function UniverseWorkspace({
             void handleApplyGuidedRepair();
           }}
           repairAuditCount={repairAuditTrail.length}
+          runtimeConnectivity={runtimeConnectivity}
         />
         <WorkspaceContextMenu
           contextMenu={contextMenu}
@@ -3071,6 +3074,7 @@ export default function UniverseWorkspace({
           pendingRowOps={pendingRowOps}
           busy={busy}
           runtimeError={error}
+          runtimeConnectivity={runtimeConnectivity}
           onClose={() => setQuickGridOpen(false)}
           readGridCell={readGridCell}
         />

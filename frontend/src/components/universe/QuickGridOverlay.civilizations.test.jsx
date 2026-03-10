@@ -332,4 +332,25 @@ describe("QuickGridOverlay civilization batch", () => {
     expect(log.textContent).toContain("MOON_IMPACT_READY");
     expect(log.textContent).toContain("REPAIR_APPLY_OK");
   });
+
+  it("blocks civilization create writes while workspace is offline", async () => {
+    const user = userEvent.setup();
+    const onCreateRow = vi.fn(async () => ({ ok: true }));
+    renderOverlay({
+      onCreateRow,
+      runtimeConnectivity: {
+        isOnline: false,
+        badgeLabel: "offline",
+        writeBlocked: true,
+        sidebarMessage: "Workspace je offline. Zapisy jsou docasne pozastavene.",
+      },
+    });
+
+    await user.click(screen.getByTestId("quick-grid-civilization-advanced-toggle"));
+    await user.type(screen.getByPlaceholderText("Nova hodnota civilizace..."), "Moon-Offline");
+    await user.click(screen.getByRole("button", { name: "Pridat civilizaci" }));
+
+    expect(onCreateRow).not.toHaveBeenCalled();
+    expect(screen.getByTestId("quick-grid-write-feedback").textContent).toContain("workspace je offline");
+  });
 });

@@ -184,4 +184,24 @@ describe("QuickGridOverlay mineral editor", () => {
     expect(screen.queryByTestId("quick-grid-remove-soft-armed-badge")).toBeNull();
     expect(screen.getByRole("button", { name: "Ulozit nerost" })).not.toBeNull();
   });
+
+  it("blocks mineral writes while workspace is offline", async () => {
+    const user = userEvent.setup();
+    const onUpsertMetadata = vi.fn(async () => ({ ok: true }));
+    renderOverlay({
+      onUpsertMetadata,
+      runtimeConnectivity: {
+        isOnline: false,
+        badgeLabel: "offline",
+        writeBlocked: true,
+        sidebarMessage: "Workspace je offline. Zapisy jsou docasne pozastavene.",
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Ulozit nerost" }));
+
+    expect(onUpsertMetadata).not.toHaveBeenCalled();
+    expect(screen.getByTestId("quick-grid-connectivity-guard").textContent).toContain("offline");
+    expect(screen.getByTestId("quick-grid-write-feedback").textContent).toContain("workspace je offline");
+  });
 });

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { canTransitionLifecycle, normalizeLifecycleStateFromRow } from "./civilizationLifecycle";
 import { deriveCivilizationInspectorModel } from "./civilizationInspectorModel";
 import { resolveWorkflowNextActionLabel } from "./quickGridWorkflowRail";
+import { buildOfflineWriteGuardMessage } from "./runtimeConnectivityState";
 import { buildRemoveSoftConfirmationKey } from "./removeSoftConfirmation";
 import { resolveRemoveSoftUiState } from "./removeSoftUiState";
 import { tableDisplayName } from "./workspaceFormatters";
@@ -275,6 +276,7 @@ export default function QuickGridOverlay({
   onClose,
   readGridCell,
   runtimeError = "",
+  runtimeConnectivity = null,
 }) {
   const [createValue, setCreateValue] = useState("");
   const [editValue, setEditValue] = useState("");
@@ -377,6 +379,8 @@ export default function QuickGridOverlay({
     );
   }, [mineralFilterQuery, selectedMinerals]);
   const parsedMineralPreview = useMemo(() => parseLiteralForPreview(metadataValue), [metadataValue]);
+  const runtimeWriteBlocked = runtimeConnectivity?.writeBlocked === true;
+  const runtimeConnectivityMessage = String(runtimeConnectivity?.sidebarMessage || "").trim();
   const currentRemoveSoftConfirmationKey = useMemo(
     () =>
       buildRemoveSoftConfirmationKey({
@@ -589,6 +593,13 @@ export default function QuickGridOverlay({
         planetToastTimerRef.current = null;
       }, 2800);
     }
+  };
+  const guardWriteByConnectivity = (operationLabel) => {
+    if (!runtimeWriteBlocked) return false;
+    const message = buildOfflineWriteGuardMessage(operationLabel);
+    setWriteFeedback(message);
+    pushPlanetEvent(message, { tone: "warn", action: "OFFLINE_WRITE_GUARD" });
+    return true;
   };
   useEffect(() => {
     if (!open) return;
@@ -926,6 +937,12 @@ export default function QuickGridOverlay({
       pushPlanetEvent(planetComposerReason, { tone: "warn", action: "PLANET_GUARD" });
       return;
     }
+    if (
+      (resolvedPlanetAction === "CREATE" || resolvedPlanetAction === "EXTINGUISH") &&
+      guardWriteByConnectivity("Planet write")
+    ) {
+      return;
+    }
     if (resolvedPlanetAction === "CREATE") {
       const result = normalizeWriteResult(await onCreatePlanet?.(), {
         successMessage: "Planeta byla vytvorena.",
@@ -971,6 +988,7 @@ export default function QuickGridOverlay({
       pushPlanetEvent("Schema composer neni pripraven.", { tone: "warn", action: "SCHEMA_APPLY" });
       return;
     }
+    if (guardWriteByConnectivity("Schema contract write")) return;
     setSchemaApplyBusy(true);
     const result = normalizeWriteResult(await onApplyTableContract?.(schemaDraftFields), {
       successMessage: "Schema kontrakt byl ulozen.",
@@ -1001,6 +1019,7 @@ export default function QuickGridOverlay({
     editValue !== String(selectedRow?.value ?? "");
 
   const handleUpsertMineral = async () => {
+    if (guardWriteByConnectivity("Mineral write")) return;
     if (!selectedRow) {
       setWriteFeedback("Vyber nejdriv civilizaci/mesic v tabulce.");
       return;
@@ -1187,6 +1206,7 @@ export default function QuickGridOverlay({
     });
   };
   const handleApplyRowBatch = async () => {
+    if (guardWriteByConnectivity("Civilization batch write")) return;
     if (!rowBatchDrafts.length) {
       setWriteFeedback("Civilization batch fronta je prazdna.");
       return;
@@ -1246,6 +1266,7 @@ export default function QuickGridOverlay({
     }
   };
   const handleApplyCivilizationComposer = async () => {
+    if (resolvedCivilizationAction !== "SELECT_ROW" && guardWriteByConnectivity("Civilization write")) return;
     if (!civilizationComposerCanApply) {
       setWriteFeedback("Composer akce neni pripravená.");
       return;
@@ -1375,6 +1396,7 @@ export default function QuickGridOverlay({
     pushPlanetEvent(`Nerost '${safeKey}' pridan do batch fronty.`, { tone: "info", action: "MINERAL_QUEUE" });
   };
   const handleApplyMineralBatch = async () => {
+    if (guardWriteByConnectivity("Mineral batch write")) return;
     if (!selectedRow) {
       setWriteFeedback("Vyber nejdriv civilizaci/mesic v tabulce.");
       return;
@@ -1761,9 +1783,25 @@ export default function QuickGridOverlay({
               sloupce {gridColumns.length}
             </span>
             <span data-testid="quick-grid-write-badge" style={{ ...hudBadgeStyle, fontSize: "var(--dv-fs-xs)" }}>
-              write {busy ? "..." : "ready"}
+              write {runtimeWriteBlocked ? "offline" : busy ? "..." : "ready"}
             </span>
           </div>
+          {runtimeWriteBlocked ? (
+            <div
+              data-testid="quick-grid-connectivity-guard"
+              style={{
+                border: "1px solid rgba(255, 194, 142, 0.28)",
+                borderRadius: 8,
+                background: "rgba(42, 24, 8, 0.52)",
+                padding: "7px 8px",
+                fontSize: "var(--dv-fs-2xs)",
+                color: "#ffd5a3",
+                lineHeight: "var(--dv-lh-base)",
+              }}
+            >
+              {runtimeConnectivityMessage || "Workspace je offline. Zapisy jsou docasne pozastavene."}
+            </div>
+          ) : null}
           <div
             data-testid="quick-grid-civilization-composer"
             style={{
@@ -1839,6 +1877,7 @@ export default function QuickGridOverlay({
                 style={ghostButtonStyle}
                 disabled={busy || rowBatchBusy || pendingCreate || !String(createValue || "").trim() || !selectedTable}
                 onClick={async () => {
+                  if (guardWriteByConnectivity("Civilization create")) return;
                   const writeResult = normalizeWriteResult(await onCreateRow?.(createValue), {
                     successMessage: "Civilizace byla uspesne zapsana.",
                     failureMessage: "Zapis civilizace selhal. Zkontroluj kontrakt a vybranou planetu.",
@@ -1878,6 +1917,7 @@ export default function QuickGridOverlay({
                 style={ghostButtonStyle}
                 disabled={busy || rowBatchBusy || !canDirectUpdateSelected}
                 onClick={async () => {
+                  if (guardWriteByConnectivity("Civilization update")) return;
                   const writeResult = normalizeWriteResult(await onUpdateRow?.(selectedRow?.id, editValue), {
                     successMessage: "Civilizace byla upravena.",
                     failureMessage: "Uprava civilizace selhala.",
@@ -1893,6 +1933,7 @@ export default function QuickGridOverlay({
                 style={{ ...ghostButtonStyle, borderColor: "rgba(255, 152, 162, 0.45)", color: "#ffd6de" }}
                 disabled={busy || rowBatchBusy || !canDirectArchiveSelected}
                 onClick={async () => {
+                  if (guardWriteByConnectivity("Civilization archive")) return;
                   const writeResult = normalizeWriteResult(await onDeleteRow?.(selectedRow?.id), {
                     successMessage: "Civilizace byla archivovana.",
                     failureMessage: "Archivace civilizace selhala.",
@@ -2181,6 +2222,7 @@ export default function QuickGridOverlay({
                 busy || batchBusy || !selectedRow || !normalizeMineralKey(metadataKey) || selectedMineral?.readonly
               }
               onClick={async () => {
+                if (guardWriteByConnectivity("Mineral remove_soft")) return;
                 setMineralActionMode("REMOVE_SOFT");
                 setMetadataValue("");
                 const safeKey = normalizeMineralKey(metadataKey);
