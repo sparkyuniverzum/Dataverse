@@ -230,6 +230,7 @@ Progress note (2026-03-10):
 12. PRH-4C started: additional read-heavy routers switched to read-session for GET endpoints with route wiring coverage tests.
 13. PRH-4D started: lifecycle shutdown orchestration (intake gate + in-flight drain + outbox flush + DB dispose) with focused tests.
 14. PRH-3E started: request trace-context middleware + structured log fallback + optional OpenTelemetry bootstrap.
+15. PRH-3F started: light integration metric `trace_coverage_api_requests >= 95%` validated via middleware+router endpoint test.
 
 ## 4. Risk register
 
