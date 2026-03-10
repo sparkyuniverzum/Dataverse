@@ -13,7 +13,8 @@ Execution log:
 - [x] 2026-03-10: `CLC-2` task executor package normalization completed; executor moved under `app/services/task_executor/` with top-level shims preserved.
 - [x] 2026-03-10: `CLC-3` outbox package consolidation completed; outbox roles moved under `app/services/outbox/` with top-level shims preserved.
 - [x] 2026-03-10: `CLC-4` projection naming cleanup completed; SQL read-model projector moved under `app/services/projection/` and universe read-model rebuild renamed to `runtime_projection_from_read_models.py`.
-- [ ] next: `CLC-5` galaxy router package cleanup
+- [x] 2026-03-10: `CLC-5` galaxy router package cleanup completed; route modules moved under `app/api/routers/galaxies/` and shared scope resolution centralized in `deps.py`.
+- [ ] next: cleanup sprint complete, follow-up block should remove compatibility shims only after broader regression gate if desired
 
 Evidence:
 - `CLC-2`: `pytest -q tests/test_task_executor_service_stage2.py tests/test_task_batch_execution_service.py tests/test_runtime_shutdown_service.py` -> `23 passed in 5.47s`
@@ -21,6 +22,8 @@ Evidence:
 - `CLC-3`: `PYTHONPATH=. pytest -q tests/test_auth_onboarding_event_driven_flow.py` -> `1 passed in 7.69s` (`passlib` deprecation warning only)
 - `CLC-4`: `PYTHONPATH=. pytest -q tests/test_read_model_projector.py tests/test_universe_read_model_consistency.py` -> `4 passed in 3.01s`
 - `CLC-4`: `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "snapshot or bonds or bridge_integrity"` -> `11 skipped, 89 deselected in 2.09s`
+- `CLC-5`: `PYTHONPATH=. pytest -q tests/test_db_read_write_routing_wiring.py` -> `3 passed in 4.79s` (`passlib` deprecation warning only)
+- `CLC-5`: `PYTHONPATH=. pytest -q tests/test_api_integration.py -k "galaxies or onboarding or star_core"` -> `3 skipped, 97 deselected in 1.07s`
 
 ## 1. Goal
 

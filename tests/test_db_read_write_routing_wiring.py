@@ -6,10 +6,7 @@ from app.api.routers import (
     branches as branches_router_module,
     capabilities as capabilities_router_module,
     contracts as contracts_router_module,
-    galaxies_core as galaxies_core_router_module,
-    galaxies_dashboard as dashboard_router_module,
-    galaxies_onboarding as galaxies_onboarding_router_module,
-    galaxies_star_core as star_core_router_module,
+    galaxies as galaxies_router_package,
     io as io_router_module,
     moons as moons_router_module,
     planets as planets_router_module,
@@ -37,7 +34,7 @@ def _has_dependency(route: APIRoute, dependency) -> bool:
 
 
 def test_galaxies_dashboard_get_routes_use_read_session_dependency() -> None:
-    router = dashboard_router_module.router
+    router = galaxies_router_package.dashboard_router
     expected_paths = [
         "/galaxies/{galaxy_id}/summary",
         "/galaxies/{galaxy_id}/health",
@@ -54,7 +51,7 @@ def test_galaxies_dashboard_get_routes_use_read_session_dependency() -> None:
 
 
 def test_star_core_get_routes_use_read_and_post_routes_keep_write_dependency() -> None:
-    router = star_core_router_module.router
+    router = galaxies_router_package.star_core_router
     get_paths = [
         "/galaxies/{galaxy_id}/star-core/policy",
         "/galaxies/{galaxy_id}/star-core/physics/profile",
@@ -83,8 +80,8 @@ def test_read_heavy_routers_get_routes_use_read_session_dependency() -> None:
     cases = [
         (branches_router_module.router, "GET", "/branches"),
         (contracts_router_module.router, "GET", "/contracts/{table_id}"),
-        (galaxies_core_router_module.router, "GET", "/galaxies"),
-        (galaxies_onboarding_router_module.router, "GET", "/galaxies/{galaxy_id}/onboarding"),
+        (galaxies_router_package.core_router, "GET", "/galaxies"),
+        (galaxies_router_package.onboarding_router, "GET", "/galaxies/{galaxy_id}/onboarding"),
         (universe_router_module.router, "GET", "/universe/snapshot"),
         (universe_router_module.router, "GET", "/universe/tables"),
         (io_router_module.router, "GET", "/io/imports/{job_id}"),
