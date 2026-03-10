@@ -16,8 +16,10 @@ from app.api.routers.presets import router as presets_router
 from app.api.routers.tasks import router as tasks_router
 from app.api.routers.universe import router as universe_router
 from app.app_factory import create_app
+from app.logging_config import configure_json_logging
 from app.modules.auth.router import router as auth_router
 
+configure_json_logging()
 app = create_app()
 
 

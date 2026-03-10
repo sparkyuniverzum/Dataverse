@@ -68,6 +68,7 @@ def test_relay_emits_structured_completion_log(caplog) -> None:
     assert record is not None
     assert getattr(record, "trace_id", "") == "trace-relay"
     assert getattr(record, "correlation_id", "") == "corr-relay"
+    assert getattr(record, "module_name", "") == "outbox.relay"
     assert getattr(record, "scanned", -1) == 1
 
 
@@ -103,3 +104,5 @@ def test_runner_and_operator_emit_structured_logs(caplog) -> None:
     assert runner_completed is not None
     assert getattr(completed, "trace_id", "") == "trace-operator"
     assert getattr(completed, "correlation_id", "") == "corr-operator"
+    assert getattr(completed, "module_name", "") == "outbox.operator"
+    assert getattr(runner_completed, "module_name", "") == "outbox.runner"

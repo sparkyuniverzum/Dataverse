@@ -222,6 +222,7 @@ Progress note (2026-03-10):
 4. PRH-2C started: run-once relay runner orchestration + structured summary payload.
 5. PRH-2D started: internal outbox trigger/status endpoints via operator service.
 6. PRH-3A started: structured outbox logs with trace/correlation propagation across operator -> runner -> relay.
+7. PRH-3B started: global JSON log formatter with required structured field contract.
 
 ## 4. Risk register
 

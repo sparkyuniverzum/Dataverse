@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.logging_helpers import structured_log_extra
 from app.services.outbox_relay_service import OutboxRelayResult, OutboxRelayService
 
 logger = logging.getLogger(__name__)
@@ -63,11 +64,12 @@ class OutboxRelayRunnerService:
         )
         logger.info(
             "outbox.run_once.completed",
-            extra={
-                "event_name": "outbox.run_once.completed",
-                "trace_id": str(trace_id or "").strip() or "n/a",
-                "correlation_id": str(correlation_id or "").strip() or "n/a",
+            extra=structured_log_extra(
+                event_name="outbox.run_once.completed",
+                module="outbox.runner",
+                trace_id=trace_id,
+                correlation_id=correlation_id,
                 **summary.as_dict(),
-            },
+            ),
         )
         return summary

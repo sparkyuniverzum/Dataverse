@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import OutboxEvent
 from app.services.event_envelope import OutboxStatus
 from app.services.event_store_service import EventStoreService
+from app.services.logging_helpers import structured_log_extra
 
 logger = logging.getLogger(__name__)
 
@@ -85,17 +86,18 @@ class OutboxRelayService:
                     failed_count += 1
         logger.info(
             "outbox.relay_pending.completed",
-            extra={
-                "event_name": "outbox.relay_pending.completed",
-                "trace_id": str(trace_id or "").strip() or "n/a",
-                "correlation_id": str(correlation_id or "").strip() or "n/a",
-                "as_of": now.isoformat(),
-                "requested_batch_size": int(batch_size),
-                "scanned": len(events),
-                "published": published_count,
-                "failed": failed_count,
-                "dead_lettered": dead_letter_count,
-            },
+            extra=structured_log_extra(
+                event_name="outbox.relay_pending.completed",
+                module="outbox.relay",
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                as_of=now.isoformat(),
+                requested_batch_size=int(batch_size),
+                scanned=len(events),
+                published=published_count,
+                failed=failed_count,
+                dead_lettered=dead_letter_count,
+            ),
         )
         return OutboxRelayResult(
             scanned=len(events),
@@ -126,13 +128,14 @@ class OutboxRelayService:
             moved += 1
         logger.info(
             "outbox.requeue_failed.completed",
-            extra={
-                "event_name": "outbox.requeue_failed.completed",
-                "trace_id": str(trace_id or "").strip() or "n/a",
-                "correlation_id": str(correlation_id or "").strip() or "n/a",
-                "as_of": now.isoformat(),
-                "requested_limit": int(limit),
-                "requeued": moved,
-            },
+            extra=structured_log_extra(
+                event_name="outbox.requeue_failed.completed",
+                module="outbox.relay",
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                as_of=now.isoformat(),
+                requested_limit=int(limit),
+                requeued=moved,
+            ),
         )
         return moved
