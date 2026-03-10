@@ -1,11 +1,14 @@
 # Planet/Civilization UI Workflow Audit v2
 
-Status: active (major findings F1-F7 resolved; additional UX gaps remain)
+Status: archived (merged into `docs/contracts/planet-civilization-delivery-canonical-v1.md`)
 Date: 2026-03-09
 Owner: FE/UX audit
 Depends on:
 - `docs/contracts/planet-civilization-ui-workflow-sprint-plan-v1.md`
 - `docs/contracts/planet-civilization-moon-mineral-workflow-v1.md`
+
+Merged into:
+- `docs/contracts/planet-civilization-delivery-canonical-v1.md`
 
 ## 1. Scope
 
@@ -17,11 +20,10 @@ Re-audit kompletni UI flow:
 
 ## 2. Summary
 
-Aktualni stav je funkcni, ale UX flow je stale nelogicky v rozhodujicich bodech:
-1. Existuje vice paralelnich cest pro stejnou operaci (composer vs direct buttons vs batch).
-2. Nektere CTA maji skryty write side-effect (uzivatel nevi, ze uz uklada data).
-3. Stage0 "skladacka" neni plne transparentni pro nepreddefinovane schema.
-4. Error recovery je textova, ne krokova.
+Audit v2 je uzavren pro scope F1-F7:
+1. Kriticke workflow chyby (hidden write, duplicity cest, contract recovery) jsou vyresene.
+2. Semanticke checkpointy jsou pokryte testy a staging evidenci.
+3. Zbyvajici UX zlepseni jsou neblokujici evolucni backlog mimo tento audit.
 
 ## 3. Findings (ordered by severity)
 

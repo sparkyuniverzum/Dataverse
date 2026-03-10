@@ -1,9 +1,12 @@
 # Civilization + Mineral Contract v2
 
-Status: active (normative target for system closure)
+Status: archived (merged into `docs/contracts/planet-civilization-domain-canonical-v1.md`)
 Date: 2026-03-06
 Owner: Core BE/FE architecture
 Depends on: `docs/contracts/civilization-contract-v1.md`, `docs/contracts/mineral-contract-v1.md`, `docs/contracts/moon-contract-v1.md`, `docs/contracts/table-contract-v1.md`, `docs/contracts/planet-moon-dod-v3.md`
+
+Merged into:
+- `docs/contracts/planet-civilization-domain-canonical-v1.md`
 
 ## 1. Purpose
 
@@ -248,7 +251,7 @@ Status legend:
 3. All contract violations are explainable at mineral granularity.
 4. Closure status is reflected in `docs/contracts/planet-moon-dod-v3.md`.
 
-## 14. Execution backlog for closure
+## 14. Execution backlog for closure (historical)
 
 1. DONE (2026-03-06): dedicated FE gate for planet-click-to-grid logic executed and synchronized with staging evidence (`CMV2-07`).
 2. DONE (2026-03-06): staging evidence for `CMV2-07` executed and linked in release notes.

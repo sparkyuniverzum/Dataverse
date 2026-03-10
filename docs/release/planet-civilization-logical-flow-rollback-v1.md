@@ -1,9 +1,12 @@
 # Planet/Civilization Logical Flow Rollback v1
 
-Status: approved target (Wave 0 readiness)
+Status: archived (merged into `docs/release/planet-civilization-operations-canonical-v1.md`)
 Date: 2026-03-07
 Owner: Release + BE + FE
 Depends on: `docs/release/planet-civilization-feature-flag-rollout-v1.md`, `docs/release/v1-rollout-runbook.md`
+
+Merged into:
+- `docs/release/planet-civilization-operations-canonical-v1.md`
 
 ## 1. Purpose
 

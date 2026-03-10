@@ -1,9 +1,12 @@
 # Planet/Civilization Logical Flow DoD v1
 
-Status: active (readiness gates green; implementation eligible)
+Status: archived (merged into `docs/contracts/planet-civilization-delivery-canonical-v1.md`)
 Date: 2026-03-07
 Owner: Core BE/FE architecture
 Depends on: `docs/contracts/planet-moon-dod-v3.md`, `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `docs/contracts/api-v1.md`, `docs/FRONTEND_UX_ARCHITECTURE.md`, `docs/contracts/planet-civilization-logical-flow-wave0-execution-v1.md`, `docs/contracts/planet-civilization-glossary-v1.md`, `docs/contracts/planet-civilization-ux-intent-v1.md`
+
+Merged into:
+- `docs/contracts/planet-civilization-delivery-canonical-v1.md`
 
 ## 1. Purpose
 

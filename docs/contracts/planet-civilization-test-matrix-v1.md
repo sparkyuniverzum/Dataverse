@@ -1,9 +1,12 @@
 # Planet/Civilization Test Matrix v1
 
-Status: green (Wave 1 gates passing in latest staging run)
+Status: archived (merged into `docs/contracts/planet-civilization-delivery-canonical-v1.md`)
 Date: 2026-03-08
 Owner: QA + BE + FE
 Depends on: `docs/contracts/planet-civilization-logical-flow-dod-v1.md`, `docs/contracts/visual-builder-context-contract-v1.md`, `docs/contracts/bond-preview-validate-contract-v1.md`, `docs/contracts/moon-impact-contract-v1.md`
+
+Merged into:
+- `docs/contracts/planet-civilization-delivery-canonical-v1.md`
 
 ## 1. Purpose
 

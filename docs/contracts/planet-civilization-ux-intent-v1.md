@@ -1,9 +1,12 @@
 # Planet/Civilization UX Intent v1
 
-Status: active (frozen for Wave 0)
+Status: archived (merged into `docs/contracts/planet-civilization-domain-canonical-v1.md`)
 Date: 2026-03-07
 Owner: UX Lead + FE Lead
 Depends on: `docs/contracts/planet-civilization-glossary-v1.md`, `docs/contracts/visual-builder-state-machine-v1.md`, `docs/contracts/inspector-ia-contract-v1.md`, `docs/contracts/planet-civilization-telemetry-v1.md`
+
+Merged into:
+- `docs/contracts/planet-civilization-domain-canonical-v1.md`
 
 ## 1. Purpose
 

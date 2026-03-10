@@ -1,12 +1,16 @@
 # Platform Runtime Hardening Sprint Plan v1
 
-Status: active (PRH-1 complete, PRH-2 in progress)
+Status: archived (merged into `docs/release/planet-civilization-operations-canonical-v1.md` for operations baseline)
 Date: 2026-03-10
 Owner: BE Lead + Platform Owner + SRE
 Depends on:
 - `docs/contracts/contract-gate-plan-v2.md`
 - `docs/release/v1-rollout-runbook.md`
 - `docs/contracts/api-v1.md`
+
+Closure note:
+- 2026-03-10: global closure checklist is complete (`[x]` in section 3); this document remains as an execution archive.
+- Canonical operations summary now lives in `docs/release/planet-civilization-operations-canonical-v1.md`.
 
 ## 1. Goal
 

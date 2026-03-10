@@ -1,6 +1,6 @@
 # Planet/Civilization UI Workflow Sprint Plan v1
 
-Status: closed (UI-WF-1/2/3/4 completed)
+Status: archived (merged into `docs/contracts/planet-civilization-delivery-canonical-v1.md`)
 Date: 2026-03-09
 Owner: FE Lead + UX Lead + BE Contract Owner
 Depends on:
@@ -8,6 +8,9 @@ Depends on:
 - `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
 - `docs/contracts/planet-civilization-ux-intent-v1.md`
 - `docs/contracts/civilization-mineral-contract-v2.md`
+
+Merged into:
+- `docs/contracts/planet-civilization-delivery-canonical-v1.md`
 
 ## 1. Goal
 

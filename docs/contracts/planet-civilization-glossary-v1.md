@@ -1,9 +1,12 @@
 # Planet/Civilization Glossary v1
 
-Status: active (frozen for Wave 0)
+Status: archived (merged into `docs/contracts/planet-civilization-domain-canonical-v1.md`)
 Date: 2026-03-07
 Owner: Product + Domain Lead
 Depends on: `docs/contracts/civilization-mineral-contract-v2.md`, `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
+
+Merged into:
+- `docs/contracts/planet-civilization-domain-canonical-v1.md`
 
 ## 1. Purpose
 

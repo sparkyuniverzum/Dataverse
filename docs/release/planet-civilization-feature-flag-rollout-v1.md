@@ -1,9 +1,12 @@
 # Planet/Civilization Feature Flag Rollout v1
 
-Status: active
+Status: archived (merged into `docs/release/planet-civilization-operations-canonical-v1.md`)
 Date: 2026-03-07
 Owner: FE + Release
 Depends on: `docs/contracts/visual-builder-state-machine-v1.md`, `docs/contracts/inspector-ia-contract-v1.md`, `docs/release/v1-rollout-runbook.md`
+
+Merged into:
+- `docs/release/planet-civilization-operations-canonical-v1.md`
 
 ## 1. Purpose
 

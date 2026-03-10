@@ -1,6 +1,6 @@
 # Calc + Physics Engine Upgrade Stages
 
-Status: in progress
+Status: closed (v1 stage plan archived; baseline delivered)
 Date: 2026-03-03
 
 ## Stage 1 - Calc foundation (implemented)
@@ -22,7 +22,7 @@ Definition of done:
 - Calc outputs are persisted outside `atoms.metadata`.
 - Projection replay remains deterministic for same event timeline.
 
-## Stage 2 - Calc semantics hardening (next)
+## Stage 2 - Calc semantics hardening (implemented)
 Goal:
 - Make calc engine contract-driven and semantically strict.
 
@@ -63,7 +63,7 @@ Status (2026-03-03):
 - integrated physics projection into `ReadModelProjector` rollup flow (sync projector mode; async worker extraction can reuse same service)
 - stale physics records are soft-deleted (no hard-delete path)
 
-## Stage 4 - UI runtime integration (next)
+## Stage 4 - UI runtime integration (implemented)
 Goal:
 - Use backend physics projection as primary render input.
 
@@ -75,3 +75,9 @@ Deliverables:
 Definition of done:
 - Visual behavior is consistent across sessions and environments.
 - Local-only heuristics are fallback, not source-of-truth.
+
+Status (2026-03-10):
+- implemented
+- `UniverseWorkspace` rendering path consumes backend projection-normalized visual payloads
+- deterministic preview/read-model parity is covered by the Planet+Moon P6 closure gates
+- document retained as historical stage archive for v1

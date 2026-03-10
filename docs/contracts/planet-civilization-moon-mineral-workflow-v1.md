@@ -1,6 +1,6 @@
 # Planet-Civilization-Moon-Mineral Workflow v1
 
-Status: active (runtime workflow validated; remaining closure items tracked)
+Status: archived (merged into `docs/contracts/planet-civilization-domain-canonical-v1.md`)
 Date: 2026-03-09
 Depends on:
 - `docs/contracts/api-v1.md`
@@ -8,6 +8,9 @@ Depends on:
 - `docs/contracts/moon-contract-v1.md`
 - `docs/contracts/mineral-contract-v1.md`
 - `docs/contracts/table-contract-v1.md`
+
+Merged into:
+- `docs/contracts/planet-civilization-domain-canonical-v1.md`
 
 ## 1. Purpose
 

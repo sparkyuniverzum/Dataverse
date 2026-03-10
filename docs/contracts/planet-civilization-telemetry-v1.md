@@ -1,9 +1,12 @@
 # Planet/Civilization Telemetry Contract v1
 
-Status: approved target (Wave 0 readiness)
+Status: archived (merged into `docs/contracts/planet-civilization-delivery-canonical-v1.md`)
 Date: 2026-03-07
 Owner: FE + Analytics
 Depends on: `docs/contracts/visual-builder-state-machine-v1.md`, `docs/contracts/inspector-ia-contract-v1.md`, `docs/release/planet-civilization-feature-flag-rollout-v1.md`
+
+Merged into:
+- `docs/contracts/planet-civilization-delivery-canonical-v1.md`
 
 ## 1. Purpose
 
