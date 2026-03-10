@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Request, status
 from sqlalchemy.exc import SQLAlchemyError
@@ -24,6 +24,14 @@ def get_service_container(request: Request) -> ServiceContainer:
         return container
     # Fallback for edge cases (tests/tools creating app without app_factory.create_app).
     return services
+
+
+def resolve_trace_context(request: Request) -> tuple[str, str]:
+    trace_id = (
+        str(request.headers.get("x-trace-id") or request.headers.get("x-request-id") or "").strip() or uuid4().hex
+    )
+    correlation_id = str(request.headers.get("x-correlation-id") or "").strip() or trace_id
+    return trace_id, correlation_id
 
 
 def transactional_context(session: AsyncSession):

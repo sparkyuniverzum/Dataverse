@@ -17,16 +17,26 @@ class _RelayStub:
     last_requeue_kwargs: dict | None = None
     last_relay_kwargs: dict | None = None
 
-    async def requeue_failed(self, session, *, limit=128, as_of=None):
+    async def requeue_failed(self, session, *, limit=128, as_of=None, trace_id=None, correlation_id=None):
         _ = session
         self.requeue_calls += 1
-        self.last_requeue_kwargs = {"limit": limit, "as_of": as_of}
+        self.last_requeue_kwargs = {
+            "limit": limit,
+            "as_of": as_of,
+            "trace_id": trace_id,
+            "correlation_id": correlation_id,
+        }
         return self.requeued
 
-    async def relay_pending(self, session, *, batch_size=64, as_of=None):
+    async def relay_pending(self, session, *, batch_size=64, as_of=None, trace_id=None, correlation_id=None):
         _ = session
         self.relay_calls += 1
-        self.last_relay_kwargs = {"batch_size": batch_size, "as_of": as_of}
+        self.last_relay_kwargs = {
+            "batch_size": batch_size,
+            "as_of": as_of,
+            "trace_id": trace_id,
+            "correlation_id": correlation_id,
+        }
         return self.result
 
 
@@ -49,8 +59,8 @@ def test_run_once_orchestrates_requeue_and_relay_with_same_clock() -> None:
 
     assert relay.requeue_calls == 1
     assert relay.relay_calls == 1
-    assert relay.last_requeue_kwargs == {"limit": 33, "as_of": now}
-    assert relay.last_relay_kwargs == {"batch_size": 22, "as_of": now}
+    assert relay.last_requeue_kwargs == {"limit": 33, "as_of": now, "trace_id": None, "correlation_id": None}
+    assert relay.last_relay_kwargs == {"batch_size": 22, "as_of": now, "trace_id": None, "correlation_id": None}
     assert summary.requeued == 2
     assert summary.scanned == 5
     assert summary.published == 4

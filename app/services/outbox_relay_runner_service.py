@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.outbox_relay_service import OutboxRelayResult, OutboxRelayService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -32,19 +35,25 @@ class OutboxRelayRunnerService:
         requeue_limit: int = 128,
         relay_batch_size: int = 64,
         as_of: datetime | None = None,
+        trace_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> OutboxRunOnceSummary:
         now = as_of or datetime.now(UTC)
         requeued = await self.relay_service.requeue_failed(
             session=session,
             limit=requeue_limit,
             as_of=now,
+            trace_id=trace_id,
+            correlation_id=correlation_id,
         )
         relay_result: OutboxRelayResult = await self.relay_service.relay_pending(
             session=session,
             batch_size=relay_batch_size,
             as_of=now,
+            trace_id=trace_id,
+            correlation_id=correlation_id,
         )
-        return OutboxRunOnceSummary(
+        summary = OutboxRunOnceSummary(
             requeued=int(requeued or 0),
             scanned=relay_result.scanned,
             published=relay_result.published,
@@ -52,3 +61,13 @@ class OutboxRelayRunnerService:
             dead_lettered=relay_result.dead_lettered,
             completed_at=now.isoformat(),
         )
+        logger.info(
+            "outbox.run_once.completed",
+            extra={
+                "event_name": "outbox.run_once.completed",
+                "trace_id": str(trace_id or "").strip() or "n/a",
+                "correlation_id": str(correlation_id or "").strip() or "n/a",
+                **summary.as_dict(),
+            },
+        )
+        return summary

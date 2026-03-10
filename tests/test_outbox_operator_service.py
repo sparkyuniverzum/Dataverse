@@ -13,13 +13,24 @@ class _RunnerStub:
     calls: int = 0
     last_kwargs: dict | None = None
 
-    async def run_once(self, session, *, requeue_limit=128, relay_batch_size=64, as_of=None):
+    async def run_once(
+        self,
+        session,
+        *,
+        requeue_limit=128,
+        relay_batch_size=64,
+        as_of=None,
+        trace_id=None,
+        correlation_id=None,
+    ):
         _ = session
         self.calls += 1
         self.last_kwargs = {
             "requeue_limit": requeue_limit,
             "relay_batch_size": relay_batch_size,
             "as_of": as_of,
+            "trace_id": trace_id,
+            "correlation_id": correlation_id,
         }
         return self.summary
 
@@ -66,7 +77,13 @@ def test_trigger_run_once_updates_latest_summary_and_run_count() -> None:
     snapshot = service.snapshot()
 
     assert runner.calls == 1
-    assert runner.last_kwargs == {"requeue_limit": 77, "relay_batch_size": 33, "as_of": None}
+    assert runner.last_kwargs == {
+        "requeue_limit": 77,
+        "relay_batch_size": 33,
+        "as_of": None,
+        "trace_id": None,
+        "correlation_id": None,
+    }
     assert returned == summary
     assert snapshot.state == "ready"
     assert snapshot.run_count == 1

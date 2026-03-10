@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import (
@@ -14,7 +14,7 @@ from app.api.mappers.public import (
     star_core_pulse_to_public,
     star_core_runtime_to_public,
 )
-from app.api.runtime import commit_if_active, get_service_container, transactional_context
+from app.api.runtime import commit_if_active, get_service_container, resolve_trace_context, transactional_context
 from app.app_factory import ServiceContainer
 from app.db import get_session
 from app.models import User
@@ -296,16 +296,20 @@ async def star_core_domain_metrics(
 )
 async def star_core_outbox_run_once(
     payload: StarCoreOutboxRunOnceRequest,
+    request: Request,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCoreOutboxRunOnceResponse:
     _ = current_user
+    trace_id, correlation_id = resolve_trace_context(request)
     async with transactional_context(session):
         summary = await services.outbox_operator_service.trigger_run_once(
             session=session,
             requeue_limit=payload.requeue_limit,
             relay_batch_size=payload.relay_batch_size,
+            trace_id=trace_id,
+            correlation_id=correlation_id,
         )
     await commit_if_active(session)
     status_snapshot = services.outbox_operator_service.snapshot()

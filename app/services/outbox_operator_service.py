@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.outbox_relay_runner_service import OutboxRelayRunnerService, OutboxRunOnceSummary
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -29,14 +32,39 @@ class OutboxOperatorService:
         *,
         requeue_limit: int = 128,
         relay_batch_size: int = 64,
+        trace_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> OutboxRunOnceSummary:
+        logger.info(
+            "outbox.operator.run_once.requested",
+            extra={
+                "event_name": "outbox.operator.run_once.requested",
+                "trace_id": str(trace_id or "").strip() or "n/a",
+                "correlation_id": str(correlation_id or "").strip() or "n/a",
+                "requested_requeue_limit": int(requeue_limit),
+                "requested_relay_batch_size": int(relay_batch_size),
+                "run_count_before": self._run_count,
+            },
+        )
         summary = await self.runner.run_once(
             session=session,
             requeue_limit=requeue_limit,
             relay_batch_size=relay_batch_size,
+            trace_id=trace_id,
+            correlation_id=correlation_id,
         )
         self._latest = summary
         self._run_count += 1
+        logger.info(
+            "outbox.operator.run_once.completed",
+            extra={
+                "event_name": "outbox.operator.run_once.completed",
+                "trace_id": str(trace_id or "").strip() or "n/a",
+                "correlation_id": str(correlation_id or "").strip() or "n/a",
+                "run_count_after": self._run_count,
+                **summary.as_dict(),
+            },
+        )
         return summary
 
     def snapshot(self) -> OutboxOperatorStatusSnapshot:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -9,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import OutboxEvent
 from app.services.event_envelope import OutboxStatus
 from app.services.event_store_service import EventStoreService
+
+logger = logging.getLogger(__name__)
 
 
 class OutboxPublisher(Protocol):
@@ -49,6 +52,8 @@ class OutboxRelayService:
         *,
         batch_size: int = 64,
         as_of: datetime | None = None,
+        trace_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> OutboxRelayResult:
         now = as_of or datetime.now(UTC)
         events = await self.event_store.list_outbox_events(
@@ -78,6 +83,20 @@ class OutboxRelayService:
                     event.status = OutboxStatus.FAILED.value
                     event.available_at = now + timedelta(seconds=self.retry_delay_seconds)
                     failed_count += 1
+        logger.info(
+            "outbox.relay_pending.completed",
+            extra={
+                "event_name": "outbox.relay_pending.completed",
+                "trace_id": str(trace_id or "").strip() or "n/a",
+                "correlation_id": str(correlation_id or "").strip() or "n/a",
+                "as_of": now.isoformat(),
+                "requested_batch_size": int(batch_size),
+                "scanned": len(events),
+                "published": published_count,
+                "failed": failed_count,
+                "dead_lettered": dead_letter_count,
+            },
+        )
         return OutboxRelayResult(
             scanned=len(events),
             published=published_count,
@@ -91,6 +110,8 @@ class OutboxRelayService:
         *,
         limit: int = 128,
         as_of: datetime | None = None,
+        trace_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> int:
         now = as_of or datetime.now(UTC)
         failed_events = await self.event_store.list_outbox_events(
@@ -103,4 +124,15 @@ class OutboxRelayService:
         for event in failed_events:
             event.status = OutboxStatus.PENDING.value
             moved += 1
+        logger.info(
+            "outbox.requeue_failed.completed",
+            extra={
+                "event_name": "outbox.requeue_failed.completed",
+                "trace_id": str(trace_id or "").strip() or "n/a",
+                "correlation_id": str(correlation_id or "").strip() or "n/a",
+                "as_of": now.isoformat(),
+                "requested_limit": int(limit),
+                "requeued": moved,
+            },
+        )
         return moved

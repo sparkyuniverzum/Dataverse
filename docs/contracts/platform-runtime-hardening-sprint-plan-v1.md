@@ -221,6 +221,7 @@ Progress note (2026-03-10):
 3. PRH-2B started: relay max-attempts policy with `dead_letter` terminal status + migration.
 4. PRH-2C started: run-once relay runner orchestration + structured summary payload.
 5. PRH-2D started: internal outbox trigger/status endpoints via operator service.
+6. PRH-3A started: structured outbox logs with trace/correlation propagation across operator -> runner -> relay.
 
 ## 4. Risk register
 
