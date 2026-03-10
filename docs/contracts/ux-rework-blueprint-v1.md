@@ -419,6 +419,8 @@ No future block may close without recording replacement decisions.
 ### 2026-03-10 - Timeline Rewrite seam extraction
 
 - Status: `GREEN`
+- Commit:
+  - `f900c63` (`feat(frontend): extract timeline rewrite seam`)
 - Removed:
   - none
 - Replaced by:
@@ -441,6 +443,8 @@ No future block may close without recording replacement decisions.
 ### 2026-03-10 - Branch Visibility Layer seam extraction
 
 - Status: `GREEN`
+- Commit:
+  - `cb0bcfe` (`feat(frontend): extract branch visibility seam`)
 - Removed:
   - none
 - Replaced by:
@@ -463,6 +467,8 @@ No future block may close without recording replacement decisions.
 ### 2026-03-10 - Compare and Time Travel Layer seam extraction
 
 - Status: `GREEN`
+- Commit:
+  - `44894c3` (`feat(frontend): extract compare time-travel seam`)
 - Removed:
   - none
 - Replaced by:
@@ -481,6 +487,10 @@ No future block may close without recording replacement decisions.
   - `npm --prefix frontend run test -- src/components/universe/compareTimeTravelContract.test.js src/components/universe/branchVisibilityContract.test.js src/components/universe/workspaceStateContract.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx` -> passed on 2026-03-10 (`6` files, `35` tests)
   - `npm --prefix frontend run format:check` -> passed on 2026-03-10
   - `pytest -q tests/test_contract_docs_closure.py -k "ux_rework_blueprint"` -> passed on 2026-03-10
+  - Operator re-run after commit:
+    - `npm --prefix frontend run format:check` -> passed on 2026-03-10
+    - `npm --prefix frontend run test -- src/components/universe/compareTimeTravelContract.test.js src/components/universe/branchVisibilityContract.test.js src/components/universe/workspaceStateContract.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx` -> passed on 2026-03-10 (`6` files, `35` tests)
+    - `pytest -q tests/test_contract_docs_closure.py -k "ux_rework_blueprint"` -> passed on 2026-03-10
 - Exit condition:
   - closed on 2026-03-10
 
