@@ -70,6 +70,16 @@ export default function WorkspaceSidebar({
   branches = [],
   selectedBranchId = "",
   onSelectBranch = null,
+  historicalMode = false,
+  historicalAsOfDraft = "",
+  onHistoricalAsOfDraftChange = null,
+  onApplyHistoricalInspect = null,
+  onExitHistoricalInspect = null,
+  compareBranches = [],
+  selectedCompareBranchId = "",
+  onSelectCompareBranch = null,
+  compareSummary = "",
+  historicalLabel = "Current timeline",
   branchCreateName = "",
   onBranchCreateNameChange = null,
   branchCreateBusy = false,
@@ -189,6 +199,85 @@ export default function WorkspaceSidebar({
         }}
       >
         Scope: <strong>{branchVisibility.scopeLabel}</strong>
+      </div>
+      <div
+        style={{
+          border: "1px solid rgba(104, 196, 228, 0.24)",
+          borderRadius: 10,
+          background: "rgba(7, 20, 34, 0.62)",
+          padding: "8px 9px",
+          display: "grid",
+          gap: 6,
+        }}
+      >
+        <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.78 }}>
+          TIME TRAVEL / COMPARE
+        </div>
+        <div data-testid="workspace-time-travel-label" style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
+          {historicalLabel}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 6 }}>
+          <input
+            data-testid="workspace-time-travel-input"
+            type="datetime-local"
+            value={String(historicalAsOfDraft || "")}
+            onChange={(event) => {
+              if (typeof onHistoricalAsOfDraftChange === "function") {
+                onHistoricalAsOfDraftChange(String(event.target.value || ""));
+              }
+            }}
+            style={inputStyle}
+          />
+          <button
+            type="button"
+            data-testid="workspace-time-travel-apply"
+            onClick={() => {
+              if (typeof onApplyHistoricalInspect === "function") {
+                onApplyHistoricalInspect();
+              }
+            }}
+            disabled={!String(historicalAsOfDraft || "").trim()}
+            style={ghostButtonStyle}
+          >
+            Inspect
+          </button>
+          <button
+            type="button"
+            data-testid="workspace-time-travel-exit"
+            onClick={() => {
+              if (typeof onExitHistoricalInspect === "function") {
+                onExitHistoricalInspect();
+              }
+            }}
+            disabled={!historicalMode}
+            style={ghostButtonStyle}
+          >
+            Current
+          </button>
+        </div>
+        <label style={{ display: "grid", gap: 4 }}>
+          <span style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>Compare branch</span>
+          <select
+            data-testid="workspace-compare-branch-select"
+            value={String(selectedCompareBranchId || "")}
+            onChange={(event) => {
+              if (typeof onSelectCompareBranch === "function") {
+                onSelectCompareBranch(String(event.target.value || ""));
+              }
+            }}
+            style={selectStyle}
+          >
+            <option value="">Compare vypnuto</option>
+            {(Array.isArray(compareBranches) ? compareBranches : []).map((branch) => (
+              <option key={String(branch.id)} value={String(branch.id)}>
+                {String(branch.label || branch.id)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div data-testid="workspace-compare-summary" style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
+          {compareSummary || "Compare vypnuto."}
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6 }}>
         <input

@@ -105,6 +105,11 @@ import { buildMergedTableContractPayload } from "./tableContractMerge";
 import { resolveDraftRailState } from "./draftRailContract";
 import { resolveGridCanvasTruthModel } from "./gridCanvasTruthContract";
 import { resolveBranchSelectionTransition, resolveBranchVisibilityModel } from "./branchVisibilityContract";
+import {
+  resolveCompareTimeTravelModel,
+  resolveHistoricalInspectActivation,
+  resolveScopedRuntimeConnectivity,
+} from "./compareTimeTravelContract";
 import { formatSelectedTableLabel, resolveSelectionInspectorModel } from "./selectionInspectorContract";
 import {
   resolveContextActionPlan,
@@ -168,9 +173,22 @@ export default function UniverseWorkspace({
   const runtimeConnectivity = useRuntimeConnectivityState();
   const selectedBranchId = useUniverseStore((state) => String(state.selectedBranchId || ""));
   const selectBranch = useUniverseStore((state) => state.selectBranch);
+  const [historicalAsOfDraft, setHistoricalAsOfDraft] = useState("");
+  const [historicalAsOfActive, setHistoricalAsOfActive] = useState("");
+  const [compareBranchId, setCompareBranchId] = useState("");
   const branchVisibility = useMemo(
     () => resolveBranchVisibilityModel({ branches, selectedBranchId }),
     [branches, selectedBranchId]
+  );
+  const compareTimeTravel = useMemo(
+    () =>
+      resolveCompareTimeTravelModel({
+        selectedBranchId: branchVisibility.selectedBranchId,
+        branches: branchVisibility.visibleBranches,
+        compareBranchId,
+        historicalAsOf: historicalAsOfActive,
+      }),
+    [branchVisibility.selectedBranchId, branchVisibility.visibleBranches, compareBranchId, historicalAsOfActive]
   );
   const branchIdScope = branchVisibility.selectedBranchId || null;
 
@@ -191,7 +209,7 @@ export default function UniverseWorkspace({
     clearRuntimeError,
     refreshProjection,
     refreshStarTelemetry,
-  } = useUniverseRuntimeSync({ galaxyId, branchId: branchIdScope });
+  } = useUniverseRuntimeSync({ galaxyId, branchId: branchIdScope, asOfIso: compareTimeTravel.asOfIso });
 
   const [busy, setBusy] = useState(false);
   const [selectedTableId, setSelectedTableId] = useState("");
@@ -299,6 +317,9 @@ export default function UniverseWorkspace({
     setStageZeroPresetCatalog([]);
     setStageZeroPresetCatalogLoading(false);
     setStageZeroPresetCatalogError("");
+    setHistoricalAsOfDraft("");
+    setHistoricalAsOfActive("");
+    setCompareBranchId("");
     setStageZeroSchemaDraft(createStageZeroSchemaDraft());
     setStageZeroDraggedSchemaKey("");
     setStageZeroCommitBusy(false);
@@ -321,6 +342,11 @@ export default function UniverseWorkspace({
       selectBranch("");
     }
   }, [branchVisibility.shouldResetSelection, selectBranch]);
+  useEffect(() => {
+    if (compareTimeTravel.shouldResetCompareBranch) {
+      setCompareBranchId("");
+    }
+  }, [compareTimeTravel.shouldResetCompareBranch]);
 
   useEffect(() => {
     if (!workspaceUiHydrated) return;
@@ -1180,6 +1206,14 @@ export default function UniverseWorkspace({
     clearRuntimeError();
     setRepairSuggestion(null);
   }, [clearRuntimeError]);
+  const scopedRuntimeConnectivity = useMemo(
+    () =>
+      resolveScopedRuntimeConnectivity(runtimeConnectivity, {
+        historicalMode: compareTimeTravel.historicalMode,
+        asOfIso: compareTimeTravel.asOfIso,
+      }),
+    [compareTimeTravel.asOfIso, compareTimeTravel.historicalMode, runtimeConnectivity]
+  );
   const reportContractViolationWithRepair = useCallback(
     (errorLike, { fallbackMessage = "Operace selhala.", operation = "unknown", civilizationId = "" } = {}) => {
       const suggestion = resolveGuidedRepairSuggestion(errorLike, { operation, civilizationId });
@@ -2015,7 +2049,7 @@ export default function UniverseWorkspace({
         scope: {
           galaxyId,
           selectedBranchId: branchVisibility.selectedBranchId,
-          historicalMode: false,
+          historicalMode: compareTimeTravel.historicalMode,
         },
         selection: {
           selectedTableId,
@@ -2039,7 +2073,7 @@ export default function UniverseWorkspace({
         sync: {
           loading,
           error,
-          runtimeConnectivity,
+          runtimeConnectivity: scopedRuntimeConnectivity,
         },
       }),
     [
@@ -2058,11 +2092,12 @@ export default function UniverseWorkspace({
       pendingCreate,
       pendingRowOps,
       quickGridOpen,
-      runtimeConnectivity,
+      scopedRuntimeConnectivity,
       gridCanvasTruth.selectedCivilizationId,
       branchVisibility.selectedBranchId,
       selectedTableId,
       stageZeroCommitBusy,
+      compareTimeTravel.historicalMode,
     ]
   );
   useEffect(() => {
@@ -2876,6 +2911,30 @@ export default function UniverseWorkspace({
               setBranchCreateName("");
             }
           }}
+          historicalMode={compareTimeTravel.historicalMode}
+          historicalAsOfDraft={historicalAsOfDraft}
+          onHistoricalAsOfDraftChange={setHistoricalAsOfDraft}
+          onApplyHistoricalInspect={() => {
+            const activation = resolveHistoricalInspectActivation({ draftAsOf: historicalAsOfDraft });
+            if (!activation.asOfIso) {
+              setRuntimeError(activation.error || "Time travel vyzaduje validni datum a cas.");
+              return;
+            }
+            clearRuntimeIssue();
+            setHistoricalAsOfActive(activation.nextAsOf);
+            setHistoricalAsOfDraft(activation.nextAsOf);
+          }}
+          onExitHistoricalInspect={() => {
+            clearRuntimeIssue();
+            setHistoricalAsOfActive("");
+            setHistoricalAsOfDraft("");
+            setCompareBranchId("");
+          }}
+          compareBranches={compareTimeTravel.compareBranches}
+          selectedCompareBranchId={compareTimeTravel.compareBranchId}
+          onSelectCompareBranch={setCompareBranchId}
+          compareSummary={compareTimeTravel.compareSummary}
+          historicalLabel={compareTimeTravel.historicalLabel}
           branchCreateName={branchCreateName}
           onBranchCreateNameChange={setBranchCreateName}
           branchCreateBusy={branchCreateBusy}
@@ -2924,7 +2983,7 @@ export default function UniverseWorkspace({
             void handleApplyGuidedRepair();
           }}
           repairAuditCount={repairAuditTrail.length}
-          runtimeConnectivity={runtimeConnectivity}
+          runtimeConnectivity={scopedRuntimeConnectivity}
         />
         <WorkspaceContextMenu
           contextMenu={contextMenu}
@@ -2984,7 +3043,7 @@ export default function UniverseWorkspace({
           pendingRowOps={pendingRowOps}
           busy={busy}
           runtimeError={error}
-          runtimeConnectivity={runtimeConnectivity}
+          runtimeConnectivity={scopedRuntimeConnectivity}
           onClose={() => setQuickGridOpen(false)}
           readGridCell={readGridCell}
         />

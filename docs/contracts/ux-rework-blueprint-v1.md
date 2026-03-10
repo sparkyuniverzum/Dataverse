@@ -460,6 +460,30 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closed on 2026-03-10
 
+### 2026-03-10 - Compare and Time Travel Layer seam extraction
+
+- Status: `GREEN`
+- Removed:
+  - none
+- Replaced by:
+  - `frontend/src/components/universe/compareTimeTravelContract.js`
+  - `frontend/src/components/universe/compareTimeTravelContract.test.js`
+- Created:
+  - `frontend/src/components/universe/compareTimeTravelContract.js`
+  - `frontend/src/components/universe/compareTimeTravelContract.test.js`
+- Changed:
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - `frontend/src/components/universe/WorkspaceSidebar.jsx`
+  - `frontend/src/components/universe/useUniverseRuntimeSync.js`
+- Reason:
+  - Compare target scope, historical inspect activation, and historical read-only write guard now run through one seam instead of inline wiring. `UniverseWorkspace` no longer hardcodes `historicalMode: false`, and runtime sync uses `as_of` scoped projection refresh with live stream disabled in inspect mode.
+- Evidence:
+  - `npm --prefix frontend run test -- src/components/universe/compareTimeTravelContract.test.js src/components/universe/branchVisibilityContract.test.js src/components/universe/workspaceStateContract.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/components/universe/QuickGridOverlay.minerals.test.jsx` -> passed on 2026-03-10 (`6` files, `35` tests)
+  - `npm --prefix frontend run format:check` -> passed on 2026-03-10
+  - `pytest -q tests/test_contract_docs_closure.py -k "ux_rework_blueprint"` -> passed on 2026-03-10
+- Exit condition:
+  - closed on 2026-03-10
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -477,4 +501,5 @@ No future block may close without recording replacement decisions.
 8. [x] 2026-03-10: Slice 5 `Grid / Canvas Truth Alignment` extracted shared focus truth between `QuickGridOverlay`, selection state, and canvas focus and closed as `GREEN`.
 9. [x] 2026-03-10: Slice 6 `Timeline Rewrite` extracted timeline/log ownership and explainability seams from `UniverseWorkspace` and closed as `GREEN`.
 10. [x] 2026-03-10: Slice 7 `Branch Visibility Layer` extracted branch visibility and scope ownership seams from `UniverseWorkspace` and `WorkspaceSidebar` and closed as `GREEN`.
-11. [ ] Next: Slice 8 `Compare and Time Travel Layer` should extract compare scope and historical inspect seams from `UniverseWorkspace`.
+11. [x] 2026-03-10: Slice 8 `Compare and Time Travel Layer` extracted compare scope and historical inspect seams from `UniverseWorkspace` and closed as `GREEN`.
+12. [ ] Next: Slice 9 `Promote Review Surface` should separate promote review UX from generic branch controls.

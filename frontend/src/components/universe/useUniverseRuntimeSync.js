@@ -54,7 +54,7 @@ function normalizeStreamEvent(frame, cursor) {
   };
 }
 
-export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
+export function useUniverseRuntimeSync({ galaxyId, branchId = null, asOfIso = null }) {
   const [snapshot, setSnapshot] = useState({ asteroids: [], bonds: [] });
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -116,7 +116,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
 
   const requestStarPulse = useCallback(
     async ({ afterEventSeq = null, limit = 64 } = {}) => {
-      if (!galaxyId) return null;
+      if (!galaxyId || asOfIso) return null;
       if (pulseInFlightRef.current) {
         pulseQueuedRef.current = true;
         return pulseInFlightRef.current;
@@ -159,12 +159,12 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
       }
       return null;
     },
-    [branchId, galaxyId, mergePulsePayload]
+    [asOfIso, branchId, galaxyId, mergePulsePayload]
   );
 
   const refreshStarTelemetry = useCallback(
     async ({ force = false } = {}) => {
-      if (!galaxyId) return null;
+      if (!galaxyId || asOfIso) return null;
       const now = Date.now();
       if (!force && now - telemetryLastAtRef.current < STAR_TELEMETRY_THROTTLE_MS) {
         return telemetryInFlightRef.current;
@@ -240,7 +240,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
       }
       return null;
     },
-    [branchId, galaxyId]
+    [asOfIso, branchId, galaxyId]
   );
 
   const refreshProjection = useCallback(
@@ -254,15 +254,16 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
 
       const scopeGalaxyId = galaxyId;
       const scopeBranchId = branchId || null;
-      const scopeKey = `${scopeGalaxyId}:${scopeBranchId || ""}`;
+      const scopeAsOfIso = asOfIso || null;
+      const scopeKey = `${scopeGalaxyId}:${scopeBranchId || ""}:${scopeAsOfIso || ""}`;
       const task = (async () => {
         if (!silent) {
           setLoading(true);
         }
         try {
           const [snapshotResponse, tablesResponse] = await Promise.all([
-            apiFetch(buildSnapshotUrl(API_BASE, null, scopeGalaxyId, scopeBranchId)),
-            apiFetch(buildTablesUrl(API_BASE, null, scopeGalaxyId, scopeBranchId)),
+            apiFetch(buildSnapshotUrl(API_BASE, scopeAsOfIso, scopeGalaxyId, scopeBranchId)),
+            apiFetch(buildTablesUrl(API_BASE, scopeAsOfIso, scopeGalaxyId, scopeBranchId)),
           ]);
 
           if (!snapshotResponse.ok) {
@@ -315,12 +316,12 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
 
       return null;
     },
-    [branchId, galaxyId, refreshStarTelemetry]
+    [asOfIso, branchId, galaxyId, refreshStarTelemetry]
   );
 
   useEffect(() => {
     activeGalaxyRef.current = galaxyId;
-    activeScopeRef.current = `${galaxyId}:${branchId || ""}`;
+    activeScopeRef.current = `${galaxyId}:${branchId || ""}:${asOfIso || ""}`;
 
     setError("");
     setSnapshot({ asteroids: [], bonds: [] });
@@ -345,15 +346,17 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
 
     if (galaxyId) {
       void refreshProjection();
-      void refreshStarTelemetry({ force: true });
-      void requestStarPulse({ afterEventSeq: null, limit: 64 });
+      if (!asOfIso) {
+        void refreshStarTelemetry({ force: true });
+        void requestStarPulse({ afterEventSeq: null, limit: 64 });
+      }
     } else {
       setLoading(false);
     }
-  }, [branchId, galaxyId, refreshProjection, refreshStarTelemetry, requestStarPulse]);
+  }, [asOfIso, branchId, galaxyId, refreshProjection, refreshStarTelemetry, requestStarPulse]);
 
   useEffect(() => {
-    if (!galaxyId) return undefined;
+    if (!galaxyId || asOfIso) return undefined;
 
     let isDisposed = false;
     const abortController = new AbortController();
@@ -452,7 +455,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
       isDisposed = true;
       abortController.abort();
     };
-  }, [branchId, galaxyId, refreshProjection, refreshStarTelemetry, requestStarPulse]);
+  }, [asOfIso, branchId, galaxyId, refreshProjection, refreshStarTelemetry, requestStarPulse]);
 
   const clearRuntimeError = useCallback(() => {
     setError("");
