@@ -103,6 +103,7 @@ import { StageZeroSetupPanel } from "./StageZeroSetupPanel";
 import { StageZeroSetupPanelProvider } from "./StageZeroSetupPanelContext";
 import { buildMergedTableContractPayload } from "./tableContractMerge";
 import { resolveDraftRailState } from "./draftRailContract";
+import { resolveGridCanvasTruthModel } from "./gridCanvasTruthContract";
 import { formatSelectedTableLabel, resolveSelectionInspectorModel } from "./selectionInspectorContract";
 import {
   resolveContextActionPlan,
@@ -1074,17 +1075,46 @@ export default function UniverseWorkspace({
       gridColumns.some((column) => normalizeText(readGridCell(row, column)).includes(query))
     );
   }, [gridColumns, gridSearchQuery, tableRows]);
+  const gridCanvasTruth = useMemo(
+    () =>
+      resolveGridCanvasTruthModel({
+        selectedTableId,
+        selectedCivilizationId: selectedAsteroidId,
+        tableRows,
+        quickGridOpen,
+      }),
+    [quickGridOpen, selectedAsteroidId, selectedTableId, tableRows]
+  );
+
+  useEffect(() => {
+    if (gridCanvasTruth.shouldClearScopedCivilization) {
+      setSelectedAsteroidId("");
+      return;
+    }
+    if (
+      gridCanvasTruth.shouldAutoSelectFirstCivilization &&
+      gridCanvasTruth.firstSelectableCivilizationId &&
+      gridCanvasTruth.firstSelectableCivilizationId !== String(selectedAsteroidId || "").trim()
+    ) {
+      setSelectedAsteroidId(gridCanvasTruth.firstSelectableCivilizationId);
+    }
+  }, [
+    gridCanvasTruth.firstSelectableCivilizationId,
+    gridCanvasTruth.shouldAutoSelectFirstCivilization,
+    gridCanvasTruth.shouldClearScopedCivilization,
+    selectedAsteroidId,
+  ]);
 
   const selectionInspectorModel = useMemo(
     () =>
       resolveSelectionInspectorModel({
         selectedTable,
-        selectedCivilizationId: selectedAsteroidId,
+        selectedCivilizationId: gridCanvasTruth.selectedCivilizationId,
         civilizationRows: tableRows,
         civilizationById: asteroidById,
         moonImpact,
       }),
-    [asteroidById, moonImpact, selectedAsteroidId, selectedTable, tableRows]
+    [asteroidById, gridCanvasTruth.selectedCivilizationId, moonImpact, selectedTable, tableRows]
   );
   const selectedAsteroidLabel = selectionInspectorModel.selectedCivilizationLabel;
   const bondDraftOptions = useMemo(
@@ -1099,11 +1129,11 @@ export default function UniverseWorkspace({
     () =>
       resolveNavigationState({
         selectedTableId,
-        selectedAsteroidId,
-        selectedCivilizationId: selectedAsteroidId,
+        selectedAsteroidId: gridCanvasTruth.selectedCivilizationId,
+        selectedCivilizationId: gridCanvasTruth.selectedCivilizationId,
         quickGridOpen,
       }),
-    [quickGridOpen, selectedAsteroidId, selectedTableId]
+    [gridCanvasTruth.selectedCivilizationId, quickGridOpen, selectedTableId]
   );
   const planetMoonGuidance = useMemo(
     () =>
@@ -1118,7 +1148,7 @@ export default function UniverseWorkspace({
         quickGridOpen,
         selectedTable,
         selectedPlanetNode: selectedTableNode,
-        selectedMoonNode: selectedAsteroidNode,
+        selectedMoonNode: gridCanvasTruth.selectedCivilizationId ? selectedAsteroidNode : null,
         selectedMoonLabel: selectedAsteroidLabel,
         stageZeroStepDefinitions: STAGE_ZERO_CASHFLOW_STEPS,
       }),
@@ -1128,6 +1158,7 @@ export default function UniverseWorkspace({
       planetBuilderUiState.stageZeroActive,
       quickGridOpen,
       selectedAsteroidLabel,
+      gridCanvasTruth.selectedCivilizationId,
       selectedAsteroidNode,
       selectedTable,
       selectedTableNode,
@@ -1987,7 +2018,7 @@ export default function UniverseWorkspace({
         },
         selection: {
           selectedTableId,
-          selectedAsteroidId,
+          selectedAsteroidId: gridCanvasTruth.selectedCivilizationId,
           quickGridOpen,
         },
         draft: {
@@ -2027,7 +2058,7 @@ export default function UniverseWorkspace({
       pendingRowOps,
       quickGridOpen,
       runtimeConnectivity,
-      selectedAsteroidId,
+      gridCanvasTruth.selectedCivilizationId,
       selectedBranchId,
       selectedTableId,
       stageZeroCommitBusy,
@@ -2440,7 +2471,7 @@ export default function UniverseWorkspace({
           starControlOpen={starHeartOpen}
           starDiveActive={starHeartOpen}
           selectedTableId={selectedTableId}
-          selectedAsteroidId={selectedAsteroidId}
+          selectedAsteroidId={gridCanvasTruth.selectedCivilizationId}
           cameraFocusOffset={planetBuilderUiState.cameraFocusOffset}
           cameraMicroNudgeKey={stageZeroCameraMicroNudgeKey}
           linkDraft={linkDraft}
@@ -2806,7 +2837,7 @@ export default function UniverseWorkspace({
           open={Boolean(selectedTableId)}
           visualBuilderState={visualBuilderState}
           options={bondDraftOptions}
-          selectedAsteroidId={selectedAsteroidId}
+          selectedAsteroidId={gridCanvasTruth.selectedCivilizationId}
           bondState={bondDraft.state}
           sourceId={bondDraft.sourceId}
           targetId={bondDraft.targetId}
@@ -2934,7 +2965,7 @@ export default function UniverseWorkspace({
           onCreatePlanet={handleCreatePlanetFromOverlay}
           onExtinguishPlanet={handleExtinguishPlanet}
           onApplyTableContract={handleApplyTableContractFromOverlay}
-          selectedAsteroidId={selectedAsteroidId}
+          selectedAsteroidId={gridCanvasTruth.selectedCivilizationId}
           onSelectRow={(rowId) => {
             handleMoonSelect(rowId);
           }}
