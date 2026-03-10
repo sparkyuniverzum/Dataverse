@@ -1,6 +1,6 @@
 # Planet-Civilization-Moon-Mineral Workflow v1
 
-Status: draft (implementation guide)
+Status: active (runtime workflow validated; remaining closure items tracked)
 Date: 2026-03-09
 Depends on:
 - `docs/contracts/api-v1.md`
@@ -109,13 +109,18 @@ UI should auto-select first available row when grid opens and no row is selected
 
 ## 6. Verification checklist
 
-1. Create 2 civilizations in one planet:
+1. [x] Create 2 civilizations in one planet:
    - both visible in 3D and grid immediately after refresh
-2. Select first civilization and write mineral:
+2. [x] Select first civilization and write mineral:
    - mineral visible in inspector and table columns
-3. Archive one civilization:
+3. [x] Archive one civilization:
    - removed from active grid and active 3D members
-4. Reopen grid:
+4. [x] Reopen grid:
    - first available row auto-selected
-5. Alias interoperability:
+5. [ ] Alias interoperability:
    - canonical `/civilizations*` and compatibility `/moons*` produce same FE row behavior
+
+Evidence (2026-03-10):
+1. `npm --prefix frontend run test:e2e:planet-civilization-mineral-workflow` -> `1 passed`
+2. `npm --prefix frontend run test:e2e:planet-moon-preview` -> `1 passed`
+3. `npm --prefix frontend run test:e2e:workspace-starlock` -> `1 passed`

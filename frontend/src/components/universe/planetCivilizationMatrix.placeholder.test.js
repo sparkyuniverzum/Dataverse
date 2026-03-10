@@ -120,7 +120,7 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
     );
 
     expect(screen.getByTestId("moon-orbit-list")).toBeTruthy();
-    expect(screen.getByTestId("moon-inspector-card").textContent).toContain("MOON INSPECTOR");
+    expect(screen.getByTestId("moon-inspector-card").textContent).toContain("CIVILIZATION INSPECTOR");
 
     await user.click(screen.getByTestId("moon-orbit-item-moon-2"));
     expect(onSelectMoon).toHaveBeenCalledWith("moon-2");

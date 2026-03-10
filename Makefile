@@ -1,4 +1,4 @@
-.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full be-gate be-gate-quick be-gate-strict star-contract-gate contract-gate staging-parser-rollout-smoke parser-full-smoke fmt-py fmt-py-check lint-py quality-py fmt-fe fmt-fe-check lint-fe quality-fe precommit-install precommit-run
+.PHONY: install db-up migrate migrate-status migrate-check up up-d api down down-v logs wait-api migrate-local run-local test-backend-unit test-backend-integration test-backend test-frontend test test-contracts test-contracts-v2 parser2-release-gate ops-smoke v1-release-gate v1-release-full be-gate be-gate-quick be-gate-strict star-contract-gate contract-gate staging-parser-rollout-smoke parser-full-smoke fmt-py fmt-py-check lint-py quality-py fmt-fe fmt-fe-check lint-fe quality-fe precommit-install precommit-run dev-agent-setup dev-fast-check dev-staging-check staging-workspace-starlock-smoke staging-planet-civilization-mineral-smoke staging-planet-civilization-lf-matrix-smoke staging-planet-moon-preview-smoke
 
 install:
 	./.venv/bin/pip install -r requirements.txt
@@ -149,3 +149,24 @@ precommit-install:
 
 precommit-run:
 	./.venv/bin/pre-commit run --all-files
+
+dev-agent-setup:
+	./scripts/dev_agent_setup.sh --apply
+
+dev-fast-check:
+	./scripts/dev_fast_check.sh unit
+
+dev-staging-check:
+	./scripts/dev_fast_check.sh staging
+
+staging-workspace-starlock-smoke:
+	./scripts/staging_workspace_starlock_wizard_grid_smoke.sh
+
+staging-planet-civilization-mineral-smoke:
+	./scripts/staging_planet_civilization_mineral_workflow_smoke.sh
+
+staging-planet-civilization-lf-matrix-smoke:
+	./scripts/staging_planet_civilization_lf_matrix_smoke.sh
+
+staging-planet-moon-preview-smoke:
+	./scripts/staging_planet_moon_preview_smoke.sh

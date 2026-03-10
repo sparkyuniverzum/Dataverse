@@ -18,6 +18,7 @@
     "test:e2e:preview-performance": "playwright test --config=playwright.config.mjs e2e/staging/preview-performance.smoke.spec.mjs",
     "test:e2e:workspace-resume-preview": "playwright test --config=playwright.config.mjs e2e/staging/workspace-resume-preview.smoke.spec.mjs",
     "test:e2e:planet-civilization-mineral-workflow": "playwright test --config=playwright.config.mjs e2e/staging/planet-civilization-mineral-workflow.smoke.spec.mjs",
+    "test:e2e:planet-civilization-mineral-quickpath": "playwright test --config=playwright.config.mjs e2e/staging/planet-civilization-mineral-quickpath.smoke.spec.mjs",
     "lint": "node ./node_modules/eslint/bin/eslint.js .",
     "lint:fix": "node ./node_modules/eslint/bin/eslint.js . --fix",
     "format": "node ./node_modules/prettier/bin/prettier.cjs . --write",

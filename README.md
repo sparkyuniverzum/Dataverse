@@ -159,3 +159,14 @@ Pipeline běží:
 - backend style gate: `ruff format --check` + `ruff check`
 - frontend style gate: `eslint` + `prettier --check`
 - frontend: test + build
+
+## 10. Agent/CLI workflow setup
+
+Pro efektivni lokalni FE/BE+e2e smycku pouzij:
+1. `./scripts/dev_agent_setup.sh --apply`
+2. `source ~/.bashrc`
+3. `./scripts/dev_fast_check.sh unit` (rychly FE gate)
+4. `./scripts/dev_fast_check.sh staging` (staging smoke sada)
+
+Detaily a slash-command workflow:
+- `docs/upgrade/codex-agent-workflow-setup-v1.md`

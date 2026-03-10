@@ -1,6 +1,6 @@
 # Planet/Civilization UI Workflow Audit v2
 
-Status: active
+Status: active (major findings F1-F7 resolved; additional UX gaps remain)
 Date: 2026-03-09
 Owner: FE/UX audit
 Depends on:
@@ -28,6 +28,7 @@ Aktualni stav je funkcni, ale UX flow je stale nelogicky v rozhodujicich bodech:
 ### F1 - Hidden write side-effect in workflow CTA
 
 Severity: high
+Resolution status: RESOLVED (2026-03-10)
 
 Evidence:
 - `frontend/src/components/universe/QuickGridOverlay.jsx:1446`
@@ -47,6 +48,7 @@ Required fix:
 ### F2 - Duplicate control paths for civilization operations
 
 Severity: high
+Resolution status: RESOLVED (2026-03-10, composer primary path; non-primary paths hidden by default)
 
 Evidence:
 - `frontend/src/components/universe/QuickGridOverlay.jsx:1710`
@@ -68,6 +70,7 @@ Required fix:
 ### F3 - Stage0 Lego mode still behaves as preset trigger, not explicit assembly output
 
 Severity: high
+Resolution status: RESOLVED (2026-03-10, commit preview + payload mapping surfaced)
 
 Evidence:
 - `frontend/src/components/universe/StageZeroSetupPanel.jsx:174`
@@ -89,6 +92,7 @@ Required fix:
 ### F4 - Contract violation is surfaced as raw error, not guided recovery
 
 Severity: high
+Resolution status: RESOLVED (2026-03-10, recovery card + action path present)
 
 Evidence:
 - `frontend/src/components/universe/StageZeroSetupPanel.jsx:508`
@@ -108,6 +112,7 @@ Required fix:
 ### F5 - Mineral remove_soft can be triggered by empty value without explicit confirmation
 
 Severity: medium
+Resolution status: RESOLVED (2026-03-10, explicit armed remove-soft path)
 
 Evidence:
 - `frontend/src/components/universe/QuickGridOverlay.jsx:2057`
@@ -127,6 +132,7 @@ Required fix:
 ### F6 - Sidebar inspector and Grid inspector are not workflow-coupled enough
 
 Severity: medium
+Resolution status: RESOLVED (2026-03-10, shared inspector model + deep-link action)
 
 Evidence:
 - `frontend/src/components/universe/WorkspaceSidebar.jsx:472`
@@ -145,6 +151,7 @@ Required fix:
 ### F7 - E2E helper validates mechanics, not user intent checkpoints
 
 Severity: medium
+Resolution status: RESOLVED (2026-03-10, semantic checkpoints + deterministic step logging added)
 
 Evidence:
 - `frontend/e2e/staging/workspace-flow.helpers.mjs:123`
@@ -181,7 +188,8 @@ Required fix:
 ## 6. Closure criteria for this audit
 
 Audit v2 lze zavrit, az budou splneny body:
-1. Zadna hidden write akce v navigacnim CTA.
-2. Jedna kanonicka operational cesta pro civilization i mineral writes.
-3. Contract violation ma guided recovery, ne jen text.
-4. Staging e2e pokryva i semanticke milniky a negativni recover scenare.
+1. [x] Zadna hidden write akce v navigacnim CTA.
+2. [x] Jedna kanonicka operational cesta pro civilization i mineral writes.
+3. [x] Contract violation ma guided recovery, ne jen text.
+4. [x] Staging e2e pokryva i semanticke milniky a negativni recover scenare.
+5. [x] Sidebar/Grid inspector parity je sjednocena na jednom data modelu (F6).

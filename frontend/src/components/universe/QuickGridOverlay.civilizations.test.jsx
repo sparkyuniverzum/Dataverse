@@ -232,6 +232,55 @@ describe("QuickGridOverlay civilization batch", () => {
     expect(diagnostics.textContent).toContain("chybi: label");
   });
 
+  it("renders shared inspector fields (impacted minerals + active rules)", () => {
+    renderOverlay({
+      tableRows: [
+        {
+          id: "moon-1",
+          value: "Moon-1",
+          state: "ANOMALY",
+          violation_count: 1,
+          current_event_seq: 7,
+          health_score: 41,
+          metadata: { state: "active" },
+          facts: [
+            {
+              key: "amount",
+              typed_value: -5,
+              status: "invalid",
+              errors: [{ rule_id: "amount-positive" }],
+            },
+          ],
+        },
+      ],
+      gridFilteredRows: [
+        {
+          id: "moon-1",
+          value: "Moon-1",
+          state: "ANOMALY",
+          violation_count: 1,
+          current_event_seq: 7,
+          health_score: 41,
+          metadata: { state: "active" },
+          facts: [
+            {
+              key: "amount",
+              typed_value: -5,
+              status: "invalid",
+              errors: [{ rule_id: "amount-positive" }],
+            },
+          ],
+        },
+      ],
+    });
+    const inspector = screen.getByTestId("quick-grid-civilization-inspector");
+    expect(inspector.textContent).toContain("state: ANOMALY");
+    expect(inspector.textContent).toContain("impacted minerals:");
+    expect(inspector.textContent).toContain("amount");
+    expect(inspector.textContent).toContain("active rules:");
+    expect(inspector.textContent).toContain("amount-positive");
+  });
+
   it("filters workflow log by source and query", async () => {
     const user = userEvent.setup();
     const onSelectTable = vi.fn();

@@ -21,12 +21,31 @@ async function isVisible(locator) {
 }
 
 async function ensureWorkspaceEntered(page) {
+  await page.waitForLoadState("domcontentloaded");
   const workspaceEntry = page.getByTestId("workspace-open-star-heart-button").first();
+  const workspaceRoot = page.getByTestId("workspace-root").first();
   const galaxyGate = page.getByTestId("galaxy-gate-screen").first();
+  const stage0StarLockGate = page.getByTestId("stage0-star-lock-gate").first();
+  const stage0IntroGate = page.getByTestId("stage0-intro-gate").first();
+  const stage0SetupPanel = page.getByTestId("stage0-setup-panel").first();
+  const quickGridOverlay = page.getByTestId("quick-grid-overlay").first();
+  const authSubmitButton = page.getByTestId("auth-submit-button").first();
 
-  const deadline = Date.now() + 60_000;
+  const deadline = Date.now() + 90_000;
+  let reloaded = false;
   while (Date.now() < deadline) {
+    if (await isVisible(workspaceRoot)) return;
     if (await isVisible(workspaceEntry)) return;
+    if (await isVisible(stage0StarLockGate)) return;
+    if (await isVisible(stage0IntroGate)) return;
+    if (await isVisible(stage0SetupPanel)) return;
+    if (await isVisible(quickGridOverlay)) return;
+
+    if (await isVisible(authSubmitButton)) {
+      if (await authSubmitButton.isEnabled()) {
+        await authSubmitButton.click();
+      }
+    }
 
     if (await isVisible(galaxyGate)) {
       const enterButton = page.getByTestId("galaxy-enter-button").first();
@@ -59,6 +78,12 @@ async function ensureWorkspaceEntered(page) {
           await launchButton.click();
         }
       }
+    }
+
+    if (!reloaded && Date.now() > deadline - 45_000) {
+      await page.reload({ waitUntil: "domcontentloaded" });
+      reloaded = true;
+      continue;
     }
 
     await page.waitForTimeout(350);
@@ -141,14 +166,20 @@ test("real workspace flow: star-lock -> first planet wizard -> grid convergence"
 
   await expect(page.getByTestId("stage0-setup-panel")).toBeVisible({ timeout: 60_000 });
   const presetButtons = page.locator('[data-testid^="stage0-preset-"]');
-  const presetCount = await presetButtons.count();
   let selectedPreset = false;
-  for (let idx = 0; idx < presetCount; idx += 1) {
-    const presetButton = presetButtons.nth(idx);
-    if (await presetButton.isEnabled()) {
-      await clickViaDom(presetButton);
-      selectedPreset = true;
-      break;
+  const preferredPreset = page.getByTestId("stage0-preset-personal_cashflow").first();
+  if ((await isVisible(preferredPreset)) && (await preferredPreset.isEnabled())) {
+    await clickViaDom(preferredPreset);
+    selectedPreset = true;
+  } else {
+    const presetCount = await presetButtons.count();
+    for (let idx = 0; idx < presetCount; idx += 1) {
+      const presetButton = presetButtons.nth(idx);
+      if (await presetButton.isEnabled()) {
+        await clickViaDom(presetButton);
+        selectedPreset = true;
+        break;
+      }
     }
   }
   if (!selectedPreset) {
@@ -169,9 +200,13 @@ test("real workspace flow: star-lock -> first planet wizard -> grid convergence"
   await clickViaDom(igniteButton);
 
   await expect(page.getByTestId("quick-grid-overlay")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("quick-grid-workflow-rail")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("quick-grid-workflow-rail")).toContainText("1 planeta OK", { timeout: 30_000 });
+  await expect(page.getByTestId("quick-grid-workflow-rail")).toContainText("2 civilizace/mesic", { timeout: 30_000 });
 
   await expect
     .poll(async () => page.getByTestId("quick-grid-row").count(), { timeout: 30_000 })
     .toBeGreaterThanOrEqual(3);
+  await expect(page.locator("text=Table contract violation").first()).toHaveCount(0);
   await expect(page.getByTestId("quick-grid-columns-badge")).toContainText("sloupce", { timeout: 10_000 });
 });

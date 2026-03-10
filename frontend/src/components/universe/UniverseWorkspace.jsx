@@ -344,10 +344,11 @@ export default function UniverseWorkspace({
       stageZeroSetupOpen,
     ]
   );
+  const shouldLockSidebarFromSetup = stageZeroSetupOpen && !hasPlanets;
   const workspaceInteractionLocked =
     stageZeroActive &&
     (stageZeroUiVisibility.canvasInteractionLocked ||
-      stageZeroSetupOpen ||
+      shouldLockSidebarFromSetup ||
       stageZeroBuilderOpen ||
       stageZeroCommitBusy);
   const stageZeroPresetCards = useMemo(() => {
@@ -1365,7 +1366,9 @@ export default function UniverseWorkspace({
         }
         await response.json().catch(() => null);
         await refreshProjection({ silent: true });
-        handlePlanetSelect("", { source: "grid" });
+        setSelectedTableId("");
+        setSelectedAsteroidId("");
+        setQuickGridOpen(false);
         return { ok: true, message: "Planeta byla extinguishnuta." };
       } catch (extinguishError) {
         return { ok: false, message: extinguishError?.message || "Extinguish planety selhal." };
@@ -1377,9 +1380,11 @@ export default function UniverseWorkspace({
       branchIdScope,
       clearRuntimeIssue,
       galaxyId,
-      handlePlanetSelect,
       refreshProjection,
       selectedTableId,
+      setQuickGridOpen,
+      setSelectedAsteroidId,
+      setSelectedTableId,
       tableRows.length,
       tables,
     ]

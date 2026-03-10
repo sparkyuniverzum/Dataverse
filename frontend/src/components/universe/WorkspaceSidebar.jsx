@@ -1,4 +1,5 @@
 import { resolvePreviewSeverityColor } from "./previewAccessibility";
+import { deriveCivilizationInspectorModel } from "./civilizationInspectorModel";
 
 const inputStyle = {
   width: "100%",
@@ -64,111 +65,6 @@ const hudBadgeStyle = {
   lineHeight: "var(--dv-lh-compact)",
 };
 
-function truncateValue(value, max = 48) {
-  if (value === null) return "null";
-  if (typeof value === "undefined") return "undefined";
-  const asText =
-    typeof value === "string"
-      ? value
-      : typeof value === "number" || typeof value === "boolean"
-        ? String(value)
-        : JSON.stringify(value);
-  if (asText.length <= max) return asText;
-  return `${asText.slice(0, max - 1)}…`;
-}
-
-function deriveMoonInspector(selectedMoon, moonImpact, selectedMoonId = "") {
-  if (!selectedMoon || typeof selectedMoon !== "object") {
-    return {
-      state: "UNKNOWN",
-      violationCount: 0,
-      impactedMinerals: [],
-      activeRules: [],
-    };
-  }
-  const impactItems = Array.isArray(moonImpact?.items) ? moonImpact.items : [];
-  const selectedId = String(selectedMoonId || "").trim();
-  if (impactItems.length) {
-    const filtered = selectedId
-      ? impactItems.filter((item) =>
-          Array.isArray(item?.impacted_civilization_ids)
-            ? item.impacted_civilization_ids.some((civilizationId) => String(civilizationId) === selectedId)
-            : false
-        )
-      : [];
-    const relevant = filtered.length ? filtered : impactItems;
-    const impactedMinerals = [];
-    const activeRules = [];
-    let violationCount = 0;
-    relevant.forEach((item) => {
-      const mineralKey = String(item?.mineral_key || "").trim();
-      if (mineralKey) {
-        impactedMinerals.push(mineralKey);
-      }
-      const ruleId = String(item?.rule_id || "").trim();
-      if (ruleId) {
-        activeRules.push(ruleId);
-      }
-      const itemViolations = Number(item?.active_violations_count);
-      if (Number.isFinite(itemViolations)) {
-        violationCount += Math.max(0, Math.floor(itemViolations));
-      }
-    });
-    const state = String(selectedMoon.state || (selectedMoon.is_deleted ? "ARCHIVED" : "ACTIVE")).toUpperCase();
-    return {
-      state,
-      violationCount,
-      impactedMinerals: [...new Set(impactedMinerals)].slice(0, 6),
-      activeRules: [...new Set(activeRules)].slice(0, 4),
-    };
-  }
-
-  const facts = Array.isArray(selectedMoon.facts) ? selectedMoon.facts : [];
-  const metadata =
-    selectedMoon.metadata && typeof selectedMoon.metadata === "object" && !Array.isArray(selectedMoon.metadata)
-      ? selectedMoon.metadata
-      : {};
-  const state = String(selectedMoon.state || (selectedMoon.is_deleted ? "ARCHIVED" : "ACTIVE")).toUpperCase();
-  const explicitViolationCount = Number.isFinite(Number(selectedMoon.violation_count))
-    ? Number(selectedMoon.violation_count)
-    : null;
-
-  const impactedMinerals = [];
-  const activeRules = [];
-  let derivedViolations = 0;
-
-  facts.forEach((fact) => {
-    const mineralKey = String(fact?.key || "").trim();
-    const errors = Array.isArray(fact?.errors) ? fact.errors : [];
-    const isInvalid = String(fact?.status || "").toLowerCase() === "invalid" || errors.length > 0;
-    if (isInvalid && mineralKey) {
-      impactedMinerals.push(`${mineralKey}:${truncateValue(fact?.typed_value)}`);
-      derivedViolations += Math.max(1, errors.length);
-    }
-    errors.forEach((error) => {
-      const ruleId = String(error?.rule_id || error?.code || "").trim();
-      if (ruleId) {
-        activeRules.push(ruleId);
-      }
-    });
-  });
-
-  if (!impactedMinerals.length) {
-    Object.keys(metadata)
-      .slice(0, 4)
-      .forEach((key) => {
-        impactedMinerals.push(`${key}:${truncateValue(metadata[key])}`);
-      });
-  }
-
-  return {
-    state,
-    violationCount: explicitViolationCount === null ? derivedViolations : explicitViolationCount,
-    impactedMinerals: [...new Set(impactedMinerals)].slice(0, 6),
-    activeRules: [...new Set(activeRules)].slice(0, 4),
-  };
-}
-
 export default function WorkspaceSidebar({
   galaxy,
   branches = [],
@@ -221,7 +117,7 @@ export default function WorkspaceSidebar({
     safeMoonRows.find((row) => String(row?.id || "") === String(selectedMoonId || "")) ||
     safeMoonRows.find((row) => String(row?.value || "") === String(selectedAsteroidLabel || "")) ||
     null;
-  const moonInspector = deriveMoonInspector(selectedMoon, moonImpact, selectedMoonId);
+  const moonInspector = deriveCivilizationInspectorModel(selectedMoon, moonImpact, selectedMoonId);
 
   return (
     <aside
@@ -487,12 +383,28 @@ export default function WorkspaceSidebar({
                 <strong>{moonInspector.violationCount}</strong>
               </div>
               <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
+                health: {moonInspector.healthScore} | event_seq: {moonInspector.eventSeq}
+              </div>
+              <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }}>
                 Nerosty pod vlivem:{" "}
                 {moonInspector.impactedMinerals.length ? moonInspector.impactedMinerals.join(", ") : "n/a"}
               </div>
               <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.74 }}>
                 Aktivni pravidla: {moonInspector.activeRules.length ? moonInspector.activeRules.join(", ") : "n/a"}
               </div>
+              <button
+                type="button"
+                data-testid="moon-inspector-open-grid-button"
+                onClick={() => {
+                  if (typeof onOpenGrid === "function") {
+                    onOpenGrid();
+                  }
+                }}
+                disabled={!selectedTableId || interactionLocked}
+                style={ghostButtonStyle}
+              >
+                Otevrit v grid inspectoru
+              </button>
               {moonImpactLoading ? (
                 <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.68 }}>Nacitam impact data...</div>
               ) : null}

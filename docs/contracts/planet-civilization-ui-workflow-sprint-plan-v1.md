@@ -1,6 +1,6 @@
 # Planet/Civilization UI Workflow Sprint Plan v1
 
-Status: active
+Status: active (UI-WF-1/2/3 completed, UI-WF-4 partial)
 Date: 2026-03-09
 Owner: FE Lead + UX Lead + BE Contract Owner
 Depends on:
@@ -31,6 +31,20 @@ Prioritizacni logika:
 3. Nakonec optimalizace a hardening (`P2`, viz sprinty nize).
 
 ## 2. Sprint map
+
+## 2.0 Execution snapshot (2026-03-10)
+
+- [x] `UI-WF-1` foundation + flow unification: gate set passed
+- [x] `UI-WF-2` mineral complete workflow: gate set passed
+- [x] `UI-WF-3` civilization complete workflow: gate set passed
+- [ ] `UI-WF-4` planet+moon integration + release hardening: remaining closure
+
+Evidence:
+1. `npm --prefix frontend run test:e2e:workspace-starlock` -> `1 passed`
+2. `npm --prefix frontend run test:e2e:planet-civilization-mineral-workflow` -> `1 passed`
+3. `npm --prefix frontend run test:e2e -- e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs` -> `1 passed`
+4. `npm --prefix frontend run test:e2e:planet-moon-preview` -> `1 passed`
+5. `npm --prefix frontend run test -- src/components/universe/QuickGridOverlay.minerals.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx src/lib/archiveWorkflowGuard.test.js` -> `21 passed`
 
 ### Sprint UI-WF-1 (foundation + flow unification)
 
@@ -116,6 +130,11 @@ Gate:
 - `npm --prefix frontend run test:e2e:workspace-starlock`
 - `npm --prefix frontend run test:e2e:planet-civilization-mineral-workflow`
 - `pytest -q tests/test_api_integration.py`
+
+Open items for closure:
+1. [ ] Complete release hardening pass with full BE integration gate (`pytest -q tests/test_api_integration.py`) in final release profile.
+2. [ ] Finalize moon-impact + guided-repair traceability as one explicit workflow-log path in runtime UI.
+3. [ ] Freeze operator runbook note for this UI block in release docs.
 
 ## 3. Execution order (prioritizovano dle nejvetsiho zasahu + nejvetsi pocitove hodnoty)
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { canTransitionLifecycle, normalizeLifecycleStateFromRow } from "./civilizationLifecycle";
+import { deriveCivilizationInspectorModel } from "./civilizationInspectorModel";
 import { resolveWorkflowNextActionLabel } from "./quickGridWorkflowRail";
 import { buildRemoveSoftConfirmationKey } from "./removeSoftConfirmation";
 import { resolveRemoveSoftUiState } from "./removeSoftUiState";
@@ -119,27 +120,6 @@ function makeRowBatchDraftId(kind, payload = {}) {
       .toUpperCase()}`;
   }
   return `${normalizedKind}:${Date.now()}`;
-}
-
-function normalizeLifecycle(selectedRow) {
-  if (!selectedRow || typeof selectedRow !== "object") {
-    return {
-      state: "UNKNOWN",
-      healthScore: "n/a",
-      violationCount: 0,
-      eventSeq: "n/a",
-      archived: false,
-    };
-  }
-  const archived = selectedRow.is_deleted === true;
-  const state = String(selectedRow.state || (archived ? "ARCHIVED" : "ACTIVE")).toUpperCase();
-  return {
-    state,
-    healthScore: Number.isFinite(Number(selectedRow.health_score)) ? Number(selectedRow.health_score) : "n/a",
-    violationCount: Number.isFinite(Number(selectedRow.violation_count)) ? Number(selectedRow.violation_count) : 0,
-    eventSeq: Number.isFinite(Number(selectedRow.current_event_seq)) ? Number(selectedRow.current_event_seq) : "n/a",
-    archived,
-  };
 }
 
 function collectMineralEntries(selectedRow) {
@@ -338,7 +318,10 @@ export default function QuickGridOverlay({
     () => new Map((Array.isArray(tableRows) ? tableRows : []).map((row) => [String(row?.id || ""), row])),
     [tableRows]
   );
-  const selectedLifecycle = useMemo(() => normalizeLifecycle(selectedRow), [selectedRow]);
+  const selectedInspector = useMemo(
+    () => deriveCivilizationInspectorModel(selectedRow, null, selectedRow?.id),
+    [selectedRow]
+  );
   const selectedMinerals = useMemo(() => collectMineralEntries(selectedRow), [selectedRow]);
   const selectedMineralByKey = useMemo(
     () => new Map((Array.isArray(selectedMinerals) ? selectedMinerals : []).map((item) => [String(item.key), item])),
@@ -2440,13 +2423,21 @@ export default function QuickGridOverlay({
                 }}
               >
                 <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
-                  state: <strong>{selectedLifecycle.state}</strong>
+                  state: <strong>{selectedInspector.state}</strong>
                 </div>
                 <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.8 }}>
-                  health: {selectedLifecycle.healthScore} | violations: {selectedLifecycle.violationCount}
+                  health: {selectedInspector.healthScore} | violations: {selectedInspector.violationCount}
                 </div>
                 <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.74 }}>
-                  event_seq: {selectedLifecycle.eventSeq} | archived: {selectedLifecycle.archived ? "yes" : "no"}
+                  event_seq: {selectedInspector.eventSeq} | archived: {selectedInspector.archived ? "yes" : "no"}
+                </div>
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.74 }}>
+                  impacted minerals:{" "}
+                  {selectedInspector.impactedMinerals.length ? selectedInspector.impactedMinerals.join(", ") : "n/a"}
+                </div>
+                <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.74 }}>
+                  active rules:{" "}
+                  {selectedInspector.activeRules.length ? selectedInspector.activeRules.join(", ") : "n/a"}
                 </div>
               </div>
               <div
@@ -2661,10 +2652,14 @@ export default function QuickGridOverlay({
             {gridFilteredRows.map((row) => {
               const rowPendingOp = pendingRowOps[String(row.id)] || null;
               const rowChecked = selectedRowIds.includes(String(row.id));
+              const rowSelected = String(selectedAsteroidId || "") === String(row.id);
               return (
                 <tr
                   key={String(row.id)}
                   data-testid="quick-grid-row"
+                  data-row-id={String(row.id)}
+                  data-row-value={String(row?.value || "")}
+                  data-selected={rowSelected ? "true" : "false"}
                   onClick={() => {
                     onSelectRow?.(String(row.id));
                     setSelectedRowIds([String(row.id)]);
@@ -2700,7 +2695,7 @@ export default function QuickGridOverlay({
                         zIndex: index === 0 ? 1 : 0,
                         borderBottom: "1px solid rgba(95, 177, 207, 0.14)",
                         background:
-                          String(selectedAsteroidId || "") === String(row.id) || rowChecked
+                          rowSelected || rowChecked
                             ? "rgba(17, 57, 84, 0.85)"
                             : index === 0
                               ? "rgba(7, 18, 30, 0.95)"

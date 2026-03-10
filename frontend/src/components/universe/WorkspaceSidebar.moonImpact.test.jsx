@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
 import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import WorkspaceSidebar from "./WorkspaceSidebar";
 
@@ -76,5 +77,16 @@ describe("WorkspaceSidebar moon-impact integration", () => {
     expect(card.textContent).toContain("state");
     expect(card.textContent).toContain("state-must-be-active");
     expect(card.textContent).not.toContain("amount-positive");
+    expect(card.textContent).toContain("health:");
+    expect(card.textContent).toContain("event_seq:");
+  });
+
+  it("opens grid from moon inspector deep-link button", async () => {
+    const user = userEvent.setup();
+    const onOpenGrid = vi.fn();
+    render(React.createElement(WorkspaceSidebar, baseProps({ onOpenGrid })));
+
+    await user.click(screen.getByTestId("moon-inspector-open-grid-button"));
+    expect(onOpenGrid).toHaveBeenCalledTimes(1);
   });
 });
