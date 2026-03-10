@@ -1,19 +1,37 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import AuthExperience from "./components/app/AuthExperience";
 import GalaxyGateScreen from "./components/app/GalaxyGateScreen";
 import PlanetBuilderSmokeScreen from "./components/app/PlanetBuilderSmokeScreen";
 import SessionBootScreen from "./components/app/SessionBootScreen";
 import WorkspaceShell from "./components/app/WorkspaceShell";
+import {
+  buildOfflineEntryGuardMessage,
+  resolveAppConnectivityNotice,
+} from "./components/app/appConnectivityNoticeState";
 import { useAuth } from "./context/AuthContext.jsx";
+import { useConnectivityState } from "./hooks/useConnectivityState";
 import { useGalaxyGate } from "./hooks/useGalaxyGate";
 
 export default function App() {
   const { user, isAuthenticated, isLoading, login, register, forgotPassword, logout, setDefaultGalaxy } = useAuth();
   const pathname = typeof window !== "undefined" ? String(window.location.pathname || "") : "";
+  const connectivity = useConnectivityState();
 
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
+  const authConnectivityNotice = useMemo(
+    () => resolveAppConnectivityNotice(connectivity.isOnline, "auth_entry"),
+    [connectivity.isOnline]
+  );
+  const bootConnectivityNotice = useMemo(
+    () => resolveAppConnectivityNotice(connectivity.isOnline, "session_boot"),
+    [connectivity.isOnline]
+  );
+  const galaxyConnectivityNotice = useMemo(
+    () => resolveAppConnectivityNotice(connectivity.isOnline, "galaxy_gate"),
+    [connectivity.isOnline]
+  );
 
   const galaxyGate = useGalaxyGate({
     isAuthenticated,
@@ -47,6 +65,9 @@ export default function App() {
       setAuthBusy(true);
       setAuthError("");
       try {
+        if (connectivity.isOffline) {
+          throw new Error(buildOfflineEntryGuardMessage("Prihlaseni"));
+        }
         await login(email, password);
         await loadGalaxies();
       } catch (error) {
@@ -55,7 +76,7 @@ export default function App() {
         setAuthBusy(false);
       }
     },
-    [loadGalaxies, login]
+    [connectivity.isOffline, loadGalaxies, login]
   );
 
   const handleAuthRegister = useCallback(
@@ -63,6 +84,9 @@ export default function App() {
       setAuthBusy(true);
       setAuthError("");
       try {
+        if (connectivity.isOffline) {
+          throw new Error(buildOfflineEntryGuardMessage("Registrace"));
+        }
         const result = await register(email, password);
         if (result?.authenticated) {
           await loadGalaxies();
@@ -74,13 +98,16 @@ export default function App() {
         setAuthBusy(false);
       }
     },
-    [loadGalaxies, register]
+    [connectivity.isOffline, loadGalaxies, register]
   );
   const handleAuthForgotPassword = useCallback(
     async (email) => {
       setAuthBusy(true);
       setAuthError("");
       try {
+        if (connectivity.isOffline) {
+          throw new Error(buildOfflineEntryGuardMessage("Obnova hesla"));
+        }
         return await forgotPassword(email);
       } catch (error) {
         setAuthError(error.message || "Reset password request failed");
@@ -89,7 +116,7 @@ export default function App() {
         setAuthBusy(false);
       }
     },
-    [forgotPassword]
+    [connectivity.isOffline, forgotPassword]
   );
 
   if (pathname === "/smoke/planet-builder") {
@@ -97,7 +124,7 @@ export default function App() {
   }
 
   if (isLoading) {
-    return <SessionBootScreen />;
+    return <SessionBootScreen connectivityNotice={bootConnectivityNotice} />;
   }
 
   if (!isAuthenticated) {
@@ -108,6 +135,7 @@ export default function App() {
         onForgotPassword={handleAuthForgotPassword}
         busy={authBusy}
         error={authError}
+        connectivityNotice={authConnectivityNotice}
       />
     );
   }
@@ -131,6 +159,8 @@ export default function App() {
         onLoadOnboarding={loadOnboardingForGalaxy}
         onRefresh={loadGalaxies}
         onLogout={logout}
+        connectivityNotice={galaxyConnectivityNotice}
+        interactionLocked={connectivity.isOffline}
       />
     );
   }

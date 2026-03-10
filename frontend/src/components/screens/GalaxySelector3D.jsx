@@ -412,6 +412,7 @@ export default function GalaxySelector3D({
   onLoadOnboarding,
   onRefresh,
   onLogout,
+  interactionLocked = false,
 }) {
   const [candidateGalaxyId, setCandidateGalaxyId] = useState(selectedGalaxyId || "");
   const [hoveredGalaxyId, setHoveredGalaxyId] = useState("");
@@ -471,7 +472,7 @@ export default function GalaxySelector3D({
     }
   }, [candidateGalaxyId, onLoadBranches, onLoadOnboarding]);
 
-  const canCreate = !busy && Boolean(String(newGalaxyName || "").trim());
+  const canCreate = !busy && !interactionLocked && Boolean(String(newGalaxyName || "").trim());
 
   return (
     <main
@@ -530,7 +531,7 @@ export default function GalaxySelector3D({
               onKeyDown={(event) => {
                 if (event.key === "Enter" && canCreate) {
                   event.preventDefault();
-                  onCreate();
+                  if (!interactionLocked) onCreate();
                 }
               }}
               placeholder="Nazev workspace (napr. Finance 2026)"
@@ -548,7 +549,7 @@ export default function GalaxySelector3D({
           </div>
           {error ? <div style={{ fontSize: "var(--dv-fs-sm)", color: "#ffb3c7" }}>{error}</div> : null}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
+            <button type="button" onClick={onRefresh} disabled={loading || interactionLocked} style={ghostButtonStyle}>
               Obnovit
             </button>
             <button type="button" onClick={onLogout} data-testid="auth-logout-button" style={ghostButtonStyle}>
@@ -632,7 +633,7 @@ export default function GalaxySelector3D({
             <button
               type="button"
               onClick={onCreate}
-              disabled={busy || !newGalaxyName.trim()}
+              disabled={busy || interactionLocked || !newGalaxyName.trim()}
               data-testid="galaxy-launch-submit"
               style={actionButtonStyle}
             >
@@ -644,13 +645,13 @@ export default function GalaxySelector3D({
             <button
               type="button"
               onClick={() => candidateGalaxyId && onSelect(candidateGalaxyId)}
-              disabled={!candidateGalaxyId}
+              disabled={!candidateGalaxyId || interactionLocked}
               data-testid="galaxy-enter-button"
               style={actionButtonStyle}
             >
               Vstoupit
             </button>
-            <button type="button" onClick={onRefresh} disabled={loading} style={ghostButtonStyle}>
+            <button type="button" onClick={onRefresh} disabled={loading || interactionLocked} style={ghostButtonStyle}>
               Obnovit
             </button>
             <button type="button" onClick={onLogout} data-testid="auth-logout-button" style={ghostButtonStyle}>
