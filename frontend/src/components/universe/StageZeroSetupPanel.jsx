@@ -2,39 +2,40 @@ import { useEffect, useMemo, useState } from "react";
 
 import { isStageZeroStepUnlocked } from "./stageZeroBuilder";
 import { StageZeroContractRecoveryCard } from "./StageZeroContractRecoveryCard";
+import { useStageZeroSetupPanelContext } from "./StageZeroSetupPanelContext";
 import { buildStageZeroCommitPreview } from "./stageZeroCommitPreview";
 
-export function StageZeroSetupPanel({
-  stageZeroPlanetName,
-  stageZeroPresetSelected,
-  stageZeroPresetCatalogLoading,
-  stageZeroPresetCatalogError,
-  stageZeroPresetCards,
-  stageZeroPresetBundleKey,
-  stageZeroAssemblyMode,
-  stageZeroSchemaDraft,
-  stageZeroSteps,
-  stageZeroDraggedSchemaKey,
-  stageZeroSchemaSummary,
-  stageZeroVisualBoost,
-  stageZeroSchemaPreview,
-  stageZeroAllSchemaStepsDone,
-  stageZeroCommitDisabledReason,
-  stageZeroCommitError,
-  stageZeroCommitBusy,
-  stageZeroExistingContract,
-  onClearCommitError,
-  onSelectPreset,
-  onChangePreset,
-  onSchemaBlockDragStart,
-  onSchemaBlockDragEnd,
-  onSchemaStep,
-  onSchemaBlockDrop,
-  onResetDraggedSchemaKey,
-  onAssemblyModeChange,
-  onCommitPreset,
-  onClose,
-}) {
+export function StageZeroSetupPanel({ onClose }) {
+  const {
+    stageZeroPlanetName,
+    stageZeroPresetSelected,
+    stageZeroPresetCatalogLoading,
+    stageZeroPresetCatalogError,
+    stageZeroPresetCards,
+    stageZeroPresetBundleKey,
+    stageZeroAssemblyMode,
+    stageZeroSchemaDraft,
+    stageZeroSteps,
+    stageZeroDraggedSchemaKey,
+    stageZeroSchemaSummary,
+    stageZeroVisualBoost,
+    stageZeroSchemaPreview,
+    stageZeroAllSchemaStepsDone,
+    stageZeroCommitDisabledReason,
+    stageZeroCommitError,
+    stageZeroCommitBusy,
+    stageZeroExistingContract,
+    onClearCommitError,
+    onSelectPreset,
+    onChangePreset,
+    onSchemaBlockDragStart,
+    onSchemaBlockDragEnd,
+    onSchemaStep,
+    onSchemaBlockDrop,
+    onResetDraggedSchemaKey,
+    onAssemblyModeChange,
+    onCommitPreset,
+  } = useStageZeroSetupPanelContext();
   const isManualAssembly = String(stageZeroAssemblyMode || "lego").toLowerCase() === "manual";
   const defaultManualFields = useMemo(() => {
     const result = {};

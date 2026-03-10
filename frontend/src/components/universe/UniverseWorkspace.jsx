@@ -93,6 +93,7 @@ import { useMoonCrudController } from "./useMoonCrudController";
 import { useBondDraftController } from "./useBondDraftController";
 import { useBranchTimelineController } from "./useBranchTimelineController";
 import { StageZeroSetupPanel } from "./StageZeroSetupPanel";
+import { StageZeroSetupPanelProvider } from "./StageZeroSetupPanelContext";
 import { buildMergedTableContractPayload } from "./tableContractMerge";
 import { useUniverseStore } from "../../store/useUniverseStore";
 
@@ -1658,6 +1659,65 @@ export default function UniverseWorkspace({
       loadSelectedTableContract,
     ]
   );
+  const stageZeroSetupPanelValue = useMemo(
+    () => ({
+      stageZeroPlanetName,
+      stageZeroPresetSelected,
+      stageZeroPresetCatalogLoading,
+      stageZeroPresetCatalogError,
+      stageZeroPresetCards,
+      stageZeroPresetBundleKey,
+      stageZeroAssemblyMode,
+      stageZeroSchemaDraft,
+      stageZeroSteps,
+      stageZeroDraggedSchemaKey,
+      stageZeroSchemaSummary,
+      stageZeroVisualBoost,
+      stageZeroSchemaPreview,
+      stageZeroAllSchemaStepsDone,
+      stageZeroCommitDisabledReason,
+      stageZeroCommitError,
+      stageZeroCommitBusy,
+      stageZeroExistingContract: selectedTableContract,
+      onClearCommitError: () => setStageZeroCommitError(""),
+      onSelectPreset: handleStageZeroSelectPreset,
+      onChangePreset: handleStageZeroChangePreset,
+      onSchemaBlockDragStart: handleStageZeroSchemaBlockDragStart,
+      onSchemaBlockDragEnd: handleStageZeroSchemaBlockDragEnd,
+      onSchemaStep: handleStageZeroSchemaStep,
+      onSchemaBlockDrop: handleStageZeroSchemaBlockDrop,
+      onResetDraggedSchemaKey: handleStageZeroSchemaBlockDragEnd,
+      onAssemblyModeChange: setStageZeroAssemblyMode,
+      onCommitPreset: handleStageZeroCommitPreset,
+    }),
+    [
+      handleStageZeroChangePreset,
+      handleStageZeroCommitPreset,
+      handleStageZeroSchemaBlockDragEnd,
+      handleStageZeroSchemaBlockDragStart,
+      handleStageZeroSchemaBlockDrop,
+      handleStageZeroSchemaStep,
+      handleStageZeroSelectPreset,
+      selectedTableContract,
+      stageZeroAllSchemaStepsDone,
+      stageZeroAssemblyMode,
+      stageZeroCommitBusy,
+      stageZeroCommitDisabledReason,
+      stageZeroCommitError,
+      stageZeroDraggedSchemaKey,
+      stageZeroPlanetName,
+      stageZeroPresetBundleKey,
+      stageZeroPresetCards,
+      stageZeroPresetCatalogError,
+      stageZeroPresetCatalogLoading,
+      stageZeroPresetSelected,
+      stageZeroSchemaDraft,
+      stageZeroSchemaPreview,
+      stageZeroSchemaSummary,
+      stageZeroSteps,
+      stageZeroVisualBoost,
+    ]
+  );
 
   const executeParserCommand = useCallback(
     async (command) => {
@@ -2747,37 +2807,9 @@ export default function UniverseWorkspace({
         ) : null}
 
         {stageZeroUiVisibility.setupPanel && selectedTableId ? (
-          <StageZeroSetupPanel
-            stageZeroPlanetName={stageZeroPlanetName}
-            stageZeroPresetSelected={stageZeroPresetSelected}
-            stageZeroPresetCatalogLoading={stageZeroPresetCatalogLoading}
-            stageZeroPresetCatalogError={stageZeroPresetCatalogError}
-            stageZeroPresetCards={stageZeroPresetCards}
-            stageZeroPresetBundleKey={stageZeroPresetBundleKey}
-            stageZeroAssemblyMode={stageZeroAssemblyMode}
-            stageZeroSchemaDraft={stageZeroSchemaDraft}
-            stageZeroSteps={stageZeroSteps}
-            stageZeroDraggedSchemaKey={stageZeroDraggedSchemaKey}
-            stageZeroSchemaSummary={stageZeroSchemaSummary}
-            stageZeroVisualBoost={stageZeroVisualBoost}
-            stageZeroSchemaPreview={stageZeroSchemaPreview}
-            stageZeroAllSchemaStepsDone={stageZeroAllSchemaStepsDone}
-            stageZeroCommitDisabledReason={stageZeroCommitDisabledReason}
-            stageZeroCommitError={stageZeroCommitError}
-            stageZeroCommitBusy={stageZeroCommitBusy}
-            stageZeroExistingContract={selectedTableContract}
-            onClearCommitError={() => setStageZeroCommitError("")}
-            onSelectPreset={handleStageZeroSelectPreset}
-            onChangePreset={handleStageZeroChangePreset}
-            onSchemaBlockDragStart={handleStageZeroSchemaBlockDragStart}
-            onSchemaBlockDragEnd={handleStageZeroSchemaBlockDragEnd}
-            onSchemaStep={handleStageZeroSchemaStep}
-            onSchemaBlockDrop={handleStageZeroSchemaBlockDrop}
-            onResetDraggedSchemaKey={handleStageZeroSchemaBlockDragEnd}
-            onAssemblyModeChange={setStageZeroAssemblyMode}
-            onCommitPreset={handleStageZeroCommitPreset}
-            onClose={handleCloseStageZeroSetupPanel}
-          />
+          <StageZeroSetupPanelProvider value={stageZeroSetupPanelValue}>
+            <StageZeroSetupPanel onClose={handleCloseStageZeroSetupPanel} />
+          </StageZeroSetupPanelProvider>
         ) : null}
 
         {stageZeroUiVisibility.missionPanel && (

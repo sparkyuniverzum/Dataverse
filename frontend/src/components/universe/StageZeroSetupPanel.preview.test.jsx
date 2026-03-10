@@ -1,11 +1,11 @@
 /** @vitest-environment jsdom */
 
-import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { StageZeroSetupPanel } from "./StageZeroSetupPanel";
+import { StageZeroSetupPanelProvider } from "./StageZeroSetupPanelContext";
 import { STAGE_ZERO_STREAM_STEPS, buildStageZeroSchemaPreview, createStageZeroSchemaDraft } from "./stageZeroBuilder";
 
 afterEach(() => {
@@ -19,43 +19,45 @@ function renderPanel(overrides = {}) {
     schemaDraft[step.key] = true;
   });
   const schemaPreview = buildStageZeroSchemaPreview(schemaDraft, steps);
+  const panelValue = {
+    stageZeroPlanetName: "Core > Planeta-1",
+    stageZeroPresetSelected: true,
+    stageZeroPresetCatalogLoading: false,
+    stageZeroPresetCatalogError: "",
+    stageZeroPresetCards: [{ key: "personal_cashflow", bundleKey: "personal_cashflow", label: "Cashflow" }],
+    stageZeroPresetBundleKey: "personal_cashflow",
+    stageZeroAssemblyMode: "lego",
+    stageZeroSchemaDraft: schemaDraft,
+    stageZeroSteps: steps,
+    stageZeroDraggedSchemaKey: "",
+    stageZeroSchemaSummary: { completed: 3, total: 3, ratio: 1, allDone: true },
+    stageZeroVisualBoost: { emissiveBoost: 0.56 },
+    stageZeroSchemaPreview: schemaPreview,
+    stageZeroAllSchemaStepsDone: true,
+    stageZeroCommitDisabledReason: "",
+    stageZeroCommitError: "",
+    stageZeroCommitBusy: false,
+    stageZeroExistingContract: {
+      required_fields: ["value", "label"],
+      field_types: { value: "string", label: "string" },
+    },
+    onClearCommitError: vi.fn(),
+    onSelectPreset: vi.fn(),
+    onChangePreset: vi.fn(),
+    onSchemaBlockDragStart: vi.fn(),
+    onSchemaBlockDragEnd: vi.fn(),
+    onSchemaStep: vi.fn(),
+    onSchemaBlockDrop: vi.fn(),
+    onResetDraggedSchemaKey: vi.fn(),
+    onAssemblyModeChange: vi.fn(),
+    onCommitPreset: vi.fn(),
+    ...overrides,
+  };
 
   render(
-    <StageZeroSetupPanel
-      stageZeroPlanetName="Core > Planeta-1"
-      stageZeroPresetSelected
-      stageZeroPresetCatalogLoading={false}
-      stageZeroPresetCatalogError=""
-      stageZeroPresetCards={[{ key: "personal_cashflow", bundleKey: "personal_cashflow", label: "Cashflow" }]}
-      stageZeroPresetBundleKey="personal_cashflow"
-      stageZeroAssemblyMode="lego"
-      stageZeroSchemaDraft={schemaDraft}
-      stageZeroSteps={steps}
-      stageZeroDraggedSchemaKey=""
-      stageZeroSchemaSummary={{ completed: 3, total: 3, ratio: 1, allDone: true }}
-      stageZeroVisualBoost={{ emissiveBoost: 0.56 }}
-      stageZeroSchemaPreview={schemaPreview}
-      stageZeroAllSchemaStepsDone
-      stageZeroCommitDisabledReason=""
-      stageZeroCommitError=""
-      stageZeroCommitBusy={false}
-      stageZeroExistingContract={{
-        required_fields: ["value", "label"],
-        field_types: { value: "string", label: "string" },
-      }}
-      onClearCommitError={vi.fn()}
-      onSelectPreset={vi.fn()}
-      onChangePreset={vi.fn()}
-      onSchemaBlockDragStart={vi.fn()}
-      onSchemaBlockDragEnd={vi.fn()}
-      onSchemaStep={vi.fn()}
-      onSchemaBlockDrop={vi.fn()}
-      onResetDraggedSchemaKey={vi.fn()}
-      onAssemblyModeChange={vi.fn()}
-      onCommitPreset={vi.fn()}
-      onClose={vi.fn()}
-      {...overrides}
-    />
+    <StageZeroSetupPanelProvider value={panelValue}>
+      <StageZeroSetupPanel onClose={vi.fn()} />
+    </StageZeroSetupPanelProvider>
   );
 }
 
