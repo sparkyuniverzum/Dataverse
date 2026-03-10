@@ -28,27 +28,33 @@
 - `PYTHONPATH=. pytest -q tests/test_star_core_integration_freeze.py -rs` -> 3 passed
 
 ## Co zbývá do dalšího sprintu
-1. PRH-2 finální uzavření event-driven onboarding flow (checklist bod 3).
-2. PRH-3 finální uzavření OpenTelemetry propagation jako operational (checklist bod 4):
-   - span propagation API -> services -> outbox runner/relay
-   - minimálně jeden integrační test s aktivním span context
-3. Release runbook update (checklist bod 9):
-   - shutdown postup
-   - outbox operator postup
-   - observability/tracing postup
-   - DB read/write routing provozní poznámky
+1. Frontend runner stabilita unit testů (`vitest` kolekce) - oddělený FE blok.
+2. PRH hardening maintenance:
+   - držet PRH-2/3/4 gate zelený v pravidelném release cyklu.
 
 ## Akční checklist (další navázání)
 1. OTel operational close:
-   - [ ] přidat explicitní span wrapper pro outbox run endpoint + relay run
-   - [ ] dopsat integrační test na trace continuity v kritické trase
-   - [ ] zapsat env matice (`DATAVERSE_OTEL_ENABLED`, exporter strategy) do runbooku
+   - [x] přidat explicitní span wrapper pro outbox run endpoint + relay run
+   - [x] dopsat integrační test na trace continuity v kritické trase
+   - [x] zapsat env matice (`DATAVERSE_OTEL_ENABLED`, exporter strategy) do runbooku
 2. PRH-2 close:
-   - [ ] potvrdit, že onboarding flow neobsahuje přímé sync cross-module volání
-   - [ ] přidat integrační test pro delayed consumer + duplicate delivery (pokud chybí poslední varianta)
+   - [x] potvrdit, že onboarding flow neobsahuje přímé sync cross-module volání
+   - [x] přidat integrační test pro delayed consumer + duplicate delivery (pokud chybí poslední varianta)
 3. Release docs close:
-   - [ ] aktualizovat `docs/release/v1-rollout-runbook.md`
-   - [ ] aktualizovat `docs/release/backend-quality-gate.md` o nové PRH-3/4 gate
+   - [x] aktualizovat `docs/release/v1-rollout-runbook.md`
+   - [x] aktualizovat `docs/release/backend-quality-gate.md` o nové PRH-3/4 gate
+
+## Closure update (2026-03-10)
+- PRH-2 closure evidence:
+  - `tests/test_auth_onboarding_event_driven_flow.py`
+  - `tests/test_onboarding_bootstrap_consumer.py`
+- PRH-3 closure evidence:
+  - `tests/test_outbox_observability_logging.py`
+  - `tests/test_trace_coverage_endpoint_metric.py`
+- PRH-4 closure evidence:
+  - `tests/test_runtime_shutdown_service.py`
+  - `tests/test_db_router.py`
+  - `tests/test_db_read_write_routing_wiring.py`
 
 ## Pravidla pro pokračování
 - Nerozšiřovat monolity, dělit do focused služeb/middleware/helperů.

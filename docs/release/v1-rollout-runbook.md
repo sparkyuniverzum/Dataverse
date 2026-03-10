@@ -149,6 +149,26 @@ Pro log korelaci:
 1. hledej `trace_id` + `correlation_id` v JSON logu
 2. outbox/operator/runner logy musí nést stejné hodnoty v rámci jednoho runu
 
+OTel environment matrix (aktuální stack):
+
+| `DATAVERSE_OTEL_ENABLED` | OTel SDK installed | Runtime behavior |
+| --- | --- | --- |
+| `0` / `false` / unset | n/a | OTel bootstrap disabled, request trace/correlation continues via middleware + JSON logs |
+| `1` / `true` | `no` | Safe fallback: app logs `OpenTelemetry disabled: sdk/api not installed.` and continues |
+| `1` / `true` | `yes` | Tracer provider is configured (`service.name=dataverse-api`) and spans can be attached |
+
+Exporter strategy:
+1. Current app bootstrap configures tracer provider only (no in-app exporter wiring).
+2. Deployment may attach exporter via environment/instrumentation layer; if missing, fallback mode remains operational.
+3. Operational minimum is preserved by mandatory `trace_id/correlation_id` propagation in headers + JSON logs.
+
+Operator quick check:
+1. start API with `DATAVERSE_OTEL_ENABLED=1`
+2. verify startup log:
+   - either `OpenTelemetry tracer provider configured.`
+   - or fallback `OpenTelemetry disabled: sdk/api not installed.`
+3. call one runtime endpoint and verify `X-Trace-Id` + `X-Correlation-Id` response headers
+
 ### 11.4 DB read/write routing
 Pravidlo:
 1. read-heavy GET endpointy používají read session

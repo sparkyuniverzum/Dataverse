@@ -15,6 +15,24 @@ Define one repeatable go/no-go gate so backend quality stays at parser-level rig
 - Strict gate (before merge/release, requires running API):
   - `make be-gate-strict`
 
+## Runtime hardening add-on gate (PRH-2/3/4)
+
+Use this focused set when touching event-driven onboarding, outbox runtime, tracing, resilience, graceful shutdown, or DB read/write routing.
+
+- PRH-2 onboarding event-driven flow:
+  - `PYTHONPATH=. pytest -q tests/test_auth_onboarding_event_driven_flow.py tests/test_onboarding_bootstrap_consumer.py tests/test_auth_service_outbox.py`
+- PRH-3 observability + outbox runtime:
+  - `PYTHONPATH=. pytest -q tests/test_outbox_observability_logging.py tests/test_outbox_operator_service.py tests/test_outbox_relay_runner_service.py tests/test_outbox_relay_service.py`
+  - `PYTHONPATH=. pytest -q tests/test_trace_context.py tests/test_trace_context_middleware.py tests/test_trace_coverage_endpoint_metric.py`
+- PRH-3 resilience envelope:
+  - `PYTHONPATH=. pytest -q tests/test_rate_limit_middleware.py tests/test_circuit_breaker.py tests/test_resilience_error_envelopes.py`
+- PRH-4 graceful shutdown + DB routing:
+  - `PYTHONPATH=. pytest -q tests/test_runtime_shutdown_service.py tests/test_db_router.py tests/test_db_read_write_routing_wiring.py`
+
+Release close snapshot (recommended after multiple backend blocks):
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py -rs`
+- `PYTHONPATH=. pytest -q tests/test_star_core_integration_freeze.py -rs`
+
 ## Profiles
 
 ### `quick`
@@ -37,6 +55,7 @@ Runs everything from `quick`, plus:
 
 - No backend PR should be merged if `make be-gate` fails.
 - Changes touching API contracts, parser/executor path, or import semantics require `make be-gate-strict` green before release branch merge.
+- Changes touching PRH-2/3/4 scope require relevant `Runtime hardening add-on gate` subset green before merge.
 
 ## Notes
 
