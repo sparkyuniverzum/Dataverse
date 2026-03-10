@@ -4,6 +4,7 @@ import json
 import logging
 
 from app.logging_config import DataverseJsonFormatter
+from app.services.trace_context import bind_trace_context, reset_trace_context
 
 
 def test_json_formatter_emits_required_fields_with_fallbacks() -> None:
@@ -54,3 +55,25 @@ def test_json_formatter_emits_structured_extra_fields() -> None:
     assert payload["module"] == "outbox.runner"
     assert payload["published"] == 2
     assert payload["failed"] == 1
+
+
+def test_json_formatter_uses_trace_context_when_record_has_no_ids() -> None:
+    formatter = DataverseJsonFormatter()
+    tokens = bind_trace_context(trace_id="ctx-trace", correlation_id="ctx-corr")
+    try:
+        record = logging.LogRecord(
+            name="app.test.logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=30,
+            msg="context fallback",
+            args=(),
+            exc_info=None,
+        )
+
+        payload = json.loads(formatter.format(record))
+    finally:
+        reset_trace_context(tokens)
+
+    assert payload["trace_id"] == "ctx-trace"
+    assert payload["correlation_id"] == "ctx-corr"

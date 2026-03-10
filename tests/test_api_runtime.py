@@ -9,7 +9,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.api.runtime import ensure_onboarding_progress_safe, run_scoped_atomic_idempotent
+from starlette.requests import Request
+
+from app.api.runtime import ensure_onboarding_progress_safe, resolve_trace_context, run_scoped_atomic_idempotent
 
 
 class _NestedTransaction:
@@ -163,3 +165,30 @@ def test_run_scoped_atomic_idempotent_uses_resolved_scope_without_lookup() -> No
     assert auth_service.resolve_user_galaxy.await_count == 0
     assert cosmos_service.resolve_branch_id.await_count == 0
     assert task_executor_service.execute_tasks.await_count == 1
+
+
+def test_resolve_trace_context_prefers_request_state_values() -> None:
+    scope = {
+        "type": "http",
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/trace",
+        "raw_path": b"/trace",
+        "query_string": b"",
+        "headers": [(b"x-trace-id", b"header-trace"), (b"x-correlation-id", b"header-corr")],
+        "client": ("127.0.0.1", 12345),
+        "server": ("testserver", 80),
+    }
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    request = Request(scope, receive)
+    request.state.trace_id = "state-trace"
+    request.state.correlation_id = "state-corr"
+
+    trace_id, correlation_id = resolve_trace_context(request)
+
+    assert trace_id == "state-trace"
+    assert correlation_id == "state-corr"

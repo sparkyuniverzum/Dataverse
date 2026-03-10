@@ -5,6 +5,8 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from app.services.trace_context import current_trace_context
+
 REQUIRED_STRUCTURED_FIELDS = ("event_name", "trace_id", "correlation_id", "module")
 
 
@@ -35,14 +37,15 @@ class DataverseJsonFormatter(logging.Formatter):
     }
 
     def format(self, record: logging.LogRecord) -> str:
+        context_trace_id, context_correlation_id = current_trace_context()
         payload: dict[str, Any] = {
             "timestamp": datetime.now(UTC).isoformat(),
             "level": str(record.levelname or "INFO"),
             "message": record.getMessage(),
             "logger": str(record.name or "root"),
             "event_name": str(getattr(record, "event_name", "") or "log.event"),
-            "trace_id": str(getattr(record, "trace_id", "") or "n/a"),
-            "correlation_id": str(getattr(record, "correlation_id", "") or "n/a"),
+            "trace_id": str(getattr(record, "trace_id", "") or context_trace_id or "n/a"),
+            "correlation_id": str(getattr(record, "correlation_id", "") or context_correlation_id or "n/a"),
             "module": str(getattr(record, "module_name", "") or getattr(record, "module", "") or record.name),
         }
 

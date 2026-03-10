@@ -13,6 +13,7 @@ from app.app_factory import ServiceContainer, get_or_create_services
 from app.models import User
 from app.services.parser_service import AtomicTask
 from app.services.task_executor_service import TaskExecutionResult
+from app.services.trace_context import ensure_trace_context, extract_trace_id_from_traceparent
 
 services: ServiceContainer = get_or_create_services()
 logger = logging.getLogger(__name__)
@@ -27,10 +28,17 @@ def get_service_container(request: Request) -> ServiceContainer:
 
 
 def resolve_trace_context(request: Request) -> tuple[str, str]:
-    trace_id = (
-        str(request.headers.get("x-trace-id") or request.headers.get("x-request-id") or "").strip() or uuid4().hex
+    state_trace_id = str(getattr(request.state, "trace_id", "") or "").strip()
+    header_trace_id = str(request.headers.get("x-trace-id") or request.headers.get("x-request-id") or "").strip()
+    parent_trace_id = extract_trace_id_from_traceparent(request.headers.get("traceparent"))
+    state_correlation_id = str(getattr(request.state, "correlation_id", "") or "").strip()
+    header_correlation_id = str(request.headers.get("x-correlation-id") or "").strip()
+    trace_id, correlation_id = ensure_trace_context(
+        trace_id=state_trace_id or header_trace_id or parent_trace_id or uuid4().hex,
+        correlation_id=state_correlation_id or header_correlation_id,
     )
-    correlation_id = str(request.headers.get("x-correlation-id") or "").strip() or trace_id
+    request.state.trace_id = trace_id
+    request.state.correlation_id = correlation_id
     return trace_id, correlation_id
 
 
