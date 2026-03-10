@@ -338,6 +338,24 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closed on 2026-03-10
 
+### 2026-03-10 - UniverseWorkspace rehab closure via seam contracts
+
+- Status: `GREEN`
+- Removed:
+  - dependence on direct `UniverseWorkspace` jsdom mounting as the primary rehab path
+- Replaced by:
+  - `frontend/src/components/universe/workspaceStateContract.test.js`
+  - `frontend/src/components/universe/selectionContextContract.test.js`
+  - `frontend/src/components/universe/selectionInspectorContract.test.js`
+  - `frontend/src/components/universe/draftRailContract.test.js`
+  - `frontend/src/components/universe/WorkspaceSidebar.connectivity.test.jsx`
+- Reason:
+  - The rehab path is now closed through executable seams and focused child-surface coverage instead of attempting to revive direct monolithic workspace mounts. This matches the stated extraction strategy and gives behavior-level ownership without false coverage.
+- Evidence:
+  - `npm --prefix frontend run test -- src/components/universe/draftRailContract.test.js src/components/universe/selectionContextContract.test.js src/components/universe/selectionInspectorContract.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/workspaceStateContract.test.js` -> passed on 2026-03-10 (`5` files, `18` tests)
+- Exit condition:
+  - closed on 2026-03-10
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -348,6 +366,7 @@ No future block may close without recording replacement decisions.
 1. [x] 2026-03-10: the UX rework direction is consolidated into one official blueprint document.
 2. [x] 2026-03-10: implementation prime directive formally puts user experience above internal elegance when system laws remain preserved.
 3. [x] 2026-03-10: `Shared Workspace State Contract` was implemented as the first concrete slice.
-4. [ ] Next: close the `UniverseWorkspace` test rehab replacement from `ORANGE` to `GREEN` with focused runs.
+4. [x] 2026-03-10: the `UniverseWorkspace` rehab replacement was closed via focused seam contracts and child-surface gates instead of direct jsdom mounts.
 5. [x] 2026-03-10: Slice 2 selection ownership and inspector/sidebar state were extracted into focused seams and closed as `GREEN`.
 6. [x] 2026-03-10: Slice 3 unified draft rail was extracted into a focused seam and closed as `GREEN`.
+7. [ ] Next: Slice 4 `Parser Composer Elevation` should extract command composer presentation and preview/resolve surface ownership from `UniverseWorkspace`.
