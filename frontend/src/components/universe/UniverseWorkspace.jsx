@@ -31,6 +31,7 @@ import { resolveEntityLaws, resolveLinkLaws, resolveStarCoreProfile } from "./la
 import { resolveParserComposerModel } from "./parserComposerContract";
 import QuickGridOverlay from "./QuickGridOverlay";
 import { GovernanceModeSurface } from "./GovernanceModeSurface";
+import { RecoveryModeDrawer } from "./RecoveryModeDrawer";
 import UniverseCanvas from "./UniverseCanvas";
 import { useUniverseRuntimeSync } from "./useUniverseRuntimeSync";
 import WorkspaceSidebar from "./WorkspaceSidebar";
@@ -108,6 +109,7 @@ import { resolveGridCanvasTruthModel } from "./gridCanvasTruthContract";
 import { resolveBranchSelectionTransition, resolveBranchVisibilityModel } from "./branchVisibilityContract";
 import { resolvePromoteReviewModel } from "./promoteReviewContract";
 import { resolveGovernanceModeModel } from "./governanceModeContract";
+import { resolveRecoveryModeModel } from "./recoveryModeContract";
 import {
   resolveCompareTimeTravelModel,
   resolveHistoricalInspectActivation,
@@ -231,6 +233,7 @@ export default function UniverseWorkspace({
   const [repairSuggestion, setRepairSuggestion] = useState(null);
   const [repairApplyBusy, setRepairApplyBusy] = useState(false);
   const [repairAuditTrail, setRepairAuditTrail] = useState([]);
+  const [recoveryModeOpen, setRecoveryModeOpen] = useState(false);
   const [runtimeWorkflowEvents, setRuntimeWorkflowEvents] = useState([]);
   const [stageZeroFlow, setStageZeroFlow] = useState(STAGE_ZERO_FLOW.INTRO);
   const [stageZeroDragging, setStageZeroDragging] = useState(false);
@@ -2130,6 +2133,18 @@ export default function UniverseWorkspace({
       branchVisibility.selectedBranchLabel,
     ]
   );
+  const recoveryMode = useMemo(
+    () =>
+      resolveRecoveryModeModel({
+        runtimeError: error,
+        runtimeConnectivity: scopedRuntimeConnectivity,
+        repairSuggestion,
+        repairApplyBusy,
+        repairAuditCount: repairAuditTrail.length,
+        open: recoveryModeOpen,
+      }),
+    [error, repairApplyBusy, repairAuditTrail.length, repairSuggestion, recoveryModeOpen, scopedRuntimeConnectivity]
+  );
   useEffect(() => {
     resetMoonCrudState();
     resetBondDraftState();
@@ -2470,14 +2485,18 @@ export default function UniverseWorkspace({
         transition: "filter 220ms ease, transform 220ms ease, opacity 220ms ease",
         filter: governanceMode.open
           ? "saturate(1.12) contrast(1.05) brightness(0.9)"
-          : promoteReview.open
-            ? "saturate(1.08) contrast(1.04) brightness(0.96)"
-            : "none",
+          : recoveryMode.open
+            ? "saturate(1.04) contrast(1.03) brightness(0.94)"
+            : promoteReview.open
+              ? "saturate(1.08) contrast(1.04) brightness(0.96)"
+              : "none",
         transform: governanceMode.open
           ? "translateX(-14px) scale(0.988)"
-          : promoteReview.open
-            ? "translateX(-10px) scale(0.992)"
-            : "none",
+          : recoveryMode.open
+            ? "translateX(-8px) scale(0.994)"
+            : promoteReview.open
+              ? "translateX(-10px) scale(0.992)"
+              : "none",
       }}
     >
       <div style={{ position: "fixed", left: 12, top: 12, zIndex: 62, display: "grid", gap: 6 }}>
@@ -3026,12 +3045,11 @@ export default function UniverseWorkspace({
           builderWhy={planetMoonGuidance.why}
           builderAction={planetMoonGuidance.action}
           builderSeverity={planetMoonGuidance.severity}
-          repairSuggestion={repairSuggestion}
-          repairApplyBusy={repairApplyBusy}
-          onApplyRepair={() => {
-            void handleApplyGuidedRepair();
+          recoveryModeActive={recoveryMode.open}
+          recoverySummary={recoveryMode.hasAttention ? recoveryMode.summary : ""}
+          onOpenRecoveryMode={() => {
+            setRecoveryModeOpen(true);
           }}
-          repairAuditCount={repairAuditTrail.length}
           runtimeConnectivity={scopedRuntimeConnectivity}
         />
         <WorkspaceContextMenu
@@ -3048,6 +3066,16 @@ export default function UniverseWorkspace({
           }}
           onConfirm={() => {
             void handlePromoteSelectedBranch();
+          }}
+        />
+
+        <RecoveryModeDrawer
+          recovery={recoveryMode}
+          onClose={() => {
+            setRecoveryModeOpen(false);
+          }}
+          onApplyRepair={() => {
+            void handleApplyGuidedRepair();
           }}
         />
 

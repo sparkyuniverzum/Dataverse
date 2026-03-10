@@ -542,6 +542,29 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closes when focused pre-commit checks for the new governance seam and touched workspace files are green
 
+### 2026-03-10 - Recovery Mode seam extraction
+
+- Status: `GREEN`
+- Removed:
+  - inline guided-repair action block as the primary recovery surface inside `frontend/src/components/universe/WorkspaceSidebar.jsx`
+- Replaced by:
+  - `frontend/src/components/universe/recoveryModeContract.js`
+  - `frontend/src/components/universe/recoveryModeContract.test.js`
+  - `frontend/src/components/universe/RecoveryModeDrawer.jsx`
+- Created:
+  - `frontend/src/components/universe/recoveryModeContract.js`
+  - `frontend/src/components/universe/recoveryModeContract.test.js`
+  - `frontend/src/components/universe/RecoveryModeDrawer.jsx`
+- Changed:
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - `frontend/src/components/universe/WorkspaceSidebar.jsx`
+- Reason:
+  - Blocked runtime states, connectivity degradation, and guided repair actions now resolve through one dedicated recovery surface instead of being mixed into the generic sidebar. Sidebar keeps only a compact recovery launcher/summary while Recovery Mode owns the actionable repair state.
+- Evidence:
+  - pending focused verification in current block
+- Exit condition:
+  - closes when focused pre-commit checks for the new recovery seam and touched workspace/sidebar files are green
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -562,4 +585,5 @@ No future block may close without recording replacement decisions.
 11. [x] 2026-03-10: Slice 8 `Compare and Time Travel Layer` extracted compare scope and historical inspect seams from `UniverseWorkspace` and closed as `GREEN`.
 12. [x] 2026-03-10: Slice 9 `Promote Review Surface` extracted branch promote review into a dedicated right-side HUD drawer and closed as `GREEN`.
 13. [x] 2026-03-10: Slice 10 `Governance Mode Split` extracted governance mode state and surface adapter from `UniverseWorkspace` and closed as `GREEN`.
-14. [ ] Next: Slice 11 `Recovery Mode` should separate blocked/failure repair work from generic workspace and governance surfaces.
+14. [x] 2026-03-10: Slice 11 `Recovery Mode` extracted blocked/repair work into a dedicated recovery surface and closed as `GREEN`.
+15. [ ] Next: Slice 12 `Visual Token System` should consolidate the new surfaces into one intentional visual language.

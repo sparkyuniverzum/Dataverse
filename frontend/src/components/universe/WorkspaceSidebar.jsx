@@ -113,10 +113,9 @@ export default function WorkspaceSidebar({
   builderWhy = "",
   builderAction = "",
   builderSeverity = "info",
-  repairSuggestion = null,
-  repairApplyBusy = false,
-  onApplyRepair = null,
-  repairAuditCount = 0,
+  recoveryModeActive = false,
+  recoverySummary = "",
+  onOpenRecoveryMode = null,
   runtimeConnectivity = null,
 }) {
   const severityColor = resolvePreviewSeverityColor(builderSeverity);
@@ -597,7 +596,7 @@ export default function WorkspaceSidebar({
         </div>
       ) : null}
 
-      {repairSuggestion ? (
+      {recoverySummary ? (
         <div
           style={{
             borderTop: "1px solid rgba(118, 215, 247, 0.24)",
@@ -606,26 +605,18 @@ export default function WorkspaceSidebar({
             gap: 6,
           }}
         >
-          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.8 }}>
-            GUIDED REPAIR
-          </div>
-          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
-            {repairSuggestion.mineral_key} -&gt; <strong>{repairSuggestion.suggested_raw_value}</strong>
-          </div>
-          <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.76 }}>
-            strategy={repairSuggestion.strategy_key} | audit log={repairAuditCount}
-          </div>
+          <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.8 }}>RECOVERY</div>
+          <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>{recoverySummary}</div>
           <button
             type="button"
             style={actionButtonStyle}
-            disabled={!repairSuggestion.civilization_id || repairApplyBusy}
             onClick={() => {
-              if (typeof onApplyRepair === "function") {
-                onApplyRepair();
+              if (typeof onOpenRecoveryMode === "function") {
+                onOpenRecoveryMode();
               }
             }}
           >
-            {repairApplyBusy ? "Aplikuji opravu..." : "Aplikovat navrh opravy"}
+            {recoveryModeActive ? "Recovery otevren" : "Open recovery mode"}
           </button>
         </div>
       ) : null}
