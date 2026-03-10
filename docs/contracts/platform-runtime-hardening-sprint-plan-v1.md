@@ -226,6 +226,9 @@ Progress note (2026-03-10):
 8. PRH-3C started: rate-limit middleware baseline + async circuit-breaker helper with contract tests.
 9. PRH-3D started: unified resilience error envelope for 429/503 + circuit-open guard on outbox run endpoint.
 10. PRH-4A started: DB read/write router skeleton with single-DB backward-compatible default.
+11. PRH-4B started: dashboard + star-core router wiring switched to read-session for GET endpoints.
+12. PRH-4C started: additional read-heavy routers switched to read-session for GET endpoints with route wiring coverage tests.
+13. PRH-4D started: lifecycle shutdown orchestration (intake gate + in-flight drain + outbox flush + DB dispose) with focused tests.
 
 ## 4. Risk register
 

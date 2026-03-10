@@ -50,3 +50,9 @@ async def get_write_session() -> AsyncGenerator[AsyncSession, None]:
 async def get_read_session() -> AsyncGenerator[AsyncSession, None]:
     async with db_router.read_session() as session:
         yield session
+
+
+async def dispose_db_engines() -> None:
+    await engine.dispose()
+    if read_engine is not engine:
+        await read_engine.dispose()

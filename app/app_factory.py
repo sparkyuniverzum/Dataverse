@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.db import AsyncSessionLocal, dispose_db_engines
 from app.modules.auth.service import AuthService
 from app.services.bond_dashboard_service import BondDashboardService
 from app.services.constellation_dashboard_service import ConstellationDashboardService
@@ -25,6 +28,7 @@ from app.services.parser2 import Parser2ExecutorBridge, Parser2SemanticPlanner
 from app.services.parser_service import ParserService
 from app.services.planet_dashboard_service import PlanetDashboardService
 from app.services.preset_bundle_service import PresetBundleService
+from app.services.runtime_shutdown_service import RuntimeShutdownService
 from app.services.schema_preset_service import SchemaPresetService
 from app.services.star_core_service import StarCoreService
 from app.services.task_executor_service import TaskExecutorService
@@ -69,7 +73,27 @@ LOCAL_FRONTEND_ORIGINS = [
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="DataVerse API", version="0.3.0-auth-multitenant")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        app.state.accepting_requests = True
+        app.state.shutdown_in_progress = False
+        app.state.shutdown_summary = None
+        yield
+        app.state.accepting_requests = False
+        app.state.shutdown_in_progress = True
+        services: ServiceContainer = app.state.services
+        shutdown_service = RuntimeShutdownService(
+            task_executor_service=services.task_executor_service,
+            outbox_relay_runner_service=services.outbox_relay_runner_service,
+            session_factory=AsyncSessionLocal,
+            dispose_db_engines=dispose_db_engines,
+            timeout_seconds=float(os.getenv("DATAVERSE_SHUTDOWN_TIMEOUT_SECONDS", "20")),
+            outbox_requeue_limit=int(os.getenv("DATAVERSE_SHUTDOWN_REQUEUE_LIMIT", "512")),
+            outbox_relay_batch_size=int(os.getenv("DATAVERSE_SHUTDOWN_RELAY_BATCH_SIZE", "256")),
+        )
+        app.state.shutdown_summary = await shutdown_service.shutdown()
+
+    app = FastAPI(title="DataVerse API", version="0.3.0-auth-multitenant", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=LOCAL_FRONTEND_ORIGINS,

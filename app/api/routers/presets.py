@@ -14,7 +14,7 @@ from app.api.runtime import (
     run_scoped_idempotent,
 )
 from app.app_factory import ServiceContainer
-from app.db import get_session
+from app.db import get_read_session, get_session
 from app.models import TableContract, User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -40,7 +40,7 @@ router = APIRouter(tags=["presets"])
 @router.get("/presets/catalog", response_model=PresetCatalogResponse, status_code=status.HTTP_200_OK)
 async def presets_catalog(
     galaxy_id: UUID | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> PresetCatalogResponse:

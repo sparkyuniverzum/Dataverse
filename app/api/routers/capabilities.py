@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.mappers.public import moon_capability_to_public
 from app.api.runtime import get_service_container, resolve_scope_for_user, run_scoped_idempotent
 from app.app_factory import ServiceContainer
-from app.db import get_session
+from app.db import get_read_session, get_session
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -33,7 +33,7 @@ async def list_planet_capabilities(
     branch_id: UUID | None = Query(default=None),
     include_inactive: bool = Query(default=False),
     include_history: bool = Query(default=False),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> MoonCapabilityListResponse:

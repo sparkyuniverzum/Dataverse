@@ -17,7 +17,7 @@ from app.api.mappers.public import (
 )
 from app.api.runtime import commit_if_active, get_service_container, resolve_trace_context, transactional_context
 from app.app_factory import ServiceContainer
-from app.db import get_session
+from app.db import get_read_session, get_session
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -66,7 +66,7 @@ async def _resolve_scope(
 )
 async def star_core_policy(
     galaxy_id: UUID,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCorePolicyPublic:
@@ -121,7 +121,7 @@ async def star_core_policy_lock(
 )
 async def star_core_physics_profile(
     galaxy_id: UUID,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCorePhysicsProfilePublic:
@@ -181,7 +181,7 @@ async def star_core_planet_physics(
     branch_id: UUID | None = Query(default=None),
     after_event_seq: int | None = Query(default=None, ge=0),
     limit: int = Query(default=200, ge=1, le=1000),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCorePlanetPhysicsResponse:
@@ -210,7 +210,7 @@ async def star_core_runtime(
     galaxy_id: UUID,
     branch_id: UUID | None = Query(default=None),
     window_events: int = Query(default=120, ge=16, le=256),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCoreRuntimePublic:
@@ -239,7 +239,7 @@ async def star_core_pulse(
     branch_id: UUID | None = Query(default=None),
     after_event_seq: int | None = Query(default=None, ge=0),
     limit: int = Query(default=64, ge=1, le=256),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCorePulseResponse:
@@ -270,7 +270,7 @@ async def star_core_domain_metrics(
     galaxy_id: UUID,
     branch_id: UUID | None = Query(default=None),
     window_events: int = Query(default=240, ge=32, le=512),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCoreDomainMetricsResponse:

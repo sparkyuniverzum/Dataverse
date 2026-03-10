@@ -12,7 +12,7 @@ from app.api.mappers.execution import universe_asteroid_to_snapshot
 from app.api.mappers.public import table_contract_to_public
 from app.api.runtime import get_service_container, resolve_scope_for_user, run_scoped_idempotent
 from app.app_factory import ServiceContainer
-from app.db import get_session
+from app.db import get_read_session, get_session
 from app.models import Event, TableContract, User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -351,7 +351,7 @@ async def _append_planet_event(
 async def list_planets(
     galaxy_id: UUID | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> PlanetListResponse:
@@ -390,7 +390,7 @@ async def get_planet(
     table_id: UUID,
     galaxy_id: UUID | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> PlanetPublic:
@@ -430,7 +430,7 @@ async def get_planet_moon_impact(
     include_civilization_ids: bool = Query(default=True),
     include_violation_samples: bool = Query(default=True),
     limit: int = Query(default=200, ge=1, le=1000),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> MoonImpactResponse:

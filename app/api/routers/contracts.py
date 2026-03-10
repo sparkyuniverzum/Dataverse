@@ -13,7 +13,7 @@ from app.api.runtime import (
     transactional_context,
 )
 from app.app_factory import ServiceContainer
-from app.db import get_session
+from app.db import get_read_session, get_session
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import TableContractPublic, TableContractUpsertRequest
@@ -25,7 +25,7 @@ router = APIRouter(tags=["contracts"])
 async def get_table_contract(
     table_id: UUID,
     galaxy_id: UUID | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> TableContractPublic:

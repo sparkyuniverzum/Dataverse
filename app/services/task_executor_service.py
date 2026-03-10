@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -106,6 +107,33 @@ class TaskExecutorService:
             self._handle_extinguish_family,
             self._handle_formula_guardian_select_family,
         )
+        self._active_executions = 0
+        self._active_executions_lock = asyncio.Lock()
+        self._idle_event = asyncio.Event()
+        self._idle_event.set()
+
+    @asynccontextmanager
+    async def _track_execution(self):
+        async with self._active_executions_lock:
+            self._active_executions += 1
+            self._idle_event.clear()
+        try:
+            yield
+        finally:
+            async with self._active_executions_lock:
+                self._active_executions = max(0, int(self._active_executions) - 1)
+                if self._active_executions == 0:
+                    self._idle_event.set()
+
+    async def wait_for_idle(self, *, timeout_seconds: float = 10.0) -> bool:
+        normalized_timeout = max(0.0, float(timeout_seconds))
+        if self._idle_event.is_set():
+            return True
+        try:
+            await asyncio.wait_for(self._idle_event.wait(), timeout=normalized_timeout)
+            return True
+        except TimeoutError:
+            return False
 
     @staticmethod
     def _to_jsonable_dict(payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -779,32 +807,33 @@ class TaskExecutorService:
         branch_id: UUID | None = None,
         manage_transaction: bool = True,
     ) -> TaskExecutionResult:
-        self._ensure_transaction_ready(session=session, manage_transaction=manage_transaction)
-        active_asteroids, active_bonds, preload_scope = await self._load_initial_context_state(
-            session=session,
-            tasks=tasks,
-            user_id=user_id,
-            galaxy_id=galaxy_id,
-            branch_id=branch_id,
-        )
-
-        result = TaskExecutionResult()
-        transaction_ctx = self._resolve_transaction_context(
-            session=session,
-            manage_transaction=manage_transaction,
-        )
-        async with transaction_ctx:
-            context = self._build_execution_context(
+        async with self._track_execution():
+            self._ensure_transaction_ready(session=session, manage_transaction=manage_transaction)
+            active_asteroids, active_bonds, preload_scope = await self._load_initial_context_state(
                 session=session,
+                tasks=tasks,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
                 branch_id=branch_id,
-                result=result,
-                active_asteroids=active_asteroids,
-                active_bonds=active_bonds,
-                preload_scope=preload_scope,
             )
-            await self._run_task_sequence(tasks=tasks, ctx=context)
-            await self._sync_read_model_if_needed(branch_id=branch_id, ctx=context)
 
-        return result
+            result = TaskExecutionResult()
+            transaction_ctx = self._resolve_transaction_context(
+                session=session,
+                manage_transaction=manage_transaction,
+            )
+            async with transaction_ctx:
+                context = self._build_execution_context(
+                    session=session,
+                    user_id=user_id,
+                    galaxy_id=galaxy_id,
+                    branch_id=branch_id,
+                    result=result,
+                    active_asteroids=active_asteroids,
+                    active_bonds=active_bonds,
+                    preload_scope=preload_scope,
+                )
+                await self._run_task_sequence(tasks=tasks, ctx=context)
+                await self._sync_read_model_if_needed(branch_id=branch_id, ctx=context)
+
+            return result

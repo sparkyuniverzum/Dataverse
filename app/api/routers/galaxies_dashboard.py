@@ -17,7 +17,7 @@ from app.api.mappers.public import (
 )
 from app.api.runtime import get_service_container
 from app.app_factory import ServiceContainer
-from app.db import get_session
+from app.db import get_read_session
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -58,7 +58,7 @@ async def _resolve_scope(
 @router.get("/galaxies/{galaxy_id}/summary", response_model=GalaxySummaryPublic, status_code=status.HTTP_200_OK)
 async def galaxy_summary(
     galaxy_id: UUID,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> GalaxySummaryPublic:
@@ -79,7 +79,7 @@ async def galaxy_summary(
 @router.get("/galaxies/{galaxy_id}/health", response_model=GalaxyHealthPublic, status_code=status.HTTP_200_OK)
 async def galaxy_health(
     galaxy_id: UUID,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> GalaxyHealthPublic:
@@ -101,7 +101,7 @@ async def galaxy_health(
 async def galaxy_activity(
     galaxy_id: UUID,
     limit: int = Query(default=40, ge=1, le=200),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> GalaxyActivityResponse:
@@ -127,7 +127,7 @@ async def galaxy_constellations(
     galaxy_id: UUID,
     as_of: datetime | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> ConstellationSummaryResponse:
@@ -153,7 +153,7 @@ async def galaxy_planets(
     galaxy_id: UUID,
     as_of: datetime | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> PlanetSummaryResponse:
@@ -179,7 +179,7 @@ async def galaxy_moons(
     galaxy_id: UUID,
     as_of: datetime | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> MoonSummaryResponse:
@@ -205,7 +205,7 @@ async def galaxy_bonds(
     galaxy_id: UUID,
     as_of: datetime | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> BondSummaryResponse:
