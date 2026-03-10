@@ -34,6 +34,10 @@ class OnboardingBootstrapConsumer:
         now = datetime.now(UTC)
         notes = progress.notes if isinstance(progress.notes, dict) else {}
         bootstrap = notes.get("bootstrap") if isinstance(notes.get("bootstrap"), dict) else {}
+        if str(bootstrap.get("status") or "").strip().lower() == "provisioned" and str(
+            bootstrap.get("source_event_id") or ""
+        ).strip() == str(event.domain_event_id):
+            return True
         next_bootstrap = dict(bootstrap)
         next_bootstrap["status"] = "provisioned"
         next_bootstrap["source_event_id"] = str(event.domain_event_id)

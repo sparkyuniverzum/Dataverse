@@ -9,6 +9,7 @@ from uuid import uuid4
 from app.services.outbox_operator_service import OutboxOperatorService
 from app.services.outbox_relay_runner_service import OutboxRelayRunnerService
 from app.services.outbox_relay_service import OutboxRelayResult, OutboxRelayService
+from app.services.trace_context import bind_trace_context, reset_trace_context
 
 
 @dataclass
@@ -106,3 +107,29 @@ def test_runner_and_operator_emit_structured_logs(caplog) -> None:
     assert getattr(completed, "correlation_id", "") == "corr-operator"
     assert getattr(completed, "module_name", "") == "outbox.operator"
     assert getattr(runner_completed, "module_name", "") == "outbox.runner"
+
+
+def test_runner_and_operator_inherit_trace_from_active_context_when_ids_not_passed(caplog) -> None:
+    caplog.set_level(logging.INFO)
+    runner = OutboxRelayRunnerService(relay_service=_RelayStub())  # type: ignore[arg-type]
+    operator = OutboxOperatorService(runner=runner)
+    tokens = bind_trace_context(trace_id="ctx-trace-operator", correlation_id="ctx-corr-operator")
+    try:
+        asyncio.run(operator.trigger_run_once(session=object()))
+    finally:
+        reset_trace_context(tokens)
+
+    completed = next(
+        (r for r in caplog.records if getattr(r, "event_name", "") == "outbox.operator.run_once.completed"),
+        None,
+    )
+    runner_completed = next(
+        (r for r in caplog.records if getattr(r, "event_name", "") == "outbox.run_once.completed"), None
+    )
+
+    assert completed is not None
+    assert runner_completed is not None
+    assert getattr(completed, "trace_id", "") == "ctx-trace-operator"
+    assert getattr(completed, "correlation_id", "") == "ctx-corr-operator"
+    assert getattr(runner_completed, "trace_id", "") == "ctx-trace-operator"
+    assert getattr(runner_completed, "correlation_id", "") == "ctx-corr-operator"

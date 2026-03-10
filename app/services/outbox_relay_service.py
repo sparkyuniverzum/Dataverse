@@ -11,6 +11,7 @@ from app.models import OutboxEvent
 from app.services.event_envelope import OutboxStatus
 from app.services.event_store_service import EventStoreService
 from app.services.logging_helpers import structured_log_extra
+from app.services.telemetry_spans import start_span
 
 logger = logging.getLogger(__name__)
 
@@ -56,34 +57,38 @@ class OutboxRelayService:
         trace_id: str | None = None,
         correlation_id: str | None = None,
     ) -> OutboxRelayResult:
-        now = as_of or datetime.now(UTC)
-        events = await self.event_store.list_outbox_events(
-            session=session,
-            status=OutboxStatus.PENDING.value,
-            as_of=now,
-            limit=batch_size,
-        )
-        published_count = 0
-        failed_count = 0
-        dead_letter_count = 0
-        for event in events:
-            try:
-                await self.publisher.publish(session, event)
-                event.status = OutboxStatus.PUBLISHED.value
-                event.published_at = now
-                event.last_error = None
-                published_count += 1
-            except Exception as exc:
-                next_attempt = int(event.attempt_count or 0) + 1
-                event.attempt_count = next_attempt
-                event.last_error = str(exc)
-                if next_attempt >= self.max_attempts:
-                    event.status = OutboxStatus.DEAD_LETTER.value
-                    dead_letter_count += 1
-                else:
-                    event.status = OutboxStatus.FAILED.value
-                    event.available_at = now + timedelta(seconds=self.retry_delay_seconds)
-                    failed_count += 1
+        with start_span(
+            "outbox.relay.relay_pending",
+            attributes={"outbox.batch_size": int(batch_size)},
+        ):
+            now = as_of or datetime.now(UTC)
+            events = await self.event_store.list_outbox_events(
+                session=session,
+                status=OutboxStatus.PENDING.value,
+                as_of=now,
+                limit=batch_size,
+            )
+            published_count = 0
+            failed_count = 0
+            dead_letter_count = 0
+            for event in events:
+                try:
+                    await self.publisher.publish(session, event)
+                    event.status = OutboxStatus.PUBLISHED.value
+                    event.published_at = now
+                    event.last_error = None
+                    published_count += 1
+                except Exception as exc:
+                    next_attempt = int(event.attempt_count or 0) + 1
+                    event.attempt_count = next_attempt
+                    event.last_error = str(exc)
+                    if next_attempt >= self.max_attempts:
+                        event.status = OutboxStatus.DEAD_LETTER.value
+                        dead_letter_count += 1
+                    else:
+                        event.status = OutboxStatus.FAILED.value
+                        event.available_at = now + timedelta(seconds=self.retry_delay_seconds)
+                        failed_count += 1
         logger.info(
             "outbox.relay_pending.completed",
             extra=structured_log_extra(
@@ -115,17 +120,21 @@ class OutboxRelayService:
         trace_id: str | None = None,
         correlation_id: str | None = None,
     ) -> int:
-        now = as_of or datetime.now(UTC)
-        failed_events = await self.event_store.list_outbox_events(
-            session=session,
-            status=OutboxStatus.FAILED.value,
-            as_of=now,
-            limit=limit,
-        )
-        moved = 0
-        for event in failed_events:
-            event.status = OutboxStatus.PENDING.value
-            moved += 1
+        with start_span(
+            "outbox.relay.requeue_failed",
+            attributes={"outbox.requeue_limit": int(limit)},
+        ):
+            now = as_of or datetime.now(UTC)
+            failed_events = await self.event_store.list_outbox_events(
+                session=session,
+                status=OutboxStatus.FAILED.value,
+                as_of=now,
+                limit=limit,
+            )
+            moved = 0
+            for event in failed_events:
+                event.status = OutboxStatus.PENDING.value
+                moved += 1
         logger.info(
             "outbox.requeue_failed.completed",
             extra=structured_log_extra(

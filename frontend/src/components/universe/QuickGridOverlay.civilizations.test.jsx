@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import React from "react";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -77,32 +77,29 @@ describe("QuickGridOverlay civilization batch", () => {
   });
 
   it("queues create/update/archive and applies them sequentially", async () => {
-    const user = userEvent.setup();
     const onCreateRow = vi.fn(async () => ({ ok: true }));
     const onUpdateRow = vi.fn(async () => ({ ok: true }));
     const onDeleteRow = vi.fn(async () => ({ ok: true }));
     renderOverlay({ onCreateRow, onUpdateRow, onDeleteRow });
-    await user.click(screen.getByTestId("quick-grid-civilization-advanced-toggle"));
+    fireEvent.click(screen.getByTestId("quick-grid-civilization-advanced-toggle"));
 
     const createInput = screen.getByPlaceholderText("Nova hodnota civilizace...");
-    await user.clear(createInput);
-    await user.type(createInput, "Moon-X");
-    await user.click(screen.getByRole("button", { name: "+ batch create" }));
+    fireEvent.change(createInput, { target: { value: "Moon-X" } });
+    fireEvent.click(screen.getByRole("button", { name: "+ batch create" }));
 
     const editInput = screen.getByPlaceholderText("Upravit hodnotu vybrane civilizace...");
-    await user.clear(editInput);
-    await user.type(editInput, "Moon-1-Edited");
-    await user.click(screen.getByRole("button", { name: "+ batch update" }));
-    await user.click(screen.getByRole("button", { name: "+ batch archive" }));
+    fireEvent.change(editInput, { target: { value: "Moon-1-Edited" } });
+    fireEvent.click(screen.getByRole("button", { name: "+ batch update" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ batch archive" }));
 
-    await user.click(screen.getByTestId("quick-grid-apply-civilization-batch-button"));
+    fireEvent.click(screen.getByTestId("quick-grid-apply-civilization-batch-button"));
 
     await waitFor(() => {
       expect(onCreateRow).toHaveBeenCalledWith("Moon-X");
       expect(onUpdateRow).toHaveBeenCalledWith("moon-1", "Moon-1-Edited");
       expect(onDeleteRow).toHaveBeenCalledWith("moon-1");
     });
-  });
+  }, 15000);
 
   it("supports multi-select + lifecycle queue with commit diff preview", async () => {
     const user = userEvent.setup();

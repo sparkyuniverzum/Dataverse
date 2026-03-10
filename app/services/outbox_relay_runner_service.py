@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.logging_helpers import structured_log_extra
 from app.services.outbox_relay_service import OutboxRelayResult, OutboxRelayService
+from app.services.telemetry_spans import start_span
 
 logger = logging.getLogger(__name__)
 
@@ -39,21 +40,28 @@ class OutboxRelayRunnerService:
         trace_id: str | None = None,
         correlation_id: str | None = None,
     ) -> OutboxRunOnceSummary:
-        now = as_of or datetime.now(UTC)
-        requeued = await self.relay_service.requeue_failed(
-            session=session,
-            limit=requeue_limit,
-            as_of=now,
-            trace_id=trace_id,
-            correlation_id=correlation_id,
-        )
-        relay_result: OutboxRelayResult = await self.relay_service.relay_pending(
-            session=session,
-            batch_size=relay_batch_size,
-            as_of=now,
-            trace_id=trace_id,
-            correlation_id=correlation_id,
-        )
+        with start_span(
+            "outbox.runner.run_once",
+            attributes={
+                "outbox.requeue_limit": int(requeue_limit),
+                "outbox.relay_batch_size": int(relay_batch_size),
+            },
+        ):
+            now = as_of or datetime.now(UTC)
+            requeued = await self.relay_service.requeue_failed(
+                session=session,
+                limit=requeue_limit,
+                as_of=now,
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+            )
+            relay_result: OutboxRelayResult = await self.relay_service.relay_pending(
+                session=session,
+                batch_size=relay_batch_size,
+                as_of=now,
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+            )
         summary = OutboxRunOnceSummary(
             requeued=int(requeued or 0),
             scanned=relay_result.scanned,

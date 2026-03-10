@@ -110,3 +110,51 @@ Immediate triage:
    - verify selected row and composer mode; retry only after explicit state correction.
 3. If e2e step timeout repeats:
    - inspect helper logic in `frontend/e2e/staging/workspace-flow.helpers.mjs` before increasing timeouts.
+
+## 11. Runtime Hardening Ops Note (PRH-3/PRH-4 closeout, 2026-03-10)
+
+### 11.1 Graceful shutdown
+Runtime při shutdownu dělá:
+1. stop intake (nové requesty dostanou `503 SERVICE_SHUTTING_DOWN`)
+2. drain in-flight task executoru
+3. one-shot outbox flush
+4. dispose DB poolů
+
+Operátor kontroluje:
+1. že během restartu nejsou dlouhé visící requesty
+2. že po startu je API dostupné a outbox status je `ready/idle` bez chyb
+
+### 11.2 Outbox operator flow
+Run-once endpoint:
+1. `POST /star-core/outbox/run-once`
+2. sleduj `state`, `run_count`, `published/failed/dead_lettered`
+
+Status endpoint:
+1. `GET /star-core/outbox/status`
+2. při incidentu zkontroluj poslední summary a rozhodni:
+   - repeat run-once
+   - investigate dead-letter queue
+
+### 11.3 Tracing / correlation
+Runtime propaguje:
+1. `X-Trace-Id`
+2. `X-Correlation-Id`
+
+Zdroj trace ID:
+1. `x-trace-id` / `x-request-id`
+2. fallback `traceparent`
+3. fallback interní generated id
+
+Pro log korelaci:
+1. hledej `trace_id` + `correlation_id` v JSON logu
+2. outbox/operator/runner logy musí nést stejné hodnoty v rámci jednoho runu
+
+### 11.4 DB read/write routing
+Pravidlo:
+1. read-heavy GET endpointy používají read session
+2. mutace (POST/PATCH/DELETE) používají write session
+
+Operátor při incidentu replik:
+1. dočasně přepni na single-DB mode (`DATABASE_READ_URL` unset)
+2. ověř základní gate:
+   - `pytest -q tests/test_db_router.py tests/test_db_read_write_routing_wiring.py`

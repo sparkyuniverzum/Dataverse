@@ -128,3 +128,4 @@ def test_consumer_duplicate_delivery_is_idempotent_for_status_shape() -> None:
     assert isinstance(bootstrap, dict)
     assert bootstrap.get("status") == "provisioned"
     assert bootstrap.get("source_event_id") == str(event_id)
+    assert session.flush_calls == 1

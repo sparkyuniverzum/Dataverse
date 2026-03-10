@@ -207,13 +207,13 @@ Gate:
 
 1. [x] PRH-1 event envelope + outbox schema freeze approved.
 2. [x] PRH-1 relay + retry semantics implemented and passing.
-3. [ ] PRH-2 onboarding flow decoupled to event-driven path.
-4. [ ] PRH-3 OpenTelemetry trace propagation operational.
+3. [x] PRH-2 onboarding flow decoupled to event-driven path.
+4. [x] PRH-3 OpenTelemetry trace propagation operational.
 5. [x] PRH-3 structured JSON logging contract enforced.
 6. [x] PRH-3 resilience middleware enabled (rate limit + circuit breaker).
 7. [x] PRH-4 DB routing abstraction implemented (single-DB compatible).
 8. [x] PRH-4 graceful shutdown verified with in-flight task drain.
-9. [ ] Release runbook updated with new operational procedures.
+9. [x] Release runbook updated with new operational procedures.
 
 Progress note (2026-03-10):
 1. PRH-1A/1B/1C/1D implemented and test-covered.
@@ -231,6 +231,9 @@ Progress note (2026-03-10):
 13. PRH-4D completed: lifecycle shutdown orchestration (intake gate + in-flight drain + outbox flush + DB dispose) with focused tests.
 14. PRH-3E completed: request trace-context middleware + structured log fallback + optional OpenTelemetry bootstrap.
 15. PRH-3F completed: light integration metric `trace_coverage_api_requests >= 95%` validated via middleware+router endpoint test.
+16. PRH-2E completed: event-driven onboarding flow validated with delayed relay provisioning and duplicate-delivery idempotent behavior.
+17. PRH-3G completed: outbox run endpoint + relay path wrapped by telemetry spans with trace-context continuity tests.
+18. Release runbook updated with runtime hardening operational procedures (shutdown/outbox/tracing/db-routing).
 
 ## 4. Risk register
 

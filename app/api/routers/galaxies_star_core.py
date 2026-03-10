@@ -35,6 +35,7 @@ from app.schemas import (
     StarCoreRuntimePublic,
 )
 from app.services.circuit_breaker import CircuitBreakerOpenError
+from app.services.telemetry_spans import start_span
 
 router = APIRouter(tags=["galaxies"])
 
@@ -306,14 +307,21 @@ async def star_core_outbox_run_once(
     _ = current_user
     trace_id, correlation_id = resolve_trace_context(request)
     try:
-        async with transactional_context(session):
-            summary = await services.outbox_operator_service.trigger_run_once(
-                session=session,
-                requeue_limit=payload.requeue_limit,
-                relay_batch_size=payload.relay_batch_size,
-                trace_id=trace_id,
-                correlation_id=correlation_id,
-            )
+        with start_span(
+            "api.star_core.outbox.run_once",
+            attributes={
+                "outbox.requeue_limit": int(payload.requeue_limit),
+                "outbox.relay_batch_size": int(payload.relay_batch_size),
+            },
+        ):
+            async with transactional_context(session):
+                summary = await services.outbox_operator_service.trigger_run_once(
+                    session=session,
+                    requeue_limit=payload.requeue_limit,
+                    relay_batch_size=payload.relay_batch_size,
+                    trace_id=trace_id,
+                    correlation_id=correlation_id,
+                )
     except CircuitBreakerOpenError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
