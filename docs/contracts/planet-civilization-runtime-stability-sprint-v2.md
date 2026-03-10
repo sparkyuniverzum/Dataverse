@@ -104,7 +104,7 @@ Focused gates per block:
 1. `RSV2-1`
    - `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/hooks/useGalaxyGate.test.js`
 2. `RSV2-2`
-   - `npm --prefix frontend run test -- src/lib/useUniverseRuntimeSync.test.js src/components/universe/workflowEventBridge.test.js`
+   - `npm --prefix frontend run test -- src/components/universe/useUniverseRuntimeSync.test.js src/components/universe/runtimeProjectionPatch.test.js src/components/universe/runtimeSyncUtils.test.js src/components/universe/workflowEventBridge.test.js`
 3. `RSV2-3`
    - `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/components/universe/QuickGridOverlay.civilizations.test.jsx`
 4. `RSV2-4`
@@ -119,7 +119,7 @@ Bundled long gates (after multi-block bundle, not per block):
 ## 7. Remaining open items
 
 1. [x] `RSV2-1` auth/session patch set merged with focused tests green. Done 2026-03-10.
-2. [ ] `RSV2-2` stream delta + bounded dedupe merged with focused tests green.
+2. [x] `RSV2-2` stream delta + bounded dedupe merged with focused tests green. Done 2026-03-10.
 3. [ ] `RSV2-3` offline continuity patch merged with focused tests green.
 4. [ ] `RSV2-4` performance slice merged with focused tests green.
 5. [ ] bundled long gates rerun green after `RSV2-1..RSV2-4`.
@@ -160,3 +160,26 @@ Closed outcomes:
 
 Next implementation slice:
 1. `RSV2-2A`: introduce runtime delta patch helper + bounded event-id dedupe primitive, covered by focused tests only
+
+## 10. RSV2-2 closure evidence
+
+Implemented slices:
+1. `RSV2-2A` bounded stream event dedupe helper replacing unbounded in-hook `Set`.
+2. `RSV2-2A` delta-first frame classification to skip refresh for empty or telemetry-only update batches.
+3. `RSV2-2B` local snapshot patch helper for safe known event batches.
+4. `RSV2-2B` refresh fallback retained only for unsupported/unsafe event batches.
+
+Evidence:
+1. `npm --prefix frontend run format:check` -> green
+2. `npm --prefix frontend run test -- src/components/universe/useUniverseRuntimeSync.test.js src/components/universe/runtimeProjectionPatch.test.js src/components/universe/runtimeSyncUtils.test.js src/components/universe/workflowEventBridge.test.js` -> `16 passed`
+
+Closed outcomes:
+1. stream event dedupe memory is now bounded
+2. empty or telemetry-only stream updates no longer trigger projection reload
+3. safe known event batches can converge snapshot locally before projection fallback
+
+Recommended bundled regression before `RSV2-3`:
+1. `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/hooks/useGalaxyGate.test.js src/components/universe/useUniverseRuntimeSync.test.js src/components/universe/runtimeProjectionPatch.test.js src/components/universe/runtimeSyncUtils.test.js src/components/universe/workflowEventBridge.test.js`
+
+Next implementation slice:
+1. `RSV2-3A`: offline indicator + guarded write affordances while disconnected
