@@ -338,6 +338,23 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closed on 2026-03-10
 
+### 2026-03-10 - Parser Composer Elevation seam extraction
+
+- Status: `GREEN`
+- Removed:
+  - inline parser composer presentation ownership in `frontend/src/components/universe/UniverseWorkspace.jsx`
+- Replaced by:
+  - `frontend/src/components/universe/parserComposerContract.js`
+  - `frontend/src/components/universe/parserComposerContract.test.js`
+  - `frontend/src/components/universe/ParserComposerModal.jsx`
+- Reason:
+  - Parser composer presentation and preview/resolve rendering no longer live directly inside `UniverseWorkspace`. The workspace now wires controller state into a focused presenter contract and modal surface, which closes Slice 4 without expanding the monolith.
+- Evidence:
+  - `npm --prefix frontend run test -- src/components/universe/parserComposerContract.test.js src/components/universe/draftRailContract.test.js src/components/universe/selectionContextContract.test.js src/components/universe/selectionInspectorContract.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/workspaceStateContract.test.js` -> passed on 2026-03-10 (`6` files, `20` tests)
+  - `npm --prefix frontend run format:check` -> passed on 2026-03-10
+- Exit condition:
+  - closed on 2026-03-10
+
 ### 2026-03-10 - UniverseWorkspace rehab closure via seam contracts
 
 - Status: `GREEN`
@@ -369,4 +386,5 @@ No future block may close without recording replacement decisions.
 4. [x] 2026-03-10: the `UniverseWorkspace` rehab replacement was closed via focused seam contracts and child-surface gates instead of direct jsdom mounts.
 5. [x] 2026-03-10: Slice 2 selection ownership and inspector/sidebar state were extracted into focused seams and closed as `GREEN`.
 6. [x] 2026-03-10: Slice 3 unified draft rail was extracted into a focused seam and closed as `GREEN`.
-7. [ ] Next: Slice 4 `Parser Composer Elevation` should extract command composer presentation and preview/resolve surface ownership from `UniverseWorkspace`.
+7. [x] 2026-03-10: Slice 4 `Parser Composer Elevation` was extracted into focused presenter and modal seams and closed as `GREEN`.
+8. [ ] Next: Slice 5 `Grid / Canvas Truth Alignment` should extract synchronization and ownership seams between `QuickGridOverlay`, selection state, and canvas focus truth.
