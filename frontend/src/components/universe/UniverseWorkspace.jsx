@@ -679,6 +679,16 @@ export default function UniverseWorkspace({
     });
   }, [moonImpact, selectedAsteroidId, selectedTableId, trackWorkspaceEvent]);
 
+  const appendRuntimeWorkflowEvent = useCallback((eventItem) => {
+    if (!eventItem || typeof eventItem !== "object") return;
+    const eventId = String(eventItem.id || "").trim();
+    if (!eventId) return;
+    setRuntimeWorkflowEvents((prev) => {
+      if (prev.some((item) => String(item?.id || "").trim() === eventId)) return prev;
+      return [eventItem, ...prev].slice(0, 48);
+    });
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     if (!galaxyId || !selectedTableId) {
@@ -1089,15 +1099,6 @@ export default function UniverseWorkspace({
   const appendRepairAudit = useCallback((entry) => {
     if (!entry) return;
     setRepairAuditTrail((prev) => [entry, ...prev].slice(0, 32));
-  }, []);
-  const appendRuntimeWorkflowEvent = useCallback((eventItem) => {
-    if (!eventItem || typeof eventItem !== "object") return;
-    const eventId = String(eventItem.id || "").trim();
-    if (!eventId) return;
-    setRuntimeWorkflowEvents((prev) => {
-      if (prev.some((item) => String(item?.id || "").trim() === eventId)) return prev;
-      return [eventItem, ...prev].slice(0, 48);
-    });
   }, []);
   const clearRuntimeIssue = useCallback(() => {
     clearRuntimeError();

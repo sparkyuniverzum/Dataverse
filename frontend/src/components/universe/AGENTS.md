@@ -14,7 +14,8 @@ Scope: `frontend/src/components/universe/`
 1. Preserve deterministic UI flow across Sidebar, Grid, Setup panel.
 2. Keep workflow log unified (UI + backend stream + runtime impact/repair events).
 3. Avoid adding more logic into `UniverseWorkspace.jsx` unless necessary; prefer small helper modules.
-4. Any lifecycle/mineral behavior change must keep existing e2e path stable.
+4. Monolith creation is prohibited in this scope; split new behavior into focused files/hooks.
+5. Any lifecycle/mineral behavior change must keep existing e2e path stable.
 
 ## Key Files
 

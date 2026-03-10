@@ -12,9 +12,11 @@ Scope: entire repository.
 
 1. Keep changes small and explicit; avoid hidden side effects.
 2. Do not expand monolith files without clear need; prefer focused helpers and adapters.
-3. For flaky tests, stabilize logic first, then assertions.
-4. Keep FE/BE terminology aligned: `civilization` is canonical, `moon` is UX alias.
-5. Keep workflow logs operator-readable and chronologically consistent.
+3. Monolith creation is prohibited: do not introduce new oversized all-in-one files/components/modules.
+4. When logic grows, split by responsibility into small composable units (helpers/hooks/services).
+5. For flaky tests, stabilize logic first, then assertions.
+6. Keep FE/BE terminology aligned: `civilization` is canonical, `moon` is UX alias.
+7. Keep workflow logs operator-readable and chronologically consistent.
 
 ## Collaboration Contract (Mandatory)
 
