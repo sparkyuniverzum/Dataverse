@@ -1,3 +1,5 @@
+import { normalizeSnapshotProjection } from "./snapshotNormalization";
+
 export const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000");
 
 let tokenProvider = () => null;
@@ -679,67 +681,5 @@ export function buildTablesExportUrl(
 }
 
 export function normalizeSnapshot(data) {
-  const asteroidSource = Array.isArray(data?.asteroids)
-    ? data.asteroids
-    : Array.isArray(data?.civilizations)
-      ? data.civilizations
-      : Array.isArray(data?.moons)
-        ? data.moons
-        : Array.isArray(data?.atoms)
-          ? data.atoms
-          : [];
-
-  const asteroids = asteroidSource
-    .map((raw) => {
-      const source = raw && typeof raw === "object" ? raw : {};
-      const id = String(source.id || source.civilization_id || source.moon_id || "").trim();
-      if (!id) return null;
-      const tableId = String(source.table_id || source.planet_id || "").trim();
-      const metadataSource =
-        source.metadata && typeof source.metadata === "object" && !Array.isArray(source.metadata)
-          ? source.metadata
-          : source.minerals && typeof source.minerals === "object" && !Array.isArray(source.minerals)
-            ? source.minerals
-            : {};
-      const value = source.value ?? source.label ?? source.name ?? "";
-      return {
-        ...source,
-        id,
-        value,
-        table_id: tableId,
-        metadata: metadataSource,
-        minerals:
-          source.minerals && typeof source.minerals === "object" && !Array.isArray(source.minerals)
-            ? source.minerals
-            : metadataSource,
-      };
-    })
-    .filter((asteroid) => asteroid && asteroid.is_deleted !== true);
-
-  const asteroidIdSet = new Set(asteroids.map((asteroid) => String(asteroid.id)));
-  const bondSource = Array.isArray(data?.bonds)
-    ? data.bonds
-    : Array.isArray(data?.relations)
-      ? data.relations
-      : Array.isArray(data?.links)
-        ? data.links
-        : [];
-  const bonds = bondSource
-    .map((raw) => {
-      const source = raw && typeof raw === "object" ? raw : {};
-      const sourceId = String(source.source_id || source.source_civilization_id || "").trim();
-      const targetId = String(source.target_id || source.target_civilization_id || "").trim();
-      if (!sourceId || !targetId) return null;
-      return {
-        ...source,
-        source_id: sourceId,
-        target_id: targetId,
-      };
-    })
-    .filter(
-      (bond) =>
-        bond && bond.is_deleted !== true && asteroidIdSet.has(bond.source_id) && asteroidIdSet.has(bond.target_id)
-    );
-
-  return { asteroids, bonds };
+  return normalizeSnapshotProjection(data);
 }
