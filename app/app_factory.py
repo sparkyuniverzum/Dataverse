@@ -9,6 +9,7 @@ from app.modules.auth.service import AuthService
 from app.services.bond_dashboard_service import BondDashboardService
 from app.services.constellation_dashboard_service import ConstellationDashboardService
 from app.services.cosmos_service import CosmosService
+from app.services.event_consumers import OnboardingBootstrapConsumer, OutboxConsumerRegistry
 from app.services.event_store_service import EventStoreService
 from app.services.galaxy_dashboard_service import GalaxyDashboardService
 from app.services.galaxy_lifecycle_service import GalaxyLifecycleService
@@ -16,6 +17,8 @@ from app.services.idempotency_service import IdempotencyService
 from app.services.io_service import ImportExportService
 from app.services.moon_dashboard_service import MoonDashboardService
 from app.services.onboarding_service import OnboardingService
+from app.services.outbox_publisher_service import InProcessOutboxPublisher
+from app.services.outbox_relay_service import OutboxRelayService
 from app.services.parser2 import Parser2ExecutorBridge, Parser2SemanticPlanner
 from app.services.parser_service import ParserService
 from app.services.planet_dashboard_service import PlanetDashboardService
@@ -29,6 +32,7 @@ from app.services.universe_service import UniverseService
 @dataclass(frozen=True)
 class ServiceContainer:
     event_store: EventStoreService
+    outbox_relay_service: OutboxRelayService
     universe_service: UniverseService
     parser_service: ParserService
     parser2_planner: Parser2SemanticPlanner
@@ -44,6 +48,7 @@ class ServiceContainer:
     bond_dashboard_service: BondDashboardService
     idempotency_service: IdempotencyService
     onboarding_service: OnboardingService
+    outbox_consumer_registry: OutboxConsumerRegistry
     schema_preset_service: SchemaPresetService
     preset_bundle_service: PresetBundleService
     star_core_service: StarCoreService
@@ -89,6 +94,15 @@ def create_services() -> ServiceContainer:
     bond_dashboard_service = BondDashboardService(universe_service=universe_service)
     idempotency_service = IdempotencyService()
     onboarding_service = OnboardingService()
+    outbox_consumer_registry = OutboxConsumerRegistry(
+        bindings={
+            "user.created": (OnboardingBootstrapConsumer(onboarding_service=onboarding_service),),
+        }
+    )
+    outbox_relay_service = OutboxRelayService(
+        event_store=event_store,
+        publisher=InProcessOutboxPublisher(registry=outbox_consumer_registry),
+    )
     schema_preset_service = SchemaPresetService(
         universe_service=universe_service,
         cosmos_service=cosmos_service,
@@ -102,6 +116,7 @@ def create_services() -> ServiceContainer:
     galaxy_lifecycle_service = GalaxyLifecycleService()
     return ServiceContainer(
         event_store=event_store,
+        outbox_relay_service=outbox_relay_service,
         universe_service=universe_service,
         parser_service=parser_service,
         parser2_planner=parser2_planner,
@@ -117,6 +132,7 @@ def create_services() -> ServiceContainer:
         bond_dashboard_service=bond_dashboard_service,
         idempotency_service=idempotency_service,
         onboarding_service=onboarding_service,
+        outbox_consumer_registry=outbox_consumer_registry,
         schema_preset_service=schema_preset_service,
         preset_bundle_service=preset_bundle_service,
         star_core_service=StarCoreService(

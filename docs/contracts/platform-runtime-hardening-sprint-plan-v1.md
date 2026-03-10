@@ -1,6 +1,6 @@
 # Platform Runtime Hardening Sprint Plan v1
 
-Status: active (planning approved, implementation pending)
+Status: active (PRH-1 complete, PRH-2 in progress)
 Date: 2026-03-10
 Owner: BE Lead + Platform Owner + SRE
 Depends on:
@@ -205,8 +205,8 @@ Gate:
 
 ## 3. Closure checklist (global)
 
-1. [ ] PRH-1 event envelope + outbox schema freeze approved.
-2. [ ] PRH-1 relay + retry semantics implemented and passing.
+1. [x] PRH-1 event envelope + outbox schema freeze approved.
+2. [x] PRH-1 relay + retry semantics implemented and passing.
 3. [ ] PRH-2 onboarding flow decoupled to event-driven path.
 4. [ ] PRH-3 OpenTelemetry trace propagation operational.
 5. [ ] PRH-3 structured JSON logging contract enforced.
@@ -214,6 +214,10 @@ Gate:
 7. [ ] PRH-4 DB routing abstraction implemented (single-DB compatible).
 8. [ ] PRH-4 graceful shutdown verified with in-flight task drain.
 9. [ ] Release runbook updated with new operational procedures.
+
+Progress note (2026-03-10):
+1. PRH-1A/1B/1C/1D implemented and test-covered.
+2. PRH-2A started: outbox consumer registry + in-process relay dispatch wiring landed.
 
 ## 4. Risk register
 

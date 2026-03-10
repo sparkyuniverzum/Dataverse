@@ -38,14 +38,14 @@ class _EventStoreStub:
 
 
 class _PublisherOk:
-    async def publish(self, event) -> None:
-        _ = event
+    async def publish(self, session, event) -> None:
+        _ = (session, event)
         return None
 
 
 class _PublisherFail:
-    async def publish(self, event) -> None:
-        _ = event
+    async def publish(self, session, event) -> None:
+        _ = (session, event)
         raise RuntimeError("publish_failed")
 
 

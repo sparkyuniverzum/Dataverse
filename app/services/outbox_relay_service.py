@@ -12,7 +12,7 @@ from app.services.event_store_service import EventStoreService
 
 
 class OutboxPublisher(Protocol):
-    async def publish(self, event: OutboxEvent) -> None: ...
+    async def publish(self, session: AsyncSession, event: OutboxEvent) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -23,8 +23,8 @@ class OutboxRelayResult:
 
 
 class NoopOutboxPublisher:
-    async def publish(self, event: OutboxEvent) -> None:  # pragma: no cover - trivial noop
-        _ = event
+    async def publish(self, session: AsyncSession, event: OutboxEvent) -> None:  # pragma: no cover - trivial noop
+        _ = (session, event)
         return None
 
 
@@ -58,7 +58,7 @@ class OutboxRelayService:
         failed_count = 0
         for event in events:
             try:
-                await self.publisher.publish(event)
+                await self.publisher.publish(session, event)
                 event.status = OutboxStatus.PUBLISHED.value
                 event.published_at = now
                 event.last_error = None
