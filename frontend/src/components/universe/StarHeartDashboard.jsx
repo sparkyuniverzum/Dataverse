@@ -1,27 +1,21 @@
 import { useEffect, useState } from "react";
 
 import { STAR_CORE_PROFILES, STAR_PHYSICAL_PROFILES } from "./lawResolver";
+import { createCenteredShellLayout, createFullscreenOverlayLayout } from "./surfaceLayoutTokens";
 import { createGhostButtonStyle, createPrimaryButtonStyle, SURFACE_TONE } from "./surfaceVisualTokens";
 
 const ANIMATION_MS = 260;
 
 const overlayStyle = {
-  position: "fixed",
-  inset: 0,
-  zIndex: 84,
+  ...createFullscreenOverlayLayout(),
   background:
     "radial-gradient(circle at 50% 36%, rgba(35, 114, 156, 0.26) 0%, rgba(11, 22, 40, 0.88) 45%, rgba(2, 6, 14, 0.96) 100%)",
   backdropFilter: "blur(8px)",
-  display: "grid",
-  placeItems: "center",
-  padding: "24px 16px",
   transition: `opacity ${ANIMATION_MS}ms ease, transform ${ANIMATION_MS}ms ease`,
 };
 
 const shellStyle = {
-  width: "min(1180px, 100%)",
-  maxHeight: "calc(100vh - 48px)",
-  overflow: "auto",
+  ...createCenteredShellLayout(),
   borderRadius: 18,
   border: "1px solid rgba(120, 208, 244, 0.34)",
   background: "linear-gradient(170deg, rgba(8, 18, 34, 0.92), rgba(4, 9, 18, 0.9))",

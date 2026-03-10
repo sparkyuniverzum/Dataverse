@@ -1,5 +1,6 @@
 import { resolvePreviewSeverityColor } from "./previewAccessibility";
 import { resolveBranchVisibilityModel } from "./branchVisibilityContract";
+import { createHudRailLayout } from "./surfaceLayoutTokens";
 
 const inputStyle = {
   width: "100%",
@@ -131,26 +132,21 @@ export default function WorkspaceSidebar({
     inspectorModel.inspector && typeof inspectorModel.inspector === "object" ? inspectorModel.inspector : null;
   const selectedMoonId = String(inspectorModel.selectedCivilizationId || "").trim();
   const branchVisibility = resolveBranchVisibilityModel({ branches, selectedBranchId });
+  const shellStyle = {
+    ...createHudRailLayout(),
+    borderRadius: 14,
+    border: "1px solid rgba(96, 189, 223, 0.32)",
+    background: "rgba(5, 13, 24, 0.82)",
+    color: "#d9f8ff",
+    backdropFilter: "blur(12px)",
+    boxShadow: "0 0 24px rgba(34, 132, 182, 0.2)",
+    padding: "10px 10px",
+    display: "grid",
+    gap: 8,
+  };
 
   return (
-    <aside
-      style={{
-        position: "fixed",
-        right: 12,
-        top: 12,
-        zIndex: 56,
-        width: "min(360px, calc(100vw - 24px))",
-        borderRadius: 14,
-        border: "1px solid rgba(96, 189, 223, 0.32)",
-        background: "rgba(5, 13, 24, 0.82)",
-        color: "#d9f8ff",
-        backdropFilter: "blur(12px)",
-        boxShadow: "0 0 24px rgba(34, 132, 182, 0.2)",
-        padding: "10px 10px",
-        display: "grid",
-        gap: 8,
-      }}
-    >
+    <aside style={shellStyle}>
       <div style={{ fontSize: "var(--dv-fs-xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.84 }}>SIDEBAR</div>
       <div style={{ fontSize: "var(--dv-fs-sm)" }}>
         Galaxie: <strong>{galaxy?.name || "n/a"}</strong>

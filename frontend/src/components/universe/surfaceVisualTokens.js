@@ -1,3 +1,5 @@
+import { createFloatingDrawerLayout } from "./surfaceLayoutTokens";
+
 export const SURFACE_TONE = Object.freeze({
   PROMOTE: "promote",
   GOVERNANCE: "governance",
@@ -52,11 +54,7 @@ function resolveTone(tone) {
 export function createFloatingDrawerStyle(tone) {
   const token = resolveTone(tone);
   return {
-    position: "fixed",
-    top: 18,
-    right: 18,
-    zIndex: 64,
-    width: "min(420px, calc(100vw - 24px))",
+    ...createFloatingDrawerLayout(),
     borderRadius: 18,
     border: token.panelBorder,
     background: token.panelBackground,

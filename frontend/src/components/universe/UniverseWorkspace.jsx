@@ -101,6 +101,7 @@ import { useMoonCrudController } from "./useMoonCrudController";
 import { useBondDraftController } from "./useBondDraftController";
 import { useBranchTimelineController } from "./useBranchTimelineController";
 import { PromoteReviewDrawer } from "./PromoteReviewDrawer";
+import { createHudRailLayout, SURFACE_LAYER } from "./surfaceLayoutTokens";
 import { StageZeroSetupPanel } from "./StageZeroSetupPanel";
 import { StageZeroSetupPanelProvider } from "./StageZeroSetupPanelContext";
 import { buildMergedTableContractPayload } from "./tableContractMerge";
@@ -2499,7 +2500,13 @@ export default function UniverseWorkspace({
               : "none",
       }}
     >
-      <div style={{ position: "fixed", left: 12, top: 12, zIndex: 62, display: "grid", gap: 6 }}>
+      <div
+        style={{
+          ...createHudRailLayout({ side: "left", zIndex: SURFACE_LAYER.commandBar, width: "320px" }),
+          display: "grid",
+          gap: 6,
+        }}
+      >
         <button
           type="button"
           data-testid="workspace-open-command-bar"
@@ -2616,7 +2623,7 @@ export default function UniverseWorkspace({
             style={{
               position: "fixed",
               inset: 0,
-              zIndex: 60,
+              zIndex: SURFACE_LAYER.overlayGate,
               display: "grid",
               placeItems: "center",
               background: "radial-gradient(circle at 50% 50%, rgba(37, 27, 13, 0.28), rgba(2, 6, 14, 0.72))",
@@ -2722,7 +2729,7 @@ export default function UniverseWorkspace({
             style={{
               position: "fixed",
               inset: 0,
-              zIndex: 60,
+              zIndex: SURFACE_LAYER.overlayGate,
               display: "grid",
               placeItems: "center",
               background: "radial-gradient(circle at 50% 50%, rgba(19, 42, 66, 0.28), rgba(2, 6, 14, 0.68))",
@@ -2784,8 +2791,8 @@ export default function UniverseWorkspace({
               left: 12,
               top: "50%",
               transform: "translateY(-50%)",
-              zIndex: 59,
-              width: 250,
+              zIndex: SURFACE_LAYER.blueprintPanel,
+              width: "min(250px, calc(100vw - 24px))",
               borderRadius: 14,
               border: "1px solid rgba(106, 208, 243, 0.38)",
               background: "rgba(6, 15, 28, 0.9)",
@@ -2830,7 +2837,7 @@ export default function UniverseWorkspace({
               left: "50%",
               top: 18,
               transform: "translateX(-50%)",
-              zIndex: 61,
+              zIndex: SURFACE_LAYER.banner,
               borderRadius: 999,
               border: "1px solid rgba(118, 209, 243, 0.42)",
               background: "rgba(5, 14, 26, 0.9)",
@@ -2856,10 +2863,7 @@ export default function UniverseWorkspace({
             aria-live="polite"
             style={{
               position: "fixed",
-              left: 12,
-              top: 12,
-              zIndex: 58,
-              width: "min(340px, calc(100vw - 24px))",
+              ...createHudRailLayout({ side: "left", zIndex: SURFACE_LAYER.missionPanel, width: "340px" }),
               borderRadius: 14,
               border: "1px solid rgba(108, 206, 240, 0.34)",
               background: "rgba(5, 13, 24, 0.82)",

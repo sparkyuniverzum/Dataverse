@@ -587,6 +587,29 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closes when focused pre-commit checks for the new token layer and rewired surfaces are green
 
+### 2026-03-10 - Layout Hardening extraction
+
+- Status: `GREEN`
+- Removed:
+  - duplicated inline fixed shell layout constants for right-side surfaces and governance overlay across `frontend/src/components/universe/WorkspaceSidebar.jsx`, `frontend/src/components/universe/UniverseWorkspace.jsx`, and `frontend/src/components/universe/StarHeartDashboard.jsx`
+- Replaced by:
+  - `frontend/src/components/universe/surfaceLayoutTokens.js`
+  - `frontend/src/components/universe/surfaceLayoutTokens.test.js`
+- Created:
+  - `frontend/src/components/universe/surfaceLayoutTokens.js`
+  - `frontend/src/components/universe/surfaceLayoutTokens.test.js`
+- Changed:
+  - `frontend/src/components/universe/surfaceVisualTokens.js`
+  - `frontend/src/components/universe/WorkspaceSidebar.jsx`
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - `frontend/src/components/universe/StarHeartDashboard.jsx`
+- Reason:
+  - The extracted HUD surfaces now share one layout scale for spacing, stacking, viewport clamps, and fixed anchoring instead of each surface carrying its own shell positioning math. This closes Slice 13 by hardening responsive behavior and layer order without re-expanding `UniverseWorkspace`.
+- Evidence:
+  - pending focused verification in current block
+- Exit condition:
+  - closes when focused pre-commit checks for the new layout token layer and rewired shell surfaces are green
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -609,4 +632,5 @@ No future block may close without recording replacement decisions.
 13. [x] 2026-03-10: Slice 10 `Governance Mode Split` extracted governance mode state and surface adapter from `UniverseWorkspace` and closed as `GREEN`.
 14. [x] 2026-03-10: Slice 11 `Recovery Mode` extracted blocked/repair work into a dedicated recovery surface and closed as `GREEN`.
 15. [x] 2026-03-10: Slice 12 `Visual Token System` consolidated the new surfaces onto one shared token layer and closed as `GREEN`.
-16. [ ] Next: Slice 13 `Layout Hardening` should normalize shell spacing, layering, and responsive behavior across the extracted surfaces.
+16. [x] 2026-03-10: Slice 13 `Layout Hardening` normalized shell spacing, layering, and responsive behavior across the extracted surfaces and closed as `GREEN`.
+17. [ ] Next: Slice 14 `Full UX Closure Pass` should close the remaining polish and coherence gaps across the full operating-center experience.
