@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { STAR_CORE_PROFILES, STAR_PHYSICAL_PROFILES } from "./lawResolver";
+import { createGhostButtonStyle, createPrimaryButtonStyle, SURFACE_TONE } from "./surfaceVisualTokens";
 
 const ANIMATION_MS = 260;
 
@@ -42,23 +43,19 @@ const cardStyle = {
 };
 
 const ctaButtonStyle = {
-  border: "1px solid rgba(114, 219, 252, 0.48)",
-  background: "linear-gradient(120deg, #36bde8, #7ee4ff)",
-  color: "#07263b",
-  borderRadius: 11,
-  padding: "11px 14px",
-  fontWeight: 800,
-  letterSpacing: "var(--dv-tr-tight)",
-  cursor: "pointer",
+  ...createPrimaryButtonStyle(SURFACE_TONE.GOVERNANCE, {
+    borderRadius: 11,
+    padding: "11px 14px",
+    fontWeight: 800,
+    letterSpacing: "var(--dv-tr-tight)",
+  }),
 };
 
 const ghostButtonStyle = {
-  border: "1px solid rgba(122, 191, 221, 0.28)",
-  borderRadius: 9,
-  background: "rgba(7, 16, 31, 0.92)",
-  color: "#d6f4ff",
-  padding: "8px 10px",
-  cursor: "pointer",
+  ...createGhostButtonStyle(SURFACE_TONE.GOVERNANCE, {
+    borderRadius: 9,
+    padding: "8px 10px",
+  }),
 };
 
 function boolLabel(value) {

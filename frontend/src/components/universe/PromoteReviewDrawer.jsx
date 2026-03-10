@@ -1,29 +1,14 @@
-const panelStyle = {
-  position: "fixed",
-  top: 18,
-  right: 18,
-  zIndex: 64,
-  width: "min(420px, calc(100vw - 24px))",
-  borderRadius: 18,
-  border: "1px solid rgba(255, 204, 138, 0.34)",
-  background:
-    "linear-gradient(180deg, rgba(15, 19, 33, 0.94), rgba(9, 15, 28, 0.98)), radial-gradient(circle at top right, rgba(255, 176, 86, 0.24), transparent 42%)",
-  color: "#fff2de",
-  boxShadow: "0 28px 80px rgba(0, 0, 0, 0.46), 0 0 42px rgba(255, 166, 77, 0.22)",
-  backdropFilter: "blur(18px)",
-  padding: 16,
-  display: "grid",
-  gap: 12,
-};
+import {
+  createFloatingDrawerStyle,
+  createGhostButtonStyle,
+  createPanelCardStyle,
+  createPrimaryButtonStyle,
+  SURFACE_TONE,
+} from "./surfaceVisualTokens";
 
-const ghostButtonStyle = {
-  border: "1px solid rgba(255, 211, 167, 0.22)",
-  background: "rgba(20, 26, 39, 0.92)",
-  color: "#fff4e3",
-  borderRadius: 10,
-  padding: "9px 12px",
-  cursor: "pointer",
-};
+const panelStyle = createFloatingDrawerStyle(SURFACE_TONE.PROMOTE);
+const ghostButtonStyle = createGhostButtonStyle(SURFACE_TONE.PROMOTE);
+const primaryButtonStyle = createPrimaryButtonStyle(SURFACE_TONE.PROMOTE);
 
 export function PromoteReviewDrawer({ review, onClose, onConfirm }) {
   if (!review?.open) return null;
@@ -40,14 +25,10 @@ export function PromoteReviewDrawer({ review, onClose, onConfirm }) {
       </div>
 
       <div
-        style={{
-          borderRadius: 12,
+        style={createPanelCardStyle({
           border: "1px solid rgba(255, 204, 138, 0.2)",
           background: "rgba(44, 28, 14, 0.48)",
-          padding: "10px 11px",
-          display: "grid",
-          gap: 6,
-        }}
+        })}
       >
         <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>
           Branch: <strong>{review.branchLabel}</strong>
@@ -127,12 +108,8 @@ export function PromoteReviewDrawer({ review, onClose, onConfirm }) {
           onClick={() => void onConfirm?.()}
           disabled={!review.canConfirm}
           style={{
+            ...primaryButtonStyle,
             border: "1px solid rgba(255, 208, 124, 0.5)",
-            background: "linear-gradient(120deg, #ffb45f, #ffe09d)",
-            color: "#352008",
-            borderRadius: 10,
-            padding: "9px 12px",
-            fontWeight: 700,
             cursor: review.busy ? "wait" : "pointer",
             opacity: review.canConfirm ? 1 : 0.56,
           }}

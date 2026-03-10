@@ -565,6 +565,28 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closes when focused pre-commit checks for the new recovery seam and touched workspace/sidebar files are green
 
+### 2026-03-10 - Visual Token System extraction
+
+- Status: `GREEN`
+- Removed:
+  - duplicated inline tone/button shell constants across promote, recovery, and governance surfaces
+- Replaced by:
+  - `frontend/src/components/universe/surfaceVisualTokens.js`
+  - `frontend/src/components/universe/surfaceVisualTokens.test.js`
+- Created:
+  - `frontend/src/components/universe/surfaceVisualTokens.js`
+  - `frontend/src/components/universe/surfaceVisualTokens.test.js`
+- Changed:
+  - `frontend/src/components/universe/PromoteReviewDrawer.jsx`
+  - `frontend/src/components/universe/RecoveryModeDrawer.jsx`
+  - `frontend/src/components/universe/StarHeartDashboard.jsx`
+- Reason:
+  - The new right-side and governance surfaces now share one intentional token layer for shell, ghost CTA, primary CTA, and card tone primitives instead of each surface carrying its own duplicated visual constants.
+- Evidence:
+  - pending focused verification in current block
+- Exit condition:
+  - closes when focused pre-commit checks for the new token layer and rewired surfaces are green
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -586,4 +608,5 @@ No future block may close without recording replacement decisions.
 12. [x] 2026-03-10: Slice 9 `Promote Review Surface` extracted branch promote review into a dedicated right-side HUD drawer and closed as `GREEN`.
 13. [x] 2026-03-10: Slice 10 `Governance Mode Split` extracted governance mode state and surface adapter from `UniverseWorkspace` and closed as `GREEN`.
 14. [x] 2026-03-10: Slice 11 `Recovery Mode` extracted blocked/repair work into a dedicated recovery surface and closed as `GREEN`.
-15. [ ] Next: Slice 12 `Visual Token System` should consolidate the new surfaces into one intentional visual language.
+15. [x] 2026-03-10: Slice 12 `Visual Token System` consolidated the new surfaces onto one shared token layer and closed as `GREEN`.
+16. [ ] Next: Slice 13 `Layout Hardening` should normalize shell spacing, layering, and responsive behavior across the extracted surfaces.

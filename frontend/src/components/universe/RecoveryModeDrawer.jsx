@@ -1,29 +1,14 @@
-const panelStyle = {
-  position: "fixed",
-  top: 18,
-  right: 18,
-  zIndex: 65,
-  width: "min(420px, calc(100vw - 24px))",
-  borderRadius: 18,
-  border: "1px solid rgba(255, 169, 196, 0.28)",
-  background:
-    "linear-gradient(180deg, rgba(28, 13, 26, 0.95), rgba(12, 10, 21, 0.98)), radial-gradient(circle at top right, rgba(255, 122, 172, 0.18), transparent 44%)",
-  color: "#ffe7f0",
-  boxShadow: "0 28px 80px rgba(0, 0, 0, 0.48), 0 0 42px rgba(255, 121, 177, 0.16)",
-  backdropFilter: "blur(18px)",
-  padding: 16,
-  display: "grid",
-  gap: 12,
-};
+import {
+  createFloatingDrawerStyle,
+  createGhostButtonStyle,
+  createPanelCardStyle,
+  createPrimaryButtonStyle,
+  SURFACE_TONE,
+} from "./surfaceVisualTokens";
 
-const ghostButtonStyle = {
-  border: "1px solid rgba(255, 204, 226, 0.22)",
-  background: "rgba(28, 18, 33, 0.92)",
-  color: "#ffe7f0",
-  borderRadius: 10,
-  padding: "9px 12px",
-  cursor: "pointer",
-};
+const panelStyle = createFloatingDrawerStyle(SURFACE_TONE.RECOVERY);
+const ghostButtonStyle = createGhostButtonStyle(SURFACE_TONE.RECOVERY);
+const primaryButtonStyle = createPrimaryButtonStyle(SURFACE_TONE.RECOVERY);
 
 export function RecoveryModeDrawer({ recovery, onClose, onApplyRepair }) {
   if (!recovery?.open) return null;
@@ -71,14 +56,10 @@ export function RecoveryModeDrawer({ recovery, onClose, onApplyRepair }) {
       {recovery.hasRepairSuggestion ? (
         <div
           data-testid="recovery-mode-repair"
-          style={{
-            borderRadius: 12,
+          style={createPanelCardStyle({
             border: "1px solid rgba(255, 185, 212, 0.24)",
             background: "rgba(44, 19, 31, 0.4)",
-            padding: "10px 11px",
-            display: "grid",
-            gap: 6,
-          }}
+          })}
         >
           <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.9 }}>
             {recovery.repairSuggestion.mineral_key} -&gt;{" "}
@@ -91,12 +72,7 @@ export function RecoveryModeDrawer({ recovery, onClose, onApplyRepair }) {
             type="button"
             data-testid="recovery-mode-apply-repair"
             style={{
-              border: "1px solid rgba(255, 175, 203, 0.5)",
-              background: "linear-gradient(120deg, #ff8eb7, #ffd0e1)",
-              color: "#3d1227",
-              borderRadius: 10,
-              padding: "9px 12px",
-              fontWeight: 700,
+              ...primaryButtonStyle,
               cursor: recovery.repairApplyBusy ? "wait" : "pointer",
             }}
             disabled={!recovery.repairSuggestion.civilization_id || recovery.repairApplyBusy}
