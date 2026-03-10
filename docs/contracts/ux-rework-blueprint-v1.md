@@ -306,13 +306,22 @@ No future block may close without recording replacement decisions.
 
 - Status: `GREEN`
 - Removed:
-  - inline selection/context branching in `frontend/src/components/universe/UniverseWorkspace.jsx`
-  - split selection/inspector ownership between `frontend/src/components/universe/UniverseWorkspace.jsx` and `frontend/src/components/universe/WorkspaceSidebar.jsx`
+  - none
 - Replaced by:
   - `frontend/src/components/universe/selectionContextContract.js`
   - `frontend/src/components/universe/selectionContextContract.test.js`
   - `frontend/src/components/universe/selectionInspectorContract.js`
   - `frontend/src/components/universe/selectionInspectorContract.test.js`
+- Created:
+  - `frontend/src/components/universe/selectionContextContract.js`
+  - `frontend/src/components/universe/selectionContextContract.test.js`
+  - `frontend/src/components/universe/selectionInspectorContract.js`
+  - `frontend/src/components/universe/selectionInspectorContract.test.js`
+- Changed:
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - `frontend/src/components/universe/WorkspaceSidebar.jsx`
+  - `frontend/src/components/universe/WorkspaceSidebar.connectivity.test.jsx`
+  - `frontend/src/components/universe/useCommandBarController.js`
 - Reason:
   - Selection, context menu actions, and sidebar inspector state now live in executable seams instead of ad hoc branching and split ownership inside `UniverseWorkspace` and `WorkspaceSidebar`. Slice 2 now has focused unit gates plus a sidebar render smoke, so the rehab no longer needs a transitional status.
 - Evidence:
@@ -327,10 +336,17 @@ No future block may close without recording replacement decisions.
 
 - Status: `GREEN`
 - Removed:
-  - inline draft-rail decision logic in `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - none
 - Replaced by:
   - `frontend/src/components/universe/draftRailContract.js`
   - `frontend/src/components/universe/draftRailContract.test.js`
+- Created:
+  - `frontend/src/components/universe/draftRailContract.js`
+  - `frontend/src/components/universe/draftRailContract.test.js`
+- Changed:
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - `frontend/src/components/universe/useBondDraftController.js`
+  - `frontend/src/components/universe/workspaceStateContract.js`
 - Reason:
   - Command bar and bond draft state are now normalized through one executable seam instead of scattered inline checks in `UniverseWorkspace`. This gives Slice 3 a focused contract for active rail, blocking state, and summary ownership without expanding the workspace monolith.
 - Evidence:
@@ -342,15 +358,42 @@ No future block may close without recording replacement decisions.
 
 - Status: `GREEN`
 - Removed:
-  - inline parser composer presentation ownership in `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - none
 - Replaced by:
   - `frontend/src/components/universe/parserComposerContract.js`
   - `frontend/src/components/universe/parserComposerContract.test.js`
   - `frontend/src/components/universe/ParserComposerModal.jsx`
+- Created:
+  - `frontend/src/components/universe/parserComposerContract.js`
+  - `frontend/src/components/universe/parserComposerContract.test.js`
+  - `frontend/src/components/universe/ParserComposerModal.jsx`
+- Changed:
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
 - Reason:
   - Parser composer presentation and preview/resolve rendering no longer live directly inside `UniverseWorkspace`. The workspace now wires controller state into a focused presenter contract and modal surface, which closes Slice 4 without expanding the monolith.
 - Evidence:
   - `npm --prefix frontend run test -- src/components/universe/parserComposerContract.test.js src/components/universe/draftRailContract.test.js src/components/universe/selectionContextContract.test.js src/components/universe/selectionInspectorContract.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/workspaceStateContract.test.js` -> passed on 2026-03-10 (`6` files, `20` tests)
+  - `npm --prefix frontend run format:check` -> passed on 2026-03-10
+- Exit condition:
+  - closed on 2026-03-10
+
+### 2026-03-10 - Grid / Canvas truth alignment seam extraction
+
+- Status: `GREEN`
+- Removed:
+  - none
+- Replaced by:
+  - `frontend/src/components/universe/gridCanvasTruthContract.js`
+  - `frontend/src/components/universe/gridCanvasTruthContract.test.js`
+- Created:
+  - `frontend/src/components/universe/gridCanvasTruthContract.js`
+  - `frontend/src/components/universe/gridCanvasTruthContract.test.js`
+- Changed:
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+- Reason:
+  - Grid and canvas now resolve scoped civilization focus from one executable truth instead of parallel inline checks. This closes Slice 5 by aligning grid selection, canvas focus, and derived inspector/navigation ownership without re-expanding `UniverseWorkspace`.
+- Evidence:
+  - `npm --prefix frontend run test -- src/components/universe/gridCanvasTruthContract.test.js src/components/universe/parserComposerContract.test.js src/components/universe/draftRailContract.test.js src/components/universe/selectionContextContract.test.js src/components/universe/selectionInspectorContract.test.js src/components/universe/WorkspaceSidebar.connectivity.test.jsx src/components/universe/workspaceStateContract.test.js` -> passed on 2026-03-10 (`7` files, `23` tests)
   - `npm --prefix frontend run format:check` -> passed on 2026-03-10
 - Exit condition:
   - closed on 2026-03-10
@@ -387,4 +430,5 @@ No future block may close without recording replacement decisions.
 5. [x] 2026-03-10: Slice 2 selection ownership and inspector/sidebar state were extracted into focused seams and closed as `GREEN`.
 6. [x] 2026-03-10: Slice 3 unified draft rail was extracted into a focused seam and closed as `GREEN`.
 7. [x] 2026-03-10: Slice 4 `Parser Composer Elevation` was extracted into focused presenter and modal seams and closed as `GREEN`.
-8. [ ] Next: Slice 5 `Grid / Canvas Truth Alignment` should extract synchronization and ownership seams between `QuickGridOverlay`, selection state, and canvas focus truth.
+8. [x] 2026-03-10: Slice 5 `Grid / Canvas Truth Alignment` extracted shared focus truth between `QuickGridOverlay`, selection state, and canvas focus and closed as `GREEN`.
+9. [ ] Next: Slice 6 `Timeline Rewrite` should extract timeline/log ownership and explainability surface seams from `UniverseWorkspace`.
