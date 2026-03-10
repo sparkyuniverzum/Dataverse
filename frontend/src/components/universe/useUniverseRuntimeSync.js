@@ -17,6 +17,7 @@ import {
 } from "../../lib/dataverseApi";
 import { applySseFrameCursor, drainSseBuffer, parseSseFrame, sleep } from "./runtimeSyncUtils";
 import { classifyRuntimeDeltaFrame, createBoundedStreamDedupe } from "./runtimeDeltaSync";
+import { applyRuntimeEventBatchToSnapshot } from "./runtimeProjectionPatch";
 import {
   normalizeStarDomains,
   normalizeStarPhysicsProfile,
@@ -69,6 +70,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
 
   const activeGalaxyRef = useRef("");
   const activeScopeRef = useRef("");
+  const snapshotRef = useRef({ asteroids: [], bonds: [] });
   const refreshInFlightRef = useRef(null);
   const refreshQueuedRef = useRef(false);
   const streamCursorRef = useRef(0);
@@ -276,6 +278,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
             return;
           }
           setSnapshot(normalized);
+          snapshotRef.current = normalized;
           setTables(nextTables);
           setError("");
           void refreshStarTelemetry();
@@ -314,6 +317,7 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
 
     setError("");
     setSnapshot({ asteroids: [], bonds: [] });
+    snapshotRef.current = { asteroids: [], bonds: [] };
     setTables([]);
     setStarRuntime(null);
     setStarDomains([]);
@@ -365,7 +369,16 @@ export function useUniverseRuntimeSync({ galaxyId, branchId = null }) {
         void refreshStarTelemetry();
       }
       if (deltaDecision.shouldRefreshProjection) {
-        consumeRefresh();
+        const patchResult = applyRuntimeEventBatchToSnapshot(
+          frame?.data ? snapshotRef.current || null : null,
+          frame?.data?.events
+        );
+        if (patchResult.applied && !patchResult.requiresRefresh) {
+          snapshotRef.current = patchResult.snapshot;
+          setSnapshot(patchResult.snapshot);
+        } else {
+          consumeRefresh();
+        }
       }
     };
 
