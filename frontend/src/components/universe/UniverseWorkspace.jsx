@@ -100,6 +100,7 @@ import { useBranchTimelineController } from "./useBranchTimelineController";
 import { StageZeroSetupPanel } from "./StageZeroSetupPanel";
 import { StageZeroSetupPanelProvider } from "./StageZeroSetupPanelContext";
 import { buildMergedTableContractPayload } from "./tableContractMerge";
+import { resolveDraftRailState } from "./draftRailContract";
 import { formatSelectedTableLabel, resolveSelectionInspectorModel } from "./selectionInspectorContract";
 import {
   resolveContextActionPlan,
@@ -1919,16 +1920,51 @@ export default function UniverseWorkspace({
     setRuntimeError,
     selectBranch,
   });
+  const draftRailState = useMemo(
+    () =>
+      resolveDraftRailState({
+        command: {
+          commandBarOpen,
+          commandInput,
+          commandPreview,
+          commandPreviewBusy,
+          commandExecuteBusy,
+          commandError,
+          commandResultSummary,
+          commandResolveSummary,
+          selectedTableId,
+        },
+        bond: {
+          bondDraft,
+          bondPreviewBusy,
+          bondCommitBusy,
+        },
+      }),
+    [
+      bondCommitBusy,
+      bondDraft,
+      bondPreviewBusy,
+      commandBarOpen,
+      commandError,
+      commandExecuteBusy,
+      commandInput,
+      commandPreview,
+      commandPreviewBusy,
+      commandResolveSummary,
+      commandResultSummary,
+      selectedTableId,
+    ]
+  );
   const visualBuilderState = useMemo(
     () =>
       resolveVisualBuilderState({
         loading,
         runtimeError: error,
         navigationState: visualBuilderNavigationState,
-        bondState: bondDraft.state,
+        bondState: draftRailState.bond.state,
         planetBuilderState,
       }),
-    [bondDraft.state, error, loading, planetBuilderState, visualBuilderNavigationState]
+    [draftRailState.bond.state, error, loading, planetBuilderState, visualBuilderNavigationState]
   );
   const workspaceState = useMemo(
     () =>
@@ -1944,15 +1980,15 @@ export default function UniverseWorkspace({
           quickGridOpen,
         },
         draft: {
-          commandBarOpen,
-          commandPreviewBusy,
-          commandExecuteBusy,
-          commandError,
+          commandBarOpen: draftRailState.command.open,
+          commandPreviewBusy: draftRailState.command.previewBusy,
+          commandExecuteBusy: draftRailState.command.executeBusy,
+          commandError: draftRailState.command.error,
           pendingCreate,
           pendingRowOps,
-          bondDraftState: bondDraft.state,
-          bondPreviewBusy,
-          bondCommitBusy,
+          bondDraftState: draftRailState.bond.state,
+          bondPreviewBusy: draftRailState.bond.previewBusy,
+          bondCommitBusy: draftRailState.bond.commitBusy,
           branchCreateBusy,
           branchPromoteBusy,
           stageZeroCommitBusy,
@@ -1964,15 +2000,15 @@ export default function UniverseWorkspace({
         },
       }),
     [
-      bondCommitBusy,
-      bondDraft.state,
-      bondPreviewBusy,
       branchCreateBusy,
       branchPromoteBusy,
-      commandBarOpen,
-      commandError,
-      commandExecuteBusy,
-      commandPreviewBusy,
+      draftRailState.bond.commitBusy,
+      draftRailState.bond.previewBusy,
+      draftRailState.bond.state,
+      draftRailState.command.error,
+      draftRailState.command.executeBusy,
+      draftRailState.command.open,
+      draftRailState.command.previewBusy,
       error,
       galaxyId,
       loading,
@@ -2312,6 +2348,7 @@ export default function UniverseWorkspace({
       data-workspace-selection={workspaceState.selection.selectionKind}
       data-workspace-surface-mode={workspaceState.mode.surfaceMode}
       data-workspace-draft={workspaceState.draft.hasActiveDraft ? "active" : "idle"}
+      data-workspace-active-rail={draftRailState.activeRail}
       data-workspace-sync-attention={workspaceState.sync.attention}
       data-reduced-motion={reducedMotion ? "true" : "false"}
       aria-label="Dataverse workspace"
@@ -2334,7 +2371,7 @@ export default function UniverseWorkspace({
         >
           Prikazovy radek (Ctrl/Cmd+K)
         </button>
-        {commandResultSummary ? (
+        {draftRailState.summary ? (
           <div
             data-testid="workspace-command-result-summary"
             style={{
@@ -2347,12 +2384,12 @@ export default function UniverseWorkspace({
               maxWidth: 320,
             }}
           >
-            {commandResultSummary}
+            {draftRailState.summary}
           </div>
         ) : null}
       </div>
 
-      {commandBarOpen ? (
+      {draftRailState.command.open ? (
         <section
           data-testid="workspace-command-bar-modal"
           role="dialog"
@@ -2407,7 +2444,7 @@ export default function UniverseWorkspace({
                 type="button"
                 data-testid="command-bar-preview-button"
                 onClick={() => void handleBuildCommandPreview()}
-                disabled={commandPreviewBusy || commandExecuteBusy || !String(commandInput || "").trim()}
+                disabled={!draftRailState.command.canPreview}
                 style={{
                   border: "1px solid rgba(114, 219, 252, 0.5)",
                   background: "linear-gradient(120deg, #21bbea, #44d8ff)",
@@ -2415,23 +2452,16 @@ export default function UniverseWorkspace({
                   borderRadius: 9,
                   padding: "8px 10px",
                   fontWeight: 700,
-                  cursor: commandPreviewBusy ? "wait" : "pointer",
+                  cursor: draftRailState.command.previewBusy ? "wait" : "pointer",
                 }}
               >
-                {commandPreviewBusy ? "Generuji nahled..." : "Nahled"}
+                {draftRailState.command.previewBusy ? "Generuji nahled..." : "Nahled"}
               </button>
               <button
                 type="button"
                 data-testid="command-bar-execute-button"
                 onClick={() => void handleExecuteCommandBar()}
-                disabled={
-                  commandExecuteBusy ||
-                  commandPreviewBusy ||
-                  !String(commandInput || "").trim() ||
-                  !commandPreview ||
-                  commandPreview.ambiguityHints?.some((hint) => hint?.severity === "blocking") ||
-                  commandPreview.command !== String(commandInput || "").trim()
-                }
+                disabled={!draftRailState.command.canExecute}
                 style={{
                   border: "1px solid rgba(128, 226, 182, 0.52)",
                   background: "linear-gradient(120deg, #2bbd82, #7ee5af)",
@@ -2439,10 +2469,10 @@ export default function UniverseWorkspace({
                   borderRadius: 9,
                   padding: "8px 10px",
                   fontWeight: 700,
-                  cursor: commandExecuteBusy ? "wait" : "pointer",
+                  cursor: draftRailState.command.executeBusy ? "wait" : "pointer",
                 }}
               >
-                {commandExecuteBusy ? "Provadim..." : "Potvrdit a vykonat"}
+                {draftRailState.command.executeBusy ? "Provadim..." : "Potvrdit a vykonat"}
               </button>
               <button
                 type="button"
@@ -2473,42 +2503,48 @@ export default function UniverseWorkspace({
               <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
                 Nahled je backend preview (bez zapisu). Trvaly zapis probiha az po potvrzeni.
               </div>
-              {commandPreview ? (
+              {draftRailState.command.preview ? (
                 <>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.88 }}>
-                    Akce: <strong>{commandPreview.action}</strong>
+                    Akce: <strong>{draftRailState.command.preview.action}</strong>
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.84 }}>
-                    Plan uloh: <strong>{Array.isArray(commandPreview.tasks) ? commandPreview.tasks.length : 0}</strong>
+                    Plan uloh:{" "}
+                    <strong>
+                      {Array.isArray(draftRailState.command.preview.tasks)
+                        ? draftRailState.command.preview.tasks.length
+                        : 0}
+                    </strong>
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
-                    Kontext: {commandPreview.selectedTableLabel || "bez aktivni planety"}
+                    Kontext: {draftRailState.command.preview.selectedTableLabel || "bez aktivni planety"}
                   </div>
                   <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
                     Nahled dopadu: civilizace{" "}
                     <strong>
-                      {Array.isArray(commandPreview.previewExecution?.result?.civilizations)
-                        ? commandPreview.previewExecution.result.civilizations.length
+                      {Array.isArray(draftRailState.command.preview.previewExecution?.result?.civilizations)
+                        ? draftRailState.command.preview.previewExecution.result.civilizations.length
                         : 0}
                     </strong>{" "}
                     | vazby{" "}
                     <strong>
-                      {Array.isArray(commandPreview.previewExecution?.result?.bonds)
-                        ? commandPreview.previewExecution.result.bonds.length
+                      {Array.isArray(draftRailState.command.preview.previewExecution?.result?.bonds)
+                        ? draftRailState.command.preview.previewExecution.result.bonds.length
                         : 0}
                     </strong>
                   </div>
-                  {commandPreview.entities.length ? (
+                  {draftRailState.command.preview.entities.length ? (
                     <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.8 }}>
-                      Entity: {commandPreview.entities.join(", ")}
+                      Entity: {draftRailState.command.preview.entities.join(", ")}
                     </div>
                   ) : null}
-                  {commandPreview.warnings.length ? (
+                  {draftRailState.command.preview.warnings.length ? (
                     <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffc08f" }}>
-                      {commandPreview.warnings.join(" ")}
+                      {draftRailState.command.preview.warnings.join(" ")}
                     </div>
                   ) : null}
-                  {Array.isArray(commandPreview.ambiguityHints) && commandPreview.ambiguityHints.length ? (
+                  {Array.isArray(draftRailState.command.preview.ambiguityHints) &&
+                  draftRailState.command.preview.ambiguityHints.length ? (
                     <div
                       data-testid="command-bar-ambiguity-hints"
                       style={{
@@ -2523,7 +2559,7 @@ export default function UniverseWorkspace({
                       <div style={{ fontSize: "var(--dv-fs-2xs)", letterSpacing: "var(--dv-tr-wide)", opacity: 0.9 }}>
                         AMBIGUITY HINTS
                       </div>
-                      {commandPreview.ambiguityHints.map((hint, idx) => (
+                      {draftRailState.command.preview.ambiguityHints.map((hint, idx) => (
                         <div
                           key={`${hint?.severity || "warning"}-${idx}`}
                           style={{
@@ -2534,13 +2570,13 @@ export default function UniverseWorkspace({
                           {hint?.severity === "blocking" ? "BLOCK" : "WARN"}: {hint?.message}
                         </div>
                       ))}
-                      {commandPreview.ambiguityHints.some((hint) => hint?.severity === "blocking") ? (
-                        selectedTableId ? (
+                      {draftRailState.command.showResolveAction ? (
+                        draftRailState.command.showResolveToActivePlanet ? (
                           <button
                             type="button"
                             data-testid="command-bar-resolve-planet-button"
                             onClick={() => void handleResolveCommandAmbiguity()}
-                            disabled={commandPreviewBusy || commandExecuteBusy}
+                            disabled={draftRailState.command.busy}
                             style={{
                               marginTop: 2,
                               border: "1px solid rgba(146, 229, 185, 0.42)",
@@ -2549,12 +2585,12 @@ export default function UniverseWorkspace({
                               borderRadius: 8,
                               padding: "7px 8px",
                               fontSize: "var(--dv-fs-xs)",
-                              cursor: commandPreviewBusy ? "wait" : "pointer",
+                              cursor: draftRailState.command.previewBusy ? "wait" : "pointer",
                             }}
                           >
                             Pouzit aktivni planetu a pregenerovat nahled
                           </button>
-                        ) : (
+                        ) : draftRailState.command.showResolvePlanetPicker ? (
                           <div style={{ display: "grid", gap: 6, marginTop: 4 }}>
                             <select
                               data-testid="command-bar-resolve-planet-select"
@@ -2580,7 +2616,7 @@ export default function UniverseWorkspace({
                               type="button"
                               data-testid="command-bar-resolve-planet-picker-button"
                               onClick={() => void handleResolveCommandAmbiguity(commandResolveTableId)}
-                              disabled={!commandResolveTableId || commandPreviewBusy || commandExecuteBusy}
+                              disabled={!commandResolveTableId || draftRailState.command.busy}
                               style={{
                                 border: "1px solid rgba(146, 229, 185, 0.42)",
                                 background: "rgba(20, 66, 44, 0.56)",
@@ -2588,17 +2624,17 @@ export default function UniverseWorkspace({
                                 borderRadius: 8,
                                 padding: "7px 8px",
                                 fontSize: "var(--dv-fs-xs)",
-                                cursor: commandPreviewBusy ? "wait" : "pointer",
+                                cursor: draftRailState.command.previewBusy ? "wait" : "pointer",
                               }}
                             >
                               Vybrat planetu a pregenerovat nahled
                             </button>
                           </div>
-                        )
+                        ) : null
                       ) : null}
                     </div>
                   ) : null}
-                  {commandResolveSummary ? (
+                  {draftRailState.command.resolveSummary ? (
                     <div
                       data-testid="command-bar-resolve-summary"
                       style={{
@@ -2610,15 +2646,15 @@ export default function UniverseWorkspace({
                         color: "#d7ffe9",
                       }}
                     >
-                      {commandResolveSummary}
+                      {draftRailState.command.resolveSummary}
                     </div>
                   ) : null}
                 </>
               ) : (
                 <div style={{ fontSize: "var(--dv-fs-xs)", opacity: 0.72 }}>Vloz prikaz a klikni na Nahled.</div>
               )}
-              {commandError ? (
-                <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffb4b4" }}>{commandError}</div>
+              {draftRailState.command.error ? (
+                <div style={{ fontSize: "var(--dv-fs-xs)", color: "#ffb4b4" }}>{draftRailState.command.error}</div>
               ) : null}
             </div>
           </article>
