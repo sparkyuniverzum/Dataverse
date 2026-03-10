@@ -84,9 +84,10 @@ export default function WorkspaceSidebar({
   onBranchCreateNameChange = null,
   branchCreateBusy = false,
   onCreateBranch = null,
+  branchPromoteReviewOpen = false,
+  onOpenPromoteReview = null,
   branchPromoteBusy = false,
   branchPromoteSummary = "",
-  onPromoteBranch = null,
   onboarding = null,
   tableNodes,
   asteroidCount,
@@ -307,16 +308,16 @@ export default function WorkspaceSidebar({
       </div>
       <button
         type="button"
-        data-testid="workspace-branch-promote-button"
+        data-testid="workspace-branch-promote-review-button"
         onClick={() => {
-          if (typeof onPromoteBranch === "function") {
-            onPromoteBranch();
+          if (typeof onOpenPromoteReview === "function") {
+            onOpenPromoteReview();
           }
         }}
         disabled={!branchVisibility.hasSelectedBranch || branchPromoteBusy}
         style={ghostButtonStyle}
       >
-        {branchPromoteBusy ? "Promoting..." : "Promote branch"}
+        {branchPromoteReviewOpen ? "Review otevren" : branchPromoteBusy ? "Promoting..." : "Open promote review"}
       </button>
       {branchPromoteSummary ? (
         <div style={{ fontSize: "var(--dv-fs-2xs)", opacity: 0.82 }} data-testid="branch-promote-summary">

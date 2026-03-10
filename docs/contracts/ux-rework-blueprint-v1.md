@@ -494,6 +494,32 @@ No future block may close without recording replacement decisions.
 - Exit condition:
   - closed on 2026-03-10
 
+### 2026-03-10 - Promote Review Surface seam extraction
+
+- Status: `GREEN`
+- Removed:
+  - inline promote confirmation via `window.confirm(...)` inside `frontend/src/components/universe/useBranchTimelineController.js`
+- Replaced by:
+  - `frontend/src/components/universe/promoteReviewContract.js`
+  - `frontend/src/components/universe/promoteReviewContract.test.js`
+  - `frontend/src/components/universe/PromoteReviewDrawer.jsx`
+- Created:
+  - `frontend/src/components/universe/promoteReviewContract.js`
+  - `frontend/src/components/universe/promoteReviewContract.test.js`
+  - `frontend/src/components/universe/PromoteReviewDrawer.jsx`
+- Changed:
+  - `frontend/src/components/universe/UniverseWorkspace.jsx`
+  - `frontend/src/components/universe/WorkspaceSidebar.jsx`
+  - `frontend/src/components/universe/useBranchTimelineController.js`
+  - `frontend/src/components/universe/workspaceStateContract.js`
+  - `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js`
+- Reason:
+  - Promote review is now separated from generic branch controls through a dedicated right-side HUD drawer and a focused review seam. This keeps branch scope/create controls lightweight while moving reality transfer into its own review surface with explicit confirm state and workspace-aware cinematic shift.
+- Evidence:
+  - pending focused verification in current block
+- Exit condition:
+  - closes when focused pre-commit checks for the new review seam and touched workspace/sidebar files are green
+
 ## 19. Evidence
 
 1. `pytest -q tests/test_contract_docs_closure.py -k "canonical_ux_ontology or ux_rework_blueprint"` -> required document gate
@@ -512,4 +538,5 @@ No future block may close without recording replacement decisions.
 9. [x] 2026-03-10: Slice 6 `Timeline Rewrite` extracted timeline/log ownership and explainability seams from `UniverseWorkspace` and closed as `GREEN`.
 10. [x] 2026-03-10: Slice 7 `Branch Visibility Layer` extracted branch visibility and scope ownership seams from `UniverseWorkspace` and `WorkspaceSidebar` and closed as `GREEN`.
 11. [x] 2026-03-10: Slice 8 `Compare and Time Travel Layer` extracted compare scope and historical inspect seams from `UniverseWorkspace` and closed as `GREEN`.
-12. [ ] Next: Slice 9 `Promote Review Surface` should separate promote review UX from generic branch controls.
+12. [x] 2026-03-10: Slice 9 `Promote Review Surface` extracted branch promote review into a dedicated right-side HUD drawer and closed as `GREEN`.
+13. [ ] Next: Slice 10 `Governance Mode Split` should separate star-core governance work from branch/timeline/operator surfaces.

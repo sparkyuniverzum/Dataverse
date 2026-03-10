@@ -11,6 +11,7 @@ import WorkspaceSidebar from "./WorkspaceSidebar";
 import { normalizeSnapshot } from "../../lib/dataverseApi";
 import { getWorkspaceTelemetryCatalog } from "../../lib/workspaceTelemetry";
 import { buildPreviewContrastReport, resolveWorkspaceKeyboardAction } from "./previewAccessibility";
+import { resolveSelectionInspectorModel } from "./selectionInspectorContract";
 import {
   evaluateBondFlowTransition,
   resolveNavigationState,
@@ -76,6 +77,42 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
   it("LF-01 moon discoverability: sidebar exposes moon orbit list and one-click inspector selection", async () => {
     const user = userEvent.setup();
     const onSelectMoon = vi.fn();
+    const moonRows = [
+      buildMoonRow("moon-1"),
+      buildMoonRow("moon-2", {
+        state: "ANOMALY",
+        violation_count: 2,
+        facts: [
+          {
+            key: "amount",
+            typed_value: -12,
+            value_type: "number",
+            source: "value",
+            status: "invalid",
+            errors: [{ rule_id: "amount-positive" }],
+          },
+        ],
+      }),
+    ];
+    const selectionInspector = resolveSelectionInspectorModel({
+      selectedTable: { table_id: "table-1", name: "Finance > Cashflow" },
+      selectedCivilizationId: "moon-1",
+      civilizationRows: moonRows,
+      moonImpact: {
+        summary: {
+          state: "WARNING",
+          health_score: 78,
+          violation_count: 2,
+          current_event_seq: 7,
+        },
+        violations: [
+          {
+            mineral_key: "amount",
+            rule_id: "amount-positive",
+          },
+        ],
+      },
+    });
 
     render(
       React.createElement(WorkspaceSidebar, {
@@ -89,26 +126,7 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
         busy: false,
         error: "",
         selectedTableId: "table-1",
-        selectedTableLabel: "Tabulka: Cashflow",
-        selectedAsteroidLabel: "Moon-moon-1",
-        moonRows: [
-          buildMoonRow("moon-1"),
-          buildMoonRow("moon-2", {
-            state: "ANOMALY",
-            violation_count: 2,
-            facts: [
-              {
-                key: "amount",
-                typed_value: -12,
-                value_type: "number",
-                source: "value",
-                status: "invalid",
-                errors: [{ rule_id: "amount-positive" }],
-              },
-            ],
-          }),
-        ],
-        selectedMoonId: "moon-1",
+        selectionInspector,
         onSelectTable: () => {},
         onSelectMoon,
         onOpenGrid: () => {},
@@ -131,7 +149,7 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
     const onSelectBranch = vi.fn();
     const onCreateBranch = vi.fn();
     const onBranchCreateNameChange = vi.fn();
-    const onPromoteBranch = vi.fn();
+    const onOpenPromoteReview = vi.fn();
 
     render(
       React.createElement(WorkspaceSidebar, {
@@ -146,9 +164,10 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
         onBranchCreateNameChange,
         branchCreateBusy: false,
         onCreateBranch,
+        branchPromoteReviewOpen: false,
+        onOpenPromoteReview,
         branchPromoteBusy: false,
         branchPromoteSummary: "Branch byl promotnut (3 eventů).",
-        onPromoteBranch,
         onboarding: null,
         tableNodes: [{ id: "table-1", entityName: "Finance", label: "Cashflow" }],
         asteroidCount: 2,
@@ -182,8 +201,8 @@ describe("planetCivilizationMatrix Wave1 gates", () => {
     await user.click(screen.getByTestId("workspace-branch-create-button"));
     expect(onCreateBranch).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "Promote branch" }));
-    expect(onPromoteBranch).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Open promote review" }));
+    expect(onOpenPromoteReview).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("branch-promote-summary").textContent).toContain("promotnut");
   });
 

@@ -99,12 +99,14 @@ import { useCommandBarController } from "./useCommandBarController";
 import { useMoonCrudController } from "./useMoonCrudController";
 import { useBondDraftController } from "./useBondDraftController";
 import { useBranchTimelineController } from "./useBranchTimelineController";
+import { PromoteReviewDrawer } from "./PromoteReviewDrawer";
 import { StageZeroSetupPanel } from "./StageZeroSetupPanel";
 import { StageZeroSetupPanelProvider } from "./StageZeroSetupPanelContext";
 import { buildMergedTableContractPayload } from "./tableContractMerge";
 import { resolveDraftRailState } from "./draftRailContract";
 import { resolveGridCanvasTruthModel } from "./gridCanvasTruthContract";
 import { resolveBranchSelectionTransition, resolveBranchVisibilityModel } from "./branchVisibilityContract";
+import { resolvePromoteReviewModel } from "./promoteReviewContract";
 import {
   resolveCompareTimeTravelModel,
   resolveHistoricalInspectActivation,
@@ -1969,12 +1971,15 @@ export default function UniverseWorkspace({
   });
   const {
     branchPromoteBusy,
+    branchPromoteReviewOpen,
     branchPromoteSummary,
     setBranchPromoteSummary,
     branchCreateName,
     setBranchCreateName,
     branchCreateBusy,
     resetBranchTimelineState,
+    openBranchPromoteReview,
+    closeBranchPromoteReview,
     handlePromoteSelectedBranch,
     handleCreateBranch,
   } = useBranchTimelineController({
@@ -2068,6 +2073,7 @@ export default function UniverseWorkspace({
           bondCommitBusy: draftRailState.bond.commitBusy,
           branchCreateBusy,
           branchPromoteBusy,
+          branchPromoteReviewOpen,
           stageZeroCommitBusy,
         },
         sync: {
@@ -2079,6 +2085,7 @@ export default function UniverseWorkspace({
     [
       branchCreateBusy,
       branchPromoteBusy,
+      branchPromoteReviewOpen,
       draftRailState.bond.commitBusy,
       draftRailState.bond.previewBusy,
       draftRailState.bond.state,
@@ -2098,6 +2105,23 @@ export default function UniverseWorkspace({
       selectedTableId,
       stageZeroCommitBusy,
       compareTimeTravel.historicalMode,
+    ]
+  );
+  const promoteReview = useMemo(
+    () =>
+      resolvePromoteReviewModel({
+        selectedBranchId: branchVisibility.selectedBranchId,
+        selectedBranchLabel: branchVisibility.selectedBranchLabel,
+        branchPromoteBusy,
+        branchPromoteSummary,
+        reviewOpen: branchPromoteReviewOpen,
+      }),
+    [
+      branchPromoteBusy,
+      branchPromoteReviewOpen,
+      branchPromoteSummary,
+      branchVisibility.selectedBranchId,
+      branchVisibility.selectedBranchLabel,
     ]
   );
   useEffect(() => {
@@ -2425,12 +2449,22 @@ export default function UniverseWorkspace({
       data-workspace-time-mode={workspaceState.scope.timeMode}
       data-workspace-selection={workspaceState.selection.selectionKind}
       data-workspace-surface-mode={workspaceState.mode.surfaceMode}
+      data-workspace-cinematic-mode={promoteReview.cinematicMode}
       data-workspace-draft={workspaceState.draft.hasActiveDraft ? "active" : "idle"}
       data-workspace-active-rail={draftRailState.activeRail}
       data-workspace-sync-attention={workspaceState.sync.attention}
       data-reduced-motion={reducedMotion ? "true" : "false"}
       aria-label="Dataverse workspace"
-      style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#020205" }}
+      style={{
+        width: "100vw",
+        height: "100vh",
+        position: "relative",
+        overflow: "hidden",
+        background: "#020205",
+        transition: "filter 220ms ease, transform 220ms ease, opacity 220ms ease",
+        filter: promoteReview.open ? "saturate(1.08) contrast(1.04) brightness(0.96)" : "none",
+        transform: promoteReview.open ? "translateX(-10px) scale(0.992)" : "none",
+      }}
     >
       <div style={{ position: "fixed", left: 12, top: 12, zIndex: 62, display: "grid", gap: 6 }}>
         <button
@@ -2941,11 +2975,12 @@ export default function UniverseWorkspace({
           onCreateBranch={() => {
             void handleCreateBranch();
           }}
+          branchPromoteReviewOpen={branchPromoteReviewOpen}
+          onOpenPromoteReview={() => {
+            openBranchPromoteReview();
+          }}
           branchPromoteBusy={branchPromoteBusy}
           branchPromoteSummary={branchPromoteSummary}
-          onPromoteBranch={() => {
-            void handlePromoteSelectedBranch();
-          }}
           onboarding={onboarding}
           tableNodes={tableNodes}
           asteroidCount={snapshot.asteroids.length}
@@ -2990,6 +3025,16 @@ export default function UniverseWorkspace({
           interactionLocked={workspaceInteractionLocked}
           onClose={closeContextMenu}
           onAction={handleContextAction}
+        />
+
+        <PromoteReviewDrawer
+          review={promoteReview}
+          onClose={() => {
+            closeBranchPromoteReview();
+          }}
+          onConfirm={() => {
+            void handlePromoteSelectedBranch();
+          }}
         />
 
         <StarHeartDashboard

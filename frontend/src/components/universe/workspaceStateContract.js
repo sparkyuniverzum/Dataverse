@@ -57,6 +57,7 @@ export function resolveWorkspaceDraftState({
   bondCommitBusy = false,
   branchCreateBusy = false,
   branchPromoteBusy = false,
+  branchPromoteReviewOpen = false,
   stageZeroCommitBusy = false,
 } = {}) {
   const normalizedBondDraftState = String(bondDraftState || "")
@@ -67,7 +68,7 @@ export function resolveWorkspaceDraftState({
     normalizedBondDraftState && normalizedBondDraftState !== "bond_idle" && normalizedBondDraftState !== "idle"
   );
   const hasRowDraft = Boolean(pendingCreate || pendingRowOps);
-  const hasBranchDraft = Boolean(branchCreateBusy || branchPromoteBusy);
+  const hasBranchDraft = Boolean(branchCreateBusy || branchPromoteBusy || branchPromoteReviewOpen);
   const hasActiveDraft = Boolean(
     hasCommandDraft ||
     hasBondDraft ||
@@ -94,6 +95,7 @@ export function resolveWorkspaceDraftState({
     pendingRowOps: Boolean(pendingRowOps),
     branchCreateBusy: Boolean(branchCreateBusy),
     branchPromoteBusy: Boolean(branchPromoteBusy),
+    branchPromoteReviewOpen: Boolean(branchPromoteReviewOpen),
     stageZeroCommitBusy: Boolean(stageZeroCommitBusy),
     attention: hasBlockingIssue
       ? WORKSPACE_ATTENTION.RED

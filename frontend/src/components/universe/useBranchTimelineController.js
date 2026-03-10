@@ -18,21 +18,29 @@ export function useBranchTimelineController({
   const [branchPromoteSummary, setBranchPromoteSummary] = useState("");
   const [branchCreateName, setBranchCreateName] = useState("");
   const [branchCreateBusy, setBranchCreateBusy] = useState(false);
+  const [branchPromoteReviewOpen, setBranchPromoteReviewOpen] = useState(false);
   const resetBranchTimelineState = useCallback(() => {
     setBranchPromoteBusy(false);
     setBranchPromoteSummary("");
     setBranchCreateName("");
     setBranchCreateBusy(false);
+    setBranchPromoteReviewOpen(false);
   }, []);
+
+  const openBranchPromoteReview = useCallback(() => {
+    if (!String(selectedBranchId || "").trim() || branchPromoteBusy) return;
+    clearRuntimeIssue();
+    setBranchPromoteReviewOpen(true);
+  }, [branchPromoteBusy, clearRuntimeIssue, selectedBranchId]);
+
+  const closeBranchPromoteReview = useCallback(() => {
+    if (branchPromoteBusy) return;
+    setBranchPromoteReviewOpen(false);
+  }, [branchPromoteBusy]);
 
   const handlePromoteSelectedBranch = useCallback(async () => {
     const targetBranchId = String(selectedBranchId || "").trim();
     if (!galaxyId || !targetBranchId || branchPromoteBusy) return;
-    const approved =
-      typeof window === "undefined"
-        ? true
-        : window.confirm("Promote branch do main timeline? Tato akce uzavře branch a přehraje její eventy.");
-    if (!approved) return;
     setBusy(true);
     setBranchPromoteBusy(true);
     setBranchPromoteSummary("");
@@ -50,6 +58,7 @@ export function useBranchTimelineController({
         : null;
       selectBranch("");
       setBranchPromoteSummary(buildBranchTimelineSummary({ mode: "promote", promotedEventsCount }));
+      setBranchPromoteReviewOpen(false);
       await refreshProjection({ silent: true });
       if (typeof onRefreshScopes === "function") {
         await onRefreshScopes();
@@ -124,12 +133,15 @@ export function useBranchTimelineController({
 
   return {
     branchPromoteBusy,
+    branchPromoteReviewOpen,
     branchPromoteSummary,
     setBranchPromoteSummary,
     branchCreateName,
     setBranchCreateName,
     branchCreateBusy,
     resetBranchTimelineState,
+    openBranchPromoteReview,
+    closeBranchPromoteReview,
     handlePromoteSelectedBranch,
     handleCreateBranch,
   };
