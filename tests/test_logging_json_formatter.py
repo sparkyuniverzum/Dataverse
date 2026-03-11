@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import logging
 
+from app.infrastructure.runtime.observability.trace_context import bind_trace_context, reset_trace_context
 from app.logging_config import DataverseJsonFormatter
-from app.services.trace_context import bind_trace_context, reset_trace_context
 
 
 def test_json_formatter_emits_required_fields_with_fallbacks() -> None:

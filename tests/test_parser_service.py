@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.services.parser_service import ParserService
+from app.infrastructure.runtime.parser.parser_legacy_service import ParserService
 
 
 def test_plus_syntax_parses_metadata_inside_parentheses() -> None:

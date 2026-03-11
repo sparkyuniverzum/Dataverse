@@ -5,8 +5,8 @@ import asyncio
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
+from app.infrastructure.runtime.observability.logging_helpers import structured_log_extra
 from app.middleware.trace_context import create_trace_context_middleware
-from app.services.logging_helpers import structured_log_extra
 
 
 def _request(*, headers: list[tuple[bytes, bytes]] | None = None) -> Request:

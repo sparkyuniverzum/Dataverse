@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.trace_context import (
+from app.infrastructure.runtime.observability.trace_context import (
     bind_trace_context,
     current_trace_context,
     ensure_trace_context,

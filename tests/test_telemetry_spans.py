@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.telemetry_spans import start_span
+from app.infrastructure.runtime.observability.telemetry_spans import start_span
 
 
 def test_start_span_is_safe_when_otel_is_unavailable_or_not_configured() -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from starlette.requests import Request
 
-from app.services.trace_context import (
+from app.infrastructure.runtime.observability.trace_context import (
     bind_trace_context,
     ensure_trace_context,
     extract_trace_id_from_traceparent,

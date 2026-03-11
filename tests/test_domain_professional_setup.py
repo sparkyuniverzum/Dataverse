@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 from app.domains.auth import (
@@ -670,3 +671,39 @@ def test_star_core_domain_professional_setup() -> None:
     _assert_domain_module_is_web_independent(commands_source, module_name="star_core.commands")
     _assert_domain_module_is_web_independent(queries_source, module_name="star_core.queries")
     _assert_query_module_is_read_only(queries_source, module_name="star_core.queries")
+
+
+def test_runtime_cross_cutting_utilities_use_infrastructure_paths() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+
+    removed_service_shims = (
+        repo_root / "app/services/circuit_breaker.py",
+        repo_root / "app/services/logging_helpers.py",
+        repo_root / "app/services/telemetry_spans.py",
+        repo_root / "app/services/trace_context.py",
+        repo_root / "app/services/parser_service.py",
+        repo_root / "app/services/task_executor_service.py",
+    )
+    for path in removed_service_shims:
+        assert not path.exists(), f"Legacy compatibility shim still exists: {path.relative_to(repo_root)}"
+
+    forbidden_import_tokens = (
+        "from app.services.circuit_breaker import",
+        "from app.services.logging_helpers import",
+        "from app.services.telemetry_spans import",
+        "from app.services.trace_context import",
+        "from app.services.parser_service import",
+        "from app.services.task_executor_service import",
+        "import app.services.circuit_breaker",
+        "import app.services.logging_helpers",
+        "import app.services.telemetry_spans",
+        "import app.services.trace_context",
+        "import app.services.parser_service",
+        "import app.services.task_executor_service",
+    )
+    for python_path in (repo_root / "app").rglob("*.py"):
+        source = python_path.read_text(encoding="utf-8")
+        for token in forbidden_import_tokens:
+            assert (
+                token not in source
+            ), f"Legacy runtime import `{token}` remains in {python_path.relative_to(repo_root)}"

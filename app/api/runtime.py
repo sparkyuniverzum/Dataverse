@@ -17,9 +17,12 @@ from app.domains.shared.commands import (
     check_idempotency_replay,
     store_idempotency_response,
 )
+from app.infrastructure.runtime.observability.trace_context import (
+    ensure_trace_context,
+    extract_trace_id_from_traceparent,
+)
 from app.models import User
 from app.services.parser_types import AtomicTask
-from app.services.trace_context import ensure_trace_context, extract_trace_id_from_traceparent
 
 services: ServiceContainer = get_or_create_services()
 logger = logging.getLogger(__name__)

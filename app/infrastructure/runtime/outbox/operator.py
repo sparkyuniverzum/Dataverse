@@ -5,9 +5,9 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.observability.circuit_breaker import AsyncCircuitBreaker, CircuitBreakerOpenError
+from app.infrastructure.runtime.observability.logging_helpers import structured_log_extra
 from app.infrastructure.runtime.outbox.runner import OutboxRelayRunnerService, OutboxRunOnceSummary
-from app.services.circuit_breaker import AsyncCircuitBreaker, CircuitBreakerOpenError
-from app.services.logging_helpers import structured_log_extra
 
 logger = logging.getLogger(__name__)
 

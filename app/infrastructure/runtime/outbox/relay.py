@@ -9,9 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.runtime.event_envelope import OutboxStatus
 from app.infrastructure.runtime.event_store_service import EventStoreService
+from app.infrastructure.runtime.observability.logging_helpers import structured_log_extra
+from app.infrastructure.runtime.observability.telemetry_spans import start_span
 from app.models import OutboxEvent
-from app.services.logging_helpers import structured_log_extra
-from app.services.telemetry_spans import start_span
 
 logger = logging.getLogger(__name__)
 

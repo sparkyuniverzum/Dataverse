@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.services.trace_context import current_trace_context
+from app.infrastructure.runtime.observability.trace_context import current_trace_context
 
 
 def structured_log_extra(

@@ -29,7 +29,6 @@ def current_trace_context() -> tuple[str | None, str | None]:
     if trace_id:
         return trace_id, correlation_id
 
-    # Optional bridge for environments where OpenTelemetry is enabled.
     try:
         from opentelemetry import trace as otel_trace  # type: ignore[import-not-found]
 

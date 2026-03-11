@@ -40,7 +40,7 @@ class _RunnerStub:
 class _BreakerOpenStub:
     async def call(self, operation):
         _ = operation
-        from app.services.circuit_breaker import CircuitBreakerOpenError
+        from app.infrastructure.runtime.observability.circuit_breaker import CircuitBreakerOpenError
 
         raise CircuitBreakerOpenError("Circuit breaker is open.")
 
@@ -115,7 +115,7 @@ def test_trigger_run_once_propagates_circuit_open_without_mutating_state() -> No
         circuit_breaker=_BreakerOpenStub(),  # type: ignore[arg-type]
     )
 
-    from app.services.circuit_breaker import CircuitBreakerOpenError
+    from app.infrastructure.runtime.observability.circuit_breaker import CircuitBreakerOpenError
 
     with pytest.raises(CircuitBreakerOpenError):
         asyncio.run(service.trigger_run_once(session=object()))

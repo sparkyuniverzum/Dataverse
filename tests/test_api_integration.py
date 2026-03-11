@@ -3708,7 +3708,7 @@ def test_moon_first_class_crud_endpoints(auth_client: tuple[httpx.Client, str]) 
     planet_id = created_planet.json()["table_id"]
 
     created_moon = client.post(
-        "/moons",
+        "/civilizations",
         json={
             "galaxy_id": galaxy_id,
             "planet_id": planet_id,
@@ -3730,13 +3730,13 @@ def test_moon_first_class_crud_endpoints(auth_client: tuple[httpx.Client, str]) 
     assert "entity_id" in facts_by_key
     assert "state" in facts_by_key
 
-    listed = client.get("/moons", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
+    listed = client.get("/civilizations", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
     assert listed.status_code == 200, listed.text
     listed_items = listed.json().get("items", [])
     listed_row = next((item for item in listed_items if item.get("moon_id") == moon_id), None)
     assert listed_row is not None
 
-    detail = client.get(f"/moons/{moon_id}", params={"galaxy_id": galaxy_id})
+    detail = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
     assert detail.status_code == 200, detail.text
     detail_body = detail.json()
     assert detail_body["moon_id"] == moon_id
@@ -3745,10 +3745,11 @@ def test_moon_first_class_crud_endpoints(auth_client: tuple[httpx.Client, str]) 
     assert expected_event_seq >= 1
 
     mutated = client.patch(
-        f"/moons/{moon_id}/mutate",
+        f"/civilizations/{moon_id}/minerals/state",
         json={
             "galaxy_id": galaxy_id,
-            "minerals": {"state": "archived"},
+            "typed_value": "archived",
+            "remove": False,
             "expected_event_seq": expected_event_seq,
             "idempotency_key": f"moon-crud-mutate-{uuid.uuid4()}",
         },
@@ -3761,7 +3762,7 @@ def test_moon_first_class_crud_endpoints(auth_client: tuple[httpx.Client, str]) 
     assert extinguish_expected_seq >= expected_event_seq
 
     extinguished = client.patch(
-        f"/moons/{moon_id}/extinguish",
+        f"/civilizations/{moon_id}/extinguish",
         params={
             "galaxy_id": galaxy_id,
             "expected_event_seq": extinguish_expected_seq,
@@ -3769,12 +3770,11 @@ def test_moon_first_class_crud_endpoints(auth_client: tuple[httpx.Client, str]) 
     )
     assert extinguished.status_code == 200, extinguished.text
     extinguished_body = extinguished.json()
-    assert extinguished_body["moon_id"] == moon_id
-    assert extinguished_body["planet_id"] == planet_id
+    assert extinguished_body["id"] == moon_id
     assert extinguished_body["is_deleted"] is True
     assert extinguished_body["deleted_at"] is not None
 
-    missing_after_delete = client.get(f"/moons/{moon_id}", params={"galaxy_id": galaxy_id})
+    missing_after_delete = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
     assert missing_after_delete.status_code == 404, missing_after_delete.text
 
 
@@ -4191,10 +4191,10 @@ def test_contract_evolution_revalidate_backfill_mark_invalid(auth_client: tuple[
     assert current_seq >= 1
 
     revalidate_fail = client.patch(
-        f"/moons/{row_id}/mutate",
+        f"/civilizations/{row_id}/mutate",
         json={
             "galaxy_id": galaxy_id,
-            "label": "Evolution Seed Revalidate",
+            "value": "Evolution Seed Revalidate",
             "expected_event_seq": current_seq,
             "idempotency_key": f"contract-evolution-revalidate-{uuid.uuid4()}",
         },
@@ -4209,10 +4209,10 @@ def test_contract_evolution_revalidate_backfill_mark_invalid(auth_client: tuple[
     assert revalidate_detail.get("capability_key") == "score.governance"
 
     mark_invalid = client.patch(
-        f"/moons/{row_id}/mutate",
+        f"/civilizations/{row_id}/mutate",
         json={
             "galaxy_id": galaxy_id,
-            "minerals": {"score": -5},
+            "metadata": {"score": -5},
             "expected_event_seq": current_seq,
             "idempotency_key": f"contract-evolution-invalid-{uuid.uuid4()}",
         },
@@ -4229,26 +4229,25 @@ def test_contract_evolution_revalidate_backfill_mark_invalid(auth_client: tuple[
     assert mark_invalid_detail.get("rule_id") == "score-positive"
 
     backfill = client.patch(
-        f"/moons/{row_id}/mutate",
+        f"/civilizations/{row_id}/mutate",
         json={
             "galaxy_id": galaxy_id,
-            "minerals": {"score": 10},
+            "metadata": {"score": 10},
             "expected_event_seq": current_seq,
             "idempotency_key": f"contract-evolution-backfill-{uuid.uuid4()}",
         },
     )
     assert backfill.status_code == 200, backfill.text
     backfill_body = backfill.json()
-    backfilled_facts = {item["key"]: item for item in backfill_body.get("facts", [])}
-    assert backfilled_facts["score"]["typed_value"] == 10
+    assert backfill_body.get("metadata", {}).get("score") == 10
     next_seq = int(backfill_body.get("current_event_seq") or 0)
     assert next_seq > current_seq
 
     revalidate_ok = client.patch(
-        f"/moons/{row_id}/mutate",
+        f"/civilizations/{row_id}/mutate",
         json={
             "galaxy_id": galaxy_id,
-            "label": "Evolution Seed Valid",
+            "value": "Evolution Seed Valid",
             "expected_event_seq": next_seq,
             "idempotency_key": f"contract-evolution-revalidate-ok-{uuid.uuid4()}",
         },
@@ -5144,7 +5143,7 @@ def test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence(
     table_id = created_planet.json()["table_id"]
 
     created_moon = client.post(
-        "/moons",
+        "/civilizations",
         json={
             "galaxy_id": galaxy_id,
             "planet_id": table_id,
@@ -5183,10 +5182,11 @@ def test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence(
     assert table_member_ids_after_create == snapshot_ids_after_create
 
     mutated_moon = client.patch(
-        f"/moons/{moon_id}/mutate",
+        f"/civilizations/{moon_id}/minerals/state",
         json={
             "galaxy_id": galaxy_id,
-            "minerals": {"state": "archived"},
+            "typed_value": "archived",
+            "remove": False,
             "expected_event_seq": current_event_seq,
             "idempotency_key": f"release-gate-lifecycle-moon-mutate-{uuid.uuid4()}",
         },
@@ -5199,7 +5199,7 @@ def test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence(
     assert next_event_seq > current_event_seq
 
     extinguished = client.patch(
-        f"/moons/{moon_id}/extinguish",
+        f"/civilizations/{moon_id}/extinguish",
         params={
             "galaxy_id": galaxy_id,
             "expected_event_seq": next_event_seq,
@@ -5207,7 +5207,7 @@ def test_release_gate_star_lock_first_planet_moon_lifecycle_grid_convergence(
         },
     )
     assert extinguished.status_code == 200, extinguished.text
-    assert extinguished.json()["moon_id"] == moon_id
+    assert extinguished.json()["id"] == moon_id
     assert extinguished.json()["is_deleted"] is True
 
     snapshot_after_extinguish = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})

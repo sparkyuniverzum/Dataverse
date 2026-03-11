@@ -4,7 +4,11 @@ import asyncio
 
 import pytest
 
-from app.services.circuit_breaker import AsyncCircuitBreaker, CircuitBreakerOpenError, CircuitBreakerState
+from app.infrastructure.runtime.observability.circuit_breaker import (
+    AsyncCircuitBreaker,
+    CircuitBreakerOpenError,
+    CircuitBreakerState,
+)
 
 
 def test_circuit_breaker_opens_after_threshold_failures() -> None:

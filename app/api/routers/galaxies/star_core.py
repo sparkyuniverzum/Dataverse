@@ -38,6 +38,8 @@ from app.domains.star_core.queries import (
     get_runtime as get_runtime_query,
     list_pulse as list_pulse_query,
 )
+from app.infrastructure.runtime.observability.circuit_breaker import CircuitBreakerOpenError
+from app.infrastructure.runtime.observability.telemetry_spans import start_span
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -54,8 +56,6 @@ from app.schemas import (
     StarCorePulseResponse,
     StarCoreRuntimePublic,
 )
-from app.services.circuit_breaker import CircuitBreakerOpenError
-from app.services.telemetry_spans import start_span
 
 router = APIRouter(tags=["galaxies"])
 

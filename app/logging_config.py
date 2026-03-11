@@ -5,7 +5,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from app.services.trace_context import current_trace_context
+from app.infrastructure.runtime.observability.trace_context import current_trace_context
 
 REQUIRED_STRUCTURED_FIELDS = ("event_name", "trace_id", "correlation_id", "module")
 
