@@ -1,19 +1,9 @@
-from __future__ import annotations
-
-from pathlib import Path
-
-_PARSER2_IMPL_PATH = Path(__file__).resolve().parents[2] / "infrastructure" / "runtime" / "parser2"
-if _PARSER2_IMPL_PATH.exists():
-    parser2_impl_path = str(_PARSER2_IMPL_PATH)
-    if parser2_impl_path not in __path__:
-        __path__.append(parser2_impl_path)
-
-from .bridge import (  # noqa: E402
+from .bridge import (
     BridgeIssue,
     BridgeResult,
     Parser2ExecutorBridge,
 )
-from .intents import (  # noqa: E402
+from .intents import (
     PARSER2_INTENT_VERSION,
     AddGuardianIntent,
     AssignAttributeIntent,
@@ -30,9 +20,10 @@ from .intents import (  # noqa: E402
     SetFormulaIntent,
     UpsertNodeIntent,
 )
-from .lexer import Parser2Lexer  # noqa: E402
-from .models import (  # noqa: E402
+from .lexer import Parser2Lexer
+from .models import (
     AssignNode,
+    AstNode,
     EntityNode,
     ExtinguishNode,
     FlowNode,
@@ -47,18 +38,19 @@ from .models import (  # noqa: E402
     TokenType,
     TypeLinkNode,
 )
-from .parser import Parser2Service  # noqa: E402
-from .planner import (  # noqa: E402
+from .parser import Parser2Service
+from .planner import (
     Parser2SemanticPlanner,
     PlanIssue,
     SemanticPlanResult,
     SemanticResolver,
 )
-from .resolver import SnapshotSemanticResolver  # noqa: E402
-from .runtime_flags import parser_v2_fallback_to_v1_enabled  # noqa: E402
+from .resolver import SnapshotSemanticResolver
+from .runtime_flags import parser_v2_fallback_to_v1_enabled
 
 __all__ = [
     "AssignNode",
+    "AstNode",
     "AddGuardianIntent",
     "AssignAttributeIntent",
     "BulkIntent",

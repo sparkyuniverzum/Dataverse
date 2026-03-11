@@ -114,7 +114,7 @@ def test_projection_replay_convergence_under_load() -> None:
 
     for idx, civilization_id in enumerate(civilization_ids):
         append_event(
-            "ASTEROID_CREATED",
+            "CIVILIZATION_CREATED",
             civilization_id,
             {
                 "value": f"LoadRow-{idx}",
@@ -133,7 +133,7 @@ def test_projection_replay_convergence_under_load() -> None:
             )
         if idx % 3 == 0:
             append_event(
-                "ASTEROID_VALUE_UPDATED",
+                "CIVILIZATION_VALUE_UPDATED",
                 civilization_id,
                 {"value": f"LoadRow-{idx}-v2"},
             )
@@ -157,7 +157,7 @@ def test_projection_replay_convergence_under_load() -> None:
     deleted_civilization_ids: set[UUID] = set()
     for idx, civilization_id in enumerate(civilization_ids):
         if idx % 5 == 0:
-            append_event("ASTEROID_SOFT_DELETED", civilization_id, {})
+            append_event("CIVILIZATION_SOFT_DELETED", civilization_id, {})
             deleted_civilization_ids.add(civilization_id)
 
     assert len(events) >= 1000
@@ -241,7 +241,7 @@ def test_projection_replay_applies_metadata_remove_patch() -> None:
             galaxy_id=galaxy_id,
             branch_id=None,
             entity_id=civilization_id,
-            event_type="ASTEROID_CREATED",
+            event_type="CIVILIZATION_CREATED",
             payload={
                 "value": "Metadata remove seed",
                 "metadata": {
