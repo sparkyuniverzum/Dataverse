@@ -37,13 +37,14 @@ sed -n '560,920p' docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md
 
 1. Kanonický row runtime namespace je pouze `/civilizations*`.
 2. Moon je capability doména planety, není row doména.
-3. `/moons*` se nesmí zavádět jako kanonický row CRUD surface.
-4. `/asteroids*` je zakázaný runtime/API surface.
-5. Extinguish/delete semantika pro row a bond lifecycle je pouze soft-delete.
-6. Runtime scope se vždy řeší jako `user_id + galaxy_id (+ optional branch_id)`.
-7. Planet contract write a civilization row write jsou oddělené domény.
-8. OCC + idempotency jsou povinné pro mutující flow.
-9. Parser vstup je intent-level, exekuce je atomic-task level s deterministickou validační bránou.
+3. Row `/moons*` surface je odstraněný a nesmí se obnovovat.
+4. Historický kontext: dřívější `moon` row význam je zrušen; platí výhradně `civilization = row`, `moon = capability`.
+5. `/asteroids*` je zakázaný runtime/API surface.
+6. Extinguish/delete semantika pro row a bond lifecycle je pouze soft-delete.
+7. Runtime scope se vždy řeší jako `user_id + galaxy_id (+ optional branch_id)`.
+8. Planet contract write a civilization row write jsou oddělené domény.
+9. OCC + idempotency jsou povinné pro mutující flow.
+10. Parser vstup je intent-level, exekuce je atomic-task level s deterministickou validační bránou.
 
 ## 5. Entity-level BE MVP požadavky
 
@@ -174,7 +175,7 @@ BE omezení:
 
 - moon capability state žije na planet/table contract vrstvě,
 - moon capability ovlivňuje civilization validation/projection přes contract semantiku,
-- žádné kanonické row CRUD endpointy na `/moons*`.
+- row `/moons*` endpointy jsou odstraněné; row lifecycle běží na `/civilizations*`.
 
 ## 5.5 Civilization (row instance)
 

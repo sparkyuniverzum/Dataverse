@@ -224,7 +224,7 @@ Current implementation carries the ontology through these rules:
 6. Runtime scope is always `user_id + galaxy_id (+ optional branch_id)`.
 
 Runtime implication:
-`Moon capability != Civilization row`, even when compatibility endpoints still expose `/moons*`.
+`Moon capability != Civilization row`; historical `moon-as-row` naming is retired and row lifecycle runs on `/civilizations*`.
 
 ## 7. UX language
 

@@ -517,8 +517,8 @@ class PresetBundleService:
                 continue
             merged.civilizations.extend(item.civilizations)
             merged.bonds.extend(item.bonds)
-            merged.selected_asteroids.extend(item.selected_asteroids)
-            merged.extinguished_asteroids.extend(item.extinguished_asteroids)
+            merged.selected_civilizations.extend(item.selected_civilizations)
+            merged.extinguished_civilizations.extend(item.extinguished_civilizations)
             merged.extinguished_civilization_ids.extend(item.extinguished_civilization_ids)
             merged.extinguished_bond_ids.extend(item.extinguished_bond_ids)
             merged.semantic_effects.extend(item.semantic_effects)

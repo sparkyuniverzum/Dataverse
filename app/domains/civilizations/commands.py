@@ -132,7 +132,7 @@ def pick_extinguished_civilization(*, execution: Any, civilization_id: UUID) -> 
     extinguished_ids = set(getattr(execution, "extinguished_civilization_ids", []) or [])
     if civilization_id not in extinguished_ids:
         return False, None
-    extinguished_rows = list(getattr(execution, "extinguished_asteroids", []) or [])
+    extinguished_rows = list(getattr(execution, "extinguished_civilizations", []) or [])
     row = next((civilization for civilization in extinguished_rows if civilization.id == civilization_id), None)
     return True, row
 

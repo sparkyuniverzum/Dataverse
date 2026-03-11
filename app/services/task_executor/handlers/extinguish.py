@@ -60,7 +60,7 @@ class ExtinguishHandler:
             civilization.is_deleted = True
             civilization.deleted_at = deleted_event.timestamp
             civilization.current_event_seq = int(deleted_event.event_seq)
-            ctx.result.extinguished_asteroids.append(civilization)
+            ctx.result.extinguished_civilizations.append(civilization)
             if civilization.id not in ctx.result.extinguished_civilization_ids:
                 ctx.result.extinguished_civilization_ids.append(civilization.id)
             self.service._record_semantic_effect(

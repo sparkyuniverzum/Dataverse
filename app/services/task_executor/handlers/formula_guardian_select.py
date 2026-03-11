@@ -21,7 +21,7 @@ class FormulaGuardianSelectHandler:
                 target=str(task.target.value),
                 condition=task.condition,
             )
-            ctx.result.selected_asteroids.extend(selected)
+            ctx.result.selected_civilizations.extend(selected)
             return True
 
         if isinstance(task, SetFormulaIntent):

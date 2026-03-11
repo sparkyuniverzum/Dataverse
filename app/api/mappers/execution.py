@@ -83,7 +83,10 @@ def task_to_response(task: AtomicTask) -> TaskSchema:
 
 
 def execution_to_response(tasks: list[AtomicTask], execution: TaskExecutionResult) -> ParseCommandResponse:
-    selected_civilizations = [civilization_to_response(civilization) for civilization in execution.selected_asteroids]
+    selected_civilizations = [
+        civilization_to_response(civilization)
+        for civilization in getattr(execution, "selected_civilizations", execution.selected_asteroids)
+    ]
     return ParseCommandResponse(
         tasks=[task_to_response(task) for task in tasks],
         civilizations=[civilization_to_response(civilization) for civilization in execution.civilizations],

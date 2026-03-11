@@ -41,9 +41,10 @@ Scope: entire repository.
 
 1. Canonical row lifecycle CRUD/mutation surface is `/civilizations*`.
 2. Moon capability is a first-class domain over table/planet (`/planets/{planet_id}/capabilities`, moon summaries/dashboard views).
-3. If `/moons*` row endpoints are touched, treat them as legacy compatibility only; do not use them as canonical surface for new runtime behavior.
-4. `/asteroids*` is removed API surface; do not reintroduce it in runtime, docs, or new tests.
-5. New module/function/variable naming must use `civilization` (row) and `moon` (capability/UX), never `asteroid`.
+3. Historical naming note: `moon` was used in the past for row semantics, but this is obsolete. Current runtime truth is `civilization = row` and `moon = capability`.
+4. `/moons*` row runtime/API surface is removed; do not restore it. If a legacy test/doc still references row `/moons*`, migrate it to `/civilizations*`.
+5. `/asteroids*` is removed API surface; do not reintroduce it in runtime, docs, or new tests.
+6. New module/function/variable naming must use `civilization` (row) and `moon` (capability/UX), never `asteroid`.
 
 ## Absolute No-Shortcut Rule (Mandatory)
 

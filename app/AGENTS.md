@@ -15,9 +15,10 @@ Scope: `app/`
 2. Preserve OCC and idempotency behavior on mutate/extinguish/mineral writes.
 3. Do not break projection convergence (`snapshot + tables` must stay consistent).
 4. Contract violations must return actionable, repair-ready error messages.
-5. If `/moons*` row endpoints are touched, treat them as legacy compatibility only; do not build new canonical behavior on them.
-6. Do not add or restore `/asteroids*` runtime/API paths; treat asteroid naming as migration debt only.
-7. Absolute no-shortcut policy: no temporary parallel mutation paths, no validation/OCC bypasses, no workaround runtime branches without explicit user approval.
+5. Historical naming note: `moon` was previously used in row contexts, but runtime is now strict: `civilization = row`, `moon = capability`.
+6. Row `/moons*` runtime/API surface is removed; do not restore it. Migrate any legacy row `/moons*` references to `/civilizations*`.
+7. Do not add or restore `/asteroids*` runtime/API paths; treat asteroid naming as migration debt only.
+8. Absolute no-shortcut policy: no temporary parallel mutation paths, no validation/OCC bypasses, no workaround runtime branches without explicit user approval.
 
 ## High-Impact Areas
 

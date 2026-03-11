@@ -56,6 +56,8 @@ Při konfliktu v terminologii použijte toto pořadí priorit:
 4. terminologie kompatibilitních aliasů
 
 Názvosloví pro zpětnou kompatibilitu může existovat, ale nikdy nesmí redefinovat význam domény.
+Historická poznámka: v dřívějších verzích byl termín `moon` použitý i pro řádkovou entitu; tento význam je ukončen.
+Aktuální ontologie je závazná: `civilization = řádek`, `moon = capability`.
 
 ## 5. Doménová pravda
 
@@ -226,13 +228,13 @@ Současná implementace nese ontologii prostřednictvím těchto pravidel:
 
 1. `civilization` je kanonický runtime termín pro řádek.
 2. `/civilizations*` je kanonický jmenný prostor pro CRUD operace s řádky.
-3. `/moons*` není kanonický runtime CRUD namespace a nesmí se používat jako jmenný prostor řádků.
+3. `/moons*` není kanonický runtime CRUD namespace pro řádky a row endpointy na `/moons*` jsou odstraněné.
 4. Stav schopností Měsíce (Moon capability state) je řízen kontraktem na vrstvě planety/tabulky.
 5. Kontrakt planety a životní cyklus řádku civilizace jsou oddělené domény zápisu.
 6. Rozsah běhu (Runtime scope) je vždy `user_id + galaxy_id (+ volitelně branch_id)`.
 
 Důsledek pro runtime:
-`Schopnost Měsíce != Řádek civilizace`, a to i v případě, že kompatibilitní endpointy stále vystavují `/moons*`.
+`Schopnost Měsíce != Řádek civilizace`; historické row použití `moon` je ukončené a row lifecycle běží na `/civilizations*`.
 
 ## 7. Jazyk UX
 
@@ -266,7 +268,7 @@ Instance řádku musí být vždy označena jako `civilization`.
 | Doména | Moon = schopnost | `Moon` na plochách schopností | `Moon = řádek` |
 | Doména | Civilization = řádek | `Civilization` | `Civilization = schopnost` |
 | Runtime | `/civilizations*` = CRUD řádků | `Civilization` | zacházení s `/moons*` jako s kanonickým termínem |
-| Runtime | `/moons*` | Nepovoleno jako jmenný prostor pro CRUD řádků | zavádění endpointů životního cyklu řádku na `/moons*` |
+| Runtime | `/moons*` | Odstraněno pro CRUD řádků | zavádění endpointů životního cyklu řádku na `/moons*` |
 | UX | rozšíření kontraktu planety | `Moon capability` | pouhé `Moon`, když by si to uživatel mohl vyložit jako řádek |
 | UX | životní cyklus řádku | `Civilization` | `Moon` bez kvalifikace |
 

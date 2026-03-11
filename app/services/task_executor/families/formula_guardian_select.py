@@ -29,7 +29,7 @@ async def handle_formula_guardian_select_family(
             target=str(target),
             condition=(str(task.params["condition"]) if task.params.get("condition") else None),
         )
-        ctx.result.selected_asteroids.extend(selected)
+        ctx.result.selected_civilizations.extend(selected)
         return True
 
     if action == "SET_FORMULA":
