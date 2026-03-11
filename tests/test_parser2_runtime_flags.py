@@ -20,3 +20,7 @@ def test_parser_v2_fallback_flag_accepts_truthy_values() -> None:
     assert parser_v2_fallback_to_v1_enabled({"DATAVERSE_PARSER_V2_FALLBACK_TO_V1": "true"}) is True
     assert parser_v2_fallback_to_v1_enabled({"DATAVERSE_PARSER_V2_FALLBACK_TO_V1": "1"}) is True
     assert parser_v2_fallback_to_v1_enabled({"DATAVERSE_PARSER_V2_FALLBACK_TO_V1": "yes"}) is True
+
+
+def test_parser_v2_fallback_flag_unknown_value_stays_disabled() -> None:
+    assert parser_v2_fallback_to_v1_enabled({"DATAVERSE_PARSER_V2_FALLBACK_TO_V1": "typo"}) is False

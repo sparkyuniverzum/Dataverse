@@ -103,42 +103,6 @@ async def handle_ingest_update_family(
             ),
             None,
         )
-        if existing is None and ctx.preload_scope == "partial":
-            candidate = await self._load_active_civilization_by_value(
-                session=ctx.session,
-                user_id=ctx.user_id,
-                galaxy_id=ctx.galaxy_id,
-                value=value,
-            )
-            if candidate is not None:
-                candidate_table_id = self._projected_table_id_for_value(
-                    galaxy_id=ctx.galaxy_id,
-                    value=candidate.value,
-                    metadata=candidate.metadata,
-                )
-                if candidate_table_id == requested_table_id:
-                    existing = candidate
-                    ctx.civilizations_by_id[existing.id] = existing
-                else:
-                    # The fast value lookup found a row in a different table.
-                    # Hydrate full scope and retry table-aware match before creating a new row.
-                    await self._hydrate_context_to_full_scope(ctx)
-                    existing = next(
-                        (
-                            civilization
-                            for civilization in ctx.civilizations_by_id.values()
-                            if civilization.value == value
-                            and not civilization.is_deleted
-                            and self._projected_table_id_for_value(
-                                galaxy_id=ctx.galaxy_id,
-                                value=civilization.value,
-                                metadata=civilization.metadata,
-                            )
-                            == requested_table_id
-                        ),
-                        None,
-                    )
-
         if existing is None:
             await self._validate_table_contract_write(
                 session=ctx.session,

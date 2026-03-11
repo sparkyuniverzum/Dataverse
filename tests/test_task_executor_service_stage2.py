@@ -18,6 +18,11 @@ from app.core.task_executor.service import (
     TaskExecutorService,
     _TaskExecutionContext,
 )
+from app.infrastructure.runtime.parser2.intents import (
+    NodeSelector,
+    NodeSelectorType,
+    UpsertNodeIntent,
+)
 from app.services.parser_types import AtomicTask
 from app.services.universe_service import ProjectedAsteroid
 
@@ -141,100 +146,34 @@ def test_handle_formula_guardian_select_family_selects_by_target_substring() -> 
     assert [item.id for item in ctx.result.selected_asteroids] == [first.id]
 
 
-def test_build_preload_plan_partial_for_id_only_tasks() -> None:
+def test_normalize_runtime_tasks_bridges_single_intent_to_atomic_task() -> None:
     service = TaskExecutorService()
-    source_civilization_id = uuid4()
-    target_civilization_id = uuid4()
-    bond_id = uuid4()
-    civilization_id = uuid4()
-    tasks = [
-        AtomicTask(
-            action="LINK",
-            params={
-                "source_civilization_id": str(source_civilization_id),
-                "target_civilization_id": str(target_civilization_id),
-                "type": "RELATION",
-            },
-        ),
-        AtomicTask(action="EXTINGUISH_BOND", params={"bond_id": str(bond_id)}),
-        AtomicTask(action="UPDATE_ASTEROID", params={"civilization_id": str(civilization_id), "metadata": {"x": 1}}),
-        AtomicTask(action="SET_FORMULA", params={"target": str(civilization_id), "field": "f", "formula": "=1"}),
-        AtomicTask(
-            action="ADD_GUARDIAN",
-            params={"target": str(civilization_id), "field": "f", "operator": ">", "threshold": 1, "action": "alert"},
-        ),
-    ]
+    intent = UpsertNodeIntent(
+        node=NodeSelector(selector_type=NodeSelectorType.NAME, value="Alice"),
+        metadata={"state": "active"},
+    )
 
-    plan = service._build_preload_plan(tasks=tasks, branch_id=None)
+    normalized = service._normalize_runtime_tasks(tasks=[intent])
 
-    assert plan.scope == "partial"
-    assert source_civilization_id in plan.civilization_ids
-    assert target_civilization_id in plan.civilization_ids
-    assert civilization_id in plan.civilization_ids
-    assert bond_id in plan.bond_ids
-    assert plan.include_connected_bonds is False
+    assert len(normalized) == 1
+    assert normalized[0].action == "INGEST"
+    assert normalized[0].params["value"] == "Alice"
+    assert normalized[0].params["metadata"]["state"] == "active"
 
 
-def test_build_preload_plan_partial_for_ingest_only_batch() -> None:
+def test_normalize_runtime_tasks_rejects_unbridgeable_intent() -> None:
     service = TaskExecutorService()
-    tasks = [AtomicTask(action="INGEST", params={"value": "Material", "metadata": {"table": "Sklad"}})]
+    # ID selector must be valid UUID, so this intent must fail bridge->AtomicTask conversion.
+    intent = UpsertNodeIntent(
+        node=NodeSelector(selector_type=NodeSelectorType.ID, value="not-a-uuid"),
+        metadata={},
+    )
 
-    plan = service._build_preload_plan(tasks=tasks, branch_id=None)
+    with pytest.raises(HTTPException) as exc:
+        service._normalize_runtime_tasks(tasks=[intent])
 
-    assert plan.scope == "partial"
-    assert plan.civilization_ids == frozenset()
-    assert plan.bond_ids == frozenset()
-    assert plan.include_connected_bonds is False
-
-
-def test_build_preload_plan_partial_for_explicit_extinguish() -> None:
-    service = TaskExecutorService()
-    civilization_id = uuid4()
-    tasks = [AtomicTask(action="EXTINGUISH", params={"civilization_id": str(civilization_id)})]
-
-    plan = service._build_preload_plan(tasks=tasks, branch_id=None)
-
-    assert plan.scope == "partial"
-    assert civilization_id in plan.civilization_ids
-    assert plan.include_connected_bonds is True
-
-
-def test_build_preload_plan_falls_back_for_fuzzy_or_branch_tasks() -> None:
-    service = TaskExecutorService()
-    fuzzy_tasks = [AtomicTask(action="DELETE", params={"target": "pipeline"})]
-    branch_tasks = [
-        AtomicTask(
-            action="LINK", params={"source_civilization_id": str(uuid4()), "target_civilization_id": str(uuid4())}
-        )
-    ]
-
-    fuzzy_plan = service._build_preload_plan(tasks=fuzzy_tasks, branch_id=None)
-    branch_plan = service._build_preload_plan(tasks=branch_tasks, branch_id=uuid4())
-
-    assert fuzzy_plan.scope == "full"
-    assert branch_plan.scope == "full"
-
-
-def test_handle_ingest_update_family_partial_scope_reuses_existing_from_db_lookup() -> None:
-    service = TaskExecutorService()
-    existing = _asteroid(value="Material")
-    ctx = _context(civilizations=[])
-    ctx.preload_scope = "partial"
-    task = AtomicTask(action="INGEST", params={"value": "Material", "metadata": {}})
-
-    async def _fake_lookup(*, session, user_id, galaxy_id, value):  # noqa: ANN001
-        assert value == "Material"
-        return existing
-
-    service._load_active_civilization_by_value = _fake_lookup  # type: ignore[method-assign]
-
-    handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
-
-    assert handled is True
-    assert len(ctx.result.civilizations) == 1
-    assert ctx.result.civilizations[0].id == existing.id
-    assert ctx.context_civilization_ids == [existing.id]
-    assert existing.id in ctx.civilizations_by_id
+    assert exc.value.status_code == 422
+    assert "Invalid parser intent" in str(exc.value.detail)
 
 
 def test_update_asteroid_blocks_non_lifecycle_mutation_on_archived_row() -> None:

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
+
+import pytest
 
 from app.services.runtime_shutdown_service import RuntimeShutdownService
 
@@ -92,7 +95,9 @@ def test_shutdown_drains_tasks_flushes_outbox_and_disposes_db() -> None:
     assert dispose_calls["count"] == 1
 
 
-def test_shutdown_marks_outbox_flush_incomplete_when_runner_fails() -> None:
+def test_shutdown_marks_outbox_flush_incomplete_when_runner_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     task_executor = _TaskExecutorStub(should_drain=False)
 
     class _FailingRunner(_RunnerStub):
@@ -102,6 +107,7 @@ def test_shutdown_marks_outbox_flush_incomplete_when_runner_fails() -> None:
 
     runner = _FailingRunner()
     dispose_calls = {"count": 0}
+    caplog.set_level(logging.WARNING, logger="app.services.runtime_shutdown_service")
 
     async def dispose_db():
         dispose_calls["count"] += 1
@@ -119,3 +125,26 @@ def test_shutdown_marks_outbox_flush_incomplete_when_runner_fails() -> None:
     assert summary.outbox_flush_completed is False
     assert summary.db_pools_disposed is True
     assert dispose_calls["count"] == 1
+    assert any(record.message == "runtime.shutdown.drain_timeout" for record in caplog.records)
+    assert any(record.message == "runtime.shutdown.outbox_flush_failed" for record in caplog.records)
+
+
+def test_shutdown_logs_db_dispose_failure(caplog: pytest.LogCaptureFixture) -> None:
+    task_executor = _TaskExecutorStub(should_drain=True)
+    runner = _RunnerStub()
+    caplog.set_level(logging.WARNING, logger="app.services.runtime_shutdown_service")
+
+    async def dispose_db():
+        raise RuntimeError("dispose failed")
+
+    service = RuntimeShutdownService(
+        task_executor_service=task_executor,  # type: ignore[arg-type]
+        outbox_relay_runner_service=runner,  # type: ignore[arg-type]
+        session_factory=_SessionStub,
+        dispose_db_engines=dispose_db,
+        timeout_seconds=1.0,
+    )
+    summary = asyncio.run(service.shutdown())
+
+    assert summary.db_pools_disposed is False
+    assert any(record.message == "runtime.shutdown.db_dispose_failed" for record in caplog.records)

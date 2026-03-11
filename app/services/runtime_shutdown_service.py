@@ -60,14 +60,38 @@ class RuntimeShutdownService:
         correlation_id: str | None = None,
     ) -> RuntimeShutdownSummary:
         started_at = datetime.now(UTC)
-        deadline = asyncio.get_running_loop().time() + self.timeout_seconds
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self.timeout_seconds
         intake_stopped = True
+        logger.info(
+            "runtime.shutdown.started",
+            extra=structured_log_extra(
+                event_name="runtime.shutdown.started",
+                module="runtime.shutdown",
+                trace_id=trace_id,
+                correlation_id=correlation_id,
+                timeout_seconds=self.timeout_seconds,
+                outbox_requeue_limit=self.outbox_requeue_limit,
+                outbox_relay_batch_size=self.outbox_relay_batch_size,
+            ),
+        )
 
-        remaining_for_drain = max(0.05, deadline - asyncio.get_running_loop().time())
+        remaining_for_drain = max(0.05, deadline - loop.time())
         drained = await self.task_executor_service.wait_for_idle(timeout_seconds=remaining_for_drain)
+        if not drained:
+            logger.warning(
+                "runtime.shutdown.drain_timeout",
+                extra=structured_log_extra(
+                    event_name="runtime.shutdown.drain_timeout",
+                    module="runtime.shutdown",
+                    trace_id=trace_id,
+                    correlation_id=correlation_id,
+                    timeout_seconds=remaining_for_drain,
+                ),
+            )
 
         outbox_flushed = False
-        remaining_for_outbox = max(0.0, deadline - asyncio.get_running_loop().time())
+        remaining_for_outbox = max(0.0, deadline - loop.time())
         if remaining_for_outbox > 0:
             try:
                 async with self.session_factory() as session:
@@ -84,15 +108,56 @@ class RuntimeShutdownService:
                 outbox_flushed = True
             except TimeoutError:
                 outbox_flushed = False
-            except Exception:
+                logger.warning(
+                    "runtime.shutdown.outbox_flush_timeout",
+                    extra=structured_log_extra(
+                        event_name="runtime.shutdown.outbox_flush_timeout",
+                        module="runtime.shutdown",
+                        trace_id=trace_id,
+                        correlation_id=correlation_id,
+                        timeout_seconds=remaining_for_outbox,
+                    ),
+                )
+            except Exception as exc:
                 outbox_flushed = False
+                logger.exception(
+                    "runtime.shutdown.outbox_flush_failed",
+                    extra=structured_log_extra(
+                        event_name="runtime.shutdown.outbox_flush_failed",
+                        module="runtime.shutdown",
+                        trace_id=trace_id,
+                        correlation_id=correlation_id,
+                        error_type=type(exc).__name__,
+                    ),
+                )
+        else:
+            logger.warning(
+                "runtime.shutdown.outbox_flush_skipped",
+                extra=structured_log_extra(
+                    event_name="runtime.shutdown.outbox_flush_skipped",
+                    module="runtime.shutdown",
+                    trace_id=trace_id,
+                    correlation_id=correlation_id,
+                    reason="timeout_budget_exhausted",
+                ),
+            )
 
         db_disposed = False
         try:
             await self.dispose_db_engines()
             db_disposed = True
-        except Exception:
+        except Exception as exc:
             db_disposed = False
+            logger.exception(
+                "runtime.shutdown.db_dispose_failed",
+                extra=structured_log_extra(
+                    event_name="runtime.shutdown.db_dispose_failed",
+                    module="runtime.shutdown",
+                    trace_id=trace_id,
+                    correlation_id=correlation_id,
+                    error_type=type(exc).__name__,
+                ),
+            )
 
         finished_at = datetime.now(UTC)
         summary = RuntimeShutdownSummary(

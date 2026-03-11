@@ -14,4 +14,5 @@ def parser_v2_fallback_to_v1_enabled(env: Mapping[str, str] | None = None) -> bo
         return False
     if raw in _TRUTHY:
         return True
-    return True
+    # Unknown values are treated as disabled to avoid accidental fallback activation via typo.
+    return False

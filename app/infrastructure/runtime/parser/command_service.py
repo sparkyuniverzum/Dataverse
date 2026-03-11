@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -8,6 +9,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.observability.logging_helpers import structured_log_extra
 from app.infrastructure.runtime.parser2 import (
     Parser2SemanticPlanner,
     SnapshotSemanticResolver,
@@ -15,6 +17,8 @@ from app.infrastructure.runtime.parser2 import (
 )
 from app.schema_models.execution import ParseCommandRequest
 from app.services.parser_types import AtomicTask
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -37,6 +41,10 @@ async def resolve_tasks_for_payload(
     services: Any,
     ensure_scope: Callable[[], Awaitable[tuple[UUID, UUID | None]]],
 ) -> list[AtomicTask]:
+    fallback_enabled = parser_v2_fallback_to_v1_enabled()
+    parser_version_explicit = "parser_version" in payload.model_fields_set
+    can_fallback_to_v1 = payload.parser_version == "v2" and (not parser_version_explicit) and fallback_enabled
+
     def _parse_with_v1_or_422(command: str) -> list[AtomicTask]:
         parse_result = services.parser_service.parse_with_diagnostics(command)
         if parse_result.errors:
@@ -46,8 +54,22 @@ async def resolve_tasks_for_payload(
             )
         return parse_result.tasks
 
+    def _log_v2_fallback(reason: str, *, detail: str) -> None:
+        logger.warning(
+            "parser.v2.fallback_to_v1",
+            extra=structured_log_extra(
+                event_name="parser.v2.fallback_to_v1",
+                module="runtime.parser.command_service",
+                reason=reason,
+                detail=detail,
+                parser_version=payload.parser_version,
+                parser_version_explicit=parser_version_explicit,
+                fallback_enabled=fallback_enabled,
+                command_length=len(payload.command or ""),
+            ),
+        )
+
     tasks: list[AtomicTask]
-    parser_version_explicit = "parser_version" in payload.model_fields_set
     if payload.parser_version == "v2":
         v2_error_message: str | None = None
         try:
@@ -75,19 +97,24 @@ async def resolve_tasks_for_payload(
                 else:
                     tasks = bridge_result.tasks
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            if parser_version_explicit or not parser_v2_fallback_to_v1_enabled():
+            if not can_fallback_to_v1:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Parse error: parser_v2_runtime_failure ({type(exc).__name__})",
                 ) from exc
+            _log_v2_fallback(
+                "v2_runtime_failure",
+                detail=f"{type(exc).__name__}: parser2 runtime failed and policy allows v1 fallback",
+            )
             return _parse_with_v1_or_422(payload.command)
 
         if v2_error_message is not None:
-            if parser_version_explicit or not parser_v2_fallback_to_v1_enabled():
+            if not can_fallback_to_v1:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Parse error: {v2_error_message}",
                 )
+            _log_v2_fallback("v2_plan_or_bridge_error", detail=v2_error_message)
             return _parse_with_v1_or_422(payload.command)
     else:
         return _parse_with_v1_or_422(payload.command)

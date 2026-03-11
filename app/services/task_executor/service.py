@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -10,17 +9,25 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, cast, func, literal, select
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.bonds.semantics import normalize_bond_type
 from app.infrastructure.runtime.event_store_service import EventStoreService
+from app.infrastructure.runtime.parser2.bridge import Parser2ExecutorBridge
 from app.infrastructure.runtime.parser2.intents import (
+    AddGuardianIntent,
+    AssignAttributeIntent,
     BulkIntent,
-    Intent,
+    CreateLinkIntent,
+    ExtinguishNodeIntent,
+    FlowIntent,
+    IntentEnvelope,
+    SelectNodesIntent,
+    SetFormulaIntent,
+    UpsertNodeIntent,
 )
-from app.models import Bond, CivilizationRM, Event
+from app.models import Bond, Event
 from app.services.auto_semantics_service import AutoSemanticsService
 from app.services.parser_types import AtomicTask
 from app.services.projection.read_model_projector import ReadModelProjector
@@ -30,13 +37,7 @@ from app.services.task_executor.families.bond_mutation import handle_link_and_bo
 from app.services.task_executor.families.extinguish import handle_extinguish_family
 from app.services.task_executor.families.formula_guardian_select import handle_formula_guardian_select_family
 from app.services.task_executor.families.ingest_update import handle_ingest_update_family
-from app.services.task_executor.handlers.extinguish import ExtinguishHandler
-from app.services.task_executor.handlers.formula_guardian_select import FormulaGuardianSelectHandler
-from app.services.task_executor.handlers.ingest_update import IngestUpdateHandler
-from app.services.task_executor.handlers.intent_command import IntentCommandHandler
-from app.services.task_executor.handlers.link_mutation import LinkMutationHandler
 from app.services.task_executor.intent_commands import (
-    IntentCommand,
     IntentCommandValidationError,
     intent_command_from_atomic_task,
 )
@@ -66,19 +67,31 @@ class _TaskExecutionContext:
     contract_cache: dict[UUID, EffectiveTableContract | None]
     appended_events: list[Event]
     append_and_project_event: Callable[..., Awaitable[Event]]
-    preload_scope: str = "full"
 
 
-@dataclass(frozen=True)
-class _PreloadPlan:
-    scope: str
-    civilization_ids: frozenset[UUID] = frozenset()
-    bond_ids: frozenset[UUID] = frozenset()
-    include_connected_bonds: bool = False
-
-
-InputTask = Intent | AtomicTask
-RuntimeTask = Intent | IntentCommand
+InputTask = (
+    AtomicTask
+    | UpsertNodeIntent
+    | CreateLinkIntent
+    | AssignAttributeIntent
+    | FlowIntent
+    | ExtinguishNodeIntent
+    | SelectNodesIntent
+    | SetFormulaIntent
+    | AddGuardianIntent
+    | BulkIntent
+)
+PARSER_INTENT_TYPES = (
+    UpsertNodeIntent,
+    CreateLinkIntent,
+    AssignAttributeIntent,
+    FlowIntent,
+    ExtinguishNodeIntent,
+    SelectNodesIntent,
+    SetFormulaIntent,
+    AddGuardianIntent,
+    BulkIntent,
+)
 
 
 class TaskExecutorService:
@@ -96,13 +109,7 @@ class TaskExecutorService:
         self.occ_guards = OccGuards()
         self.contract_validator = TableContractValidator()
         self.auto_semantics_service = AutoSemanticsService(self)
-        self.handlers = [
-            IntentCommandHandler(self),
-            IngestUpdateHandler(self),
-            LinkMutationHandler(self),
-            ExtinguishHandler(self),
-            FormulaGuardianSelectHandler(self),
-        ]
+        self.parser2_executor_bridge = Parser2ExecutorBridge()
         self.atomic_family_handlers = (
             self._handle_ingest_update_family,
             self._handle_link_and_bond_mutation_family,
@@ -483,131 +490,33 @@ class TaskExecutorService:
             cache=contract_cache,
         )
 
-    @staticmethod
-    def _normalize_runtime_tasks(*, tasks: list[InputTask]) -> list[RuntimeTask]:
-        normalized: list[RuntimeTask] = []
+    def _normalize_runtime_tasks(self, *, tasks: list[InputTask]) -> list[AtomicTask]:
+        normalized: list[AtomicTask] = []
         for task in tasks:
             if isinstance(task, AtomicTask):
                 try:
-                    normalized.append(intent_command_from_atomic_task(task))
+                    normalized_task = intent_command_from_atomic_task(task)
                 except IntentCommandValidationError as exc:
                     raise HTTPException(
                         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail=f"Invalid atomic task: {exc}",
                     ) from exc
+                normalized.append(AtomicTask(action=normalized_task.action, params=dict(normalized_task.params)))
                 continue
-            normalized.append(task)
-        return normalized
-
-    @staticmethod
-    def _full_preload_plan() -> _PreloadPlan:
-        return _PreloadPlan(scope="full")
-
-    def _build_preload_plan(self, *, tasks: list[RuntimeTask], branch_id: UUID | None) -> _PreloadPlan:
-        # Branch timelines are reconstructed from events on read, so partial read-model preload is unsafe there.
-        if branch_id is not None:
-            return self._full_preload_plan()
-
-        # Keep backwards-compatible partial preload for legacy AtomicTask batches.
-        civilization_ids: set[UUID] = set()
-        bond_ids: set[UUID] = set()
-        include_connected_bonds = False
-
-        for task in tasks:
-            if isinstance(task, BulkIntent):
-                return self._full_preload_plan()
-            action = str(getattr(task, "action", "")).upper()
-            params = getattr(task, "params", {})
-            if not isinstance(params, dict):
-                params = {}
-
-            if action == "INGEST":
-                continue
-            if action == "LINK":
-                source_uuid = self._parse_uuid(params.get("source_civilization_id"))
-                target_uuid = self._parse_uuid(params.get("target_civilization_id"))
-                if source_uuid is None or target_uuid is None:
-                    return self._full_preload_plan()
-                civilization_ids.add(source_uuid)
-                civilization_ids.add(target_uuid)
-                continue
-            if action in {"UPDATE_ASTEROID", "SET_FORMULA", "ADD_GUARDIAN"}:
-                asteroid_uuid = self._parse_uuid(params.get("civilization_id") or params.get("target"))
-                if asteroid_uuid is None:
-                    return self._full_preload_plan()
-                civilization_ids.add(asteroid_uuid)
-                continue
-            if action == "EXTINGUISH_BOND":
-                bond_uuid = self._parse_uuid(params.get("bond_id"))
-                if bond_uuid is None:
-                    return self._full_preload_plan()
-                bond_ids.add(bond_uuid)
-                continue
-            if action in {"EXTINGUISH", "DELETE"}:
-                asteroid_uuid = self._parse_uuid(params.get("civilization_id"))
-                if asteroid_uuid is None:
-                    return self._full_preload_plan()
-                civilization_ids.add(asteroid_uuid)
-                include_connected_bonds = True
-                continue
-            return self._full_preload_plan()
-
-        return _PreloadPlan(
-            scope="partial",
-            civilization_ids=frozenset(civilization_ids),
-            bond_ids=frozenset(bond_ids),
-            include_connected_bonds=include_connected_bonds,
-        )
-
-    async def _load_active_civilization_by_value(
-        self,
-        *,
-        session: AsyncSession,
-        user_id: UUID,
-        galaxy_id: UUID,
-        value: Any,
-    ) -> ProjectedCivilization | None:
-        try:
-            value_json = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-        except TypeError:
-            # Non-JSON-serializable value cannot be matched safely via DB equality lookup.
-            return None
-
-        row = (
-            (
-                await session.execute(
-                    select(CivilizationRM).where(
-                        and_(
-                            CivilizationRM.user_id == user_id,
-                            CivilizationRM.galaxy_id == galaxy_id,
-                            CivilizationRM.is_deleted.is_(False),
-                            CivilizationRM.value == cast(literal(value_json), JSONB),
-                        )
+            if isinstance(task, PARSER_INTENT_TYPES):
+                bridge_result = self.parser2_executor_bridge.to_atomic_tasks(IntentEnvelope(intents=[task]))
+                if bridge_result.errors:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail=f"Invalid parser intent: {bridge_result.errors[0].message}",
                     )
-                )
+                normalized.extend(bridge_result.tasks)
+                continue
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Unsupported task payload type: {type(task).__name__}",
             )
-            .scalars()
-            .first()
-        )
-        if row is None:
-            return None
-
-        event_seq_map = await self._entity_event_seq_map(
-            session=session,
-            user_id=user_id,
-            galaxy_id=galaxy_id,
-            branch_id=None,
-            entity_ids={row.id},
-        )
-        return ProjectedCivilization(
-            id=row.id,
-            value=row.value,
-            metadata=row.metadata_ if isinstance(row.metadata_, dict) else {},
-            is_deleted=row.is_deleted,
-            created_at=row.created_at,
-            deleted_at=row.deleted_at,
-            current_event_seq=event_seq_map.get(row.id, 0),
-        )
+        return normalized
 
     async def _entity_event_seq_map(
         self,
@@ -642,11 +551,12 @@ class TaskExecutorService:
         self,
         *,
         session: AsyncSession,
-        tasks: list[RuntimeTask],
+        tasks: list[AtomicTask],
         user_id: UUID,
         galaxy_id: UUID,
         branch_id: UUID | None,
-    ) -> tuple[list[ProjectedCivilization], list[ProjectedBond], str]:
+    ) -> tuple[list[ProjectedCivilization], list[ProjectedBond]]:
+        del tasks
         civilizations, bonds = await self.universe_service.project_state(
             session=session,
             user_id=user_id,
@@ -654,11 +564,11 @@ class TaskExecutorService:
             branch_id=branch_id,
             apply_calculations=False,
         )
-        return civilizations, bonds, "full"
+        return civilizations, bonds
 
-    async def _dispatch_task_family(self, *, task: RuntimeTask, ctx: _TaskExecutionContext) -> bool:
-        for handler in self.handlers:
-            if await handler.handle(task=task, ctx=ctx):
+    async def _dispatch_task_family(self, *, task: AtomicTask, ctx: _TaskExecutionContext) -> bool:
+        for handler in self.atomic_family_handlers:
+            if await handler(task=task, ctx=ctx):
                 return True
         return False
 
@@ -741,7 +651,6 @@ class TaskExecutorService:
         result: TaskExecutionResult,
         active_asteroids: list[ProjectedCivilization],
         active_bonds: list[ProjectedBond],
-        preload_scope: str,
     ) -> _TaskExecutionContext:
         async def _uninitialized_append(*, entity_id: UUID, event_type: str, payload: dict) -> Event:
             del entity_id, event_type, payload
@@ -759,7 +668,6 @@ class TaskExecutorService:
             contract_cache={},
             appended_events=[],
             append_and_project_event=_uninitialized_append,
-            preload_scope=preload_scope,
         )
 
         async def append_with_tracking(*, entity_id: UUID, event_type: str, payload: dict) -> Event:
@@ -779,7 +687,7 @@ class TaskExecutorService:
         context.append_and_project_event = append_with_tracking
         return context
 
-    async def _run_task_sequence(self, *, tasks: list[RuntimeTask], ctx: _TaskExecutionContext) -> None:
+    async def _run_task_sequence(self, *, tasks: list[AtomicTask], ctx: _TaskExecutionContext) -> None:
         def _task_label(item: Any) -> str:
             kind = getattr(item, "kind", None)
             if isinstance(kind, str) and kind.strip():
@@ -790,14 +698,6 @@ class TaskExecutorService:
             return "UNKNOWN"
 
         for task in tasks:
-            if isinstance(task, BulkIntent):
-                for sub_intent in task.intents:
-                    if not await self._dispatch_task_family(task=sub_intent, ctx=ctx):
-                        raise HTTPException(
-                            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            detail=f"Unsupported task action: {_task_label(sub_intent)}",
-                        )
-                continue
             if not await self._dispatch_task_family(task=task, ctx=ctx):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -823,7 +723,7 @@ class TaskExecutorService:
         async with self._track_execution():
             self._ensure_transaction_ready(session=session, manage_transaction=manage_transaction)
             runtime_tasks = self._normalize_runtime_tasks(tasks=tasks)
-            active_asteroids, active_bonds, preload_scope = await self._load_initial_context_state(
+            active_asteroids, active_bonds = await self._load_initial_context_state(
                 session=session,
                 tasks=runtime_tasks,
                 user_id=user_id,
@@ -845,7 +745,6 @@ class TaskExecutorService:
                     result=result,
                     active_asteroids=active_asteroids,
                     active_bonds=active_bonds,
-                    preload_scope=preload_scope,
                 )
                 await self._run_task_sequence(tasks=runtime_tasks, ctx=context)
                 await self._sync_read_model_if_needed(branch_id=branch_id, ctx=context)
