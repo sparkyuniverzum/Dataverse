@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from hashlib import sha256
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -9,11 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import import_error_to_public, import_job_to_public
 from app.api.runtime import (
-    commit_if_active,
     get_service_container,
     resolve_branch_id_for_user,
     resolve_galaxy_id_for_user,
-    transactional_context,
+    run_scoped_idempotent,
 )
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
@@ -53,6 +53,7 @@ async def run_import_csv(
     strict: bool = Form(default=True),
     galaxy_id: UUID | None = Form(default=None),
     branch_id: UUID | None = Form(default=None),
+    idempotency_key: str | None = Form(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
@@ -67,22 +68,10 @@ async def run_import_csv(
         )
     except ImportCommandError as exc:
         raise _command_to_http_exception(exc) from exc
-    payload = ensure_non_empty_payload(await file.read())
+    payload_bytes = ensure_non_empty_payload(await file.read())
+    payload_sha256 = sha256(payload_bytes).hexdigest()
 
-    async with transactional_context(session):
-        target_galaxy_id = await resolve_galaxy_id_for_user(
-            session=session,
-            user=current_user,
-            galaxy_id=galaxy_id,
-            services=services,
-        )
-        target_branch_id = await resolve_branch_id_for_user(
-            session=session,
-            user=current_user,
-            galaxy_id=target_galaxy_id,
-            branch_id=branch_id,
-            services=services,
-        )
+    async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> ImportRunResponse:
         try:
             result = await run_import_csv_command(
                 session=session,
@@ -91,14 +80,32 @@ async def run_import_csv(
                 galaxy_id=target_galaxy_id,
                 branch_id=target_branch_id,
                 filename=str(plan.request_payload["filename"]),
-                file_bytes=payload,
+                file_bytes=payload_bytes,
                 mode=str(plan.request_payload["mode"]),
                 strict=bool(plan.request_payload["strict"]),
             )
         except ImportCommandError as exc:
             raise _command_to_http_exception(exc) from exc
-    await commit_if_active(session)
-    return ImportRunResponse(job=import_job_to_public(result.job))
+        return ImportRunResponse(job=import_job_to_public(result.job))
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=galaxy_id,
+        branch_id=branch_id,
+        endpoint_key="POST:/io/imports",
+        idempotency_key=idempotency_key,
+        request_payload={
+            **plan.request_payload,
+            "payload_sha256": payload_sha256,
+            "payload_size": len(payload_bytes),
+        },
+        execute=execute_scoped,
+        replay_loader=ImportRunResponse.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="CSV import failed",
+    )
 
 
 @router.get("/io/imports/{job_id}", response_model=ImportJobPublic, status_code=status.HTTP_200_OK)

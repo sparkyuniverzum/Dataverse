@@ -17,11 +17,9 @@ from app.api.mappers.public import (
 )
 from app.api.routers.galaxies.deps import resolve_galaxy_scope
 from app.api.runtime import (
-    commit_if_active,
     get_service_container,
     resolve_trace_context,
     run_scoped_idempotent,
-    transactional_context,
 )
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
@@ -398,15 +396,16 @@ async def star_core_outbox_run_once(
         relay_batch_size=payload.relay_batch_size,
     )
     trace_id, correlation_id = resolve_trace_context(request)
-    try:
-        with start_span(
-            "api.star_core.outbox.run_once",
-            attributes={
-                "outbox.requeue_limit": int(plan.request_payload["requeue_limit"]),
-                "outbox.relay_batch_size": int(plan.request_payload["relay_batch_size"]),
-            },
-        ):
-            async with transactional_context(session):
+
+    async def execute_scoped(_: UUID, __: UUID | None) -> StarCoreOutboxRunOnceResponse:
+        try:
+            with start_span(
+                "api.star_core.outbox.run_once",
+                attributes={
+                    "outbox.requeue_limit": int(plan.request_payload["requeue_limit"]),
+                    "outbox.relay_batch_size": int(plan.request_payload["relay_batch_size"]),
+                },
+            ):
                 summary = await run_outbox_once(
                     session=session,
                     services=services,
@@ -415,30 +414,44 @@ async def star_core_outbox_run_once(
                     trace_id=trace_id,
                     correlation_id=correlation_id,
                 )
-    except StarCoreCommandError as exc:
-        raise _command_to_http_exception(exc) from exc
-    except CircuitBreakerOpenError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=resilience_error_detail(
-                code="CIRCUIT_OPEN",
-                message="Outbox run is temporarily unavailable.",
-                service="outbox.operator",
-                trace_id=trace_id,
-                correlation_id=correlation_id,
-            ),
-        ) from exc
-    await commit_if_active(session)
-    status_snapshot = services.outbox_operator_service.snapshot()
-    return StarCoreOutboxRunOnceResponse(
-        state=status_snapshot.state,
-        run_count=status_snapshot.run_count,
-        requeued=summary.requeued,
-        scanned=summary.scanned,
-        published=summary.published,
-        failed=summary.failed,
-        dead_lettered=summary.dead_lettered,
-        completed_at=summary.completed_at,
+        except StarCoreCommandError as exc:
+            raise _command_to_http_exception(exc) from exc
+        except CircuitBreakerOpenError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=resilience_error_detail(
+                    code="CIRCUIT_OPEN",
+                    message="Outbox run is temporarily unavailable.",
+                    service="outbox.operator",
+                    trace_id=trace_id,
+                    correlation_id=correlation_id,
+                ),
+            ) from exc
+        status_snapshot = services.outbox_operator_service.snapshot()
+        return StarCoreOutboxRunOnceResponse(
+            state=status_snapshot.state,
+            run_count=status_snapshot.run_count,
+            requeued=summary.requeued,
+            scanned=summary.scanned,
+            published=summary.published,
+            failed=summary.failed,
+            dead_lettered=summary.dead_lettered,
+            completed_at=summary.completed_at,
+        )
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=None,
+        branch_id=None,
+        endpoint_key="POST:/star-core/outbox/run-once",
+        idempotency_key=payload.idempotency_key,
+        request_payload=plan.request_payload,
+        execute=execute_scoped,
+        replay_loader=StarCoreOutboxRunOnceResponse.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="Outbox run failed",
     )
 
 

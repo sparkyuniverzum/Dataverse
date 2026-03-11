@@ -115,8 +115,8 @@ Evidence (doplnit po implementaci):
 - [x] 2026-03-11 `P0-2.2b1` `PATCH /galaxies/{galaxy_id}/extinguish` převeden na `run_scoped_idempotent`.
 - [x] 2026-03-11 `P0-2.2b2` `PATCH /galaxies/{galaxy_id}/onboarding` převeden na `run_scoped_idempotent`.
 - [x] 2026-03-11 `P0-2.2b3` `POST /galaxies/{galaxy_id}/star-core/policy/lock` a `POST /galaxies/{galaxy_id}/star-core/physics/profile/migrate` převedeny na `run_scoped_idempotent`.
-- [ ] `P0-2.2c` Dovést zbývající write command endpointy mimo `run_scoped_*` wrapper (zejména `io`, `POST /galaxies`, `POST /star-core/outbox/run-once`).
-- [ ] Sjednotit mutační endpointy na konzistentní scoped idempotency policy napříč celým BE API.
+- [x] 2026-03-11 `P0-2.2c` `POST /io/imports`, `POST /galaxies`, `POST /star-core/outbox/run-once` převedeny na `run_scoped_idempotent`.
+- [x] 2026-03-11 Sjednotit mutační endpointy na konzistentní scoped idempotency policy napříč runtime API vrstvou (`app/api/routers/*`).
 
 Evidence (P0-2.1):
 
@@ -145,6 +145,17 @@ Evidence (P0-2.2b1/b2/b3):
   - `test_star_core_policy_lock_replays_with_idempotency_key`
 - [x] 2026-03-11 `ruff check app/api/routers/galaxies/core.py app/api/routers/galaxies/onboarding.py app/api/routers/galaxies/star_core.py app/schema_models/auth_onboarding.py app/schema_models/star_core.py tests/test_api_integration.py` -> `All checks passed!`
 - [x] 2026-03-11 `python -m py_compile app/api/routers/galaxies/core.py app/api/routers/galaxies/onboarding.py app/api/routers/galaxies/star_core.py app/schema_models/auth_onboarding.py app/schema_models/star_core.py tests/test_api_integration.py` -> `OK`
+
+Evidence (P0-2.2c):
+
+- [x] 2026-03-11 `GalaxyCreateRequest`, `ImportRun` form input (`idempotency_key`) a `StarCoreOutboxRunOnceRequest` podporují idempotency replay.
+- [x] 2026-03-11 Přidány API regrese:
+  - `test_create_galaxy_replays_with_idempotency_key`
+  - `test_io_import_commit_replays_with_idempotency_key`
+  - `test_star_core_outbox_run_once_replays_with_idempotency_key`
+- [x] 2026-03-11 `rg -n "transactional_context\\(" app/api/routers -g"*.py"` -> prázdný výstup (write cesty sjednocené přes scoped idempotency wrappery).
+- [x] 2026-03-11 `ruff check app/api/routers/galaxies/core.py app/api/routers/io.py app/api/routers/galaxies/star_core.py app/schema_models/auth_onboarding.py app/schema_models/star_core.py tests/test_api_integration.py` -> `All checks passed!`
+- [x] 2026-03-11 `python -m py_compile app/api/routers/galaxies/core.py app/api/routers/io.py app/api/routers/galaxies/star_core.py app/schema_models/auth_onboarding.py app/schema_models/star_core.py tests/test_api_integration.py` -> `OK`
 
 ## 5.2 P1-1 Parser fallback policy
 

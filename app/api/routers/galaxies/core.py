@@ -7,11 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import galaxy_to_public
 from app.api.runtime import (
-    commit_if_active,
     ensure_onboarding_progress_safe,
     get_service_container,
     run_scoped_idempotent,
-    transactional_context,
 )
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
@@ -66,7 +64,8 @@ async def create_galaxy(
     services: ServiceContainer = Depends(get_service_container),
 ) -> GalaxyPublic:
     plan = plan_create_galaxy(name=payload.name)
-    async with transactional_context(session):
+
+    async def execute_scoped(_: UUID, __: UUID | None) -> GalaxyPublic:
         try:
             galaxy = await create_galaxy_command(
                 session=session,
@@ -83,8 +82,22 @@ async def create_galaxy(
             galaxy_id=galaxy.id,
             context="galaxies.create",
         )
-    await commit_if_active(session)
-    return galaxy_to_public(galaxy)
+        return galaxy_to_public(galaxy)
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=None,
+        branch_id=None,
+        endpoint_key="POST:/galaxies",
+        idempotency_key=payload.idempotency_key,
+        request_payload=plan.request_payload,
+        execute=execute_scoped,
+        replay_loader=GalaxyPublic.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="Galaxy create failed",
+    )
 
 
 @router.patch("/galaxies/{galaxy_id}/extinguish", response_model=GalaxyPublic, status_code=status.HTTP_200_OK)

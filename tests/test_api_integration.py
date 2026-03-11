@@ -693,6 +693,67 @@ def test_onboarding_update_replays_with_idempotency_key(auth_client: tuple[httpx
     assert second_body["updated_at"] == first_body["updated_at"]
 
 
+def test_create_galaxy_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
+    client, _ = auth_client
+    idempotency_key = f"galaxy-create-idempotency-{uuid.uuid4()}"
+    payload = {
+        "name": f"Galaxy Replay {uuid.uuid4().hex[:8]}",
+        "idempotency_key": idempotency_key,
+    }
+
+    first = client.post("/galaxies", json=payload)
+    assert first.status_code == 201, first.text
+    first_body = first.json()
+
+    second = client.post("/galaxies", json=payload)
+    assert second.status_code == 201, second.text
+    second_body = second.json()
+
+    assert second_body["id"] == first_body["id"]
+    assert second_body["created_at"] == first_body["created_at"]
+
+
+def test_io_import_commit_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"io-idempotency-{uuid.uuid4().hex[:10]}"
+    csv_payload = f"value,cena\n{label},77\n"
+    idempotency_key = f"io-import-idempotency-{uuid.uuid4()}"
+
+    first = client.post(
+        "/io/imports",
+        data={
+            "mode": "commit",
+            "strict": "true",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": idempotency_key,
+        },
+        files={"file": ("idempotent-import.csv", csv_payload.encode("utf-8"), "text/csv")},
+    )
+    assert first.status_code == 200, first.text
+    first_job = first.json()["job"]
+
+    second = client.post(
+        "/io/imports",
+        data={
+            "mode": "commit",
+            "strict": "true",
+            "galaxy_id": galaxy_id,
+            "idempotency_key": idempotency_key,
+        },
+        files={"file": ("idempotent-import.csv", csv_payload.encode("utf-8"), "text/csv")},
+    )
+    assert second.status_code == 200, second.text
+    second_job = second.json()["job"]
+
+    assert second_job["id"] == first_job["id"]
+    assert second_job["created_at"] == first_job["created_at"]
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    matches = [item for item in snapshot.json()["civilizations"] if _stringify(item.get("value")) == label]
+    assert len(matches) == 1
+
+
 def test_snapshot_excludes_soft_deleted_atoms_and_orphaned_bonds(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     a_label = f"snapshot-a-{uuid.uuid4()}"
@@ -1535,6 +1596,28 @@ def test_star_core_policy_lock_replays_with_idempotency_key(auth_client: tuple[h
     second_body = second.json()
     assert second_body["profile_key"] == first_body["profile_key"]
     assert second_body["locked_at"] == first_body["locked_at"]
+
+
+def test_star_core_outbox_run_once_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
+    client, _galaxy_id = auth_client
+    idempotency_key = f"outbox-run-idempotency-{uuid.uuid4()}"
+    payload = {
+        "requeue_limit": 32,
+        "relay_batch_size": 16,
+        "idempotency_key": idempotency_key,
+    }
+
+    first = client.post("/star-core/outbox/run-once", json=payload)
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+
+    second = client.post("/star-core/outbox/run-once", json=payload)
+    assert second.status_code == 200, second.text
+    second_body = second.json()
+
+    assert second_body["run_count"] == first_body["run_count"]
+    assert second_body["completed_at"] == first_body["completed_at"]
+    assert second_body["published"] == first_body["published"]
 
 
 def test_star_core_planet_physics_endpoint_returns_runtime_shape(auth_client: tuple[httpx.Client, str]) -> None:
