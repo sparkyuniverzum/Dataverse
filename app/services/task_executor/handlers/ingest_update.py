@@ -264,7 +264,10 @@ class IngestUpdateHandler:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target civilization not found")
 
             asteroid_uuid = civilization.id
-            expected_event_seq = None  # Not supported in AssignAttributeIntent yet
+            expected_event_seq = self.service._parse_expected_event_seq(
+                task.expected_event_seq,
+                field_name="expected_event_seq",
+            )
 
             await self.service._enforce_expected_entity_event_seq(
                 session=ctx.session,

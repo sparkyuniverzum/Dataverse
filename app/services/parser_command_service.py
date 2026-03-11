@@ -33,11 +33,19 @@ async def resolve_tasks_for_payload(
     services: Any,
     ensure_scope: Callable[[], Awaitable[tuple[UUID, UUID | None]]],
 ) -> list[AtomicTask]:
+    def _parse_with_v1_or_422(command: str) -> list[AtomicTask]:
+        parse_result = services.parser_service.parse_with_diagnostics(command)
+        if parse_result.errors:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Parse error: {parse_result.errors[0]}",
+            )
+        return parse_result.tasks
+
     tasks: list[AtomicTask]
     parser_version_explicit = "parser_version" in payload.model_fields_set
     if payload.parser_version == "v2":
         v2_error_message: str | None = None
-        v2_runtime_failed = False
         try:
             scoped_galaxy_id, scoped_branch_id = await ensure_scope()
             active_asteroids, _ = await services.universe_service.project_state(
@@ -62,9 +70,13 @@ async def resolve_tasks_for_payload(
                     v2_error_message = bridge_result.errors[0].message
                 else:
                     tasks = bridge_result.tasks
-        except Exception:
-            # Keep parser endpoint resilient; fall back to v1 parser when v2 runtime fails.
-            v2_runtime_failed = True
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            if parser_version_explicit or not parser_v2_fallback_to_v1_enabled():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"Parse error: parser_v2_runtime_failure ({type(exc).__name__})",
+                ) from exc
+            return _parse_with_v1_or_422(payload.command)
 
         if v2_error_message is not None:
             if parser_version_explicit or not parser_v2_fallback_to_v1_enabled():
@@ -72,42 +84,7 @@ async def resolve_tasks_for_payload(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"Parse error: {v2_error_message}",
                 )
-
-            parse_result = services.parser_service.parse_with_diagnostics(payload.command)
-            if parse_result.errors:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Parse error: {v2_error_message}",
-                )
-            tasks = parse_result.tasks
-        elif v2_runtime_failed:
-            try:
-                parse_result = services.parser_service.parse_with_diagnostics(payload.command)
-                if parse_result.errors:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                        detail=f"Parse error: {parse_result.errors[0]}",
-                    )
-                tasks = parse_result.tasks
-            except HTTPException:
-                if parser_version_explicit:
-                    raise
-                # Last-resort fallback for parser-plan resiliency.
-                tasks = [AtomicTask(action="INGEST", params={"value": payload.command})]
+            return _parse_with_v1_or_422(payload.command)
     else:
-        try:
-            parse_result = services.parser_service.parse_with_diagnostics(payload.command)
-            if parse_result.errors:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Parse error: {parse_result.errors[0]}",
-                )
-            tasks = parse_result.tasks
-        except HTTPException:
-            raise
-        except Exception as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Parse error: {type(exc).__name__}",
-            ) from exc
+        return _parse_with_v1_or_422(payload.command)
     return tasks

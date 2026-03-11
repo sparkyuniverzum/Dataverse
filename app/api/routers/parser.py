@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.execution import execution_to_response
@@ -18,7 +18,6 @@ from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import ParseCommandPlanResponse, ParseCommandRequest, ParseCommandResponse
 from app.services.parser_command_service import ScopedContext, resolve_tasks_for_payload
-from app.services.parser_types import AtomicTask
 
 router = APIRouter(tags=["parser"])
 
@@ -68,30 +67,13 @@ async def parse_only(
             )
         return scoped_context.galaxy_id, scoped_context.branch_id
 
-    try:
-        tasks = await resolve_tasks_for_payload(
-            payload=payload,
-            session=session,
-            current_user_id=current_user.id,
-            services=services,
-            ensure_scope=ensure_scope,
-        )
-    except HTTPException:
-        raise
-    except Exception:
-        # Keep plan endpoint resilient in face of planner/runtime failures.
-        try:
-            parse_result = services.parser_service.parse_with_diagnostics(payload.command)
-            if parse_result.errors:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Parse error: {parse_result.errors[0]}",
-                )
-            tasks = parse_result.tasks
-        except HTTPException:
-            raise
-        except Exception:
-            tasks = [AtomicTask(action="INGEST", params={"value": payload.command})]
+    tasks = await resolve_tasks_for_payload(
+        payload=payload,
+        session=session,
+        current_user_id=current_user.id,
+        services=services,
+        ensure_scope=ensure_scope,
+    )
     return ParseCommandPlanResponse(tasks=_normalize_plan_tasks(tasks), parser_version=payload.parser_version)
 
 

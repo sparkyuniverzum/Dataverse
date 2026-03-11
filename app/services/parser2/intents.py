@@ -86,6 +86,7 @@ class AssignAttributeIntent(IntentBase):
     target: NodeSelector
     field: str = Field(min_length=1)
     value: Any
+    expected_event_seq: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="before")
     @classmethod
