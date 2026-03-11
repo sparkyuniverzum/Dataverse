@@ -365,29 +365,52 @@ BE omezení:
 
 Globální:
 
-- [ ] Kanonické namespace enforce (`/civilizations*` row, bez `/asteroids*`).
-- [ ] Moon capability cesty jsou contract-driven a oddělené od row CRUD.
-- [ ] OCC + idempotency enforce na všech row/bond mutating endpointech.
-- [ ] Soft-delete only tam, kde to lifecycle vyžaduje.
-- [ ] Runtime scope enforcement (`user_id + galaxy_id + optional branch_id`) napříč write cestami.
+- [x] 2026-03-11 Kanonické namespace enforce (`/civilizations*` row, bez `/asteroids*`).
+- [x] 2026-03-11 Moon capability cesty jsou contract-driven a oddělené od row CRUD.
+- [x] 2026-03-11 OCC + idempotency enforce na všech row/bond mutating endpointech.
+- [x] 2026-03-11 Soft-delete only tam, kde to lifecycle vyžaduje.
+- [x] 2026-03-11 Runtime scope enforcement (`user_id + galaxy_id + optional branch_id`) napříč write cestami.
 
 Uzavření domén:
 
-- [ ] Galaxy doména: contract a state transitions aligned.
-- [ ] Star doména: contract a governance gate aligned.
-- [ ] Planet doména: contract boundary aligned.
-- [ ] Moon capability doména: contract aligned.
-- [ ] Civilization doména: row lifecycle aligned.
-- [ ] Mineral doména: typed-value lifecycle aligned.
-- [ ] Bond doména: lifecycle a validation aligned.
-- [ ] Branch doména: isolation/promote lifecycle aligned.
-- [ ] Star Core doména: control-plane lifecycle aligned.
+- [x] 2026-03-11 Galaxy doména: contract a state transitions aligned.
+- [x] 2026-03-11 Star doména: contract a governance gate aligned.
+- [x] 2026-03-11 Planet doména: contract boundary aligned.
+- [x] 2026-03-11 Moon capability doména: contract aligned.
+- [x] 2026-03-11 Civilization doména: row lifecycle aligned.
+- [x] 2026-03-11 Mineral doména: typed-value lifecycle aligned.
+- [x] 2026-03-11 Bond doména: lifecycle a validation aligned.
+- [x] 2026-03-11 Branch doména: isolation/promote lifecycle aligned.
+- [x] 2026-03-11 Star Core doména: control-plane lifecycle aligned.
 
 Quality gates:
 
-- [ ] Targeted domain testy upravené pro všechny dotčené domény.
-- [ ] API integration regrese pokrývají kanonické namespace i zakázané aliasy.
-- [ ] Projection convergence checky pro replay/snapshot parity prochází.
+- [x] 2026-03-11 Targeted domain testy upravené pro všechny dotčené domény.
+- [x] 2026-03-11 API integration regrese pokrývají kanonické namespace i zakázané aliasy.
+- [x] 2026-03-11 Projection convergence checky pro replay/snapshot parity prochází.
+
+## 7.1 Evidence gate (uzavření checklistu)
+
+Namespace a terminologie:
+
+- `rg -n "\\basteroid\\b|\\basteroids\\b|ASTEROID" app -g"*.py"` -> prázdný výstup (runtime bez `asteroid*`).
+- `rg -n "transactional_context\\(" app/api/routers -g"*.py"` -> prázdný výstup (write surface sjednocen na scoped idempotency wrappery).
+- `rg -n "asteroid|/asteroids|/moons|/civilizations|capabilit" app/api/routers app/domains -g"*.py"` -> potvrzeno `/civilizations*` pro row runtime a capability cesty na `/planets/{planet_id}/capabilities` + `/capabilities/{capability_id}`.
+
+Doménové uzavření:
+
+- `PYTHONPATH=. pytest -q tests/test_domain_professional_setup.py -rs` -> `14 passed`.
+
+Projection parity:
+
+- `PYTHONPATH=. pytest -q tests/test_universe_read_model_consistency.py tests/test_universe_projection_errors.py -rs` -> `4 passed`.
+
+API integration evidence (ověřeno uživatelem v tomto cyklu):
+
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py::test_create_galaxy_replays_with_idempotency_key tests/test_api_integration.py::test_io_import_commit_replays_with_idempotency_key tests/test_api_integration.py::test_galaxy_extinguish_replays_with_idempotency_key tests/test_api_integration.py::test_onboarding_update_replays_with_idempotency_key tests/test_api_integration.py::test_star_core_policy_lock_replays_with_idempotency_key tests/test_api_integration.py::test_star_core_outbox_run_once_replays_with_idempotency_key -rs` -> `6 passed`.
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py::test_branch_create_replays_with_idempotency_key tests/test_api_integration.py::test_branch_promote_replays_with_idempotency_key tests/test_api_integration.py::test_branch_close_is_idempotent_and_hides_branch_scope tests/test_api_integration.py::test_branch_promote_rejects_closed_branch -rs` -> `4 passed`.
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py::test_table_contract_versioning_returns_latest tests/test_api_integration.py::test_table_contract_upsert_replays_with_idempotency_key -rs` -> `2 passed`.
+- `PYTHONPATH=. pytest -q tests/test_api_integration.py::test_moon_capability_first_class_endpoints tests/test_api_integration.py::test_civilization_first_class_canonical_endpoint -rs` -> `2 passed`.
 
 ## 8. Mimo scope tohoto dokumentu
 
