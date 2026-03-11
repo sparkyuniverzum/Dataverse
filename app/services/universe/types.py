@@ -64,6 +64,10 @@ class ProjectedCivilization:
     current_event_seq: int = 0
 
 
+# Backward-compatibility alias for legacy imports during ontology migration.
+ProjectedAsteroid = ProjectedCivilization
+
+
 @dataclass
 class ProjectedBond:
     id: UUID

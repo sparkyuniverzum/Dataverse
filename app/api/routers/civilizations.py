@@ -10,6 +10,7 @@ from app.api.mappers.execution import civilization_to_response
 from app.api.runtime import get_service_container, run_scoped_atomic_idempotent
 from app.app_factory import ServiceContainer
 from app.db import get_session
+from app.domains.civilizations.policy import CivilizationPolicyError, normalize_civilization_metadata_patch
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -23,24 +24,11 @@ from app.services.parser_types import AtomicTask
 router = APIRouter(tags=["civilizations"])
 
 
-def _normalize_metadata_patch(
-    metadata: dict[str, Any],
-) -> dict[str, Any]:
-    patch = dict(metadata or {})
-    reserved = sorted(
-        {str(key) for key in patch.keys() if str(key or "").strip().lower() in FACT_RESERVED_METADATA_KEYS}
+def _policy_to_http_exception(exc: CivilizationPolicyError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=exc.to_detail(),
     )
-    if reserved:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "RESERVED_METADATA_KEYS_NOT_ALLOWED",
-                "message": "Use mineral endpoint for mineral writes; reserved metadata keys are blocked on /mutate.",
-                "keys": reserved,
-                "repair_hint": "Use PATCH /civilizations/{civilization_id}/minerals/{mineral_key} for minerals.",
-            },
-        )
-    return patch
 
 
 async def _mutate_civilization_impl(
@@ -52,7 +40,13 @@ async def _mutate_civilization_impl(
     services: ServiceContainer,
     endpoint_key: str,
 ) -> CivilizationResponse:
-    metadata_patch = _normalize_metadata_patch(payload.metadata)
+    try:
+        metadata_patch = normalize_civilization_metadata_patch(
+            payload.metadata,
+            reserved_keys=FACT_RESERVED_METADATA_KEYS,
+        )
+    except CivilizationPolicyError as exc:
+        raise _policy_to_http_exception(exc) from exc
     params: dict[str, Any] = {"civilization_id": str(civilization_id)}
     if payload.value is not None:
         params["value"] = payload.value

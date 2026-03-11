@@ -27,6 +27,7 @@ from app.services.universe.runtime_projection_from_read_models import (
 from app.services.universe.tables_snapshot import build_tables_snapshot
 from app.services.universe.types import (
     DEFAULT_GALAXY_ID,
+    ProjectedAsteroid,
     ProjectedBond,
     ProjectedCivilization,
     derive_table_id,
@@ -37,6 +38,7 @@ from app.services.universe.types import (
 __all__ = [
     "UniverseService",
     "DEFAULT_GALAXY_ID",
+    "ProjectedAsteroid",
     "ProjectedCivilization",
     "ProjectedBond",
     "derive_table_id",

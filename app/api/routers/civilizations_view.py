@@ -14,6 +14,7 @@ from app.api.runtime import (
 )
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
+from app.domains.civilizations.policy import CivilizationPolicyError, normalize_mineral_key
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -95,19 +96,11 @@ async def _load_active_civilization_row(
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Civilization not found")
 
 
-def _normalize_mineral_key(raw_key: str) -> str:
-    key = str(raw_key or "").strip()
-    if not key:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="`mineral_key` must be non-empty",
-        )
-    if key.lower() in FACT_RESERVED_METADATA_KEYS:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"`{key}` is reserved and cannot be mutated as mineral key",
-        )
-    return key
+def _policy_to_http_exception(exc: CivilizationPolicyError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=exc.to_detail(),
+    )
 
 
 @router.get("/civilizations", response_model=MoonListResponse, status_code=status.HTTP_200_OK)
@@ -250,7 +243,10 @@ async def mutate_civilization_mineral(
         branch_id=payload.branch_id,
         services=services,
     )
-    normalized_key = _normalize_mineral_key(mineral_key)
+    try:
+        normalized_key = normalize_mineral_key(mineral_key, reserved_keys=FACT_RESERVED_METADATA_KEYS)
+    except CivilizationPolicyError as exc:
+        raise _policy_to_http_exception(exc) from exc
     params: dict[str, Any] = {"civilization_id": str(civilization_id)}
     if payload.remove:
         params["metadata_remove"] = [normalized_key]
