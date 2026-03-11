@@ -1,3 +1,13 @@
+from app.domains.star_core.commands import (
+    StarCoreCommandError,
+    StarCoreCommandPlan,
+    apply_profile_and_lock,
+    migrate_physics_profile,
+    plan_apply_profile_lock,
+    plan_migrate_physics_profile,
+    plan_outbox_run_once,
+    run_outbox_once,
+)
 from app.domains.star_core.models import (
     CalcStateRM,
     Galaxy,
@@ -9,6 +19,16 @@ from app.domains.star_core.models import (
     StarCorePolicyRM,
     User,
 )
+from app.domains.star_core.queries import (
+    StarCoreQueryError,
+    get_domain_metrics,
+    get_outbox_status_snapshot,
+    get_physics_profile,
+    get_planet_physics_runtime,
+    get_policy,
+    get_runtime,
+    list_pulse,
+)
 
 __all__ = [
     "CalcStateRM",
@@ -18,6 +38,22 @@ __all__ = [
     "GalaxySummaryRM",
     "OnboardingProgress",
     "PhysicsStateRM",
+    "StarCoreCommandError",
+    "StarCoreCommandPlan",
     "StarCorePolicyRM",
+    "StarCoreQueryError",
     "User",
+    "apply_profile_and_lock",
+    "get_domain_metrics",
+    "get_outbox_status_snapshot",
+    "get_physics_profile",
+    "get_planet_physics_runtime",
+    "get_policy",
+    "get_runtime",
+    "list_pulse",
+    "migrate_physics_profile",
+    "plan_apply_profile_lock",
+    "plan_migrate_physics_profile",
+    "plan_outbox_run_once",
+    "run_outbox_once",
 ]

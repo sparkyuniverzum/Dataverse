@@ -27,6 +27,12 @@ from app.domains.planets import (
     queries as planet_queries,
     schemas as planet_schemas,
 )
+from app.domains.star_core import (
+    commands as star_core_commands,
+    models as star_core_models,
+    queries as star_core_queries,
+    schemas as star_core_schemas,
+)
 
 
 def _assert_domain_module_is_web_independent(source: str, *, module_name: str) -> None:
@@ -290,3 +296,70 @@ def test_planets_domain_professional_setup() -> None:
     _assert_domain_module_is_web_independent(commands_source, module_name="planets.commands")
     _assert_domain_module_is_web_independent(queries_source, module_name="planets.queries")
     _assert_query_module_is_read_only(queries_source, module_name="planets.queries")
+
+
+def test_star_core_domain_professional_setup() -> None:
+    assert star_core_models.Galaxy.__tablename__ == "galaxies"
+    assert star_core_models.StarCorePolicyRM.__tablename__ == "star_core_policies"
+
+    required_schema_names = (
+        "StarCorePolicyPublic",
+        "StarCoreProfileApplyRequest",
+        "StarCorePhysicsProfileMigrateRequest",
+        "StarCoreRuntimePublic",
+        "StarCorePulseResponse",
+        "StarCoreDomainMetricsResponse",
+        "StarCoreOutboxRunOnceRequest",
+        "StarCoreOutboxStatusResponse",
+    )
+    for schema_name in required_schema_names:
+        assert hasattr(star_core_schemas, schema_name), f"Missing star_core schema `{schema_name}`"
+
+    assert hasattr(star_core_commands, "StarCoreCommandPlan")
+    assert hasattr(star_core_commands, "StarCoreCommandError")
+    assert hasattr(star_core_commands, "plan_apply_profile_lock")
+    assert hasattr(star_core_commands, "plan_migrate_physics_profile")
+    assert hasattr(star_core_commands, "plan_outbox_run_once")
+    assert hasattr(star_core_queries, "StarCoreQueryError")
+    assert hasattr(star_core_queries, "get_policy")
+    assert hasattr(star_core_queries, "get_physics_profile")
+    assert hasattr(star_core_queries, "get_planet_physics_runtime")
+    assert hasattr(star_core_queries, "get_runtime")
+    assert hasattr(star_core_queries, "list_pulse")
+    assert hasattr(star_core_queries, "get_domain_metrics")
+    assert hasattr(star_core_queries, "get_outbox_status_snapshot")
+
+    apply_plan = star_core_commands.plan_apply_profile_lock(
+        profile_key="ORIGIN",
+        physical_profile_key="BALANCE",
+        physical_profile_version=2,
+        lock_after_apply=True,
+    )
+    assert apply_plan.request_payload["profile_key"] == "ORIGIN"
+    assert apply_plan.request_payload["physical_profile_key"] == "BALANCE"
+    assert apply_plan.request_payload["physical_profile_version"] == 2
+    assert apply_plan.request_payload["lock_after_apply"] is True
+
+    migration_plan = star_core_commands.plan_migrate_physics_profile(
+        from_version=2,
+        to_version=3,
+        reason="upgrade coefficients",
+        dry_run=True,
+    )
+    assert migration_plan.request_payload["from_version"] == 2
+    assert migration_plan.request_payload["to_version"] == 3
+    assert migration_plan.request_payload["dry_run"] is True
+
+    outbox_plan = star_core_commands.plan_outbox_run_once(requeue_limit=64, relay_batch_size=32)
+    assert outbox_plan.request_payload["requeue_limit"] == 64
+    assert outbox_plan.request_payload["relay_batch_size"] == 32
+
+    models_source = inspect.getsource(star_core_models)
+    schemas_source = inspect.getsource(star_core_schemas)
+    commands_source = inspect.getsource(star_core_commands)
+    queries_source = inspect.getsource(star_core_queries)
+    _assert_domain_module_is_web_independent(models_source, module_name="star_core.models")
+    _assert_domain_module_is_web_independent(schemas_source, module_name="star_core.schemas")
+    _assert_domain_module_is_web_independent(commands_source, module_name="star_core.commands")
+    _assert_domain_module_is_web_independent(queries_source, module_name="star_core.queries")
+    _assert_query_module_is_read_only(queries_source, module_name="star_core.queries")

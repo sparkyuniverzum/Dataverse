@@ -19,6 +19,25 @@ from app.api.routers.galaxies.deps import resolve_galaxy_scope
 from app.api.runtime import commit_if_active, get_service_container, resolve_trace_context, transactional_context
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
+from app.domains.star_core.commands import (
+    StarCoreCommandError,
+    apply_profile_and_lock as apply_profile_and_lock_command,
+    migrate_physics_profile as migrate_physics_profile_command,
+    plan_apply_profile_lock,
+    plan_migrate_physics_profile,
+    plan_outbox_run_once,
+    run_outbox_once,
+)
+from app.domains.star_core.queries import (
+    StarCoreQueryError,
+    get_domain_metrics as get_domain_metrics_query,
+    get_outbox_status_snapshot,
+    get_physics_profile as get_physics_profile_query,
+    get_planet_physics_runtime as get_planet_physics_runtime_query,
+    get_policy as get_policy_query,
+    get_runtime as get_runtime_query,
+    list_pulse as list_pulse_query,
+)
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -41,6 +60,14 @@ from app.services.telemetry_spans import start_span
 router = APIRouter(tags=["galaxies"])
 
 
+def _query_to_http_exception(exc: StarCoreQueryError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def _command_to_http_exception(exc: StarCoreCommandError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
 @router.get(
     "/galaxies/{galaxy_id}/star-core/policy", response_model=StarCorePolicyPublic, status_code=status.HTTP_200_OK
 )
@@ -56,11 +83,15 @@ async def star_core_policy(
         services=services,
         galaxy_id=galaxy_id,
     )
-    policy = await services.star_core_service.get_policy(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=target_galaxy_id,
-    )
+    try:
+        policy = await get_policy_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+        )
+    except StarCoreQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
     return star_core_policy_to_public(policy)
 
 
@@ -74,6 +105,12 @@ async def star_core_policy_lock(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCorePolicyPublic:
+    plan = plan_apply_profile_lock(
+        profile_key=payload.profile_key,
+        physical_profile_key=payload.physical_profile_key,
+        physical_profile_version=payload.physical_profile_version,
+        lock_after_apply=payload.lock_after_apply,
+    )
     target_galaxy_id, _ = await resolve_galaxy_scope(
         session=session,
         current_user=current_user,
@@ -81,15 +118,19 @@ async def star_core_policy_lock(
         galaxy_id=galaxy_id,
     )
     async with transactional_context(session):
-        policy = await services.star_core_service.apply_profile_and_lock(
-            session=session,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            profile_key=payload.profile_key,
-            physical_profile_key=payload.physical_profile_key,
-            physical_profile_version=payload.physical_profile_version,
-            lock_after_apply=payload.lock_after_apply,
-        )
+        try:
+            policy = await apply_profile_and_lock_command(
+                session=session,
+                services=services,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                profile_key=str(plan.request_payload["profile_key"]),
+                physical_profile_key=str(plan.request_payload["physical_profile_key"]),
+                physical_profile_version=int(plan.request_payload["physical_profile_version"]),
+                lock_after_apply=bool(plan.request_payload["lock_after_apply"]),
+            )
+        except StarCoreCommandError as exc:
+            raise _command_to_http_exception(exc) from exc
     await commit_if_active(session)
     return star_core_policy_to_public(policy)
 
@@ -111,11 +152,15 @@ async def star_core_physics_profile(
         services=services,
         galaxy_id=galaxy_id,
     )
-    profile = await services.star_core_service.get_physics_profile(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=target_galaxy_id,
-    )
+    try:
+        profile = await get_physics_profile_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+        )
+    except StarCoreQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
     return star_core_physics_profile_to_public(profile)
 
 
@@ -131,6 +176,12 @@ async def star_core_physics_profile_migrate(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCorePhysicsProfileMigrateResponse:
+    plan = plan_migrate_physics_profile(
+        from_version=payload.from_version,
+        to_version=payload.to_version,
+        reason=payload.reason,
+        dry_run=payload.dry_run,
+    )
     target_galaxy_id, _ = await resolve_galaxy_scope(
         session=session,
         current_user=current_user,
@@ -138,15 +189,19 @@ async def star_core_physics_profile_migrate(
         galaxy_id=galaxy_id,
     )
     async with transactional_context(session):
-        migration = await services.star_core_service.migrate_physics_profile(
-            session=session,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            from_version=payload.from_version,
-            to_version=payload.to_version,
-            reason=payload.reason,
-            dry_run=payload.dry_run,
-        )
+        try:
+            migration = await migrate_physics_profile_command(
+                session=session,
+                services=services,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                from_version=int(plan.request_payload["from_version"]),
+                to_version=int(plan.request_payload["to_version"]),
+                reason=str(plan.request_payload["reason"]),
+                dry_run=bool(plan.request_payload["dry_run"]),
+            )
+        except StarCoreCommandError as exc:
+            raise _command_to_http_exception(exc) from exc
     await commit_if_active(session)
     return star_core_physics_migration_to_public(migration)
 
@@ -172,14 +227,18 @@ async def star_core_planet_physics(
         galaxy_id=galaxy_id,
         branch_id=branch_id,
     )
-    runtime = await services.star_core_service.get_planet_physics_runtime(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=target_galaxy_id,
-        branch_id=target_branch_id,
-        after_event_seq=after_event_seq,
-        limit=limit,
-    )
+    try:
+        runtime = await get_planet_physics_runtime_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            after_event_seq=after_event_seq,
+            limit=limit,
+        )
+    except StarCoreQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
     return star_core_planet_physics_to_public(runtime)
 
 
@@ -201,13 +260,17 @@ async def star_core_runtime(
         galaxy_id=galaxy_id,
         branch_id=branch_id,
     )
-    runtime = await services.star_core_service.get_runtime(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=target_galaxy_id,
-        branch_id=target_branch_id,
-        window_events=window_events,
-    )
+    try:
+        runtime = await get_runtime_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            window_events=window_events,
+        )
+    except StarCoreQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
     return star_core_runtime_to_public(runtime)
 
 
@@ -230,14 +293,18 @@ async def star_core_pulse(
         galaxy_id=galaxy_id,
         branch_id=branch_id,
     )
-    pulse = await services.star_core_service.list_pulse(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=target_galaxy_id,
-        branch_id=target_branch_id,
-        after_event_seq=after_event_seq,
-        limit=limit,
-    )
+    try:
+        pulse = await list_pulse_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            after_event_seq=after_event_seq,
+            limit=limit,
+        )
+    except StarCoreQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
     return star_core_pulse_to_public(pulse)
 
 
@@ -261,13 +328,17 @@ async def star_core_domain_metrics(
         galaxy_id=galaxy_id,
         branch_id=branch_id,
     )
-    domain_metrics = await services.star_core_service.get_domain_metrics(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=target_galaxy_id,
-        branch_id=target_branch_id,
-        window_events=window_events,
-    )
+    try:
+        domain_metrics = await get_domain_metrics_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            window_events=window_events,
+        )
+    except StarCoreQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
     return star_core_domain_metrics_to_public(domain_metrics)
 
 
@@ -284,23 +355,30 @@ async def star_core_outbox_run_once(
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCoreOutboxRunOnceResponse:
     _ = current_user
+    plan = plan_outbox_run_once(
+        requeue_limit=payload.requeue_limit,
+        relay_batch_size=payload.relay_batch_size,
+    )
     trace_id, correlation_id = resolve_trace_context(request)
     try:
         with start_span(
             "api.star_core.outbox.run_once",
             attributes={
-                "outbox.requeue_limit": int(payload.requeue_limit),
-                "outbox.relay_batch_size": int(payload.relay_batch_size),
+                "outbox.requeue_limit": int(plan.request_payload["requeue_limit"]),
+                "outbox.relay_batch_size": int(plan.request_payload["relay_batch_size"]),
             },
         ):
             async with transactional_context(session):
-                summary = await services.outbox_operator_service.trigger_run_once(
+                summary = await run_outbox_once(
                     session=session,
-                    requeue_limit=payload.requeue_limit,
-                    relay_batch_size=payload.relay_batch_size,
+                    services=services,
+                    requeue_limit=int(plan.request_payload["requeue_limit"]),
+                    relay_batch_size=int(plan.request_payload["relay_batch_size"]),
                     trace_id=trace_id,
                     correlation_id=correlation_id,
                 )
+    except StarCoreCommandError as exc:
+        raise _command_to_http_exception(exc) from exc
     except CircuitBreakerOpenError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -336,7 +414,7 @@ async def star_core_outbox_status(
     services: ServiceContainer = Depends(get_service_container),
 ) -> StarCoreOutboxStatusResponse:
     _ = current_user
-    snapshot = services.outbox_operator_service.snapshot()
+    snapshot = get_outbox_status_snapshot(services=services)
     latest = snapshot.latest
     latest_payload = (
         StarCoreOutboxRunOnceResponse(
