@@ -46,7 +46,7 @@ def build_tables_snapshot(
     bonds: list[ProjectedBond | dict[str, Any]],
     contract_hints: Mapping[UUID, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    asteroid_rows: list[dict[str, Any]] = []
+    civilization_rows: list[dict[str, Any]] = []
     for civilization in civilizations:
         if isinstance(civilization, Mapping):
             civilization_id = civilization.get("id")
@@ -64,7 +64,7 @@ def build_tables_snapshot(
             table_uuid = (
                 table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
             )
-            asteroid_rows.append(
+            civilization_rows.append(
                 {
                     "id": civilization_id,
                     "value": civilization.get("value"),
@@ -76,7 +76,7 @@ def build_tables_snapshot(
             )
         elif isinstance(civilization, ProjectedCivilization):
             table_name = derive_table_name(value=civilization.value, metadata=civilization.metadata)
-            asteroid_rows.append(
+            civilization_rows.append(
                 {
                     "id": civilization.id,
                     "value": civilization.value,
@@ -93,8 +93,8 @@ def build_tables_snapshot(
             return (0, created_at.timestamp(), str(row["id"]))
         return (1, 0.0, str(row["id"]))
 
-    asteroid_rows.sort(key=_created_sort)
-    asteroid_by_id: dict[UUID, dict[str, Any]] = {item["id"]: item for item in asteroid_rows}
+    civilization_rows.sort(key=_created_sort)
+    civilization_by_id: dict[UUID, dict[str, Any]] = {item["id"]: item for item in civilization_rows}
 
     table_buckets: dict[UUID, dict[str, Any]] = {}
     if isinstance(contract_hints, Mapping):
@@ -130,7 +130,7 @@ def build_tables_snapshot(
                 "external_bonds": [],
             }
 
-    for row in asteroid_rows:
+    for row in civilization_rows:
         table_id = row["table_id"]
         table_name = row["table_name"]
         bucket = table_buckets.setdefault(
@@ -173,8 +173,8 @@ def build_tables_snapshot(
         if not isinstance(source_civilization_id, UUID) or not isinstance(target_civilization_id, UUID):
             continue
 
-        source = asteroid_by_id.get(source_civilization_id)
-        target = asteroid_by_id.get(target_civilization_id)
+        source = civilization_by_id.get(source_civilization_id)
+        target = civilization_by_id.get(target_civilization_id)
         if source is None or target is None:
             continue
 

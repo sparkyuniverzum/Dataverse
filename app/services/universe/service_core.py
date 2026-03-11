@@ -175,14 +175,14 @@ class UniverseServiceCore:
         *,
         user_id: UUID,
         galaxy_id: UUID,
-        active_asteroids: list[ProjectedCivilization],
+        active_civilizations: list[ProjectedCivilization],
         active_bonds: list[ProjectedBond],
     ) -> list[dict[str, Any]]:
         return await enrich_main_timeline_from_read_models(
             session,
             user_id=user_id,
             galaxy_id=galaxy_id,
-            active_asteroids=active_asteroids,
+            active_asteroids=active_civilizations,
             active_bonds=active_bonds,
         )
 

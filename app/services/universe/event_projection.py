@@ -138,9 +138,11 @@ async def project_state_from_events(
         except ProjectionPayloadError as exc:
             raise _map_projection_error(exc) from exc
 
-    active_asteroids = [a for a in civilizations_by_id.values() if not a.is_deleted]
-    active_asteroids.sort(key=lambda item: (item.created_at, str(item.id)))
-    active_ids = {item.id for item in active_asteroids}
+    active_civilizations = [
+        civilization for civilization in civilizations_by_id.values() if not civilization.is_deleted
+    ]
+    active_civilizations.sort(key=lambda item: (item.created_at, str(item.id)))
+    active_ids = {item.id for item in active_civilizations}
 
     active_bonds = [
         bond
@@ -150,7 +152,7 @@ async def project_state_from_events(
         and bond.target_civilization_id in active_ids
     ]
     active_bonds.sort(key=lambda item: (item.created_at, str(item.id)))
-    return active_asteroids, active_bonds
+    return active_civilizations, active_bonds
 
 
 async def project_state_from_branch(
@@ -209,9 +211,11 @@ async def project_state_from_branch(
         except ProjectionPayloadError as exc:
             raise _map_projection_error(exc) from exc
 
-    active_asteroids = [a for a in civilizations_by_id.values() if not a.is_deleted]
-    active_asteroids.sort(key=lambda item: (item.created_at, str(item.id)))
-    active_ids = {item.id for item in active_asteroids}
+    active_civilizations = [
+        civilization for civilization in civilizations_by_id.values() if not civilization.is_deleted
+    ]
+    active_civilizations.sort(key=lambda item: (item.created_at, str(item.id)))
+    active_ids = {item.id for item in active_civilizations}
 
     active_bonds = [
         bond
@@ -221,4 +225,4 @@ async def project_state_from_branch(
         and bond.target_civilization_id in active_ids
     ]
     active_bonds.sort(key=lambda item: (item.created_at, str(item.id)))
-    return active_asteroids, active_bonds
+    return active_civilizations, active_bonds

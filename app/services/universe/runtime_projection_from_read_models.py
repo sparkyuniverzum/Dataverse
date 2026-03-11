@@ -28,7 +28,7 @@ async def project_state_from_read_model(
     user_id: UUID,
     galaxy_id: UUID,
 ) -> tuple[list[ProjectedCivilization], list[ProjectedBond]]:
-    asteroid_rows = list(
+    civilization_rows = list(
         (
             await session.execute(
                 select(CivilizationRM)
@@ -45,7 +45,7 @@ async def project_state_from_read_model(
         .scalars()
         .all()
     )
-    active_asteroids = [
+    active_civilizations = [
         ProjectedCivilization(
             id=civilization.id,
             value=civilization.value,
@@ -54,18 +54,18 @@ async def project_state_from_read_model(
             created_at=civilization.created_at,
             deleted_at=civilization.deleted_at,
         )
-        for civilization in asteroid_rows
+        for civilization in civilization_rows
     ]
-    active_ids = {civilization.id for civilization in active_asteroids}
-    asteroid_seq_map = await service._entity_event_seq_map(
+    active_ids = {civilization.id for civilization in active_civilizations}
+    civilization_seq_map = await service._entity_event_seq_map(
         session=session,
         user_id=user_id,
         galaxy_id=galaxy_id,
         branch_id=None,
-        entity_ids=[item.id for item in active_asteroids],
+        entity_ids=[item.id for item in active_civilizations],
     )
-    for civilization in active_asteroids:
-        civilization.current_event_seq = asteroid_seq_map.get(civilization.id, 0)
+    for civilization in active_civilizations:
+        civilization.current_event_seq = civilization_seq_map.get(civilization.id, 0)
 
     bond_rows = list(
         (
@@ -106,7 +106,7 @@ async def project_state_from_read_model(
     )
     for bond in active_bonds:
         bond.current_event_seq = bond_seq_map.get(bond.id, 0)
-    return active_asteroids, active_bonds
+    return active_civilizations, active_bonds
 
 
 async def _load_calc_state_by_civilization_id(
@@ -281,13 +281,14 @@ async def enrich_main_timeline_from_read_models(
     active_asteroids: list[ProjectedCivilization],
     active_bonds: list[ProjectedBond],
 ) -> list[dict[str, Any]]:
-    if not active_asteroids:
+    active_civilizations = active_asteroids
+    if not active_civilizations:
         return []
 
     # Fallback for legacy formulas has been removed.
     # The new calculation engine is now responsible for all formula evaluations.
 
-    civilization_ids = {civilization.id for civilization in active_asteroids}
+    civilization_ids = {civilization.id for civilization in active_civilizations}
     calc_by_id = await _load_calc_state_by_civilization_id(
         session,
         user_id=user_id,
@@ -304,7 +305,7 @@ async def enrich_main_timeline_from_read_models(
     )
 
     enriched: list[dict[str, Any]] = []
-    for civilization in active_asteroids:
+    for civilization in active_civilizations:
         calc_state = calc_by_id.get(civilization.id) or {}
         calc_source_event_seq = int(calc_state.get("source_event_seq", 0) or 0)
         civilization_event_seq = int(getattr(civilization, "current_event_seq", 0) or 0)

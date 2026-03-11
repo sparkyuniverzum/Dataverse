@@ -25,7 +25,7 @@ class UniverseServiceSnapshots:
     ) -> tuple[list[ProjectedCivilization | dict[str, Any]], list[ProjectedBond | dict[str, Any]]]:
         await self._ensure_galaxy_access(session, user_id=user_id, galaxy_id=galaxy_id)
         if branch_id is not None:
-            active_asteroids, active_bonds = await self._project_state_from_branch(
+            active_civilizations, active_bonds = await self._project_state_from_branch(
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
@@ -33,12 +33,12 @@ class UniverseServiceSnapshots:
                 as_of=as_of,
             )
         elif as_of is None:
-            active_asteroids, active_bonds = await self._project_state_from_read_model(
+            active_civilizations, active_bonds = await self._project_state_from_read_model(
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
             )
-            if not active_asteroids and not active_bonds:
+            if not active_civilizations and not active_bonds:
                 has_any_events_stmt = (
                     select(Event.id)
                     .where(
@@ -53,7 +53,7 @@ class UniverseServiceSnapshots:
                 has_any_events = (await session.execute(has_any_events_stmt)).scalar_one_or_none() is not None
 
                 if has_any_events:
-                    active_asteroids, active_bonds = await self._project_state_from_events(
+                    active_civilizations, active_bonds = await self._project_state_from_events(
                         session=session,
                         user_id=user_id,
                         galaxy_id=galaxy_id,
@@ -61,7 +61,7 @@ class UniverseServiceSnapshots:
                         as_of=as_of,
                     )
         else:
-            active_asteroids, active_bonds = await self._project_state_from_events(
+            active_civilizations, active_bonds = await self._project_state_from_events(
                 session=session,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
@@ -70,13 +70,13 @@ class UniverseServiceSnapshots:
             )
 
         if not apply_calculations:
-            return active_asteroids, active_bonds
+            return active_civilizations, active_bonds
 
         main_enriched = await self._enrich_main_timeline_from_read_models(
             session,
             user_id=user_id,
             galaxy_id=galaxy_id,
-            active_asteroids=active_asteroids,
+            active_civilizations=active_civilizations,
             active_bonds=active_bonds,
         )
         bond_enriched = await self._enrich_bonds_from_read_models(
