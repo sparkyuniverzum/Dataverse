@@ -370,7 +370,7 @@ class ImportExportService:
         branch_id: UUID | None,
         filename: str,
         file_bytes: bytes,
-        mode: ImportMode,
+        mode: ImportMode | str,
         strict: bool,
     ) -> ImportExecutionResult:
         @asynccontextmanager
@@ -382,6 +382,7 @@ class ImportExportService:
                 async with session.begin():
                     yield
 
+        mode_enum = mode if isinstance(mode, ImportMode) else ImportMode(str(mode).strip().lower())
         decoded = self._decode_csv_bytes(file_bytes)
         file_hash = hashlib.sha256(file_bytes).hexdigest()
 
@@ -391,7 +392,7 @@ class ImportExportService:
             galaxy_id=galaxy_id,
             filename=filename or "import.csv",
             file_hash=file_hash,
-            mode=mode,
+            mode=mode_enum,
             strict=strict,
         )
         await session.refresh(job)
@@ -417,7 +418,7 @@ class ImportExportService:
                     continue
                 planned_tasks += len(tasks)
 
-                if mode == ImportMode.COMMIT:
+                if mode_enum == ImportMode.COMMIT:
                     # Row-level transaction keeps strong consistency and lets lenient mode continue.
                     async with in_tx():
                         await self.task_executor.execute_tasks(
@@ -452,7 +453,7 @@ class ImportExportService:
                         errors_count=errors_count,
                         strict=strict,
                         planned_tasks=planned_tasks,
-                        mode=mode,
+                        mode=mode_enum,
                         branch_id=branch_id,
                         failure_row=row_number,
                     )
@@ -470,7 +471,7 @@ class ImportExportService:
             job.summary = self._build_job_summary(
                 strict=strict,
                 planned_tasks=planned_tasks,
-                mode=mode,
+                mode=mode_enum,
                 branch_id=branch_id,
             )
         await session.refresh(job)

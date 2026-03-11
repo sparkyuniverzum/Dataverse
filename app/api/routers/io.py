@@ -17,12 +17,33 @@ from app.api.runtime import (
 )
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
+from app.domains.imports.commands import (
+    ImportCommandError,
+    ensure_csv_export_format,
+    ensure_non_empty_payload,
+    plan_import_csv,
+    run_import_csv as run_import_csv_command,
+)
+from app.domains.imports.queries import (
+    ImportQueryError,
+    export_snapshot_csv as export_snapshot_csv_query,
+    export_tables_csv as export_tables_csv_query,
+    get_job_errors as get_job_errors_query,
+    get_job_for_user as get_job_for_user_query,
+)
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import ImportErrorsResponse, ImportJobPublic, ImportModeSchema, ImportRunResponse
-from app.services.io_service import ImportMode
 
 router = APIRouter(tags=["io"])
+
+
+def _command_to_http_exception(exc: ImportCommandError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def _query_to_http_exception(exc: ImportQueryError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @router.post("/io/imports", response_model=ImportRunResponse, status_code=status.HTTP_200_OK)
@@ -36,17 +57,17 @@ async def run_import_csv(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> ImportRunResponse:
-    if not file.filename:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Missing filename")
-    if not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Phase 1 import supports CSV only",
+    try:
+        plan = plan_import_csv(
+            filename=file.filename,
+            mode=mode.value,
+            strict=strict,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
         )
-
-    payload = await file.read()
-    if not payload:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Uploaded file is empty")
+    except ImportCommandError as exc:
+        raise _command_to_http_exception(exc) from exc
+    payload = ensure_non_empty_payload(await file.read())
 
     async with transactional_context(session):
         target_galaxy_id = await resolve_galaxy_id_for_user(
@@ -62,16 +83,20 @@ async def run_import_csv(
             branch_id=branch_id,
             services=services,
         )
-        result = await services.io_service.import_csv(
-            session=session,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            filename=file.filename,
-            file_bytes=payload,
-            mode=ImportMode(mode.value),
-            strict=bool(strict),
-        )
+        try:
+            result = await run_import_csv_command(
+                session=session,
+                services=services,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+                filename=str(plan.request_payload["filename"]),
+                file_bytes=payload,
+                mode=str(plan.request_payload["mode"]),
+                strict=bool(plan.request_payload["strict"]),
+            )
+        except ImportCommandError as exc:
+            raise _command_to_http_exception(exc) from exc
     await commit_if_active(session)
     return ImportRunResponse(job=import_job_to_public(result.job))
 
@@ -83,7 +108,15 @@ async def get_import_job(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> ImportJobPublic:
-    job = await services.io_service.get_job_for_user(session=session, user_id=current_user.id, job_id=job_id)
+    try:
+        job = await get_job_for_user_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            job_id=job_id,
+        )
+    except ImportQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
     return import_job_to_public(job)
 
 
@@ -94,7 +127,15 @@ async def get_import_job_errors(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> ImportErrorsResponse:
-    errors = await services.io_service.get_job_errors(session=session, user_id=current_user.id, job_id=job_id)
+    try:
+        errors = await get_job_errors_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            job_id=job_id,
+        )
+    except ImportQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
     return ImportErrorsResponse(errors=[import_error_to_public(error) for error in errors])
 
 
@@ -108,10 +149,10 @@ async def export_snapshot_csv(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StreamingResponse:
-    if format.lower() != "csv":
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Phase 1 export supports CSV only"
-        )
+    try:
+        _ = ensure_csv_export_format(format)
+    except ImportCommandError as exc:
+        raise _command_to_http_exception(exc) from exc
     target_galaxy_id = await resolve_galaxy_id_for_user(
         session=session,
         user=current_user,
@@ -125,13 +166,17 @@ async def export_snapshot_csv(
         branch_id=branch_id,
         services=services,
     )
-    csv_payload = await services.io_service.export_snapshot_csv(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=target_galaxy_id,
-        branch_id=target_branch_id,
-        as_of=as_of,
-    )
+    try:
+        csv_payload = await export_snapshot_csv_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            as_of=as_of,
+        )
+    except ImportQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
     headers = {
         "Content-Disposition": f'attachment; filename="snapshot-{target_galaxy_id}.csv"',
     }
@@ -148,10 +193,10 @@ async def export_tables_csv(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> StreamingResponse:
-    if format.lower() != "csv":
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Phase 1 export supports CSV only"
-        )
+    try:
+        _ = ensure_csv_export_format(format)
+    except ImportCommandError as exc:
+        raise _command_to_http_exception(exc) from exc
     target_galaxy_id = await resolve_galaxy_id_for_user(
         session=session,
         user=current_user,
@@ -165,13 +210,17 @@ async def export_tables_csv(
         branch_id=branch_id,
         services=services,
     )
-    csv_payload = await services.io_service.export_tables_csv(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=target_galaxy_id,
-        branch_id=target_branch_id,
-        as_of=as_of,
-    )
+    try:
+        csv_payload = await export_tables_csv_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            as_of=as_of,
+        )
+    except ImportQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
     headers = {
         "Content-Disposition": f'attachment; filename="tables-{target_galaxy_id}.csv"',
     }

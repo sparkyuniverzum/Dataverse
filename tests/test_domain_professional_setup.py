@@ -34,7 +34,12 @@ from app.domains.galaxies import (
     queries as galaxy_queries,
     schemas as galaxy_schemas,
 )
-from app.domains.imports import models as import_models
+from app.domains.imports import (
+    commands as import_commands,
+    models as import_models,
+    queries as import_queries,
+    schemas as import_schemas,
+)
 from app.domains.moons import (
     commands as moon_commands,
     models as moon_models,
@@ -424,6 +429,66 @@ def test_galaxies_domain_professional_setup() -> None:
     _assert_domain_module_is_web_independent(commands_source, module_name="galaxies.commands")
     _assert_domain_module_is_web_independent(queries_source, module_name="galaxies.queries")
     _assert_query_module_is_read_only(queries_source, module_name="galaxies.queries")
+
+
+def test_imports_domain_professional_setup() -> None:
+    assert import_models.ImportJob.__tablename__ == "import_jobs"
+    assert import_models.ImportError.__tablename__ == "import_errors"
+
+    required_schema_names = (
+        "ImportModeSchema",
+        "ImportStatusSchema",
+        "ImportJobPublic",
+        "ImportErrorPublic",
+        "ImportRunResponse",
+        "ImportErrorsResponse",
+    )
+    for schema_name in required_schema_names:
+        assert hasattr(import_schemas, schema_name), f"Missing imports schema `{schema_name}`"
+
+    assert hasattr(import_commands, "ImportCommandPlan")
+    assert hasattr(import_commands, "ImportCommandError")
+    assert hasattr(import_commands, "ensure_csv_filename")
+    assert hasattr(import_commands, "ensure_non_empty_payload")
+    assert hasattr(import_commands, "ensure_csv_export_format")
+    assert hasattr(import_commands, "ensure_import_mode")
+    assert hasattr(import_commands, "plan_import_csv")
+    assert hasattr(import_commands, "run_import_csv")
+
+    assert hasattr(import_queries, "ImportQueryError")
+    assert hasattr(import_queries, "ImportQueryNotFoundError")
+    assert hasattr(import_queries, "ImportQueryConflictError")
+    assert hasattr(import_queries, "ImportQueryForbiddenError")
+    assert hasattr(import_queries, "get_job_for_user")
+    assert hasattr(import_queries, "get_job_errors")
+    assert hasattr(import_queries, "export_snapshot_csv")
+    assert hasattr(import_queries, "export_tables_csv")
+
+    assert import_commands.ensure_csv_filename("  universe.csv  ") == "universe.csv"
+    assert import_commands.ensure_non_empty_payload(b"row\n") == b"row\n"
+    assert import_commands.ensure_csv_export_format("CSV") == "csv"
+    assert import_commands.ensure_import_mode("COMMIT") == "commit"
+
+    import_plan = import_commands.plan_import_csv(
+        filename="universe.csv",
+        mode="commit",
+        strict=True,
+        galaxy_id=uuid4(),
+        branch_id=uuid4(),
+    )
+    assert import_plan.request_payload["filename"] == "universe.csv"
+    assert import_plan.request_payload["mode"] == "commit"
+    assert import_plan.request_payload["strict"] is True
+
+    models_source = inspect.getsource(import_models)
+    schemas_source = inspect.getsource(import_schemas)
+    commands_source = inspect.getsource(import_commands)
+    queries_source = inspect.getsource(import_queries)
+    _assert_domain_module_is_web_independent(models_source, module_name="imports.models")
+    _assert_domain_module_is_web_independent(schemas_source, module_name="imports.schemas")
+    _assert_domain_module_is_web_independent(commands_source, module_name="imports.commands")
+    _assert_domain_module_is_web_independent(queries_source, module_name="imports.queries")
+    _assert_query_module_is_read_only(queries_source, module_name="imports.queries")
 
 
 def test_shared_domain_is_infrastructure_only() -> None:
