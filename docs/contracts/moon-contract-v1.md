@@ -56,14 +56,6 @@ Runtime enforcement:
 - `PATCH /asteroids/{asteroid_id}/mutate`
 - parser/task execution writes (`/parser/execute`, `/tasks/execute-batch`)
 
-Transitional runtime alias (row lifecycle, backward compatibility):
-- `GET /moons`
-- `GET /moons/{moon_id}`
-- `POST /moons`
-- `PATCH /moons/{moon_id}/mutate`
-- `PATCH /moons/{moon_id}/minerals/{mineral_key}`
-- `PATCH /moons/{moon_id}/extinguish`
-
 Canonical row API (implemented, naming-aligned):
 - `GET /civilizations`
 - `GET /civilizations/{civilization_id}`
@@ -83,7 +75,7 @@ Canonical row API (implemented, naming-aligned):
 ## 7. Known MVP gap
 
 Dedicated Moon capability entity (`moon_capabilities`) CRUD is still contract-driven (through table contracts).
-Row-level runtime CRUD is available on canonical `/civilizations*` with transitional `/moons*` alias for compatibility.
+Row-level runtime CRUD is available on canonical `/civilizations*` only.
 
 ## 8. DoD for this contract
 

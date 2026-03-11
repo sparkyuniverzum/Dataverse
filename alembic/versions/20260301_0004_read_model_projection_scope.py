@@ -26,7 +26,7 @@ DEFAULT_LEGACY_GALAXY_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 def upgrade() -> None:
     op.add_column(
-        "atoms",
+        "civilization_rm",
         sa.Column(
             "user_id",
             postgresql.UUID(as_uuid=True),
@@ -35,7 +35,7 @@ def upgrade() -> None:
         ),
     )
     op.add_column(
-        "atoms",
+        "civilization_rm",
         sa.Column(
             "galaxy_id",
             postgresql.UUID(as_uuid=True),
@@ -43,18 +43,20 @@ def upgrade() -> None:
             server_default=sa.text(f"'{DEFAULT_LEGACY_GALAXY_ID}'::uuid"),
         ),
     )
-    op.create_foreign_key("fk_atoms_user_id_users", "atoms", "users", ["user_id"], ["id"])
-    op.create_foreign_key("fk_atoms_galaxy_id_galaxies", "atoms", "galaxies", ["galaxy_id"], ["id"])
-    op.create_index("ix_atoms_user_id", "atoms", ["user_id"], unique=False)
-    op.create_index("ix_atoms_galaxy_id", "atoms", ["galaxy_id"], unique=False)
+    op.create_foreign_key("fk_civilization_rm_user_id_users", "civilization_rm", "users", ["user_id"], ["id"])
+    op.create_foreign_key(
+        "fk_civilization_rm_galaxy_id_galaxies", "civilization_rm", "galaxies", ["galaxy_id"], ["id"]
+    )
+    op.create_index("ix_civilization_rm_user_id", "civilization_rm", ["user_id"], unique=False)
+    op.create_index("ix_civilization_rm_galaxy_id", "civilization_rm", ["galaxy_id"], unique=False)
     op.create_index(
-        "ix_atoms_galaxy_is_deleted_created",
-        "atoms",
+        "ix_civilization_rm_galaxy_is_deleted_created",
+        "civilization_rm",
         ["galaxy_id", "is_deleted", "created_at"],
         unique=False,
     )
-    op.alter_column("atoms", "user_id", server_default=None)
-    op.alter_column("atoms", "galaxy_id", server_default=None)
+    op.alter_column("civilization_rm", "user_id", server_default=None)
+    op.alter_column("civilization_rm", "galaxy_id", server_default=None)
 
     op.add_column(
         "bonds",
@@ -87,7 +89,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_bonds_galaxy_is_deleted_endpoints",
         "bonds",
-        ["galaxy_id", "is_deleted", "source_id", "target_id"],
+        ["galaxy_id", "is_deleted", "source_civilization_id", "target_civilization_id"],
         unique=False,
     )
     op.alter_column("bonds", "user_id", server_default=None)
@@ -104,10 +106,10 @@ def downgrade() -> None:
     op.drop_column("bonds", "galaxy_id")
     op.drop_column("bonds", "user_id")
 
-    op.drop_index("ix_atoms_galaxy_is_deleted_created", table_name="atoms")
-    op.drop_index("ix_atoms_galaxy_id", table_name="atoms")
-    op.drop_index("ix_atoms_user_id", table_name="atoms")
-    op.drop_constraint("fk_atoms_galaxy_id_galaxies", "atoms", type_="foreignkey")
-    op.drop_constraint("fk_atoms_user_id_users", "atoms", type_="foreignkey")
-    op.drop_column("atoms", "galaxy_id")
-    op.drop_column("atoms", "user_id")
+    op.drop_index("ix_civilization_rm_galaxy_is_deleted_created", table_name="civilization_rm")
+    op.drop_index("ix_civilization_rm_galaxy_id", table_name="civilization_rm")
+    op.drop_index("ix_civilization_rm_user_id", table_name="civilization_rm")
+    op.drop_constraint("fk_civilization_rm_galaxy_id_galaxies", "civilization_rm", type_="foreignkey")
+    op.drop_constraint("fk_civilization_rm_user_id_users", "civilization_rm", type_="foreignkey")
+    op.drop_column("civilization_rm", "galaxy_id")
+    op.drop_column("civilization_rm", "user_id")

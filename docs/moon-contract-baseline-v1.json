@@ -59,18 +59,20 @@
       ]
     },
     "moon_endpoints": [
-      "GET /moons",
-      "GET /moons/{moon_id}",
-      "POST /moons",
-      "PATCH /moons/{moon_id}/mutate",
-      "PATCH /moons/{moon_id}/extinguish"
+      "GET /civilizations",
+      "GET /civilizations/{civilization_id}",
+      "POST /civilizations",
+      "PATCH /civilizations/{civilization_id}/mutate",
+      "PATCH /civilizations/{civilization_id}/minerals/{mineral_key}",
+      "PATCH /civilizations/{civilization_id}/extinguish"
     ],
     "contract_doc_markers": [
       "## 5. API path mapping",
-      "GET /moons",
-      "POST /moons",
-      "PATCH /moons/{moon_id}/mutate",
-      "PATCH /moons/{moon_id}/extinguish"
+      "GET /civilizations",
+      "POST /civilizations",
+      "PATCH /civilizations/{civilization_id}/mutate",
+      "PATCH /civilizations/{civilization_id}/minerals/{mineral_key}",
+      "PATCH /civilizations/{civilization_id}/extinguish"
     ]
   }
 }

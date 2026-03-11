@@ -24,7 +24,7 @@ def upgrade() -> None:
         "calc_state_rm",
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("galaxy_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("asteroid_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("civilization_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("source_event_seq", sa.BigInteger(), nullable=False, server_default=sa.text("0")),
         sa.Column("engine_version", sa.Text(), nullable=False, server_default=sa.text("'calc-v1'")),
         sa.Column(
@@ -38,8 +38,12 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_calc_state_rm_user_id_users"),
         sa.ForeignKeyConstraint(["galaxy_id"], ["galaxies.id"], name="fk_calc_state_rm_galaxy_id_galaxies"),
-        sa.ForeignKeyConstraint(["asteroid_id"], ["atoms.id"], name="fk_calc_state_rm_asteroid_id_atoms"),
-        sa.PrimaryKeyConstraint("user_id", "galaxy_id", "asteroid_id", name="pk_calc_state_rm"),
+        sa.ForeignKeyConstraint(
+            ["civilization_id"],
+            ["civilization_rm.id"],
+            name="fk_calc_state_rm_civilization_id_civilization_rm",
+        ),
+        sa.PrimaryKeyConstraint("user_id", "galaxy_id", "civilization_id", name="pk_calc_state_rm"),
     )
 
     op.create_index("ix_calc_state_rm_source_event_seq", "calc_state_rm", ["source_event_seq"], unique=False)

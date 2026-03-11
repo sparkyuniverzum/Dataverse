@@ -3,109 +3,70 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  buildCivilizationWriteRouteCandidates,
-  CIVILIZATION_RUNTIME_COMPAT_PREFIX,
-  CIVILIZATION_RUNTIME_FALLBACK_STATUSES,
-  CIVILIZATION_RUNTIME_PRIMARY_PREFIX,
-  shouldFallbackToMoonAlias,
-} from "./civilizationRuntimeRouteGate";
+import { buildCivilizationWriteRoute, CIVILIZATION_RUNTIME_PRIMARY_PREFIX } from "./civilizationRuntimeRouteGate";
 import {
   buildCivilizationCreateUrl,
   buildCivilizationExtinguishUrl,
   buildCivilizationMineralMutateUrl,
   buildCivilizationMutateUrl,
-  buildMoonCreateUrl,
-  buildMoonExtinguishUrl,
-  buildMoonMineralMutateUrl,
-  buildMoonMutateUrl,
 } from "./dataverseApi";
 
 describe("civilizationRuntimeRouteGate", () => {
-  it("keeps canonical civilization-first route candidates for write operations", () => {
+  it("keeps canonical civilization-only routes for write operations", () => {
     const base = "http://127.0.0.1:8000";
 
-    const createCandidates = buildCivilizationWriteRouteCandidates(base, { operation: "create" });
-    expect(createCandidates).toEqual([`${base}/civilizations`, `${base}/moons`]);
-
-    const mutateCandidates = buildCivilizationWriteRouteCandidates(base, {
-      operation: "mutate",
-      civilizationId: "civilization-1",
-    });
-    expect(mutateCandidates).toEqual([
-      `${base}/civilizations/civilization-1/mutate`,
-      `${base}/moons/civilization-1/mutate`,
-    ]);
-
-    const extinguishCandidates = buildCivilizationWriteRouteCandidates(base, {
-      operation: "extinguish",
-      civilizationId: "civilization-1",
-    });
-    expect(extinguishCandidates).toEqual([
-      `${base}/civilizations/civilization-1/extinguish`,
-      `${base}/moons/civilization-1/extinguish`,
-    ]);
-
-    const mineralCandidates = buildCivilizationWriteRouteCandidates(base, {
-      operation: "mutate_mineral",
-      civilizationId: "civilization-1",
-      mineralKey: "amount",
-    });
-    expect(mineralCandidates).toEqual([
-      `${base}/civilizations/civilization-1/minerals/amount`,
-      `${base}/moons/civilization-1/minerals/amount`,
-    ]);
+    expect(buildCivilizationWriteRoute(base, { operation: "create" })).toBe(`${base}/civilizations`);
+    expect(
+      buildCivilizationWriteRoute(base, {
+        operation: "mutate",
+        civilizationId: "civilization-1",
+      })
+    ).toBe(`${base}/civilizations/civilization-1/mutate`);
+    expect(
+      buildCivilizationWriteRoute(base, {
+        operation: "extinguish",
+        civilizationId: "civilization-1",
+      })
+    ).toBe(`${base}/civilizations/civilization-1/extinguish`);
+    expect(
+      buildCivilizationWriteRoute(base, {
+        operation: "mutate_mineral",
+        civilizationId: "civilization-1",
+        mineralKey: "amount",
+      })
+    ).toBe(`${base}/civilizations/civilization-1/minerals/amount`);
   });
 
-  it("keeps fallback status policy explicit and narrow", () => {
+  it("freezes primary runtime prefix to civilization canonical path", () => {
     expect(CIVILIZATION_RUNTIME_PRIMARY_PREFIX).toBe("/civilizations");
-    expect(CIVILIZATION_RUNTIME_COMPAT_PREFIX).toBe("/moons");
-    expect(CIVILIZATION_RUNTIME_FALLBACK_STATUSES).toEqual([404, 405, 501]);
-    expect(shouldFallbackToMoonAlias(404)).toBe(true);
-    expect(shouldFallbackToMoonAlias(405)).toBe(true);
-    expect(shouldFallbackToMoonAlias(501)).toBe(true);
-    expect(shouldFallbackToMoonAlias(422)).toBe(false);
-    expect(shouldFallbackToMoonAlias(409)).toBe(false);
   });
 
-  it("guards civilization runtime write controller against direct moon-primary regressions", () => {
+  it("guards write controller against moon alias fallback regressions", () => {
     const controllerPath = fileURLToPath(new URL("../components/universe/useMoonCrudController.js", import.meta.url));
     const source = readFileSync(controllerPath, "utf-8");
 
-    expect(source).toContain("buildCivilizationWriteRouteCandidates");
-    expect(source).toContain("shouldFallbackToMoonAlias");
-    expect(source).toContain('operation: "mutate_mineral"');
-    expect(source).toContain("mineralKey: metadataKey");
-    expect(source).not.toContain("buildMoonCreateUrl(");
-    expect(source).not.toContain("buildMoonMutateUrl(");
-    expect(source).not.toContain("buildMoonExtinguishUrl(");
+    expect(source).toContain("buildCivilizationWriteRoute");
+    expect(source).not.toContain("shouldFallbackToMoonAlias");
+    expect(source).not.toContain("buildCivilizationWriteRouteCandidates");
   });
 
-  it("freezes route inventory parity for civilization canonical and moon compatibility endpoints", () => {
+  it("freezes route inventory parity for canonical write endpoints", () => {
     const base = "http://127.0.0.1:8000";
     const civilizationId = "civilization-1";
 
-    expect(buildCivilizationWriteRouteCandidates(base, { operation: "create" })).toEqual([
-      buildCivilizationCreateUrl(base),
-      buildMoonCreateUrl(base),
-    ]);
-    expect(buildCivilizationWriteRouteCandidates(base, { operation: "mutate", civilizationId })).toEqual([
-      buildCivilizationMutateUrl(base, civilizationId),
-      buildMoonMutateUrl(base, civilizationId),
-    ]);
-    expect(buildCivilizationWriteRouteCandidates(base, { operation: "extinguish", civilizationId })).toEqual([
-      buildCivilizationExtinguishUrl(base, civilizationId),
-      buildMoonExtinguishUrl(base, civilizationId),
-    ]);
+    expect(buildCivilizationWriteRoute(base, { operation: "create" })).toBe(buildCivilizationCreateUrl(base));
+    expect(buildCivilizationWriteRoute(base, { operation: "mutate", civilizationId })).toBe(
+      buildCivilizationMutateUrl(base, civilizationId)
+    );
+    expect(buildCivilizationWriteRoute(base, { operation: "extinguish", civilizationId })).toBe(
+      buildCivilizationExtinguishUrl(base, civilizationId)
+    );
     expect(
-      buildCivilizationWriteRouteCandidates(base, {
+      buildCivilizationWriteRoute(base, {
         operation: "mutate_mineral",
         civilizationId,
         mineralKey: "amount",
       })
-    ).toEqual([
-      buildCivilizationMineralMutateUrl(base, civilizationId, "amount"),
-      buildMoonMineralMutateUrl(base, civilizationId, "amount"),
-    ]);
+    ).toBe(buildCivilizationMineralMutateUrl(base, civilizationId, "amount"));
   });
 });

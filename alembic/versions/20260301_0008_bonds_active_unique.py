@@ -26,7 +26,7 @@ def upgrade() -> None:
             SELECT
                 id,
                 ROW_NUMBER() OVER (
-                    PARTITION BY user_id, galaxy_id, source_id, target_id, type
+                    PARTITION BY user_id, galaxy_id, source_civilization_id, target_civilization_id, type
                     ORDER BY created_at ASC, id ASC
                 ) AS rn
             FROM bonds
@@ -45,7 +45,7 @@ def upgrade() -> None:
     op.create_index(
         "ux_bonds_active_relation",
         "bonds",
-        ["user_id", "galaxy_id", "source_id", "target_id", "type"],
+        ["user_id", "galaxy_id", "source_civilization_id", "target_civilization_id", "type"],
         unique=True,
         postgresql_where=sa.text("is_deleted = FALSE"),
     )

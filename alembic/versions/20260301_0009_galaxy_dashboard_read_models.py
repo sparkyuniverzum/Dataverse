@@ -41,7 +41,7 @@ def upgrade() -> None:
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("galaxy_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("guardian_rules_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
-        sa.Column("alerted_asteroids_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("alerted_civilizations_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("circular_fields_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("quality_score", sa.Integer(), nullable=False, server_default=sa.text("100")),
         sa.Column("status", sa.Text(), nullable=False, server_default=sa.text("'GREEN'")),

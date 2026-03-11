@@ -1,4 +1,4 @@
-"""init atoms and bonds with hard-delete protection
+"""init civilization read-model and bonds with hard-delete protection
 
 Revision ID: 20260227_0001
 Revises:
@@ -23,7 +23,7 @@ def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
     op.create_table(
-        "atoms",
+        "civilization_rm",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False, server_default=sa.text("gen_random_uuid()")),
         sa.Column("value", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column(
@@ -34,7 +34,7 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
             "((is_deleted = FALSE AND deleted_at IS NULL) OR (is_deleted = TRUE AND deleted_at IS NOT NULL))",
-            name="atoms_soft_delete_chk",
+            name="civilization_rm_soft_delete_chk",
         ),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -42,19 +42,19 @@ def upgrade() -> None:
     op.create_table(
         "bonds",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("source_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("target_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("source_civilization_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("target_civilization_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("type", sa.Text(), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.text("FALSE")),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint("source_id <> target_id", name="bonds_no_delete_chk"),
+        sa.CheckConstraint("source_civilization_id <> target_civilization_id", name="bonds_no_delete_chk"),
         sa.CheckConstraint(
             "((is_deleted = FALSE AND deleted_at IS NULL) OR (is_deleted = TRUE AND deleted_at IS NOT NULL))",
             name="bonds_soft_delete_chk",
         ),
-        sa.ForeignKeyConstraint(["source_id"], ["atoms.id"]),
-        sa.ForeignKeyConstraint(["target_id"], ["atoms.id"]),
+        sa.ForeignKeyConstraint(["source_civilization_id"], ["civilization_rm.id"]),
+        sa.ForeignKeyConstraint(["target_civilization_id"], ["civilization_rm.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
 
@@ -71,8 +71,8 @@ def upgrade() -> None:
 
     op.execute(
         """
-        CREATE TRIGGER trg_atoms_no_delete
-        BEFORE DELETE ON atoms
+        CREATE TRIGGER trg_civilization_rm_no_delete
+        BEFORE DELETE ON civilization_rm
         FOR EACH ROW
         EXECUTE FUNCTION prevent_hard_delete();
         """
@@ -90,7 +90,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS trg_bonds_no_delete ON bonds")
-    op.execute("DROP TRIGGER IF EXISTS trg_atoms_no_delete ON atoms")
+    op.execute("DROP TRIGGER IF EXISTS trg_civilization_rm_no_delete ON civilization_rm")
     op.execute("DROP FUNCTION IF EXISTS prevent_hard_delete")
     op.drop_table("bonds")
-    op.drop_table("atoms")
+    op.drop_table("civilization_rm")

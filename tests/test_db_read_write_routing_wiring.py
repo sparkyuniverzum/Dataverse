@@ -92,9 +92,7 @@ def test_read_heavy_routers_get_routes_use_read_session_dependency() -> None:
         (planets_router_module.router, "GET", "/planets"),
         (planets_router_module.router, "GET", "/planets/{table_id}"),
         (planets_router_module.router, "GET", "/planets/{planet_id}/moon-impact"),
-        (moons_router_module.router, "GET", "/moons"),
         (moons_router_module.router, "GET", "/civilizations"),
-        (moons_router_module.router, "GET", "/moons/{moon_id}"),
         (moons_router_module.router, "GET", "/civilizations/{civilization_id}"),
         (capabilities_router_module.router, "GET", "/planets/{planet_id}/capabilities"),
     ]

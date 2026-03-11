@@ -7,14 +7,11 @@ import {
   buildTableContractUrl,
   isOccConflictError,
 } from "../../lib/dataverseApi";
-import {
-  buildCivilizationWriteRouteCandidates,
-  shouldFallbackToMoonAlias,
-} from "../../lib/civilizationRuntimeRouteGate";
+import { buildCivilizationWriteRoute } from "../../lib/civilizationRuntimeRouteGate";
 import { buildExtinguishMoonCommand } from "../../lib/builderParserCommand";
 import { explainLifecycleGuard } from "./civilizationLifecycle";
 import { buildMoonCreateMinerals } from "./moonWriteDefaults";
-import { mergeMetadataValue, parseMetadataLiteral } from "./rowWriteUtils";
+import { parseMetadataLiteral } from "./rowWriteUtils";
 
 export function useMoonCrudController({
   apiBase,
@@ -85,21 +82,14 @@ export function useMoonCrudController({
           ...(branchIdScope ? { branch_id: branchIdScope } : {}),
           idempotency_key: nextIdempotencyKey("ingest"),
         };
-        const [primaryCreateUrl, legacyCreateUrl] = buildCivilizationWriteRouteCandidates(apiBase, {
+        const createUrl = buildCivilizationWriteRoute(apiBase, {
           operation: "create",
         });
-        let response = await apiFetch(primaryCreateUrl, {
+        const response = await apiFetch(createUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(createPayload),
         });
-        if (shouldFallbackToMoonAlias(response.status)) {
-          response = await apiFetch(legacyCreateUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(createPayload),
-          });
-        }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo vytvořit: ${response.status}`);
         }
@@ -175,22 +165,15 @@ export function useMoonCrudController({
           idempotency_key: nextIdempotencyKey("mutate"),
           ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
         };
-        const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(apiBase, {
+        const mutateUrl = buildCivilizationWriteRoute(apiBase, {
           operation: "mutate",
           civilizationId: targetId,
         });
-        let response = await apiFetch(primaryMutateUrl, {
+        const response = await apiFetch(mutateUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(mutatePayload),
         });
-        if (shouldFallbackToMoonAlias(response.status)) {
-          response = await apiFetch(legacyMutateUrl, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(mutatePayload),
-          });
-        }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo upravit: ${response.status}`);
         }
@@ -250,7 +233,6 @@ export function useMoonCrudController({
         ? Number(asteroid.current_event_seq)
         : null;
       let parserAttempted = false;
-      let fallbackAttempted = false;
       let parserFailure = null;
       let parserTelemetryRecorded = false;
       let routeFamilyUsed = "unknown";
@@ -283,9 +265,8 @@ export function useMoonCrudController({
           }
         }
 
-        fallbackAttempted = true;
         const extinguishIdempotencyKey = nextIdempotencyKey("extinguish");
-        const [primaryExtinguishBaseUrl, legacyExtinguishBaseUrl] = buildCivilizationWriteRouteCandidates(apiBase, {
+        const extinguishBaseUrl = buildCivilizationWriteRoute(apiBase, {
           operation: "extinguish",
           civilizationId: targetId,
         });
@@ -301,16 +282,10 @@ export function useMoonCrudController({
           }
           return url.toString();
         };
-        let response = await apiFetch(buildExtinguishUrl(primaryExtinguishBaseUrl), {
+        const response = await apiFetch(buildExtinguishUrl(extinguishBaseUrl), {
           method: "PATCH",
         });
         routeFamilyUsed = "canonical";
-        if (shouldFallbackToMoonAlias(response.status)) {
-          response = await apiFetch(buildExtinguishUrl(legacyExtinguishBaseUrl), {
-            method: "PATCH",
-          });
-          routeFamilyUsed = "alias";
-        }
 
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Civilizaci se nepodařilo zhasnout: ${response.status}`);
@@ -338,9 +313,9 @@ export function useMoonCrudController({
             action: "EXTINGUISH",
             parserOk: false,
             parserError: parserFailure || deleteError,
-            fallbackUsed: fallbackAttempted,
-            fallbackOk: fallbackAttempted ? false : null,
-            routeFamily: fallbackAttempted ? routeFamilyUsed : "parser",
+            fallbackUsed: true,
+            fallbackOk: false,
+            routeFamily: routeFamilyUsed === "unknown" ? "parser" : routeFamilyUsed,
           });
           parserTelemetryRecorded = true;
         }
@@ -439,50 +414,16 @@ export function useMoonCrudController({
           mineralMutatePayload.typed_value = parsedMineralValue;
         }
 
-        const [primaryMineralUrl, legacyMineralUrl] = buildCivilizationWriteRouteCandidates(apiBase, {
+        const mineralMutateUrl = buildCivilizationWriteRoute(apiBase, {
           operation: "mutate_mineral",
           civilizationId: targetId,
           mineralKey: metadataKey,
         });
-        let response = await apiFetch(primaryMineralUrl, {
+        const response = await apiFetch(mineralMutateUrl, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(mineralMutatePayload),
         });
-        if (shouldFallbackToMoonAlias(response.status)) {
-          response = await apiFetch(legacyMineralUrl, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(mineralMutatePayload),
-          });
-        }
-        if (shouldFallbackToMoonAlias(response.status)) {
-          const nextMetadata = mergeMetadataValue(currentMetadata, metadataKey, rawValue);
-          const mutatePayload = {
-            metadata: nextMetadata,
-            minerals: nextMetadata,
-            galaxy_id: galaxyId,
-            ...(branchIdScope ? { branch_id: branchIdScope } : {}),
-            idempotency_key: nextIdempotencyKey("metadata-fallback"),
-            ...(expectedEventSeq !== null ? { expected_event_seq: expectedEventSeq } : {}),
-          };
-          const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(apiBase, {
-            operation: "mutate",
-            civilizationId: targetId,
-          });
-          response = await apiFetch(primaryMutateUrl, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(mutatePayload),
-          });
-          if (shouldFallbackToMoonAlias(response.status)) {
-            response = await apiFetch(legacyMutateUrl, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(mutatePayload),
-            });
-          }
-        }
         if (!response.ok) {
           throw await apiErrorFromResponse(response, `Nerost se nepodařilo uložit: ${response.status}`);
         }

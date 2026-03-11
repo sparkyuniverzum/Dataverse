@@ -67,7 +67,7 @@ def test_moon_freeze_gate_routes_match_contract_exactly_and_keep_soft_delete_onl
     forbidden_delete_routes = [
         signature
         for signature in _registered_http_signatures()
-        if signature.startswith("DELETE ") and signature.split(" ", 1)[1].startswith("/moons")
+        if signature.startswith("DELETE ") and signature.split(" ", 1)[1].startswith("/civilizations")
     ]
     assert forbidden_delete_routes == []
 
@@ -78,10 +78,11 @@ def test_moon_freeze_gate_contract_doc_keeps_invariant_markers() -> None:
 
     required_markers = [
         "## 5. API path mapping",
-        "GET /moons",
-        "POST /moons",
-        "PATCH /moons/{moon_id}/mutate",
-        "PATCH /moons/{moon_id}/extinguish",
+        "GET /civilizations",
+        "POST /civilizations",
+        "PATCH /civilizations/{civilization_id}/mutate",
+        "PATCH /civilizations/{civilization_id}/minerals/{mineral_key}",
+        "PATCH /civilizations/{civilization_id}/extinguish",
         "## 6. Invariants",
         "Moon capability effects are deterministic for the same input timeline.",
         "No Moon capability may introduce hard-delete semantics.",

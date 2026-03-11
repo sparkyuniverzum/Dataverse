@@ -19,10 +19,7 @@ import {
 import { PARSER_EXECUTION_MODE } from "../../lib/parserExecutionMode";
 import { createParserTelemetrySnapshot, recordParserTelemetry } from "../../lib/parserExecutionTelemetry";
 import { createWorkspaceTelemetryEvent, emitWorkspaceTelemetry } from "../../lib/workspaceTelemetry";
-import {
-  buildCivilizationWriteRouteCandidates,
-  shouldFallbackToMoonAlias,
-} from "../../lib/civilizationRuntimeRouteGate";
+import { buildCivilizationWriteRoute } from "../../lib/civilizationRuntimeRouteGate";
 import { resolveCivilizationSelectionPatch } from "../../lib/civilizationWorkspaceSelectionGate";
 import { calculateHierarchyLayout } from "../../lib/hierarchy_layout";
 import LinkHoverTooltip from "./LinkHoverTooltip";
@@ -2178,22 +2175,15 @@ export default function UniverseWorkspace({
     setBusy(true);
     setRuntimeError("");
     try {
-      const [primaryMutateUrl, legacyMutateUrl] = buildCivilizationWriteRouteCandidates(API_BASE, {
+      const mutateUrl = buildCivilizationWriteRoute(API_BASE, {
         operation: "mutate",
         civilizationId: request.civilizationId,
       });
-      let response = await apiFetch(primaryMutateUrl, {
+      const response = await apiFetch(mutateUrl, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request.payload),
       });
-      if (shouldFallbackToMoonAlias(response.status)) {
-        response = await apiFetch(legacyMutateUrl, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request.payload),
-        });
-      }
       if (!response.ok) {
         throw await apiErrorFromResponse(response, `Guided repair selhal: ${response.status}`);
       }
