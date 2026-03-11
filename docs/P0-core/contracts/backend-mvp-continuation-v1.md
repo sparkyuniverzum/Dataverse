@@ -115,8 +115,14 @@ Evidence (doplnit po implementaci):
 
 ## 5.2 P1-1 Parser fallback policy
 
-- [ ] Zpřesnit fallback governance (`v2 -> v1`) a explicitní policy režimy.
-- [ ] Zachovat auditovatelný log důvod fallbacku.
+- [x] 2026-03-11 Zpřesnit fallback governance (`v2 -> v1`) a explicitní policy režimy.
+- [x] 2026-03-11 Zachovat auditovatelný log důvod fallbacku.
+
+Evidence:
+
+- [x] 2026-03-11 Implementovány explicitní režimy `DATAVERSE_PARSER_V2_FALLBACK_POLICY` (`disabled`, `auto_unpinned`, `always`) + legacy kompatibilita `DATAVERSE_PARSER_V2_FALLBACK_TO_V1`.
+- [x] 2026-03-11 `ruff check app/infrastructure/runtime/parser2/runtime_flags.py app/infrastructure/runtime/parser/command_service.py app/core/parser2/runtime_flags.py app/core/parser2/__init__.py app/infrastructure/runtime/parser2/__init__.py tests/test_parser2_runtime_flags.py tests/test_parser_command_service.py` -> `All checks passed!`
+- [x] 2026-03-11 `PYTHONPATH=. pytest -q tests/test_parser2_runtime_flags.py tests/test_parser_command_service.py -rs` -> `9 passed`.
 
 ## 5.3 P1-2 Branch lifecycle closure
 

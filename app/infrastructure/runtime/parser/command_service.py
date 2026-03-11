@@ -13,7 +13,7 @@ from app.infrastructure.runtime.observability.logging_helpers import structured_
 from app.infrastructure.runtime.parser2 import (
     Parser2SemanticPlanner,
     SnapshotSemanticResolver,
-    parser_v2_fallback_to_v1_enabled,
+    parser_v2_fallback_policy_mode,
 )
 from app.schema_models.execution import ParseCommandRequest
 from app.services.parser_types import AtomicTask
@@ -41,9 +41,21 @@ async def resolve_tasks_for_payload(
     services: Any,
     ensure_scope: Callable[[], Awaitable[tuple[UUID, UUID | None]]],
 ) -> list[AtomicTask]:
-    fallback_enabled = parser_v2_fallback_to_v1_enabled()
+    fallback_policy_mode = parser_v2_fallback_policy_mode()
     parser_version_explicit = "parser_version" in payload.model_fields_set
-    can_fallback_to_v1 = payload.parser_version == "v2" and (not parser_version_explicit) and fallback_enabled
+
+    def _resolve_fallback_permission() -> tuple[bool, str]:
+        if payload.parser_version != "v2":
+            return False, "parser_version_v1"
+        if fallback_policy_mode == "always":
+            return True, "policy_always"
+        if fallback_policy_mode == "auto_unpinned":
+            if parser_version_explicit:
+                return False, "policy_auto_unpinned_blocked_by_explicit_parser_version"
+            return True, "policy_auto_unpinned_allowed"
+        return False, "policy_disabled"
+
+    can_fallback_to_v1, fallback_policy_reason = _resolve_fallback_permission()
 
     def _parse_with_v1_or_422(command: str) -> list[AtomicTask]:
         parse_result = services.parser_service.parse_with_diagnostics(command)
@@ -64,7 +76,24 @@ async def resolve_tasks_for_payload(
                 detail=detail,
                 parser_version=payload.parser_version,
                 parser_version_explicit=parser_version_explicit,
-                fallback_enabled=fallback_enabled,
+                fallback_policy_mode=fallback_policy_mode,
+                fallback_policy_reason=fallback_policy_reason,
+                command_length=len(payload.command or ""),
+            ),
+        )
+
+    def _log_v2_fallback_blocked(reason: str, *, detail: str) -> None:
+        logger.info(
+            "parser.v2.fallback_blocked_by_policy",
+            extra=structured_log_extra(
+                event_name="parser.v2.fallback_blocked_by_policy",
+                module="runtime.parser.command_service",
+                reason=reason,
+                detail=detail,
+                parser_version=payload.parser_version,
+                parser_version_explicit=parser_version_explicit,
+                fallback_policy_mode=fallback_policy_mode,
+                fallback_policy_reason=fallback_policy_reason,
                 command_length=len(payload.command or ""),
             ),
         )
@@ -98,9 +127,16 @@ async def resolve_tasks_for_payload(
                     tasks = bridge_result.tasks
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             if not can_fallback_to_v1:
+                _log_v2_fallback_blocked(
+                    "v2_runtime_failure",
+                    detail=f"{type(exc).__name__}: fallback denied by policy",
+                )
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Parse error: parser_v2_runtime_failure ({type(exc).__name__})",
+                    detail=(
+                        "Parse error: parser_v2_runtime_failure "
+                        f"({type(exc).__name__}; fallback_policy={fallback_policy_mode})"
+                    ),
                 ) from exc
             _log_v2_fallback(
                 "v2_runtime_failure",
@@ -110,9 +146,13 @@ async def resolve_tasks_for_payload(
 
         if v2_error_message is not None:
             if not can_fallback_to_v1:
+                _log_v2_fallback_blocked(
+                    "v2_plan_or_bridge_error",
+                    detail=f"{v2_error_message}: fallback denied by policy",
+                )
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"Parse error: {v2_error_message}",
+                    detail=f"Parse error: {v2_error_message} (fallback_policy={fallback_policy_mode})",
                 )
             _log_v2_fallback("v2_plan_or_bridge_error", detail=v2_error_message)
             return _parse_with_v1_or_422(payload.command)

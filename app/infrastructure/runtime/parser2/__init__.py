@@ -45,7 +45,10 @@ from app.infrastructure.runtime.parser2.planner import (
     SemanticResolver,
 )
 from app.infrastructure.runtime.parser2.resolver import SnapshotSemanticResolver
-from app.infrastructure.runtime.parser2.runtime_flags import parser_v2_fallback_to_v1_enabled
+from app.infrastructure.runtime.parser2.runtime_flags import (
+    parser_v2_fallback_policy_mode,
+    parser_v2_fallback_to_v1_enabled,
+)
 
 __all__ = [
     "AssignNode",
@@ -83,6 +86,7 @@ __all__ = [
     "SelectNodesIntent",
     "SetFormulaIntent",
     "SnapshotSemanticResolver",
+    "parser_v2_fallback_policy_mode",
     "parser_v2_fallback_to_v1_enabled",
     "Token",
     "TokenType",
