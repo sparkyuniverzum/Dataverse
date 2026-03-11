@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from app.core.task_executor.models import TaskExecutionResult
+from app.domains.bonds.semantics import bond_semantics
 from app.schemas import (
     BondResponse,
     CivilizationResponse,
@@ -14,7 +15,6 @@ from app.schemas import (
     UniverseBondSnapshot,
     build_moon_facts,
 )
-from app.services.bond_semantics import bond_semantics
 from app.services.parser_types import AtomicTask
 from app.services.universe_service import (
     DEFAULT_GALAXY_ID,

@@ -3,14 +3,6 @@
 Status: active (canonical planning baseline)
 Date: 2026-03-10
 Owner: Product UX + Core FE/BE architecture
-Depends on:
-
-- `docs/P0-core/contracts/galaxy-workspace-contract-v1.md`
-- `docs/P0-core/contracts/moon-contract-v1.md`
-- `docs/P0-core/contracts/civilization-contract-v1.md`
-- `docs/P0-core/contracts/mineral-contract-v1.md`
-- `docs/P0-core/contracts/planet-builder-mvp-v2.md`
-- `docs/P1-exec/direction/planet-civilization-domain-canonical-v1.md`
 
 ## 1. What changed
 
@@ -1000,14 +992,3 @@ Errors must map to:
 3. Parser, forms, canvas, grid, and logs must map to the same entity model.
 4. Capability editing and row lifecycle must stay distinct in new flows.
 5. Compatibility aliases may be explained, but never treated as canonical UX naming.
-
-## 12. Evidence
-
-1. `pytest -q tests/test_contract_docs_closure.py -k canonical_ux_ontology` -> required document gate
-2. Supporting source contracts listed in `Depends on` remain the normative evidence set
-
-## 13. Remaining open items
-
-1. [x] 2026-03-10: ontology conflict between Moon capability and Civilization row is explicitly separated for UX work.
-2. [x] 2026-03-10: entity behavior and allowed interaction baseline is defined for `Galaxy`, `Star`, `Planet`, `Moon`, `Civilization`, `Mineral`, `Bond`, `Branch`, and `Star Core`.
-3. [x] 2026-03-10: workspace surfaces and end-to-end user journeys were defined through `docs/P1-exec/direction/ux-rework-blueprint-v1.md` and closed in Slice 1-14 without reintroducing alias drift.

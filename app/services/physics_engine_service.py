@@ -9,8 +9,8 @@ from sqlalchemy import and_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domains.bonds.semantics import normalize_bond_type
 from app.models import Bond, CalcStateRM, PhysicsStateRM
-from app.services.bond_semantics import normalize_bond_type
 
 
 def _clamp(value: float, min_value: float, max_value: float) -> float:

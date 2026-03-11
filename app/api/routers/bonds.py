@@ -15,6 +15,8 @@ from app.api.runtime import (
 )
 from app.app_factory import ServiceContainer
 from app.db import get_session
+from app.domains.bonds.policy import canonical_bond_pair, resolve_validation_decision
+from app.domains.bonds.semantics import bond_semantics, normalize_bond_type
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -27,22 +29,9 @@ from app.schemas import (
     BondValidateRequest,
     BondValidateResponse,
 )
-from app.services.bond_semantics import bond_semantics, normalize_bond_type
 from app.services.parser_types import AtomicTask
 
 router = APIRouter(tags=["bonds"])
-
-
-def _canonical_pair(
-    source_civilization_id: UUID, target_civilization_id: UUID, *, relation_type: str
-) -> tuple[UUID, UUID]:
-    if normalize_bond_type(relation_type) != "RELATION":
-        return source_civilization_id, target_civilization_id
-    source_text = str(source_civilization_id)
-    target_text = str(target_civilization_id)
-    if source_text <= target_text:
-        return source_civilization_id, target_civilization_id
-    return target_civilization_id, source_civilization_id
 
 
 def _reason_from_http_exception(exc: HTTPException) -> BondValidateReason:
@@ -111,15 +100,6 @@ def _reason_from_http_exception(exc: HTTPException) -> BondValidateReason:
     )
 
 
-def _resolve_decision(*, reasons: list[BondValidateReason]) -> tuple[str, bool, bool]:
-    if not reasons:
-        return "ALLOW", True, False
-    blocking = any(item.blocking for item in reasons)
-    if blocking:
-        return "REJECT", False, True
-    return "WARN", True, False
-
-
 @router.post("/bonds/validate", response_model=BondValidateResponse, status_code=status.HTTP_200_OK)
 async def validate_bond(
     payload: BondValidateRequest,
@@ -143,7 +123,7 @@ async def validate_bond(
     normalized_source = payload.source_civilization_id
     normalized_target = payload.target_civilization_id
     if operation == "create" and normalized_source is not None and normalized_target is not None:
-        normalized_source, normalized_target = _canonical_pair(
+        normalized_source, normalized_target = canonical_bond_pair(
             normalized_source,
             normalized_target,
             relation_type=semantics.bond_type,
@@ -192,7 +172,7 @@ async def validate_bond(
                 if bond_type != semantics.bond_type:
                     continue
                 if bond_type == "RELATION":
-                    candidate_source, candidate_target = _canonical_pair(
+                    candidate_source, candidate_target = canonical_bond_pair(
                         bond.source_civilization_id,
                         bond.target_civilization_id,
                         relation_type=bond_type,
@@ -325,7 +305,7 @@ async def validate_bond(
             )
         )
 
-    decision, accepted, blocking = _resolve_decision(reasons=reasons)
+    decision, accepted, blocking = resolve_validation_decision(reasons=reasons)
     preview.would_create = (
         operation == "create"
         and accepted

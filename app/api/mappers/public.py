@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from app.domains.bonds.semantics import bond_semantics
 from app.models import Branch, Galaxy, ImportError, ImportJob, MoonCapability, User
 from app.schemas import (
     BondSummaryPublic,
@@ -32,7 +33,6 @@ from app.schemas import (
     TableContractPublic,
     UserPublic,
 )
-from app.services.bond_semantics import bond_semantics
 
 
 def _read(item: Mapping[str, Any] | Any, key: str, default: Any = None) -> Any:

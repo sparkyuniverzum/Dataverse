@@ -1,20 +1,10 @@
-Tady je kompletní a přesný překlad celého dokumentu do češtiny:
-
----
-
 # Kanonická UX ontologie v1 (Canonical UX Ontology v1)
+
+Tady je kompletní a přesný překlad celého dokumentu do češtiny:
 
 Status: aktivní (kanonický základ plánování / canonical planning baseline)
 Datum: 2026-03-10
 Vlastník: Produktové UX + Core FE/BE architektura
-Závisí na:
-
-* `docs/P0-core/contracts/galaxy-workspace-contract-v1.md`
-* `docs/P0-core/contracts/moon-contract-v1.md`
-* `docs/P0-core/contracts/civilization-contract-v1.md`
-* `docs/P0-core/contracts/mineral-contract-v1.md`
-* `docs/P0-core/contracts/planet-builder-mvp-v2.md`
-* `docs/P1-exec/direction/planet-civilization-domain-canonical-v1.md`
 
 ## 1. Co se změnilo
 

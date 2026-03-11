@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.parser2 import Parser2ExecutorBridge, Parser2SemanticPlanner
 from app.core.task_executor.service import TaskExecutorService
 from app.db import AsyncSessionLocal, dispose_db_engines
+from app.domains.bonds.dashboard_service import BondDashboardService
 from app.modules.auth.service import AuthService
-from app.services.bond_dashboard_service import BondDashboardService
 from app.services.constellation_dashboard_service import ConstellationDashboardService
 from app.services.cosmos_service import CosmosService
 from app.services.event_consumers import OnboardingBootstrapConsumer, OutboxConsumerRegistry

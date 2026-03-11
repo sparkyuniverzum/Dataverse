@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from app.services.bond_semantics import bond_semantics, normalize_bond_type
+from app.domains.bonds.semantics import bond_semantics, normalize_bond_type
 from app.services.universe.types import (
     ProjectedBond,
     ProjectedCivilization,

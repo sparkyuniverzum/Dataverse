@@ -6,8 +6,8 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domains.bonds.semantics import normalize_bond_type
 from app.models import Bond, CalcStateRM, CivilizationRM, PhysicsStateRM
-from app.services.bond_semantics import normalize_bond_type
 from app.services.guardian_service import evaluate_guardians
 from app.services.universe.types import (
     ProjectedBond,

@@ -8,8 +8,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domains.bonds.semantics import normalize_bond_type
 from app.models import Branch, Event
-from app.services.bond_semantics import normalize_bond_type
 from app.services.universe.types import ProjectedBond, ProjectedCivilization, ProjectionPayloadError
 
 if TYPE_CHECKING:

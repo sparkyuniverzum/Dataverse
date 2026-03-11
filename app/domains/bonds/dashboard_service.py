@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.bond_semantics import bond_semantics
+from app.domains.bonds.semantics import bond_semantics
 from app.services.universe_service import (
     DEFAULT_GALAXY_ID,
     UniverseService,
@@ -37,7 +37,7 @@ class BondDashboardService:
             as_of=as_of,
         )
 
-        asteroid_by_id: dict[UUID, dict[str, Any]] = {}
+        civilization_by_id: dict[UUID, dict[str, Any]] = {}
         for civilization in civilizations:
             if isinstance(civilization, dict):
                 civilization_id = civilization.get("id")
@@ -85,7 +85,7 @@ class BondDashboardService:
                 resolved_constellation = resolved_constellation or fallback_constellation
                 resolved_planet = resolved_planet or fallback_planet
 
-            asteroid_by_id[civilization_id] = {
+            civilization_by_id[civilization_id] = {
                 "id": civilization_id,
                 "label": str(value) if value is not None else "",
                 "table_id": resolved_table_id,
@@ -114,8 +114,8 @@ class BondDashboardService:
             if not isinstance(source_id, UUID) or not isinstance(target_id, UUID) or not isinstance(bond_id, UUID):
                 continue
 
-            source = asteroid_by_id.get(source_id)
-            target = asteroid_by_id.get(target_id)
+            source = civilization_by_id.get(source_id)
+            target = civilization_by_id.get(target_id)
             if source is None or target is None:
                 continue
 

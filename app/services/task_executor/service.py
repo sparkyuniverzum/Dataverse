@@ -36,9 +36,9 @@ from app.core.task_executor.intent_commands import (
 from app.core.task_executor.models import TaskExecutionResult
 from app.core.task_executor.occ_guards import OccGuards
 from app.core.task_executor.target_resolution import TargetResolver
+from app.domains.bonds.semantics import normalize_bond_type
 from app.models import Bond, CivilizationRM, Event
 from app.services.auto_semantics_service import AutoSemanticsService
-from app.services.bond_semantics import normalize_bond_type
 from app.services.event_store_service import EventStoreService
 from app.services.parser_types import AtomicTask
 from app.services.projection.read_model_projector import ReadModelProjector

@@ -7,8 +7,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, func, or_, select
 
 from app.core.parser2.intents import CreateLinkIntent, Intent
+from app.domains.bonds.semantics import normalize_bond_type
 from app.models import Bond
-from app.services.bond_semantics import normalize_bond_type
 from app.services.db_advisory_lock import acquire_transaction_lock
 from app.services.universe_service import ProjectedBond
 

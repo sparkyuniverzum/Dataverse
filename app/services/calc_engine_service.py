@@ -13,8 +13,8 @@ from sqlalchemy import and_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domains.bonds.semantics import normalize_bond_type
 from app.models import CalcStateRM, TableContract
-from app.services.bond_semantics import normalize_bond_type
 from app.services.universe_service import derive_table_id, derive_table_name
 
 _FORMULA_RE = re.compile(r"^\s*=?\s*(SUM|AVG|MIN|MAX|COUNT)\s*\(\s*([^)]+)\s*\)\s*$", re.IGNORECASE)
