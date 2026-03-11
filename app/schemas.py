@@ -4,6 +4,7 @@ from __future__ import annotations
 # schema families are grouped by canonical ontology domains.
 from app.domains.bonds.schemas import *  # noqa: F401,F403
 from app.domains.civilizations.schemas import *  # noqa: F401,F403
+from app.domains.galaxies.schemas import *  # noqa: F401,F403
 from app.domains.moons.schemas import *  # noqa: F401,F403
 from app.domains.planets.schemas import *  # noqa: F401,F403
 from app.domains.shared.schemas import *  # noqa: F401,F403

@@ -4,6 +4,13 @@ from __future__ import annotations
 # SQLAlchemy models are organized by canonical ontology domains.
 from app.domains.bonds.models import Bond
 from app.domains.civilizations.models import CivilizationRM
+from app.domains.galaxies.models import (
+    Galaxy,
+    GalaxyActivityRM,
+    GalaxyHealthRM,
+    GalaxySummaryRM,
+    OnboardingProgress,
+)
 from app.domains.moons import MoonCapability
 from app.domains.planets import TableContract
 from app.domains.shared import (
@@ -16,17 +23,7 @@ from app.domains.shared import (
     ImportJob,
     OutboxEvent,
 )
-from app.domains.star_core import (
-    CalcStateRM,
-    Galaxy,
-    GalaxyActivityRM,
-    GalaxyHealthRM,
-    GalaxySummaryRM,
-    OnboardingProgress,
-    PhysicsStateRM,
-    StarCorePolicyRM,
-    User,
-)
+from app.domains.star_core import CalcStateRM, PhysicsStateRM, StarCorePolicyRM, User
 
 __all__ = [
     "AuthSession",

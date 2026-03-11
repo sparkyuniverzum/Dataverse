@@ -15,6 +15,12 @@ from app.domains.civilizations import (
     queries as civilization_queries,
     schemas as civilization_schemas,
 )
+from app.domains.galaxies import (
+    commands as galaxy_commands,
+    models as galaxy_models,
+    queries as galaxy_queries,
+    schemas as galaxy_schemas,
+)
 from app.domains.moons import (
     commands as moon_commands,
     models as moon_models,
@@ -298,8 +304,68 @@ def test_planets_domain_professional_setup() -> None:
     _assert_query_module_is_read_only(queries_source, module_name="planets.queries")
 
 
+def test_galaxies_domain_professional_setup() -> None:
+    assert galaxy_models.Galaxy.__tablename__ == "galaxies"
+    assert galaxy_models.OnboardingProgress.__tablename__ == "onboarding_progress"
+    assert galaxy_models.GalaxySummaryRM.__tablename__ == "galaxy_summary_rm"
+    assert galaxy_models.GalaxyHealthRM.__tablename__ == "galaxy_health_rm"
+    assert galaxy_models.GalaxyActivityRM.__tablename__ == "galaxy_activity_rm"
+
+    required_schema_names = (
+        "GalaxyPublic",
+        "GalaxyCreateRequest",
+        "OnboardingPublic",
+        "OnboardingUpdateRequest",
+        "GalaxySummaryPublic",
+        "GalaxyHealthPublic",
+        "GalaxyActivityResponse",
+    )
+    for schema_name in required_schema_names:
+        assert hasattr(galaxy_schemas, schema_name), f"Missing galaxies schema `{schema_name}`"
+
+    assert hasattr(galaxy_commands, "GalaxyCommandPlan")
+    assert hasattr(galaxy_commands, "GalaxyCommandError")
+    assert hasattr(galaxy_commands, "plan_create_galaxy")
+    assert hasattr(galaxy_commands, "plan_extinguish_galaxy")
+    assert hasattr(galaxy_commands, "plan_update_onboarding")
+    assert hasattr(galaxy_queries, "GalaxyQueryError")
+    assert hasattr(galaxy_queries, "GalaxyQueryNotFoundError")
+    assert hasattr(galaxy_queries, "GalaxyQueryConflictError")
+    assert hasattr(galaxy_queries, "GalaxyQueryForbiddenError")
+    assert hasattr(galaxy_queries, "list_galaxies")
+    assert hasattr(galaxy_queries, "resolve_user_galaxy")
+    assert hasattr(galaxy_queries, "resolve_galaxy_scope")
+
+    create_plan = galaxy_commands.plan_create_galaxy(name="  New Primary Galaxy  ")
+    assert create_plan.request_payload["name"] == "  New Primary Galaxy  "
+
+    extinguish_plan = galaxy_commands.plan_extinguish_galaxy(
+        galaxy_id=uuid4(),
+        expected_event_seq=12,
+    )
+    assert "galaxy_id" in extinguish_plan.request_payload
+    assert extinguish_plan.request_payload["expected_event_seq"] == 12
+
+    onboarding_plan = galaxy_commands.plan_update_onboarding(
+        action="sync_machine",
+        mode=None,
+        machine={"step": "schema", "planet_dropped": True},
+    )
+    assert onboarding_plan.request_payload["action"] == "sync_machine"
+    assert onboarding_plan.request_payload["machine"] == {"step": "schema", "planet_dropped": True}
+
+    models_source = inspect.getsource(galaxy_models)
+    schemas_source = inspect.getsource(galaxy_schemas)
+    commands_source = inspect.getsource(galaxy_commands)
+    queries_source = inspect.getsource(galaxy_queries)
+    _assert_domain_module_is_web_independent(models_source, module_name="galaxies.models")
+    _assert_domain_module_is_web_independent(schemas_source, module_name="galaxies.schemas")
+    _assert_domain_module_is_web_independent(commands_source, module_name="galaxies.commands")
+    _assert_domain_module_is_web_independent(queries_source, module_name="galaxies.queries")
+    _assert_query_module_is_read_only(queries_source, module_name="galaxies.queries")
+
+
 def test_star_core_domain_professional_setup() -> None:
-    assert star_core_models.Galaxy.__tablename__ == "galaxies"
     assert star_core_models.StarCorePolicyRM.__tablename__ == "star_core_policies"
 
     required_schema_names = (

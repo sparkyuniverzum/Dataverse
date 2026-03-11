@@ -10,11 +10,6 @@ from app.domains.star_core.commands import (
 )
 from app.domains.star_core.models import (
     CalcStateRM,
-    Galaxy,
-    GalaxyActivityRM,
-    GalaxyHealthRM,
-    GalaxySummaryRM,
-    OnboardingProgress,
     PhysicsStateRM,
     StarCorePolicyRM,
     User,
@@ -32,11 +27,6 @@ from app.domains.star_core.queries import (
 
 __all__ = [
     "CalcStateRM",
-    "Galaxy",
-    "GalaxyActivityRM",
-    "GalaxyHealthRM",
-    "GalaxySummaryRM",
-    "OnboardingProgress",
     "PhysicsStateRM",
     "StarCoreCommandError",
     "StarCoreCommandPlan",

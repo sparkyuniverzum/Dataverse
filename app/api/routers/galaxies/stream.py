@@ -4,12 +4,13 @@ import asyncio
 import json
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 
 from app.api.runtime import get_service_container
 from app.app_factory import ServiceContainer
 from app.db import AsyncSessionLocal
+from app.domains.galaxies.queries import GalaxyQueryError, resolve_galaxy_scope as resolve_galaxy_scope_query
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 
@@ -39,24 +40,23 @@ async def galaxy_events_stream(
     services: ServiceContainer = Depends(get_service_container),
 ) -> StreamingResponse:
     async with AsyncSessionLocal() as bootstrap_session:
-        target_galaxy = await services.auth_service.resolve_user_galaxy(
-            session=bootstrap_session,
-            user_id=current_user.id,
-            galaxy_id=galaxy_id,
-        )
-        target_branch_id = await services.cosmos_service.resolve_branch_id(
-            session=bootstrap_session,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy.id,
-            branch_id=branch_id,
-        )
+        try:
+            target_galaxy_id, target_branch_id = await resolve_galaxy_scope_query(
+                session=bootstrap_session,
+                services=services,
+                user_id=current_user.id,
+                galaxy_id=galaxy_id,
+                branch_id=branch_id,
+            )
+        except GalaxyQueryError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
         initial_cursor = (
             int(last_event_seq)
             if last_event_seq is not None
             else await services.event_store.latest_event_seq(
                 session=bootstrap_session,
                 user_id=current_user.id,
-                galaxy_id=target_galaxy.id,
+                galaxy_id=target_galaxy_id,
                 branch_id=target_branch_id,
             )
         )
@@ -87,7 +87,7 @@ async def galaxy_events_stream(
                     events = await services.event_store.list_events_after(
                         session=stream_session,
                         user_id=current_user.id,
-                        galaxy_id=target_galaxy.id,
+                        galaxy_id=target_galaxy_id,
                         branch_id=target_branch_id,
                         after_event_seq=cursor,
                         limit=batch_size,
