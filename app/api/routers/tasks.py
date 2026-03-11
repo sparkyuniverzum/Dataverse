@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.execution import execution_to_response, task_to_response
@@ -20,6 +22,27 @@ from app.services.task_executor.preview import execute_atomic_tasks_preview
 router = APIRouter(tags=["tasks"])
 
 
+def _to_atomic_tasks(raw_tasks: list[Any]) -> list[AtomicTask]:
+    tasks: list[AtomicTask] = []
+    for index, task in enumerate(raw_tasks):
+        action = getattr(task, "action", None)
+        params = getattr(task, "params", None)
+        if not isinstance(action, str) or not action.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Invalid task at index {index}: missing atomic `action`.",
+            )
+        if params is None:
+            params = {}
+        if not isinstance(params, dict):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Invalid task at index {index}: `params` must be an object.",
+            )
+        tasks.append(AtomicTask(action=action, params=dict(params)))
+    return tasks
+
+
 @router.post("/tasks/execute-batch", response_model=TaskBatchExecuteResponse, status_code=status.HTTP_200_OK)
 async def execute_task_batch(
     payload: TaskBatchExecuteRequest,
@@ -27,7 +50,7 @@ async def execute_task_batch(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> TaskBatchExecuteResponse:
-    tasks = [AtomicTask(action=task.action, params=dict(task.params or {})) for task in payload.tasks]
+    tasks = _to_atomic_tasks(payload.tasks)
     resolved_scope = await resolve_scope_for_user(
         session=session,
         user=current_user,
