@@ -18,6 +18,24 @@ Scope: entire repository.
 6. Keep FE/BE terminology aligned: `civilization` is canonical row entity, `moon` is capability over table/planet; new `asteroid*` terminology is forbidden.
 7. Keep workflow logs operator-readable and chronologically consistent.
 
+## Documentation Language Policy (Mandatory)
+
+1. Canonical language for active project documentation (`docs/*`) is Czech (`CZ`).
+2. Do not maintain parallel active EN+CZ copies of the same document unless explicitly requested for external delivery.
+3. Source code, API paths, error codes, telemetry keys/event names, and DB schema/table/column names must remain in English.
+4. In Czech documentation, keep technical identifiers in original English form and format them as code (for example: `/civilizations*`, `event_seq`).
+
+## UI Copy Policy (Mandatory)
+
+1. User-visible UI text must be Czech and user-friendly by default.
+2. UI copy must use canonical terminology consistently:
+   - `civilizace` = row runtime entity,
+   - `měsíc` = capability over planeta/tabulka,
+   - `vazba`, `minerál`, `větev`, `srdce hvězdy` per ontology.
+3. If a term can be misunderstood, UI text must include a short clarifier (for example: `Měsíc (capability)`).
+4. Technical identifiers in UI that map to backend/runtime (`API path`, `error code`, `telemetry key`, `DB name`) remain in English.
+5. If this policy is not in current implementation scope, record it as pending and do not ship contradictory new UI text.
+
 ## API Terminology Baseline (Mandatory)
 
 1. Canonical row lifecycle CRUD/mutation surface is `/civilizations*`.

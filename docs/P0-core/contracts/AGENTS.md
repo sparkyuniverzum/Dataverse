@@ -15,6 +15,8 @@ Scope: `docs/P0-core/contracts/`
 2. Mark open items explicitly with `[ ]` and closure with `[x]` + date.
 3. Keep terminology consistent (`civilization` row runtime canonical, `moon` capability/UX term).
 4. Do not mark closure without gate evidence.
+5. Contracts in this scope are CZ-first; do not keep parallel active EN mirror docs unless explicitly approved.
+6. Technical identifiers stay English-only (`code`, API paths, error codes, telemetry keys, DB names).
 
 ## Documentation Pattern
 

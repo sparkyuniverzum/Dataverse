@@ -17,6 +17,7 @@ Scope: `frontend/src/components/universe/`
 4. Monolith creation is prohibited in this scope; split new behavior into focused files/hooks.
 5. Any lifecycle/mineral behavior change must keep existing e2e path stable.
 6. Keep naming/API mapping explicit: `civilization` is row runtime entity, `moon` is capability layer over table/planet in UX.
+7. User-facing copy in this scope must be Czech and understandable; use canonical terminology and add short clarifiers where ambiguity can occur (for example: `Měsíc (capability)`).
 
 ## Key Files
 
