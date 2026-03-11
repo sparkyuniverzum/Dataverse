@@ -7,9 +7,8 @@ Owner: FE + BE core
 Depends on:
 
 - `docs/contracts/api-v1.md`
-- `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
-- `docs/contracts/planet-civilization-test-matrix-v1.md`
-- `docs/contracts/planet-civilization-telemetry-v1.md`
+- `docs/contracts/planet-civilization-delivery-canonical-v1.md`
+- `docs/contracts/planet-civilization-domain-canonical-v1.md`
 - `docs/contracts/inspector-ia-contract-v1.md`
 - `docs/contracts/moon-impact-contract-v1.md`
 

@@ -3,7 +3,7 @@
 Status: approved target (Wave 0 readiness)
 Date: 2026-03-07
 Owner: UX + FE architecture
-Depends on: `docs/contracts/visual-builder-context-contract-v1.md`, `docs/contracts/visual-builder-state-machine-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `frontend/src/components/universe/WorkspaceSidebar.jsx`
+Depends on: `docs/contracts/visual-builder-context-contract-v1.md`, `docs/contracts/visual-builder-state-machine-v1.md`, `docs/contracts/planet-civilization-domain-canonical-v1.md`, `frontend/src/components/universe/WorkspaceSidebar.jsx`
 
 ## 1. Purpose
 

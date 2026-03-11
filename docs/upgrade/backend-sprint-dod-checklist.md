@@ -209,7 +209,7 @@ Evidence:
 - [x] Audit ma zapsane hlavni mezery a navazne stage.
 
 Overeni:
-- Kontrola auditu: `docs/upgrade/service-parity-audit-2026-03-03.md`
+- Kontrola auditu: `docs/upgrade/service-maturity-matrix-v1.md`
 
 Evidence:
 - Reviewer note:
@@ -249,7 +249,7 @@ Evidence:
 - [x] DoD checklist je kompletni a pouzitelny pro sign-off.
 
 Overeni:
-- Kontrola souboru: `docs/upgrade/service-parity-audit-2026-03-03.md`
+- Kontrola souboru: `docs/upgrade/service-maturity-matrix-v1.md`
 - Kontrola souboru: `docs/upgrade/backend-sprint-dod-checklist.md`
 
 Evidence:

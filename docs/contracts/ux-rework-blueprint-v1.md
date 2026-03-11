@@ -11,7 +11,7 @@ Depends on:
 - `docs/contracts/star-physics-laws-v2.md`
 - `docs/contracts/planet-builder-mvp-v2.md`
 - `docs/contracts/planet-civilization-delivery-canonical-v1.md`
-- `docs/contracts/planet-civilization-runtime-stability-sprint-v2.md`
+- `docs/release/planet-civilization-operations-canonical-v1.md`
 
 ## 1. What changed
 

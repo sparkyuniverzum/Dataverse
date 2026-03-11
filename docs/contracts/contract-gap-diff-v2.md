@@ -39,5 +39,4 @@ Legend:
 1. none at contract gate layer (closure complete).
 2. projection convergence replay gate is covered (`src/components/universe/projectionConvergenceGate.test.js`).
 3. P6/LF closure status is managed in:
-   - `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`
-   - `docs/contracts/planet-moon-dod-v3.md`
+   - `docs/contracts/planet-civilization-delivery-canonical-v1.md`

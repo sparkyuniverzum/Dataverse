@@ -3,7 +3,7 @@
 Status: approved target (Wave 0 readiness)
 Date: 2026-03-07
 Owner: Core BE/FE architecture
-Depends on: `docs/contracts/api-v1.md`, `docs/contracts/table-contract-v1.md`, `docs/contracts/civilization-mineral-contract-v2.md`, `docs/contracts/planet-civilization-logical-flow-dod-v1.md`
+Depends on: `docs/contracts/api-v1.md`, `docs/contracts/table-contract-v1.md`, `docs/contracts/planet-civilization-domain-canonical-v1.md`, `docs/contracts/planet-civilization-delivery-canonical-v1.md`
 
 ## 1. Purpose
 

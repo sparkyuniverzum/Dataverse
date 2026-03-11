@@ -4,10 +4,9 @@ Status: active (canonical merged source)
 Date: 2026-03-10
 Owner: Core BE/FE architecture
 Merged sources:
-- `docs/contracts/planet-civilization-glossary-v1.md`
-- `docs/contracts/planet-civilization-ux-intent-v1.md`
-- `docs/contracts/planet-civilization-moon-mineral-workflow-v1.md`
-- `docs/contracts/civilization-mineral-contract-v2.md`
+- historical glossary and UX-intent artifacts
+- historical moon/civilization/mineral workflow artifacts
+- historical civilization/mineral contract artifacts
 
 ## 1. What changed
 

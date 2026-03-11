@@ -4,7 +4,7 @@ Status: in progress
 Date: 2026-03-10
 Owner: Backend Runtime
 Depends on:
-- `docs/contracts/platform-runtime-hardening-sprint-plan-v1.md`
+- `docs/release/planet-civilization-operations-canonical-v1.md`
 - `docs/contracts/parser-v2-spec.md`
 - `docs/contracts/planet-civilization-delivery-canonical-v1.md`
 

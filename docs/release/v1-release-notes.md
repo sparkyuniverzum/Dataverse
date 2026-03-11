@@ -51,7 +51,7 @@ Release SHA: `89f4f17`
   - `frontend/src/components/universe/workspaceContractExplainability.test.js`
   - `tests/test_api_integration.py::test_bridge_integrity_soft_delete_and_replay_convergence`
 - Consolidated DoD status:
-  - `docs/contracts/planet-moon-dod-v3.md` marks `PM-P0-01` .. `PM-P0-08` as `GREEN`.
+  - `docs/contracts/planet-civilization-delivery-canonical-v1.md` marks `PM-P0-01` .. `PM-P0-08` as `GREEN`.
 - Release gate confirmation:
   - `scripts/star_contract_gate.sh` -> PASS
 
@@ -68,7 +68,7 @@ Release SHA: `89f4f17`
   - `tests/test_moon_contract_freeze_gate.py::test_capability_matrix_freeze_v1`
   - `frontend/src/components/universe/planetPhysicsParity.test.js`
 - Consolidated status:
-  - `docs/contracts/planet-moon-p1-backlog-v1.md` is closed.
+  - `docs/contracts/planet-civilization-delivery-canonical-v1.md` is the canonical closure source.
 
 ## Planet+Moon v3 P2 progress addendum (2026-03-06)
 
@@ -88,7 +88,7 @@ Release SHA: `89f4f17`
   - idempotent mutation payload builder for repair apply,
   - local audit trail records for planned/applied/failed repair actions.
 - Official closure status:
-  - `PM-P2-01` .. `PM-P2-03` are all `GREEN` in `docs/contracts/planet-moon-dod-v3.md`.
+  - `PM-P2-01` .. `PM-P2-03` are all `GREEN` in `docs/contracts/planet-civilization-delivery-canonical-v1.md`.
 
 ## Planet Builder UX flow kickoff (2026-03-06)
 
@@ -135,8 +135,7 @@ Release SHA: `89f4f17`
 - P6 remains open and is tracked as partial closure:
   - open gaps: `PM-P6-01` (live API execution evidence for dedicated BE parity gate), `PM-P6-03` (live API execution evidence for dedicated BE lifecycle gate).
 - Canonical P6 state is maintained in:
-  - `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`
-  - `docs/contracts/planet-moon-dod-v3.md`
+  - `docs/contracts/planet-civilization-delivery-canonical-v1.md`
 
 ## Planet+Moon v3 P6 evidence sync addendum (2026-03-07)
 
@@ -179,23 +178,23 @@ Release SHA: `89f4f17`
 
 - `W0-LF-01` closed (`GREEN`): canonical glossary freeze approved.
 - Artifact:
-  - `docs/contracts/planet-civilization-glossary-v1.md`
+  - `docs/contracts/planet-civilization-domain-canonical-v1.md`
 - Decision:
   - Planet/Moon/Civilization/Mineral/Bond vocabulary is frozen with anti-confusion mapping and mineral coupling rules.
 - `W0-LF-02` closed (`GREEN`): UX intent freeze approved.
 - Artifact:
-  - `docs/contracts/planet-civilization-ux-intent-v1.md`
+  - `docs/contracts/planet-civilization-domain-canonical-v1.md`
 - Decision:
   - discoverability/inspectability/explainability scenarios and acceptance checklist are frozen for implementation.
 - `W0-LF-03` closed (`GREEN`): success metrics and thresholds approved.
 - Artifact:
-  - metrics section in `docs/contracts/planet-civilization-ux-intent-v1.md`
+  - metrics section in `docs/contracts/planet-civilization-domain-canonical-v1.md`
 - Decision:
   - `LF-M01..LF-M06` are the canonical logical-flow success metrics for Wave 1+.
 - `W0-LF-04` closed (`GREEN`): canonical row route policy is frozen.
 - Contract updates:
   - `docs/contracts/api-v1.md`
-  - `docs/contracts/civilization-mineral-contract-v2.md`
+  - `docs/contracts/planet-civilization-domain-canonical-v1.md`
 - Policy result:
   - `/civilizations*` is canonical row lifecycle API.
   - `/moons*` remains compatibility alias with mandatory headers:
@@ -243,12 +242,12 @@ Release SHA: `89f4f17`
   - persisted keys and invalid-state recovery fallback are explicitly frozen.
 - `W0-LF-12` closed (`GREEN`): feature-flag rollout plan decided.
 - Contract artifact:
-  - `docs/release/planet-civilization-feature-flag-rollout-v1.md`
+  - `docs/release/planet-civilization-operations-canonical-v1.md`
 - Decision:
   - phased rollout + promotion gates + rollback matrix are frozen for `moon_discovery_v1`, `bond_builder_v1`, `cross_planet_guard_v1`.
 - `W0-LF-13` closed (`GREEN`): test matrix skeleton and placeholders committed.
 - Artifacts:
-  - `docs/contracts/planet-civilization-test-matrix-v1.md`
+  - `docs/contracts/planet-civilization-delivery-canonical-v1.md`
   - `tests/test_planet_civilization_lf_matrix_placeholder.py`
   - `frontend/src/components/universe/planetCivilizationMatrix.placeholder.test.js`
   - `frontend/e2e/staging/planet-civilization-lf.matrix.placeholder.spec.mjs`
@@ -259,10 +258,10 @@ Release SHA: `89f4f17`
   - `tests/fixtures/planet_civilization/README.md`
 - `W0-LF-15` closed (`GREEN`): telemetry schema contract decided.
 - Artifact:
-  - `docs/contracts/planet-civilization-telemetry-v1.md`
+  - `docs/contracts/planet-civilization-delivery-canonical-v1.md`
 - `W0-LF-16` closed (`GREEN`): logical-flow rollback policy decided.
 - Artifacts:
-  - `docs/release/planet-civilization-logical-flow-rollback-v1.md`
+  - `docs/release/planet-civilization-operations-canonical-v1.md`
   - `docs/release/v1-rollout-runbook.md` (logical-flow operations reference)
 - Wave 0 readiness closure:
   - all `W0-LF-01..16` and `SG-LF-01..16` are `GREEN` as of 2026-03-07.
@@ -292,8 +291,7 @@ Release SHA: `89f4f17`
 - LF BE matrix gate executed and passing:
   - `pytest -q tests/test_planet_civilization_lf_matrix_placeholder.py` -> `8 passed`.
 - Closure synchronization completed:
-  - `docs/contracts/planet-moon-preview-layer-p6-backlog-v1.md`
-  - `docs/contracts/planet-moon-dod-v3.md`
+  - `docs/contracts/planet-civilization-delivery-canonical-v1.md`
 - Normalized closure status as of 2026-03-08:
   - `PM-P6-01` .. `PM-P6-10` are `GREEN`.
   - `LF-01` .. `LF-08` are `GREEN`.
@@ -301,7 +299,7 @@ Release SHA: `89f4f17`
 ## Planet/Civilization UI-WF-4 closure addendum (2026-03-10)
 
 - UI workflow sprint closure synchronized:
-  - `docs/contracts/planet-civilization-ui-workflow-sprint-plan-v1.md` now marks `UI-WF-4` as closed.
+  - `docs/contracts/planet-civilization-delivery-canonical-v1.md` now marks `UI-WF-4` as closed.
 - Operator runbook note frozen:
   - `docs/release/v1-rollout-runbook.md` section `UI-WF-4 Operator Runbook Note (2026-03-10)`.
 - BE release-hardening gate executed:

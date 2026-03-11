@@ -2,7 +2,7 @@
 
 Status: frozen for MVP gate
 Date: 2026-03-05
-Depends on: `docs/contracts/api-v1.md`, `docs/star-contract-audit.md`
+Depends on: `docs/contracts/api-v1.md`, `docs/star-contract-baseline-v1.json`, `docs/star-physics-contract-baseline-v2.json`
 
 ## 1. Purpose
 

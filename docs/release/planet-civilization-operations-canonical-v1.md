@@ -4,10 +4,9 @@ Status: active (canonical merged source)
 Date: 2026-03-10
 Owner: Release + FE + BE
 Merged sources:
-- `docs/release/planet-civilization-feature-flag-rollout-v1.md`
-- `docs/release/planet-civilization-logical-flow-rollback-v1.md`
 - `docs/release/v1-rollout-runbook.md` (logical-flow + runtime hardening sections)
-- `docs/contracts/platform-runtime-hardening-sprint-plan-v1.md` (closure reference)
+- historical feature-flag rollout and rollback artifacts
+- historical runtime-hardening sprint artifact
 
 ## 1. What changed
 
@@ -38,4 +37,4 @@ Operational actions were split across several files, increasing incident-time lo
 ## 5. Remaining open items
 
 1. [x] 2026-03-10: no blocking open items for v1 operations closure.
-2. [ ] Runtime stability follow-up tracked in `docs/contracts/planet-civilization-runtime-stability-sprint-v2.md`.
+2. [ ] Runtime stability follow-up tracked in active runtime roadmap and release runbook notes.

@@ -3,7 +3,7 @@
 Status: approved target (Wave 0 readiness)
 Date: 2026-03-07
 Owner: FE architecture
-Depends on: `docs/contracts/visual-builder-context-contract-v1.md`, `docs/contracts/planet-builder-ux-flow-p3-backlog-v1.md`, `frontend/src/components/universe/planetBuilderFlow.js`
+Depends on: `docs/contracts/visual-builder-context-contract-v1.md`, `docs/contracts/planet-builder-mvp-v2.md`, `frontend/src/components/universe/planetBuilderFlow.js`
 
 ## 1. Purpose
 
