@@ -707,3 +707,18 @@ def test_runtime_cross_cutting_utilities_use_infrastructure_paths() -> None:
             assert (
                 token not in source
             ), f"Legacy runtime import `{token}` remains in {python_path.relative_to(repo_root)}"
+
+
+def test_core_facades_use_explicit_module_proxies_without_path_hacks() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    parser2_init = (repo_root / "app/core/parser2/__init__.py").read_text(encoding="utf-8")
+    task_executor_init = (repo_root / "app/core/task_executor/__init__.py").read_text(encoding="utf-8")
+
+    forbidden_tokens = (
+        "__path__.append(",
+        "Path(__file__)",
+        "resolve().parents",
+    )
+    for token in forbidden_tokens:
+        assert token not in parser2_init, f"Parser2 facade still uses dynamic path hack token `{token}`"
+        assert token not in task_executor_init, f"Task executor facade still uses dynamic path hack token `{token}`"

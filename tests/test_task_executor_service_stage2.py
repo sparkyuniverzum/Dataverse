@@ -36,7 +36,7 @@ def _context(*, civilizations: list[ProjectedAsteroid] | None = None) -> _TaskEx
         branch_id=None,
         result=TaskExecutionResult(),
         context_civilization_ids=[],
-        asteroids_by_id=asteroid_map,
+        civilizations_by_id=asteroid_map,
         bonds_by_id={},
         contract_cache={},
         appended_events=[],
@@ -77,7 +77,7 @@ def test_handle_ingest_update_family_ingest_does_not_reuse_existing_from_other_t
     task = AtomicTask(action="INGEST", params={"value": "Material", "metadata": {"table": "Finance > Material"}})
 
     async def _append_and_project_event(*, entity_id, event_type, payload):  # noqa: ANN001
-        if event_type != "ASTEROID_CREATED":
+        if event_type != "CIVILIZATION_CREATED":
             raise AssertionError(f"Unexpected event append: {event_type} {entity_id}")
         return type("Evt", (), {"timestamp": datetime.now(UTC), "event_seq": 2})
 
@@ -226,7 +226,7 @@ def test_handle_ingest_update_family_partial_scope_reuses_existing_from_db_looku
         assert value == "Material"
         return existing
 
-    service._load_active_asteroid_by_value = _fake_lookup  # type: ignore[method-assign]
+    service._load_active_civilization_by_value = _fake_lookup  # type: ignore[method-assign]
 
     handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
 
@@ -234,7 +234,7 @@ def test_handle_ingest_update_family_partial_scope_reuses_existing_from_db_looku
     assert len(ctx.result.civilizations) == 1
     assert ctx.result.civilizations[0].id == existing.id
     assert ctx.context_civilization_ids == [existing.id]
-    assert existing.id in ctx.asteroids_by_id
+    assert existing.id in ctx.civilizations_by_id
 
 
 def test_update_asteroid_blocks_non_lifecycle_mutation_on_archived_row() -> None:
@@ -309,7 +309,7 @@ def test_update_asteroid_allows_active_to_archived_transition() -> None:
 
     service._enforce_expected_entity_event_seq = _noop_expected  # type: ignore[method-assign]
     service._validate_table_contract_write = _noop_validate  # type: ignore[method-assign]
-    service._apply_auto_semantics_for_asteroid = _noop_auto_semantics  # type: ignore[method-assign]
+    service._apply_auto_semantics_for_civilization = _noop_auto_semantics  # type: ignore[method-assign]
     ctx.append_and_project_event = _append_event  # type: ignore[assignment]
 
     handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
@@ -350,7 +350,7 @@ def test_load_auto_semantic_rules_reads_from_physics_defaults_registry() -> None
 
     service._load_latest_table_contract = _fake_load_latest  # type: ignore[method-assign]
     rules = asyncio.run(
-        service._load_auto_semantic_rules_for_asteroid(
+        service._load_auto_semantic_rules_for_civilization(
             session=object(),  # type: ignore[arg-type]
             galaxy_id=uuid4(),
             civilization=civilization,
@@ -370,9 +370,9 @@ def test_handle_ingest_update_family_applies_auto_semantic_reclassification() ->
     )
 
     async def _append_and_project_event(*, entity_id, event_type, payload):  # noqa: ANN001
-        if event_type not in {"ASTEROID_CREATED", "METADATA_UPDATED"}:
+        if event_type not in {"CIVILIZATION_CREATED", "METADATA_UPDATED"}:
             raise AssertionError(f"Unexpected event append: {event_type} {entity_id}")
-        event_seq = 2 if event_type == "ASTEROID_CREATED" else 3
+        event_seq = 2 if event_type == "CIVILIZATION_CREATED" else 3
         return type("Evt", (), {"timestamp": datetime.now(UTC), "event_seq": event_seq})
 
     async def _noop_validate(**kwargs):  # noqa: ANN003
@@ -391,7 +391,7 @@ def test_handle_ingest_update_family_applies_auto_semantic_reclassification() ->
         ]
 
     service._validate_table_contract_write = _noop_validate  # type: ignore[method-assign]
-    service._load_auto_semantic_rules_for_asteroid = _fake_rules  # type: ignore[method-assign]
+    service._load_auto_semantic_rules_for_civilization = _fake_rules  # type: ignore[method-assign]
     ctx.append_and_project_event = _append_and_project_event  # type: ignore[assignment]
 
     handled = asyncio.run(service._handle_ingest_update_family(task=task, ctx=ctx))
