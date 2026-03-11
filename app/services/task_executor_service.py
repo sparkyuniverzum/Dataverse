@@ -1,5 +1,5 @@
-from app.services.task_executor.models import TaskExecutionResult
-from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
+from app.core.task_executor.models import TaskExecutionResult
+from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 __all__ = [
     "TaskExecutionResult",

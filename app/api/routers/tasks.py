@@ -10,12 +10,12 @@ from app.api.runtime import (
     run_scoped_atomic_idempotent,
 )
 from app.app_factory import ServiceContainer
+from app.core.task_executor.preview import execute_atomic_tasks_preview
 from app.db import get_session
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import TaskBatchExecuteRequest, TaskBatchExecuteResponse
 from app.services.parser_types import AtomicTask
-from app.services.task_executor.preview import execute_atomic_tasks_preview
 
 router = APIRouter(tags=["tasks"])
 

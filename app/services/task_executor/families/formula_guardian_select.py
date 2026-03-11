@@ -7,7 +7,7 @@ from fastapi import HTTPException, status
 from app.services.parser_types import AtomicTask
 
 if TYPE_CHECKING:
-    from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
+    from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 
 async def handle_formula_guardian_select_family(

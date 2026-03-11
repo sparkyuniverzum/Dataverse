@@ -8,6 +8,8 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.task_executor.models import TaskExecutionResult
+from app.core.task_executor.service import TaskExecutorService
 from app.models import TableContract
 from app.presets.schema_presets import (
     SchemaPresetDefinition,
@@ -17,8 +19,6 @@ from app.presets.schema_presets import (
 )
 from app.services.cosmos_service import CosmosService
 from app.services.parser_types import AtomicTask
-from app.services.task_executor.models import TaskExecutionResult
-from app.services.task_executor.service import TaskExecutorService
 from app.services.universe_service import UniverseService
 
 

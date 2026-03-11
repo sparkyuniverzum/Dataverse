@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.services.parser2.runtime_flags import parser_v2_fallback_to_v1_enabled
+from app.core.parser2.runtime_flags import parser_v2_fallback_to_v1_enabled
 
 
 def test_parser_v2_fallback_flag_defaults_to_disabled() -> None:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.services.parser2.intents import NodeSelector, NodeSelectorType
-from app.services.parser2.planner import SemanticResolver
+from app.core.parser2.intents import NodeSelector, NodeSelectorType
+from app.core.parser2.planner import SemanticResolver
 from app.services.universe_service import ProjectedAsteroid
 
 

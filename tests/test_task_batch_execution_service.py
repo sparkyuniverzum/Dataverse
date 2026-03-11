@@ -7,8 +7,8 @@ from uuid import uuid4
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+from app.core.task_executor.preview import execute_atomic_tasks_preview
 from app.services.parser_types import AtomicTask
-from app.services.task_executor.preview import execute_atomic_tasks_preview
 
 
 class _NestedTransaction:

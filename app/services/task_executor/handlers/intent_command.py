@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.core.task_executor.intent_commands import IntentCommand
 from app.services.parser_types import AtomicTask
-from app.services.task_executor.intent_commands import IntentCommand
 
 if TYPE_CHECKING:
-    from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
+    from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 
 class IntentCommandHandler:

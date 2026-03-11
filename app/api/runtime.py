@@ -10,9 +10,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.app_factory import ServiceContainer, get_or_create_services
+from app.core.task_executor.models import TaskExecutionResult
 from app.models import User
 from app.services.parser_types import AtomicTask
-from app.services.task_executor.models import TaskExecutionResult
 from app.services.trace_context import ensure_trace_context, extract_trace_id_from_traceparent
 
 services: ServiceContainer = get_or_create_services()

@@ -5,11 +5,11 @@ from uuid import uuid4
 
 from fastapi import HTTPException, status
 
-from app.services.parser2.intents import AssignAttributeIntent, Intent, UpsertNodeIntent
+from app.core.parser2.intents import AssignAttributeIntent, Intent, UpsertNodeIntent
 from app.services.universe_service import ProjectedAsteroid, derive_table_name, split_constellation_and_planet_name
 
 if TYPE_CHECKING:
-    from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
+    from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 
 def _normalize_metadata_remove(raw_value: object) -> list[str]:

@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.services.parser2.intents import Intent
+from app.core.parser2.intents import Intent
 
 
 class CivilizationIngestRequest(BaseModel):

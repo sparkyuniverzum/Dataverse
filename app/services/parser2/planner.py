@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 from uuid import UUID
 
-from app.services.parser2.intents import (
+from app.core.parser2.intents import (
     AddGuardianIntent,
     AssignAttributeIntent,
     CreateLinkIntent,
@@ -20,7 +20,7 @@ from app.services.parser2.intents import (
     SetFormulaIntent,
     UpsertNodeIntent,
 )
-from app.services.parser2.models import (
+from app.core.parser2.models import (
     AssignNode,
     AstNode,
     EntityNode,
@@ -33,7 +33,7 @@ from app.services.parser2.models import (
     RelationLinkNode,
     TypeLinkNode,
 )
-from app.services.parser2.parser import Parser2Service
+from app.core.parser2.parser import Parser2Service
 
 
 class SemanticResolver(Protocol):

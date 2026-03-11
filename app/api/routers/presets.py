@@ -14,6 +14,7 @@ from app.api.runtime import (
     run_scoped_idempotent,
 )
 from app.app_factory import ServiceContainer
+from app.core.task_executor.models import TaskExecutionResult
 from app.db import get_read_session, get_session
 from app.models import TableContract, User
 from app.modules.auth.dependencies import get_current_user
@@ -32,7 +33,6 @@ from app.schemas import (
     SchemaPresetContractPreviewPublic,
     SchemaPresetSeedPlanPublic,
 )
-from app.services.task_executor.models import TaskExecutionResult
 
 router = APIRouter(tags=["presets"])
 

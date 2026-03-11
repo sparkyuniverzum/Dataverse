@@ -12,6 +12,7 @@ from app.api.mappers.execution import universe_asteroid_to_snapshot
 from app.api.mappers.public import table_contract_to_public
 from app.api.runtime import get_service_container, resolve_scope_for_user, run_scoped_idempotent
 from app.app_factory import ServiceContainer
+from app.core.task_executor.contract_validation import TableContractValidator
 from app.db import get_read_session, get_session
 from app.models import Event, TableContract, User
 from app.modules.auth.dependencies import get_current_user
@@ -30,7 +31,6 @@ from app.schemas import (
     UniverseTableSnapshot,
     civilization_snapshot_to_moon_row,
 )
-from app.services.task_executor.contract_validation import TableContractValidator
 from app.services.universe_service import split_constellation_and_planet_name
 
 router = APIRouter(tags=["planets"])

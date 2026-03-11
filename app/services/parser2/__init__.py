@@ -1,9 +1,9 @@
-from app.services.parser2.bridge import (
+from app.core.parser2.bridge import (
     BridgeIssue,
     BridgeResult,
     Parser2ExecutorBridge,
 )
-from app.services.parser2.intents import (
+from app.core.parser2.intents import (
     PARSER2_INTENT_VERSION,
     AddGuardianIntent,
     AssignAttributeIntent,
@@ -20,8 +20,8 @@ from app.services.parser2.intents import (
     SetFormulaIntent,
     UpsertNodeIntent,
 )
-from app.services.parser2.lexer import Parser2Lexer
-from app.services.parser2.models import (
+from app.core.parser2.lexer import Parser2Lexer
+from app.core.parser2.models import (
     AssignNode,
     EntityNode,
     ExtinguishNode,
@@ -37,15 +37,15 @@ from app.services.parser2.models import (
     TokenType,
     TypeLinkNode,
 )
-from app.services.parser2.parser import Parser2Service
-from app.services.parser2.planner import (
+from app.core.parser2.parser import Parser2Service
+from app.core.parser2.planner import (
     Parser2SemanticPlanner,
     PlanIssue,
     SemanticPlanResult,
     SemanticResolver,
 )
-from app.services.parser2.resolver import SnapshotSemanticResolver
-from app.services.parser2.runtime_flags import parser_v2_fallback_to_v1_enabled
+from app.core.parser2.resolver import SnapshotSemanticResolver
+from app.core.parser2.runtime_flags import parser_v2_fallback_to_v1_enabled
 
 __all__ = [
     "AssignNode",

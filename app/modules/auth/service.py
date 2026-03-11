@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.task_executor.occ_guards import OccGuards
 from app.models import AuthSession, Galaxy, User
 from app.modules.auth.errors import invalid_credentials_error, missing_session_error
 from app.modules.auth.repository import AuthRepository
@@ -23,7 +24,6 @@ from app.modules.auth.security import (
 )
 from app.services.event_envelope import build_domain_event_envelope
 from app.services.event_store_service import EventStoreService
-from app.services.task_executor.occ_guards import OccGuards
 from app.services.universe_service import UniverseService
 
 

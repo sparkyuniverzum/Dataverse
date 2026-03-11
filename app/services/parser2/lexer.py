@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.parser2.models import LexResult, ParseError, Token, TokenType
+from app.core.parser2.models import LexResult, ParseError, Token, TokenType
 
 
 class Parser2Lexer:

@@ -13,11 +13,11 @@ from app.services.universe_service import (
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from app.services.table_contract_effective import EffectiveTableContract
-    from app.services.task_executor.service import (
+    from app.core.task_executor.service import (
         TaskExecutorService,
         _TaskExecutionContext,
     )
+    from app.services.table_contract_effective import EffectiveTableContract
 
 
 class AutoSemanticsService:

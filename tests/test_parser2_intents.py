@@ -5,7 +5,7 @@ from pydantic import TypeAdapter
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.services.parser2.intents import (
+from app.core.parser2.intents import (
     AddGuardianIntent,
     AssignAttributeIntent,
     BulkIntent,

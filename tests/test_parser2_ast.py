@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.services.parser2 import Parser2Service
+from app.core.parser2 import Parser2Service
 
 
 def _canonical(command: str) -> str:

@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.services.task_executor.contract_validation import TableContractValidator
+from app.core.task_executor.contract_validation import TableContractValidator
 
 
 @pytest.mark.parametrize(
