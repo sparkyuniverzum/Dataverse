@@ -23,8 +23,7 @@ Současný projekt je sémanticky správný, ale provozně nejednoznačný:
 
 1. Kontrakt Měsíce (Moon) definuje `Moon` jako schopnost (capability).
 2. Kontrakt Civilizace definuje `Civilization` jako instanci řádku (row instance).
-3. Runtime migrace udržuje `/moons*` jako alias řádku kvůli kompatibilitě.
-4. Dokumenty k dodávce planet/civilizací používají `civilization` jako kanonický runtime jazyk.
+3. Dokumenty k dodávce planet/civilizací používají `civilization` jako kanonický runtime jazyk.
 
 Bez jediné oficiální UX ontologie by návrh workflow neustále míchal:
 
