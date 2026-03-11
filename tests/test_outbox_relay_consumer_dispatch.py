@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.infrastructure.runtime.outbox.consumers.registry import OutboxConsumerRegistry
 from app.infrastructure.runtime.outbox.publisher import InProcessOutboxPublisher
 from app.infrastructure.runtime.outbox.relay import OutboxRelayService
-from app.services.event_consumers.registry import OutboxConsumerRegistry
 
 
 @dataclass

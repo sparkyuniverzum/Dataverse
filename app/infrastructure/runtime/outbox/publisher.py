@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.outbox.consumers.registry import OutboxConsumerRegistry
 from app.models import OutboxEvent
-from app.services.event_consumers.registry import OutboxConsumerRegistry
 
 
 class InProcessOutboxPublisher:

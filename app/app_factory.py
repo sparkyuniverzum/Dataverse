@@ -13,6 +13,7 @@ from app.db import AsyncSessionLocal, dispose_db_engines
 from app.domains.bonds.dashboard_service import BondDashboardService
 from app.infrastructure.runtime.event_store_service import EventStoreService
 from app.infrastructure.runtime.idempotency_service import IdempotencyService
+from app.infrastructure.runtime.outbox.consumers import OnboardingBootstrapConsumer, OutboxConsumerRegistry
 from app.infrastructure.runtime.outbox.operator import OutboxOperatorService
 from app.infrastructure.runtime.outbox.publisher import InProcessOutboxPublisher
 from app.infrastructure.runtime.outbox.relay import OutboxRelayService
@@ -20,7 +21,6 @@ from app.infrastructure.runtime.outbox.runner import OutboxRelayRunnerService
 from app.modules.auth.service import AuthService
 from app.services.constellation_dashboard_service import ConstellationDashboardService
 from app.services.cosmos_service import CosmosService
-from app.services.event_consumers import OnboardingBootstrapConsumer, OutboxConsumerRegistry
 from app.services.galaxy_dashboard_service import GalaxyDashboardService
 from app.services.galaxy_lifecycle_service import GalaxyLifecycleService
 from app.services.io_service import ImportExportService

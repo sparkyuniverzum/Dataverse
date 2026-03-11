@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass
 from uuid import uuid4
 
-from app.services.event_consumers.registry import OutboxConsumerRegistry
+from app.infrastructure.runtime.outbox.consumers.registry import OutboxConsumerRegistry
 
 
 @dataclass

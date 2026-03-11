@@ -4,8 +4,8 @@ import asyncio
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.infrastructure.runtime.outbox.consumers.onboarding_bootstrap_consumer import OnboardingBootstrapConsumer
 from app.models import OnboardingProgress
-from app.services.event_consumers.onboarding_bootstrap_consumer import OnboardingBootstrapConsumer
 
 
 class _SessionStub:
