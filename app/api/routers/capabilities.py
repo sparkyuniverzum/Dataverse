@@ -9,6 +9,19 @@ from app.api.mappers.public import moon_capability_to_public
 from app.api.runtime import get_service_container, resolve_scope_for_user, run_scoped_idempotent
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
+from app.domains.moons.commands import (
+    MoonCapabilityPolicyError,
+    ensure_main_timeline,
+    plan_deprecate_moon_capability,
+    plan_update_moon_capability,
+    plan_upsert_moon_capability,
+)
+from app.domains.moons.queries import (
+    MoonCapabilityQueryConflictError,
+    MoonCapabilityQueryForbiddenError,
+    MoonCapabilityQueryNotFoundError,
+    list_planet_capabilities as list_planet_capability_rows,
+)
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -20,6 +33,20 @@ from app.schemas import (
 )
 
 router = APIRouter(tags=["capabilities"])
+
+
+def _policy_to_http_exception(exc: MoonCapabilityPolicyError) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+
+def _query_to_http_exception(
+    exc: MoonCapabilityQueryNotFoundError | MoonCapabilityQueryConflictError | MoonCapabilityQueryForbiddenError,
+) -> HTTPException:
+    if isinstance(exc, MoonCapabilityQueryNotFoundError):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    if isinstance(exc, MoonCapabilityQueryForbiddenError):
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
 @router.get(
@@ -44,19 +71,25 @@ async def list_planet_capabilities(
         branch_id=branch_id,
         services=services,
     )
-    if target_branch_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Capability lifecycle operations are allowed only on main timeline.",
+    try:
+        ensure_main_timeline(branch_id=target_branch_id)
+        rows = await list_planet_capability_rows(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            planet_id=planet_id,
+            include_inactive=include_inactive,
+            include_history=include_history,
         )
-    rows = await services.cosmos_service.list_moon_capabilities(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=target_galaxy_id,
-        table_id=planet_id,
-        include_inactive=include_inactive,
-        include_history=include_history,
-    )
+    except MoonCapabilityPolicyError as exc:
+        raise _policy_to_http_exception(exc) from exc
+    except (
+        MoonCapabilityQueryNotFoundError,
+        MoonCapabilityQueryConflictError,
+        MoonCapabilityQueryForbiddenError,
+    ) as exc:
+        raise _query_to_http_exception(exc) from exc
     return MoonCapabilityListResponse(items=[moon_capability_to_public(item) for item in rows])
 
 
@@ -72,6 +105,14 @@ async def upsert_planet_capability(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> MoonCapabilityPublic:
+    plan = plan_upsert_moon_capability(
+        planet_id=planet_id,
+        capability_key=payload.capability_key,
+        capability_class=payload.capability_class,
+        config=payload.config,
+        order_index=payload.order_index,
+        status=payload.status,
+    )
     resolved_scope = await resolve_scope_for_user(
         session=session,
         user=current_user,
@@ -81,11 +122,10 @@ async def upsert_planet_capability(
     )
 
     async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> MoonCapabilityPublic:
-        if target_branch_id is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Capability lifecycle operations are allowed only on main timeline.",
-            )
+        try:
+            ensure_main_timeline(branch_id=target_branch_id)
+        except MoonCapabilityPolicyError as exc:
+            raise _policy_to_http_exception(exc) from exc
         row = await services.cosmos_service.upsert_moon_capability(
             session=session,
             user_id=current_user.id,
@@ -107,14 +147,7 @@ async def upsert_planet_capability(
         branch_id=payload.branch_id,
         endpoint_key="POST:/planets/{planet_id}/capabilities",
         idempotency_key=payload.idempotency_key,
-        request_payload={
-            "planet_id": str(planet_id),
-            "capability_key": payload.capability_key,
-            "capability_class": payload.capability_class,
-            "config": payload.config,
-            "order_index": payload.order_index,
-            "status": payload.status,
-        },
+        request_payload=plan.request_payload,
         execute=execute_scoped,
         replay_loader=MoonCapabilityPublic.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
@@ -135,6 +168,14 @@ async def update_capability(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> MoonCapabilityPublic:
+    plan = plan_update_moon_capability(
+        capability_id=capability_id,
+        capability_class=payload.capability_class,
+        config=payload.config,
+        order_index=payload.order_index,
+        status=payload.status,
+        expected_version=payload.expected_version,
+    )
     resolved_scope = await resolve_scope_for_user(
         session=session,
         user=current_user,
@@ -144,11 +185,10 @@ async def update_capability(
     )
 
     async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> MoonCapabilityPublic:
-        if target_branch_id is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Capability lifecycle operations are allowed only on main timeline.",
-            )
+        try:
+            ensure_main_timeline(branch_id=target_branch_id)
+        except MoonCapabilityPolicyError as exc:
+            raise _policy_to_http_exception(exc) from exc
         row = await services.cosmos_service.update_moon_capability(
             session=session,
             user_id=current_user.id,
@@ -170,14 +210,7 @@ async def update_capability(
         branch_id=payload.branch_id,
         endpoint_key="PATCH:/capabilities/{capability_id}",
         idempotency_key=payload.idempotency_key,
-        request_payload={
-            "capability_id": str(capability_id),
-            "capability_class": payload.capability_class,
-            "config": payload.config,
-            "order_index": payload.order_index,
-            "status": payload.status,
-            "expected_version": payload.expected_version,
-        },
+        request_payload=plan.request_payload,
         execute=execute_scoped,
         replay_loader=MoonCapabilityPublic.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
@@ -198,6 +231,10 @@ async def deprecate_capability(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> MoonCapabilityPublic:
+    plan = plan_deprecate_moon_capability(
+        capability_id=capability_id,
+        expected_version=payload.expected_version,
+    )
     resolved_scope = await resolve_scope_for_user(
         session=session,
         user=current_user,
@@ -207,11 +244,10 @@ async def deprecate_capability(
     )
 
     async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> MoonCapabilityPublic:
-        if target_branch_id is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Capability lifecycle operations are allowed only on main timeline.",
-            )
+        try:
+            ensure_main_timeline(branch_id=target_branch_id)
+        except MoonCapabilityPolicyError as exc:
+            raise _policy_to_http_exception(exc) from exc
         row = await services.cosmos_service.deprecate_moon_capability(
             session=session,
             user_id=current_user.id,
@@ -229,10 +265,7 @@ async def deprecate_capability(
         branch_id=payload.branch_id,
         endpoint_key="PATCH:/capabilities/{capability_id}/deprecate",
         idempotency_key=payload.idempotency_key,
-        request_payload={
-            "capability_id": str(capability_id),
-            "expected_version": payload.expected_version,
-        },
+        request_payload=plan.request_payload,
         execute=execute_scoped,
         replay_loader=MoonCapabilityPublic.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
