@@ -14,11 +14,24 @@ from app.api.runtime import (
 )
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
-from app.domains.civilizations.policy import CivilizationPolicyError, normalize_mineral_key
+from app.domains.civilizations.commands import (
+    CivilizationPolicyError,
+    compose_planet_scoped_metadata,
+    pick_ingested_civilization,
+    pick_mutated_civilization,
+    plan_ingest_civilization,
+    plan_mineral_mutation,
+)
+from app.domains.civilizations.queries import (
+    CivilizationQueryConflictError,
+    CivilizationQueryNotFoundError,
+    get_active_civilization,
+    list_active_civilizations,
+    resolve_planet_table_name,
+)
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
-    FACT_RESERVED_METADATA_KEYS,
     CivilizationMineralMutateRequest,
     CivilizationResponse,
     MoonCreateRequest,
@@ -26,7 +39,6 @@ from app.schemas import (
     MoonRowContract,
     civilization_snapshot_to_moon_row,
 )
-from app.services.parser_types import AtomicTask
 
 router = APIRouter(tags=["civilizations"])
 
@@ -49,58 +61,19 @@ def _moon_row_from_asteroid_response(response: CivilizationResponse, *, galaxy_i
     )
 
 
-async def _resolve_planet_table_name(
-    *,
-    session: AsyncSession,
-    current_user: User,
-    services: ServiceContainer,
-    galaxy_id: UUID,
-    branch_id: UUID | None,
-    planet_id: UUID,
-) -> str:
-    tables = await services.universe_service.tables_snapshot(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=galaxy_id,
-        branch_id=branch_id,
-    )
-    row = next((item for item in tables if str(item.get("table_id") or "") == str(planet_id)), None)
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Planet not found")
-    table_name = str(row.get("name") or "").strip()
-    if not table_name:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Planet table name is not resolved")
-    return table_name
-
-
-async def _load_active_civilization_row(
-    *,
-    session: AsyncSession,
-    current_user: User,
-    services: ServiceContainer,
-    galaxy_id: UUID,
-    branch_id: UUID | None,
-    civilization_id: UUID,
-) -> MoonRowContract:
-    civilizations, _ = await services.universe_service.snapshot(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=galaxy_id,
-        branch_id=branch_id,
-    )
-    for civilization in civilizations:
-        source_id = civilization.get("id") if isinstance(civilization, dict) else getattr(civilization, "id", None)
-        if str(source_id or "") != str(civilization_id):
-            continue
-        return _moon_row_from_source(civilization, galaxy_id=galaxy_id)
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Civilization not found")
-
-
 def _policy_to_http_exception(exc: CivilizationPolicyError) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail=exc.to_detail(),
     )
+
+
+def _query_to_http_exception(
+    exc: CivilizationQueryNotFoundError | CivilizationQueryConflictError,
+) -> HTTPException:
+    if isinstance(exc, CivilizationQueryNotFoundError):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
 @router.get("/civilizations", response_model=MoonListResponse, status_code=status.HTTP_200_OK)
@@ -119,8 +92,9 @@ async def list_civilizations(
         branch_id=branch_id,
         services=services,
     )
-    civilizations, _ = await services.universe_service.snapshot(
+    civilizations = await list_active_civilizations(
         session=session,
+        services=services,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
         branch_id=target_branch_id,
@@ -151,14 +125,18 @@ async def get_civilization(
         branch_id=branch_id,
         services=services,
     )
-    return await _load_active_civilization_row(
-        session=session,
-        current_user=current_user,
-        services=services,
-        galaxy_id=target_galaxy_id,
-        branch_id=target_branch_id,
-        civilization_id=civilization_id,
-    )
+    try:
+        civilization = await get_active_civilization(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            civilization_id=civilization_id,
+        )
+    except (CivilizationQueryNotFoundError, CivilizationQueryConflictError) as exc:
+        raise _query_to_http_exception(exc) from exc
+    return _moon_row_from_source(civilization, galaxy_id=target_galaxy_id)
 
 
 @router.post("/civilizations", response_model=MoonRowContract, status_code=status.HTTP_201_CREATED)
@@ -175,31 +153,40 @@ async def create_civilization(
         branch_id=payload.branch_id,
         services=services,
     )
-    target_table_name = await _resolve_planet_table_name(
-        session=session,
-        current_user=current_user,
-        services=services,
-        galaxy_id=target_galaxy_id,
-        branch_id=target_branch_id,
+    try:
+        target_table_name = await resolve_planet_table_name(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+            branch_id=target_branch_id,
+            planet_id=payload.planet_id,
+        )
+    except (CivilizationQueryNotFoundError, CivilizationQueryConflictError) as exc:
+        raise _query_to_http_exception(exc) from exc
+    metadata = compose_planet_scoped_metadata(
         planet_id=payload.planet_id,
+        table_name=target_table_name,
+        minerals=payload.minerals,
     )
-    metadata = dict(payload.minerals or {})
-    metadata["table"] = target_table_name
-    metadata["table_id"] = str(payload.planet_id)
-    tasks = [AtomicTask(action="INGEST", params={"value": payload.label, "metadata": metadata})]
+    plan = plan_ingest_civilization(
+        value=payload.label,
+        metadata=metadata,
+    )
 
     async def execute_scoped(_: UUID, __: UUID | None):
         execution = await services.task_executor_service.execute_tasks(
             session=session,
-            tasks=tasks,
+            tasks=plan.tasks,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
             branch_id=target_branch_id,
             manage_transaction=False,
         )
-        if not execution.civilizations:
+        created = pick_ingested_civilization(execution=execution)
+        if created is None:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Civilization ingest failed")
-        return civilization_to_response(execution.civilizations[0])
+        return civilization_to_response(created)
 
     created = await run_scoped_idempotent(
         session=session,
@@ -244,32 +231,28 @@ async def mutate_civilization_mineral(
         services=services,
     )
     try:
-        normalized_key = normalize_mineral_key(mineral_key, reserved_keys=FACT_RESERVED_METADATA_KEYS)
+        plan = plan_mineral_mutation(
+            civilization_id=civilization_id,
+            mineral_key=mineral_key,
+            typed_value=payload.typed_value,
+            remove=payload.remove,
+            expected_event_seq=payload.expected_event_seq,
+        )
     except CivilizationPolicyError as exc:
         raise _policy_to_http_exception(exc) from exc
-    params: dict[str, Any] = {"civilization_id": str(civilization_id)}
-    if payload.remove:
-        params["metadata_remove"] = [normalized_key]
-    else:
-        params["metadata"] = {normalized_key: payload.typed_value}
-    params["expected_event_seq"] = payload.expected_event_seq
-    tasks = [AtomicTask(action="UPDATE_ASTEROID", params=params)]
 
     async def execute_scoped(_: UUID, __: UUID | None):
         execution = await services.task_executor_service.execute_tasks(
             session=session,
-            tasks=tasks,
+            tasks=plan.tasks,
             user_id=current_user.id,
             galaxy_id=target_galaxy_id,
             branch_id=target_branch_id,
             manage_transaction=False,
         )
-        if not execution.civilizations:
+        mutated = pick_mutated_civilization(execution=execution, civilization_id=civilization_id)
+        if mutated is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Civilization not found")
-        mutated = next(
-            (civilization for civilization in execution.civilizations if civilization.id == civilization_id),
-            execution.civilizations[0],
-        )
         return civilization_to_response(mutated)
 
     mutated = await run_scoped_idempotent(
@@ -280,13 +263,7 @@ async def mutate_civilization_mineral(
         branch_id=target_branch_id,
         endpoint_key="PATCH:/civilizations/{civilization_id}/minerals/{mineral_key}",
         idempotency_key=payload.idempotency_key,
-        request_payload={
-            "civilization_id": str(civilization_id),
-            "mineral_key": normalized_key,
-            "remove": payload.remove,
-            "typed_value": payload.typed_value if not payload.remove else None,
-            "expected_event_seq": payload.expected_event_seq,
-        },
+        request_payload=plan.request_payload,
         execute=execute_scoped,
         replay_loader=CivilizationResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),

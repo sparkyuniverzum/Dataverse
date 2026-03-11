@@ -7,6 +7,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.domains.civilizations.minerals.facts import (
+    build_civilization_mineral_facts,
+    infer_mineral_value_type,
+)
+from app.domains.civilizations.minerals.policy import RESERVED_MINERAL_METADATA_KEYS
+
 
 class UniverseAsteroidSnapshot(BaseModel):
     id: uuid.UUID
@@ -82,36 +88,11 @@ class MoonRowContract(BaseModel):
     facts: list[MineralFact] = Field(default_factory=list)
 
 
-FACT_RESERVED_METADATA_KEYS = {
-    "table",
-    "table_id",
-    "table_name",
-    "constellation_name",
-    "planet_name",
-}
+FACT_RESERVED_METADATA_KEYS = set(RESERVED_MINERAL_METADATA_KEYS)
 
 
 def infer_fact_value_type(value: Any) -> FactValueType:
-    if value is None:
-        return FactValueType.NULL
-    if isinstance(value, bool):
-        return FactValueType.BOOLEAN
-    if isinstance(value, int | float):
-        return FactValueType.NUMBER
-    if isinstance(value, datetime):
-        return FactValueType.DATETIME
-    if isinstance(value, str):
-        candidate = value.strip()
-        if candidate:
-            try:
-                datetime.fromisoformat(candidate.replace("Z", "+00:00"))
-                return FactValueType.DATETIME
-            except ValueError:
-                return FactValueType.STRING
-        return FactValueType.STRING
-    if isinstance(value, list | dict):
-        return FactValueType.JSON
-    return FactValueType.JSON
+    return FactValueType(infer_mineral_value_type(value))
 
 
 def build_moon_facts(
@@ -121,107 +102,25 @@ def build_moon_facts(
     calculated_values: dict[str, Any] | None = None,
     calc_errors: list[Any] | None = None,
 ) -> list[MineralFact]:
-    metadata_dict = metadata if isinstance(metadata, dict) else {}
-    calculated_dict = calculated_values if isinstance(calculated_values, dict) else {}
-    calc_errors_list = calc_errors if isinstance(calc_errors, list) else []
-    errors_by_field: dict[str, list[str]] = {}
-    for item in calc_errors_list:
-        if not isinstance(item, dict):
-            continue
-        field = str(item.get("field") or "").strip()
-        code = str(item.get("code") or "").strip()
-        message = str(item.get("message") or "").strip()
-        if not field:
-            continue
-        line = message or code or "Calculation error"
-        errors_by_field.setdefault(field, [])
-        if line not in errors_by_field[field]:
-            errors_by_field[field].append(line)
-    facts: list[MineralFact] = [
-        MineralFact(
-            key="value",
-            typed_value=value,
-            value_type=infer_fact_value_type(value),
-            source=FactSource.VALUE,
-            status=FactStatus.VALID,
-        )
-    ]
-    fact_index: dict[str, int] = {"value": 0}
-
-    for key in sorted(metadata_dict.keys()):
-        if key in FACT_RESERVED_METADATA_KEYS:
-            continue
-        typed_value = metadata_dict.get(key)
-        normalized_key = str(key)
-        if normalized_key in fact_index:
-            continue
+    payloads = build_civilization_mineral_facts(
+        value=value,
+        metadata=metadata,
+        calculated_values=calculated_values,
+        calc_errors=calc_errors,
+    )
+    facts: list[MineralFact] = []
+    for item in payloads:
         facts.append(
             MineralFact(
-                key=normalized_key,
-                typed_value=typed_value,
-                value_type=infer_fact_value_type(typed_value),
-                source=FactSource.METADATA,
-                status=FactStatus.VALID,
+                key=str(item.get("key") or ""),
+                typed_value=item.get("typed_value"),
+                value_type=FactValueType(str(item.get("value_type") or FactValueType.STRING.value)),
+                source=FactSource(str(item.get("source") or FactSource.METADATA.value)),
+                status=FactStatus(str(item.get("status") or FactStatus.VALID.value)),
+                readonly=bool(item.get("readonly", False)),
+                errors=[str(message) for message in (item.get("errors") or [])],
             )
         )
-        fact_index[normalized_key] = len(facts) - 1
-
-    for key in sorted(calculated_dict.keys()):
-        normalized_key = str(key)
-        typed_value = calculated_dict.get(key)
-        field_errors = list(errors_by_field.get(normalized_key, []))
-        is_circular = typed_value == "#CIRC!"
-        status = FactStatus.INVALID if is_circular or bool(field_errors) else FactStatus.VALID
-        errors = field_errors
-        if is_circular and "Circular formula dependency" not in errors:
-            errors.append("Circular formula dependency")
-        if normalized_key in fact_index:
-            if errors:
-                current_fact = facts[fact_index[normalized_key]]
-                merged_errors = list(current_fact.errors)
-                for message in errors:
-                    if message not in merged_errors:
-                        merged_errors.append(message)
-                current_fact.errors = merged_errors
-                current_fact.status = FactStatus.INVALID
-            continue
-        facts.append(
-            MineralFact(
-                key=normalized_key,
-                typed_value=typed_value,
-                value_type=infer_fact_value_type(typed_value),
-                source=FactSource.CALCULATED,
-                status=status,
-                readonly=True,
-                errors=errors,
-            )
-        )
-        fact_index[normalized_key] = len(facts) - 1
-    for key in sorted(errors_by_field.keys()):
-        if key in calculated_dict:
-            continue
-        if key in fact_index:
-            current_fact = facts[fact_index[key]]
-            merged_errors = list(current_fact.errors)
-            for message in errors_by_field.get(key, []):
-                if message not in merged_errors:
-                    merged_errors.append(message)
-            current_fact.errors = merged_errors
-            current_fact.status = FactStatus.INVALID
-            continue
-        facts.append(
-            MineralFact(
-                key=key,
-                typed_value=None,
-                value_type=FactValueType.NULL,
-                source=FactSource.CALCULATED,
-                status=FactStatus.INVALID,
-                readonly=True,
-                errors=list(errors_by_field.get(key, [])),
-            )
-        )
-        fact_index[key] = len(facts) - 1
-
     return facts
 
 
