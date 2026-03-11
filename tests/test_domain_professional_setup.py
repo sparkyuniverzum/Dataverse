@@ -21,6 +21,12 @@ from app.domains.moons import (
     queries as moon_queries,
     schemas as moon_schemas,
 )
+from app.domains.planets import (
+    commands as planet_commands,
+    models as planet_models,
+    queries as planet_queries,
+    schemas as planet_schemas,
+)
 
 
 def _assert_domain_module_is_web_independent(source: str, *, module_name: str) -> None:
@@ -223,3 +229,64 @@ def test_moons_capability_domain_professional_setup() -> None:
     _assert_domain_module_is_web_independent(commands_source, module_name="moons.commands")
     _assert_domain_module_is_web_independent(queries_source, module_name="moons.queries")
     _assert_query_module_is_read_only(queries_source, module_name="moons.queries")
+
+
+def test_planets_domain_professional_setup() -> None:
+    assert planet_models.TableContract.__tablename__ == "table_contracts"
+
+    required_schema_names = (
+        "PlanetArchetype",
+        "PlanetCreateRequest",
+        "PlanetCreateResponse",
+        "PlanetPublic",
+        "PlanetListResponse",
+        "PlanetExtinguishResponse",
+    )
+    for schema_name in required_schema_names:
+        assert hasattr(planet_schemas, schema_name), f"Missing planets schema `{schema_name}`"
+
+    assert hasattr(planet_commands, "PlanetCommandPlan")
+    assert hasattr(planet_commands, "PlanetPolicyError")
+    assert hasattr(planet_commands, "ensure_main_timeline")
+    assert hasattr(planet_commands, "ensure_planet_empty_for_extinguish")
+    assert hasattr(planet_commands, "plan_create_planet")
+    assert hasattr(planet_commands, "plan_extinguish_planet")
+    assert hasattr(planet_queries, "list_planet_tables")
+    assert hasattr(planet_queries, "get_planet_table")
+    assert hasattr(planet_queries, "list_latest_planet_contracts")
+    assert hasattr(planet_queries, "PlanetQueryNotFoundError")
+    assert hasattr(planet_queries, "PlanetQueryConflictError")
+    assert hasattr(planet_queries, "PlanetQueryForbiddenError")
+
+    create_plan = planet_commands.plan_create_planet(
+        name="Constellation / Planet-Prime",
+        archetype="catalog",
+        initial_schema_mode="empty",
+        schema_preset_key=None,
+        seed_rows=True,
+        visual_position={"x": 1.0, "y": 2.0, "z": 3.0},
+    )
+    assert create_plan.request_payload["name"] == "Constellation / Planet-Prime"
+    assert create_plan.request_payload["archetype"] == "catalog"
+    assert create_plan.request_payload["visual_position"] == {"x": 1.0, "y": 2.0, "z": 3.0}
+
+    extinguish_plan = planet_commands.plan_extinguish_planet(table_id=uuid4())
+    assert "table_id" in extinguish_plan.request_payload
+
+    planet_commands.ensure_planet_empty_for_extinguish(
+        table_payload={
+            "members": [],
+            "internal_bonds": [],
+            "external_bonds": [],
+        }
+    )
+
+    models_source = inspect.getsource(planet_models)
+    schemas_source = inspect.getsource(planet_schemas)
+    commands_source = inspect.getsource(planet_commands)
+    queries_source = inspect.getsource(planet_queries)
+    _assert_domain_module_is_web_independent(models_source, module_name="planets.models")
+    _assert_domain_module_is_web_independent(schemas_source, module_name="planets.schemas")
+    _assert_domain_module_is_web_independent(commands_source, module_name="planets.commands")
+    _assert_domain_module_is_web_independent(queries_source, module_name="planets.queries")
+    _assert_query_module_is_read_only(queries_source, module_name="planets.queries")

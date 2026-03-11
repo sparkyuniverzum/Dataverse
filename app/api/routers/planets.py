@@ -14,6 +14,21 @@ from app.api.runtime import get_service_container, resolve_scope_for_user, run_s
 from app.app_factory import ServiceContainer
 from app.core.task_executor.contract_validation import TableContractValidator
 from app.db import get_read_session, get_session
+from app.domains.planets.commands import (
+    PlanetPolicyError,
+    ensure_main_timeline,
+    ensure_planet_empty_for_extinguish,
+    plan_create_planet,
+    plan_extinguish_planet,
+)
+from app.domains.planets.queries import (
+    PlanetQueryConflictError,
+    PlanetQueryForbiddenError,
+    PlanetQueryNotFoundError,
+    get_planet_table,
+    list_latest_planet_contracts,
+    list_planet_tables,
+)
 from app.models import Event, TableContract, User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -34,6 +49,20 @@ from app.schemas import (
 from app.services.universe_service import split_constellation_and_planet_name
 
 router = APIRouter(tags=["planets"])
+
+
+def _policy_to_http_exception(exc: PlanetPolicyError) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+
+def _query_to_http_exception(
+    exc: PlanetQueryNotFoundError | PlanetQueryConflictError | PlanetQueryForbiddenError,
+) -> HTTPException:
+    if isinstance(exc, PlanetQueryNotFoundError):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    if isinstance(exc, PlanetQueryForbiddenError):
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
 def _coerce_archetype(raw: object) -> PlanetArchetype | None:
@@ -362,20 +391,27 @@ async def list_planets(
         branch_id=branch_id,
         services=services,
     )
-    tables = await services.universe_service.tables_snapshot(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=resolved_galaxy_id,
-        branch_id=resolved_branch_id,
-        as_of=None,
-    )
+    try:
+        tables = await list_planet_tables(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=resolved_galaxy_id,
+            branch_id=resolved_branch_id,
+        )
+    except (PlanetQueryNotFoundError, PlanetQueryConflictError, PlanetQueryForbiddenError) as exc:
+        raise _query_to_http_exception(exc) from exc
     table_ids = [item["table_id"] for item in tables if isinstance(item.get("table_id"), UUID)]
-    contracts_by_table = await services.cosmos_service.list_latest_table_contracts(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=resolved_galaxy_id,
-        table_ids=table_ids,
-    )
+    try:
+        contracts_by_table = await list_latest_planet_contracts(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=resolved_galaxy_id,
+            table_ids=table_ids,
+        )
+    except (PlanetQueryNotFoundError, PlanetQueryConflictError, PlanetQueryForbiddenError) as exc:
+        raise _query_to_http_exception(exc) from exc
     items = [
         _planet_from_table(table_payload=table, contract=contracts_by_table.get(table["table_id"]))
         for table in tables
@@ -401,22 +437,24 @@ async def get_planet(
         branch_id=branch_id,
         services=services,
     )
-    tables = await services.universe_service.tables_snapshot(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=resolved_galaxy_id,
-        branch_id=resolved_branch_id,
-        as_of=None,
-    )
-    table_payload = next((item for item in tables if item.get("table_id") == table_id), None)
-    if table_payload is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Planet not found")
-    contracts_by_table = await services.cosmos_service.list_latest_table_contracts(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=resolved_galaxy_id,
-        table_ids=[table_id],
-    )
+    try:
+        table_payload = await get_planet_table(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=resolved_galaxy_id,
+            branch_id=resolved_branch_id,
+            table_id=table_id,
+        )
+        contracts_by_table = await list_latest_planet_contracts(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=resolved_galaxy_id,
+            table_ids=[table_id],
+        )
+    except (PlanetQueryNotFoundError, PlanetQueryConflictError, PlanetQueryForbiddenError) as exc:
+        raise _query_to_http_exception(exc) from exc
     return _planet_from_table(table_payload=table_payload, contract=contracts_by_table.get(table_id))
 
 
@@ -442,13 +480,16 @@ async def get_planet_moon_impact(
         services=services,
     )
 
-    tables = await services.universe_service.tables_snapshot(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=resolved_galaxy_id,
-        branch_id=resolved_branch_id,
-        as_of=None,
-    )
+    try:
+        tables = await list_planet_tables(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=resolved_galaxy_id,
+            branch_id=resolved_branch_id,
+        )
+    except (PlanetQueryNotFoundError, PlanetQueryConflictError, PlanetQueryForbiddenError) as exc:
+        raise _query_to_http_exception(exc) from exc
     table_exists = any(item.get("table_id") == planet_id for item in tables if isinstance(item, dict))
     if not table_exists:
         raise _moon_impact_error(
@@ -639,6 +680,14 @@ async def create_planet(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> PlanetCreateResponse:
+    create_plan = plan_create_planet(
+        name=payload.name,
+        archetype=payload.archetype.value,
+        initial_schema_mode=payload.initial_schema_mode.value,
+        schema_preset_key=payload.schema_preset_key,
+        seed_rows=payload.seed_rows,
+        visual_position=payload.visual_position.model_dump() if payload.visual_position is not None else None,
+    )
     resolved_scope = await resolve_scope_for_user(
         session=session,
         user=current_user,
@@ -648,11 +697,10 @@ async def create_planet(
     )
 
     async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> PlanetCreateResponse:
-        if target_branch_id is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Planet lifecycle operations are allowed only on main timeline.",
-            )
+        try:
+            ensure_main_timeline(branch_id=target_branch_id)
+        except PlanetPolicyError as exc:
+            raise _policy_to_http_exception(exc) from exc
 
         contract, table_id, table_name = await services.cosmos_service.create_planet_contract(
             session=session,
@@ -736,7 +784,7 @@ async def create_planet(
         branch_id=payload.branch_id,
         endpoint_key="POST:/planets",
         idempotency_key=payload.idempotency_key,
-        request_payload=payload.model_dump(mode="json"),
+        request_payload=create_plan.request_payload,
         execute=execute_scoped,
         replay_loader=PlanetCreateResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
@@ -755,6 +803,7 @@ async def extinguish_planet(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> PlanetExtinguishResponse:
+    extinguish_plan = plan_extinguish_planet(table_id=table_id)
     resolved_scope = await resolve_scope_for_user(
         session=session,
         user=current_user,
@@ -764,35 +813,29 @@ async def extinguish_planet(
     )
 
     async def execute_scoped(target_galaxy_id: UUID, target_branch_id: UUID | None) -> PlanetExtinguishResponse:
-        if target_branch_id is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Planet lifecycle operations are allowed only on main timeline.",
-            )
+        try:
+            ensure_main_timeline(branch_id=target_branch_id)
+        except PlanetPolicyError as exc:
+            raise _policy_to_http_exception(exc) from exc
 
-        tables = await services.universe_service.tables_snapshot(
-            session=session,
-            user_id=current_user.id,
-            galaxy_id=target_galaxy_id,
-            branch_id=target_branch_id,
-            as_of=None,
-        )
+        try:
+            tables = await list_planet_tables(
+                session=session,
+                services=services,
+                user_id=current_user.id,
+                galaxy_id=target_galaxy_id,
+                branch_id=target_branch_id,
+            )
+        except (PlanetQueryNotFoundError, PlanetQueryConflictError, PlanetQueryForbiddenError) as exc:
+            raise _query_to_http_exception(exc) from exc
         table_payload = next((item for item in tables if item.get("table_id") == table_id), None)
         table_name = str(table_id)
         if table_payload is not None:
-            members = table_payload.get("members") if isinstance(table_payload.get("members"), list) else []
-            internal_bonds = (
-                table_payload.get("internal_bonds") if isinstance(table_payload.get("internal_bonds"), list) else []
-            )
-            external_bonds = (
-                table_payload.get("external_bonds") if isinstance(table_payload.get("external_bonds"), list) else []
-            )
             table_name = str(table_payload.get("name") or table_name)
-            if members or internal_bonds or external_bonds:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Planet is not empty. Extinguish moons and bonds first.",
-                )
+            try:
+                ensure_planet_empty_for_extinguish(table_payload=table_payload)
+            except PlanetPolicyError as exc:
+                raise _policy_to_http_exception(exc) from exc
 
         deleted_versions = await services.cosmos_service.soft_delete_planet_contracts(
             session=session,
@@ -829,7 +872,7 @@ async def extinguish_planet(
         branch_id=branch_id,
         endpoint_key="PATCH:/planets/{table_id}/extinguish",
         idempotency_key=idempotency_key,
-        request_payload={"table_id": str(table_id)},
+        request_payload=extinguish_plan.request_payload,
         execute=execute_scoped,
         replay_loader=PlanetExtinguishResponse.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
