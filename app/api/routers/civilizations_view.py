@@ -32,24 +32,26 @@ from app.domains.civilizations.queries import (
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
+    CivilizationCreateRequest,
+    CivilizationListResponse,
     CivilizationMineralMutateRequest,
     CivilizationResponse,
-    MoonCreateRequest,
-    MoonListResponse,
-    MoonRowContract,
-    civilization_snapshot_to_moon_row,
+    CivilizationRowContract,
+    civilization_snapshot_to_civilization_row,
 )
 
 router = APIRouter(tags=["civilizations"])
 
 
-def _moon_row_from_source(source: Any, *, galaxy_id: UUID) -> MoonRowContract:
+def _civilization_row_from_source(source: Any, *, galaxy_id: UUID) -> CivilizationRowContract:
     snapshot = universe_asteroid_to_snapshot(source, galaxy_id=galaxy_id)
-    return civilization_snapshot_to_moon_row(snapshot)
+    return civilization_snapshot_to_civilization_row(snapshot)
 
 
-def _moon_row_from_asteroid_response(response: CivilizationResponse, *, galaxy_id: UUID) -> MoonRowContract:
-    return _moon_row_from_source(
+def _civilization_row_from_asteroid_response(
+    response: CivilizationResponse, *, galaxy_id: UUID
+) -> CivilizationRowContract:
+    return _civilization_row_from_source(
         {
             "id": response.id,
             "value": response.value,
@@ -76,7 +78,7 @@ def _query_to_http_exception(
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
-@router.get("/civilizations", response_model=MoonListResponse, status_code=status.HTTP_200_OK)
+@router.get("/civilizations", response_model=CivilizationListResponse, status_code=status.HTTP_200_OK)
 async def list_civilizations(
     galaxy_id: UUID | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
@@ -84,7 +86,7 @@ async def list_civilizations(
     session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
-) -> MoonListResponse:
+) -> CivilizationListResponse:
     target_galaxy_id, target_branch_id = await resolve_scope_for_user(
         session=session,
         user=current_user,
@@ -99,17 +101,21 @@ async def list_civilizations(
         galaxy_id=target_galaxy_id,
         branch_id=target_branch_id,
     )
-    items: list[MoonRowContract] = []
+    items: list[CivilizationRowContract] = []
     for civilization in civilizations:
-        moon_row = _moon_row_from_source(civilization, galaxy_id=target_galaxy_id)
-        if planet_id is not None and moon_row.planet_id != planet_id:
+        civilization_row = _civilization_row_from_source(civilization, galaxy_id=target_galaxy_id)
+        if planet_id is not None and civilization_row.planet_id != planet_id:
             continue
-        items.append(moon_row)
+        items.append(civilization_row)
     items.sort(key=lambda row: (str(row.constellation_name).lower(), str(row.planet_name).lower(), row.label.lower()))
-    return MoonListResponse(items=items)
+    return CivilizationListResponse(items=items)
 
 
-@router.get("/civilizations/{civilization_id}", response_model=MoonRowContract, status_code=status.HTTP_200_OK)
+@router.get(
+    "/civilizations/{civilization_id}",
+    response_model=CivilizationRowContract,
+    status_code=status.HTTP_200_OK,
+)
 async def get_civilization(
     civilization_id: UUID,
     galaxy_id: UUID | None = Query(default=None),
@@ -117,7 +123,7 @@ async def get_civilization(
     session: AsyncSession = Depends(get_read_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
-) -> MoonRowContract:
+) -> CivilizationRowContract:
     target_galaxy_id, target_branch_id = await resolve_scope_for_user(
         session=session,
         user=current_user,
@@ -136,16 +142,16 @@ async def get_civilization(
         )
     except (CivilizationQueryNotFoundError, CivilizationQueryConflictError) as exc:
         raise _query_to_http_exception(exc) from exc
-    return _moon_row_from_source(civilization, galaxy_id=target_galaxy_id)
+    return _civilization_row_from_source(civilization, galaxy_id=target_galaxy_id)
 
 
-@router.post("/civilizations", response_model=MoonRowContract, status_code=status.HTTP_201_CREATED)
+@router.post("/civilizations", response_model=CivilizationRowContract, status_code=status.HTTP_201_CREATED)
 async def create_civilization(
-    payload: MoonCreateRequest,
+    payload: CivilizationCreateRequest,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
-) -> MoonRowContract:
+) -> CivilizationRowContract:
     target_galaxy_id, target_branch_id = await resolve_scope_for_user(
         session=session,
         user=current_user,
@@ -207,12 +213,12 @@ async def create_civilization(
         empty_response_detail="Civilization ingest failed",
         resolved_scope=(target_galaxy_id, target_branch_id),
     )
-    return _moon_row_from_asteroid_response(created, galaxy_id=target_galaxy_id)
+    return _civilization_row_from_asteroid_response(created, galaxy_id=target_galaxy_id)
 
 
 @router.patch(
     "/civilizations/{civilization_id}/minerals/{mineral_key}",
-    response_model=MoonRowContract,
+    response_model=CivilizationRowContract,
     status_code=status.HTTP_200_OK,
 )
 async def mutate_civilization_mineral(
@@ -222,7 +228,7 @@ async def mutate_civilization_mineral(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
-) -> MoonRowContract:
+) -> CivilizationRowContract:
     target_galaxy_id, target_branch_id = await resolve_scope_for_user(
         session=session,
         user=current_user,
@@ -271,4 +277,4 @@ async def mutate_civilization_mineral(
         empty_response_status=status.HTTP_404_NOT_FOUND,
         resolved_scope=(target_galaxy_id, target_branch_id),
     )
-    return _moon_row_from_asteroid_response(mutated, galaxy_id=target_galaxy_id)
+    return _civilization_row_from_asteroid_response(mutated, galaxy_id=target_galaxy_id)

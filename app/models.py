@@ -3,7 +3,7 @@ from __future__ import annotations
 # Backward-compatible facade: keep `app.models` import path stable while
 # SQLAlchemy models are organized by canonical ontology domains.
 from app.domains.bonds.models import Bond
-from app.domains.civilizations import CivilizationRM
+from app.domains.civilizations.models import CivilizationRM
 from app.domains.moons import MoonCapability
 from app.domains.planets import TableContract
 from app.domains.shared import (

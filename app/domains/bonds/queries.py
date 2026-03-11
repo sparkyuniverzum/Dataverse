@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.bonds.policy import canonical_bond_pair, resolve_validation_decision
@@ -16,15 +15,22 @@ from app.domains.bonds.schemas import (
 )
 from app.domains.bonds.semantics import bond_semantics, normalize_bond_type
 
+HTTP_NOT_FOUND = 404
+HTTP_CONFLICT = 409
+HTTP_FORBIDDEN = 403
 
-def _reason_from_http_exception(exc: HTTPException) -> BondValidateReason:
-    detail = exc.detail
-    status_code = int(exc.status_code or 500)
+
+def _reason_from_scope_exception(exc: Exception) -> BondValidateReason | None:
+    status_code_raw = getattr(exc, "status_code", None)
+    detail = getattr(exc, "detail", str(exc))
+    if not isinstance(status_code_raw, int):
+        return None
+    status_code = int(status_code_raw or 500)
     detail_text = str(detail or "").lower()
     detail_dict = detail if isinstance(detail, dict) else {}
     detail_code = str(detail_dict.get("code") or "").strip().upper()
 
-    if status_code == status.HTTP_404_NOT_FOUND:
+    if status_code == HTTP_NOT_FOUND:
         if "source" in detail_text:
             return BondValidateReason(
                 code="BOND_VALIDATE_SOURCE_MISSING",
@@ -43,7 +49,7 @@ def _reason_from_http_exception(exc: HTTPException) -> BondValidateReason:
             context={"status": status_code, "detail": detail},
         )
 
-    if status_code == status.HTTP_409_CONFLICT:
+    if status_code == HTTP_CONFLICT:
         if detail_code == "OCC_CONFLICT":
             return BondValidateReason(
                 code="BOND_VALIDATE_OCC_CONFLICT",
@@ -62,7 +68,7 @@ def _reason_from_http_exception(exc: HTTPException) -> BondValidateReason:
             context={"status": status_code, "detail": detail},
         )
 
-    if status_code == status.HTTP_403_FORBIDDEN:
+    if status_code == HTTP_FORBIDDEN:
         return BondValidateReason(
             code="BOND_VALIDATE_SCOPE_FORBIDDEN",
             message="Resolved scope does not allow this bond operation.",
@@ -179,8 +185,11 @@ async def validate_bond_request(
             apply_calculations=False,
         )
         projection_loaded = True
-    except HTTPException as exc:
-        reasons.append(_reason_from_http_exception(exc))
+    except Exception as exc:
+        mapped_reason = _reason_from_scope_exception(exc)
+        if mapped_reason is None:
+            raise
+        reasons.append(mapped_reason)
         active_civilizations = []
         active_bonds = []
 

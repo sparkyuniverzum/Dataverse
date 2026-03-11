@@ -6,6 +6,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schema_models.moons import MoonCreateRequest, MoonListResponse
+from app.schema_models.universe import MoonRowContract, civilization_snapshot_to_moon_row
+
 
 class CivilizationIngestRequest(BaseModel):
     value: Any
@@ -60,9 +63,20 @@ class CivilizationResponse(BaseModel):
     current_event_seq: int = 0
 
 
+# Canonical naming for `/civilizations*` API surface.
+CivilizationCreateRequest = MoonCreateRequest
+CivilizationListResponse = MoonListResponse
+CivilizationRowContract = MoonRowContract
+civilization_snapshot_to_civilization_row = civilization_snapshot_to_moon_row
+
+
 __all__ = [
+    "CivilizationCreateRequest",
     "CivilizationIngestRequest",
+    "CivilizationListResponse",
     "CivilizationMineralMutateRequest",
     "CivilizationMutateRequest",
+    "CivilizationRowContract",
     "CivilizationResponse",
+    "civilization_snapshot_to_civilization_row",
 ]
