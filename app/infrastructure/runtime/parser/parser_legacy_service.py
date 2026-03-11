@@ -199,8 +199,8 @@ class ParserService:
             link_params: dict[str, Any] = {"type": relation_type}
             if source_metadata or target_metadata:
                 link_params["metadata"] = {
-                    "source_asteroid": source_metadata,
-                    "target_asteroid": target_metadata,
+                    "source_civilization": source_metadata,
+                    "target_civilization": target_metadata,
                 }
             tasks.append(AtomicTask(action="LINK", params=link_params))
         return tasks
@@ -279,7 +279,7 @@ class ParserService:
         if not target:
             return []
 
-        return [AtomicTask(action=action, params={"target_asteroid": target, "condition": condition})]
+        return [AtomicTask(action=action, params={"target_civilization": target, "condition": condition})]
 
     def _parse_spoj(self, normalized: str) -> list[AtomicTask] | None:
         lower = normalized.lower()

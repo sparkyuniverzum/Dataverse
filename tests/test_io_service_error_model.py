@@ -32,7 +32,7 @@ def test_classify_row_failure_http_conflict_uses_domain_code() -> None:
     failure = ImportExportService._classify_row_failure(
         HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "OCC_CONFLICT", "message": "OCC conflict for UPDATE_ASTEROID"},
+            detail={"code": "OCC_CONFLICT", "message": "OCC conflict for UPDATE_CIVILIZATION"},
         )
     )
 

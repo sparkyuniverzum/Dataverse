@@ -649,7 +649,7 @@ class TaskExecutorService:
         galaxy_id: UUID,
         branch_id: UUID | None,
         result: TaskExecutionResult,
-        active_asteroids: list[ProjectedCivilization],
+        active_civilizations: list[ProjectedCivilization],
         active_bonds: list[ProjectedBond],
     ) -> _TaskExecutionContext:
         async def _uninitialized_append(*, entity_id: UUID, event_type: str, payload: dict) -> Event:
@@ -663,7 +663,7 @@ class TaskExecutorService:
             branch_id=branch_id,
             result=result,
             context_civilization_ids=[],
-            civilizations_by_id={a.id: a for a in active_asteroids},
+            civilizations_by_id={a.id: a for a in active_civilizations},
             bonds_by_id={b.id: b for b in active_bonds},
             contract_cache={},
             appended_events=[],
@@ -723,7 +723,7 @@ class TaskExecutorService:
         async with self._track_execution():
             self._ensure_transaction_ready(session=session, manage_transaction=manage_transaction)
             runtime_tasks = self._normalize_runtime_tasks(tasks=tasks)
-            active_asteroids, active_bonds = await self._load_initial_context_state(
+            active_civilizations, active_bonds = await self._load_initial_context_state(
                 session=session,
                 tasks=runtime_tasks,
                 user_id=user_id,
@@ -743,7 +743,7 @@ class TaskExecutorService:
                     galaxy_id=galaxy_id,
                     branch_id=branch_id,
                     result=result,
-                    active_asteroids=active_asteroids,
+                    active_civilizations=active_civilizations,
                     active_bonds=active_bonds,
                 )
                 await self._run_task_sequence(tasks=runtime_tasks, ctx=context)

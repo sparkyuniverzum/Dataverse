@@ -54,7 +54,7 @@ def test_bridge_maps_id_upsert_to_update_only_with_metadata() -> None:
     result = bridge.to_atomic_tasks(envelope)
     assert result.errors == []
     assert len(result.tasks) == 1
-    assert result.tasks[0].action == "UPDATE_ASTEROID"
+    assert result.tasks[0].action == "UPDATE_CIVILIZATION"
     assert result.tasks[0].params == {"civilization_id": civilization_id, "metadata": {"status": "active"}}
 
 
@@ -79,7 +79,7 @@ def test_bridge_maps_assign_attribute_to_ingest_or_update() -> None:
 
     result = bridge.to_atomic_tasks(envelope)
     assert result.errors == []
-    assert [task.action for task in result.tasks] == ["INGEST", "UPDATE_ASTEROID"]
+    assert [task.action for task in result.tasks] == ["INGEST", "UPDATE_CIVILIZATION"]
     assert result.tasks[0].params == {"value": "Erik", "metadata": {"salary": 50000}}
     assert result.tasks[1].params == {
         "civilization_id": civilization_id,
@@ -186,7 +186,7 @@ def test_bridge_maps_select_formula_and_guardian_intents() -> None:
     result = bridge.to_atomic_tasks(envelope)
     assert result.errors == []
     assert [task.action for task in result.tasks] == ["SELECT", "SET_FORMULA", "ADD_GUARDIAN"]
-    assert result.tasks[0].params == {"target_asteroid": "Projekt", "condition": "active"}
+    assert result.tasks[0].params == {"target_civilization": "Projekt", "condition": "active"}
     assert result.tasks[1].params == {"target": "Projekt", "field": "celkem", "formula": "=SUM(cena)"}
     assert result.tasks[2].params == {
         "target": "Projekt",

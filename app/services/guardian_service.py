@@ -45,28 +45,28 @@ def _compare(left: Any, operator: str, right: Any) -> bool:
     return str(left).strip() == str(right).strip()
 
 
-def evaluate_guardians(asteroids_snapshot: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def evaluate_guardians(civilizations_snapshot: list[dict[str, Any]]) -> list[dict[str, Any]]:
     evaluated: list[dict[str, Any]] = []
 
-    for civilization in asteroids_snapshot:
+    for civilization in civilizations_snapshot:
         if not isinstance(civilization, Mapping):
             continue
 
-        asteroid_out = dict(civilization)
-        metadata = asteroid_out.get("metadata")
+        civilization_out = dict(civilization)
+        metadata = civilization_out.get("metadata")
         if not isinstance(metadata, dict):
             metadata = {}
-        asteroid_out["metadata"] = metadata
+        civilization_out["metadata"] = metadata
 
-        calculated_values = asteroid_out.get("calculated_values")
+        calculated_values = civilization_out.get("calculated_values")
         if not isinstance(calculated_values, dict):
             calculated_values = {}
-        asteroid_out["calculated_values"] = calculated_values
+        civilization_out["calculated_values"] = calculated_values
 
         guardians = metadata.get("_guardians")
         if not isinstance(guardians, list):
-            asteroid_out["active_alerts"] = []
-            evaluated.append(asteroid_out)
+            civilization_out["active_alerts"] = []
+            evaluated.append(civilization_out)
             continue
 
         active_alerts: list[str] = []
@@ -88,7 +88,7 @@ def evaluate_guardians(asteroids_snapshot: list[dict[str, Any]]) -> list[dict[st
             if _compare(left_value, operator, threshold) and action not in active_alerts:
                 active_alerts.append(action)
 
-        asteroid_out["active_alerts"] = active_alerts
-        evaluated.append(asteroid_out)
+        civilization_out["active_alerts"] = active_alerts
+        evaluated.append(civilization_out)
 
     return evaluated

@@ -927,7 +927,7 @@ class StarCoreService:
     def _derive_visual_hint(*, event_type: str, payload: Any) -> tuple[str, float]:
         kind = event_type.strip().lower()
         payload_dict = payload if isinstance(payload, dict) else {}
-        if kind in {"ingest", "insert", "create_asteroid", "create_table"}:
+        if kind in {"ingest", "insert", "create_civilization", "create_table"}:
             return "source_shockwave", 1.0
         if "extinguish" in kind:
             return "fade_to_singularity", 0.85

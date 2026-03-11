@@ -85,7 +85,7 @@ class ParseCommandResponse(BaseModel):
     tasks: list[TaskSchema]
     civilizations: list[CivilizationResponse] = Field(default_factory=list)
     bonds: list[BondResponse] = Field(default_factory=list)
-    selected_asteroids: list[CivilizationResponse] = Field(default_factory=list)
+    selected_civilizations: list[CivilizationResponse] = Field(default_factory=list)
     extinguished_civilization_ids: list[uuid.UUID] = Field(default_factory=list)
     extinguished_bond_ids: list[uuid.UUID] = Field(default_factory=list)
     semantic_effects: list[SemanticEffect] = Field(default_factory=list)

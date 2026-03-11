@@ -42,7 +42,7 @@ class PlanetDashboardService:
             as_of=as_of,
         )
 
-        asteroid_to_table_id: dict[str, str] = {}
+        civilization_to_table_id: dict[str, str] = {}
         rows_by_table_id: dict[str, dict[str, Any]] = {}
 
         for table in tables:
@@ -61,7 +61,7 @@ class PlanetDashboardService:
             for member in members:
                 member_id = str(member.get("id") or "")
                 if member_id:
-                    asteroid_to_table_id[member_id] = table_id
+                    civilization_to_table_id[member_id] = table_id
 
             rows_by_table_id[table_id] = {
                 "table_id": table_id,
@@ -102,7 +102,7 @@ class PlanetDashboardService:
             if not civilization_id:
                 continue
 
-            table_id = asteroid_to_table_id.get(civilization_id)
+            table_id = civilization_to_table_id.get(civilization_id)
             if not table_id:
                 continue
 

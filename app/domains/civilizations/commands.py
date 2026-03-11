@@ -62,7 +62,7 @@ def plan_mutate_civilization(
     if expected_event_seq is not None:
         params["expected_event_seq"] = expected_event_seq
     return CivilizationCommandPlan(
-        tasks=[AtomicTask(action="UPDATE_ASTEROID", params=params)],
+        tasks=[AtomicTask(action="UPDATE_CIVILIZATION", params=params)],
         request_payload={
             "civilization_id": str(civilization_id),
             "value": value,
@@ -101,7 +101,7 @@ def plan_mineral_mutation(
     else:
         params["metadata"] = {normalized_key: typed_value}
     return CivilizationCommandPlan(
-        tasks=[AtomicTask(action="UPDATE_ASTEROID", params=params)],
+        tasks=[AtomicTask(action="UPDATE_CIVILIZATION", params=params)],
         request_payload={
             "civilization_id": str(civilization_id),
             "mineral_key": normalized_key,

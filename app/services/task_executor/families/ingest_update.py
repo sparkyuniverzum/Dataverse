@@ -250,15 +250,15 @@ async def handle_ingest_update_family(
         ctx.result.civilizations.append(civilization)
         return True
 
-    if action == "UPDATE_ASTEROID":
-        asteroid_uuid = self._parse_uuid(task.params.get("civilization_id"))
-        if asteroid_uuid is None:
+    if action == "UPDATE_CIVILIZATION":
+        civilization_uuid = self._parse_uuid(task.params.get("civilization_id"))
+        if civilization_uuid is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="UPDATE_ASTEROID requires valid civilization_id",
+                detail="UPDATE_CIVILIZATION requires valid civilization_id",
             )
 
-        civilization = ctx.civilizations_by_id.get(asteroid_uuid)
+        civilization = ctx.civilizations_by_id.get(civilization_uuid)
         if civilization is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target civilization not found")
         expected_event_seq = self._parse_expected_event_seq(
@@ -270,9 +270,9 @@ async def handle_ingest_update_family(
             user_id=ctx.user_id,
             galaxy_id=ctx.galaxy_id,
             branch_id=ctx.branch_id,
-            entity_id=asteroid_uuid,
+            entity_id=civilization_uuid,
             expected_event_seq=expected_event_seq,
-            context=f"UPDATE_ASTEROID {asteroid_uuid}",
+            context=f"UPDATE_CIVILIZATION {civilization_uuid}",
         )
 
         has_change = False
@@ -334,7 +334,9 @@ async def handle_ingest_update_family(
                         detail={
                             "code": "LIFECYCLE_TRANSITION_BLOCKED",
                             "reason": "ambiguous_state_patch",
-                            "message": "UPDATE_ASTEROID lifecycle patch is ambiguous (`state` and `status` mismatch).",
+                            "message": (
+                                "UPDATE_CIVILIZATION lifecycle patch is ambiguous " "(`state` and `status` mismatch)."
+                            ),
                             "from_state": current_lifecycle_state,
                         },
                     )

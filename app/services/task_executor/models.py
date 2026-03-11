@@ -16,21 +16,3 @@ class TaskExecutionResult:
     extinguished_civilization_ids: list[UUID] = field(default_factory=list)
     extinguished_bond_ids: list[UUID] = field(default_factory=list)
     semantic_effects: list[dict[str, Any]] = field(default_factory=list)
-
-    @property
-    def selected_asteroids(self) -> list[ProjectedCivilization]:
-        # Backward-compatible alias kept for incremental cleanup.
-        return self.selected_civilizations
-
-    @selected_asteroids.setter
-    def selected_asteroids(self, value: list[ProjectedCivilization]) -> None:
-        self.selected_civilizations = value
-
-    @property
-    def extinguished_asteroids(self) -> list[ProjectedCivilization]:
-        # Backward-compatible alias kept for incremental cleanup.
-        return self.extinguished_civilizations
-
-    @extinguished_asteroids.setter
-    def extinguished_asteroids(self, value: list[ProjectedCivilization]) -> None:
-        self.extinguished_civilizations = value

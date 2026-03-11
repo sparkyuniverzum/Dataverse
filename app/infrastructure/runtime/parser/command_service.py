@@ -74,7 +74,7 @@ async def resolve_tasks_for_payload(
         v2_error_message: str | None = None
         try:
             scoped_galaxy_id, scoped_branch_id = await ensure_scope()
-            active_asteroids, _ = await services.universe_service.project_state(
+            active_civilizations, _ = await services.universe_service.project_state(
                 session=session,
                 user_id=current_user_id,
                 galaxy_id=scoped_galaxy_id,
@@ -83,7 +83,7 @@ async def resolve_tasks_for_payload(
             )
             semantic_planner = Parser2SemanticPlanner(
                 parser=services.parser2_planner.parser,
-                resolver=SnapshotSemanticResolver(active_asteroids),
+                resolver=SnapshotSemanticResolver(active_civilizations),
             )
             plan_result = semantic_planner.plan_text(payload.command)
             if plan_result.errors:

@@ -48,7 +48,7 @@ def _civilization_row_from_source(source: Any, *, galaxy_id: UUID) -> Civilizati
     return civilization_snapshot_to_civilization_row(snapshot)
 
 
-def _civilization_row_from_asteroid_response(
+def _civilization_row_from_civilization_response(
     response: CivilizationResponse, *, galaxy_id: UUID
 ) -> CivilizationRowContract:
     return _civilization_row_from_source(
@@ -213,7 +213,7 @@ async def create_civilization(
         empty_response_detail="Civilization ingest failed",
         resolved_scope=(target_galaxy_id, target_branch_id),
     )
-    return _civilization_row_from_asteroid_response(created, galaxy_id=target_galaxy_id)
+    return _civilization_row_from_civilization_response(created, galaxy_id=target_galaxy_id)
 
 
 @router.patch(
@@ -277,4 +277,4 @@ async def mutate_civilization_mineral(
         empty_response_status=status.HTTP_404_NOT_FOUND,
         resolved_scope=(target_galaxy_id, target_branch_id),
     )
-    return _civilization_row_from_asteroid_response(mutated, galaxy_id=target_galaxy_id)
+    return _civilization_row_from_civilization_response(mutated, galaxy_id=target_galaxy_id)

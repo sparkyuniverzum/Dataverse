@@ -18,11 +18,11 @@ async def handle_formula_guardian_select_family(
 ) -> bool:
     action = task.action.upper()
     if action == "SELECT":
-        target = task.params.get("target_asteroid") or task.params.get("target_planet") or task.params.get("target")
+        target = task.params.get("target_civilization") or task.params.get("target_planet") or task.params.get("target")
         if not target:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="SELECT task requires target_asteroid",
+                detail="SELECT task requires target_civilization",
             )
         selected = self._find_civilizations_by_target(
             civilizations=list(ctx.civilizations_by_id.values()),

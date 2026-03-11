@@ -238,7 +238,7 @@ class AuthService:
         )
 
         # 2. Load the full state of the galaxy to find all active entities
-        active_asteroids, active_bonds = await self.universe_service.project_state(
+        active_civilizations, active_bonds = await self.universe_service.project_state(
             session=session,
             user_id=user_id,
             galaxy_id=galaxy_id,
@@ -259,13 +259,13 @@ class AuthService:
                     payload={"deleted_at": now.isoformat()},
                 )
 
-        for asteroid in active_asteroids:
-            if not asteroid.is_deleted:
+        for civilization in active_civilizations:
+            if not civilization.is_deleted:
                 await self.event_store.append_event(
                     session=session,
                     user_id=user_id,
                     galaxy_id=galaxy_id,
-                    entity_id=asteroid.id,
+                    entity_id=civilization.id,
                     event_type="CIVILIZATION_SOFT_DELETED",
                     payload={"deleted_at": now.isoformat()},
                 )

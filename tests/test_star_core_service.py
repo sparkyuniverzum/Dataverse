@@ -87,14 +87,14 @@ def test_star_core_pulse_derives_visual_hints_from_event_types() -> None:
         ),
         _EventStub(
             event_seq=102,
-            event_type="UPDATE_ASTEROID",
+            event_type="UPDATE_CIVILIZATION",
             entity_id=uuid.uuid4(),
             payload={"phase": "x"},
             timestamp=now + timedelta(seconds=10),
         ),
         _EventStub(
             event_seq=103,
-            event_type="ASTEROID_SOFT_DELETED",
+            event_type="CIVILIZATION_SOFT_DELETED",
             entity_id=uuid.uuid4(),
             payload={"is_deleted": True},
             timestamp=now + timedelta(seconds=20),
@@ -124,7 +124,7 @@ def test_star_core_domain_metrics_returns_domain_activity_from_recent_events() -
     events = [
         _EventStub(
             event_seq=201,
-            event_type="ASTEROID_CREATED",
+            event_type="CIVILIZATION_CREATED",
             entity_id=moon_a,
             payload={"value": "A"},
             timestamp=now,
@@ -138,7 +138,7 @@ def test_star_core_domain_metrics_returns_domain_activity_from_recent_events() -
         ),
         _EventStub(
             event_seq=203,
-            event_type="ASTEROID_VALUE_UPDATED",
+            event_type="CIVILIZATION_VALUE_UPDATED",
             entity_id=uuid.uuid4(),
             payload={"metadata": {"table_id": str(table_id)}},
             timestamp=now + timedelta(seconds=60),

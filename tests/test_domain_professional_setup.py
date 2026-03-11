@@ -109,7 +109,7 @@ def test_civilizations_domain_professional_setup() -> None:
         metadata={"state": "archived"},
         expected_event_seq=3,
     )
-    assert mutate_plan.tasks and mutate_plan.tasks[0].action == "UPDATE_ASTEROID"
+    assert mutate_plan.tasks and mutate_plan.tasks[0].action == "UPDATE_CIVILIZATION"
     assert mutate_plan.tasks[0].params.get("expected_event_seq") == 3
 
     extinguish_plan = civilization_commands.plan_extinguish_civilization(
@@ -125,7 +125,7 @@ def test_civilizations_domain_professional_setup() -> None:
         remove=False,
         expected_event_seq=5,
     )
-    assert mineral_plan.tasks and mineral_plan.tasks[0].action == "UPDATE_ASTEROID"
+    assert mineral_plan.tasks and mineral_plan.tasks[0].action == "UPDATE_CIVILIZATION"
 
     commands_source = inspect.getsource(civilization_commands)
     queries_source = inspect.getsource(civilization_queries)

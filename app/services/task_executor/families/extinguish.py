@@ -68,19 +68,19 @@ async def handle_extinguish_family(
 
     if action in {"DELETE", "EXTINGUISH"}:
         civilization_id = task.params.get("civilization_id") or task.params.get("atom_id")
-        target = task.params.get("target_asteroid") or task.params.get("target_planet")
+        target = task.params.get("target_civilization") or task.params.get("target_planet")
         delete_target = task.params.get("target")
         condition = task.params.get("condition")
 
         targets: list[ProjectedCivilization] = []
         if civilization_id:
-            asteroid_uuid = self._parse_uuid(civilization_id)
-            if asteroid_uuid is None:
+            civilization_uuid = self._parse_uuid(civilization_id)
+            if civilization_uuid is None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Invalid civilization_id format",
                 )
-            civilization = ctx.civilizations_by_id.get(asteroid_uuid)
+            civilization = ctx.civilizations_by_id.get(civilization_uuid)
             if civilization:
                 targets = [civilization]
         elif target:
@@ -96,7 +96,7 @@ async def handle_extinguish_family(
         else:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="DELETE/EXTINGUISH task requires civilization_id, target_asteroid, or target",
+                detail="DELETE/EXTINGUISH task requires civilization_id, target_civilization, or target",
             )
 
         if not targets:

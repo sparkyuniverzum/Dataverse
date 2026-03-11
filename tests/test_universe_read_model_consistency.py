@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.services.universe import runtime_projection_from_read_models as rm_projection
-from app.services.universe.types import ProjectedAsteroid
+from app.services.universe.types import ProjectedCivilization
 
 
 def test_enrich_main_timeline_falls_back_when_calc_state_is_stale(monkeypatch) -> None:
@@ -13,7 +13,7 @@ def test_enrich_main_timeline_falls_back_when_calc_state_is_stale(monkeypatch) -
     galaxy_id = uuid4()
     user_id = uuid4()
 
-    civilization = ProjectedAsteroid(
+    civilization = ProjectedCivilization(
         id=civilization_id,
         value="Civilization row",
         metadata={"table": "Core > Planet", "state": "archived"},
@@ -44,7 +44,7 @@ def test_enrich_main_timeline_falls_back_when_calc_state_is_stale(monkeypatch) -
             session=None,
             user_id=user_id,
             galaxy_id=galaxy_id,
-            active_asteroids=[civilization],
+            active_civilizations=[civilization],
             active_bonds=[],
         )
     )

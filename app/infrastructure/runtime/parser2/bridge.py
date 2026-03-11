@@ -119,7 +119,7 @@ class Parser2ExecutorBridge:
             tasks.append(
                 AtomicTask(
                     action="SELECT",
-                    params={"target_asteroid": intent.target.value, "condition": intent.condition},
+                    params={"target_civilization": intent.target.value, "condition": intent.condition},
                 )
             )
             return
@@ -184,7 +184,7 @@ class Parser2ExecutorBridge:
             if intent.metadata:
                 tasks.append(
                     AtomicTask(
-                        action="UPDATE_ASTEROID",
+                        action="UPDATE_CIVILIZATION",
                         params={"civilization_id": civilization_id, "metadata": dict(intent.metadata)},
                     )
                 )
@@ -235,7 +235,7 @@ class Parser2ExecutorBridge:
                 params["expected_event_seq"] = int(intent.expected_event_seq)
             tasks.append(
                 AtomicTask(
-                    action="UPDATE_ASTEROID",
+                    action="UPDATE_CIVILIZATION",
                     params=params,
                 )
             )

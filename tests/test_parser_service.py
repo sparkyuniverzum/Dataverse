@@ -35,7 +35,7 @@ def test_triple_shot_select_stays_compatible() -> None:
 
     assert len(tasks) == 1
     assert tasks[0].action == "SELECT"
-    assert tasks[0].params["target_asteroid"] == "Zákazníci"
+    assert tasks[0].params["target_civilization"] == "Zákazníci"
     assert tasks[0].params["condition"] == "z Prahy"
 
 
@@ -45,7 +45,7 @@ def test_triple_shot_show_alias_maps_to_select() -> None:
 
     assert len(tasks) == 1
     assert tasks[0].action == "SELECT"
-    assert tasks[0].params["target_asteroid"] == "customers"
+    assert tasks[0].params["target_civilization"] == "customers"
     assert tasks[0].params["condition"] == "active"
 
 

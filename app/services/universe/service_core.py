@@ -182,7 +182,7 @@ class UniverseServiceCore:
             session,
             user_id=user_id,
             galaxy_id=galaxy_id,
-            active_asteroids=active_civilizations,
+            active_civilizations=active_civilizations,
             active_bonds=active_bonds,
         )
 

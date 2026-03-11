@@ -33,7 +33,7 @@ class PhysicsEngineService:
     def __init__(self, *, engine_version: str = "physics-v1") -> None:
         self.engine_version = str(engine_version).strip() or "physics-v1"
 
-    def _derive_asteroid_state(
+    def _derive_civilization_state(
         self, *, error_count: int, circular_fields_count: int, bond_degree: int
     ) -> dict[str, float]:
         error_pressure = _saturate_count(error_count, 2.1)
@@ -135,7 +135,7 @@ class PhysicsEngineService:
             ).all()
         )
 
-        degree_by_asteroid: dict[UUID, int] = {civilization_id: 0 for civilization_id in civilization_ids}
+        degree_by_civilization: dict[UUID, int] = {civilization_id: 0 for civilization_id in civilization_ids}
         for bond in bonds:
             source_civilization_id = (
                 bond.source_civilization_id if isinstance(bond.source_civilization_id, UUID) else None
@@ -143,31 +143,31 @@ class PhysicsEngineService:
             target_civilization_id = (
                 bond.target_civilization_id if isinstance(bond.target_civilization_id, UUID) else None
             )
-            if source_civilization_id in degree_by_asteroid:
-                degree_by_asteroid[source_civilization_id] += 1
-            if target_civilization_id in degree_by_asteroid:
-                degree_by_asteroid[target_civilization_id] += 1
+            if source_civilization_id in degree_by_civilization:
+                degree_by_civilization[source_civilization_id] += 1
+            if target_civilization_id in degree_by_civilization:
+                degree_by_civilization[target_civilization_id] += 1
 
-        asteroid_state_by_id: dict[UUID, dict[str, float]] = {}
+        civilization_state_by_id: dict[UUID, dict[str, float]] = {}
         active_entity_keys: set[tuple[str, UUID]] = set()
 
         for row in calc_rows:
             civilization_id = row.civilization_id if isinstance(row.civilization_id, UUID) else None
             if civilization_id is None:
                 continue
-            state = self._derive_asteroid_state(
+            state = self._derive_civilization_state(
                 error_count=int(row.error_count or 0),
                 circular_fields_count=int(row.circular_fields_count or 0),
-                bond_degree=int(degree_by_asteroid.get(civilization_id, 0) or 0),
+                bond_degree=int(degree_by_civilization.get(civilization_id, 0) or 0),
             )
-            asteroid_state_by_id[civilization_id] = state
+            civilization_state_by_id[civilization_id] = state
             active_entity_keys.add(("civilization", civilization_id))
 
             payload = {
                 "entity_kind": "civilization",
                 "error_count": int(row.error_count or 0),
                 "circular_fields_count": int(row.circular_fields_count or 0),
-                "bond_degree": int(degree_by_asteroid.get(civilization_id, 0) or 0),
+                "bond_degree": int(degree_by_civilization.get(civilization_id, 0) or 0),
                 "calculated_values_keys": sorted(list((row.calculated_values or {}).keys()))
                 if isinstance(row.calculated_values, dict)
                 else [],
@@ -194,17 +194,20 @@ class PhysicsEngineService:
             )
             if bond_id is None or source_civilization_id is None or target_civilization_id is None:
                 continue
-            if source_civilization_id not in asteroid_state_by_id or target_civilization_id not in asteroid_state_by_id:
+            if (
+                source_civilization_id not in civilization_state_by_id
+                or target_civilization_id not in civilization_state_by_id
+            ):
                 continue
 
-            source_state = asteroid_state_by_id[source_civilization_id]
-            target_state = asteroid_state_by_id[target_civilization_id]
+            source_state = civilization_state_by_id[source_civilization_id]
+            target_state = civilization_state_by_id[target_civilization_id]
             state = self._derive_bond_state(
                 bond_type=str(bond.type or "RELATION"),
                 source_stress=float(source_state.get("stress_score", 0.0)),
                 target_stress=float(target_state.get("stress_score", 0.0)),
-                source_degree=int(degree_by_asteroid.get(source_civilization_id, 0) or 0),
-                target_degree=int(degree_by_asteroid.get(target_civilization_id, 0) or 0),
+                source_degree=int(degree_by_civilization.get(source_civilization_id, 0) or 0),
+                target_degree=int(degree_by_civilization.get(target_civilization_id, 0) or 0),
             )
             active_entity_keys.add(("bond", bond_id))
             payload = {

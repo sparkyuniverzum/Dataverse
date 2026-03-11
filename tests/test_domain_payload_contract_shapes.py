@@ -4,7 +4,7 @@ from app.schema_models.auth_onboarding import GalaxyPublic, OnboardingMachinePub
 from app.schema_models.branch_contracts import BranchPublic
 from app.schema_models.dashboard import MoonSummaryPublic
 from app.schema_models.execution import CivilizationResponse
-from app.schema_models.universe import MineralFact, MoonRowContract, UniverseAsteroidSnapshot, UniverseTableSnapshot
+from app.schema_models.universe import MineralFact, MoonRowContract, UniverseCivilizationSnapshot, UniverseTableSnapshot
 
 
 def _fields(model: type) -> list[str]:
@@ -67,7 +67,7 @@ def test_civilization_moon_mineral_payload_shapes_are_frozen() -> None:
         "deleted_at",
         "current_event_seq",
     ]
-    assert _fields(UniverseAsteroidSnapshot) == [
+    assert _fields(UniverseCivilizationSnapshot) == [
         "id",
         "value",
         "table_id",

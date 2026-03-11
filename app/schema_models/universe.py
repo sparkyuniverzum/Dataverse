@@ -14,7 +14,7 @@ from app.domains.civilizations.minerals.facts import (
 from app.domains.civilizations.minerals.policy import RESERVED_MINERAL_METADATA_KEYS
 
 
-class UniverseAsteroidSnapshot(BaseModel):
+class UniverseCivilizationSnapshot(BaseModel):
     id: uuid.UUID
     value: Any
     table_id: uuid.UUID
@@ -163,7 +163,7 @@ def derive_civilization_health(
     return state, int(health_score), int(violation_count), last_violation_at
 
 
-def civilization_snapshot_to_moon_row(snapshot: UniverseAsteroidSnapshot) -> MoonRowContract:
+def civilization_snapshot_to_moon_row(snapshot: UniverseCivilizationSnapshot) -> MoonRowContract:
     label = str(snapshot.value) if snapshot.value is not None else str(snapshot.id)
     facts = build_moon_facts(
         value=snapshot.value,
@@ -215,7 +215,7 @@ class UniverseBondSnapshot(BaseModel):
 class UniverseSnapshotResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    civilizations: list[UniverseAsteroidSnapshot] = Field(default_factory=list)
+    civilizations: list[UniverseCivilizationSnapshot] = Field(default_factory=list)
     bonds: list[UniverseBondSnapshot] = Field(default_factory=list)
 
 

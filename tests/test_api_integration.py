@@ -481,7 +481,7 @@ def test_parser_v2_legacy_select_command_uses_v1_semantics(auth_client: tuple[ht
     assert execute.status_code == 200, execute.text
     body = execute.json()
     assert body["tasks"][0]["action"] == "SELECT"
-    selected_values = {_stringify(item["value"]) for item in body["selected_asteroids"]}
+    selected_values = {_stringify(item["value"]) for item in body["selected_civilizations"]}
     assert label in selected_values
 
 
@@ -963,7 +963,7 @@ def test_mutate_asteroid_occ_rejects_stale_expected_event_seq(auth_client: tuple
         json={"metadata": {"status": "stale-write"}, "expected_event_seq": initial_seq, "galaxy_id": galaxy_id},
     )
     detail = _assert_occ_conflict(stale_mutate, expected_event_seq=initial_seq)
-    assert "update_asteroid" in detail["context"].lower()
+    assert "update_civilization" in detail["context"].lower()
     assert detail["entity_id"] == civilization_id
 
     snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
@@ -3288,7 +3288,7 @@ def test_task_batch_preview_does_not_persist_changes(auth_client: tuple[httpx.Cl
             "galaxy_id": galaxy_id,
             "tasks": [
                 {
-                    "action": "UPDATE_ASTEROID",
+                    "action": "UPDATE_CIVILIZATION",
                     "params": {
                         "civilization_id": civilization_id,
                         "metadata": {"preview_field": "yes"},
@@ -3345,7 +3345,7 @@ def test_task_batch_commit_persists_changes_atomically(auth_client: tuple[httpx.
             "galaxy_id": galaxy_id,
             "tasks": [
                 {
-                    "action": "UPDATE_ASTEROID",
+                    "action": "UPDATE_CIVILIZATION",
                     "params": {
                         "civilization_id": civilization_id,
                         "metadata": {"batch_field": "committed"},
@@ -3417,7 +3417,7 @@ def test_bulk_civilization_writes_occ_idempotency(auth_client: tuple[httpx.Clien
         "galaxy_id": galaxy_id,
         "tasks": [
             {
-                "action": "UPDATE_ASTEROID",
+                "action": "UPDATE_CIVILIZATION",
                 "params": {
                     "civilization_id": seed_id,
                     "metadata": {"review_status": "reviewed"},
@@ -3479,7 +3479,7 @@ def test_bulk_civilization_writes_occ_idempotency(auth_client: tuple[httpx.Clien
         **batch_payload,
         "tasks": [
             {
-                "action": "UPDATE_ASTEROID",
+                "action": "UPDATE_CIVILIZATION",
                 "params": {
                     "civilization_id": seed_id,
                     "metadata": {"review_status": "other"},
@@ -3514,7 +3514,7 @@ def test_bulk_civilization_writes_occ_idempotency(auth_client: tuple[httpx.Clien
                     },
                 },
                 {
-                    "action": "UPDATE_ASTEROID",
+                    "action": "UPDATE_CIVILIZATION",
                     "params": {
                         "civilization_id": seed_id,
                         "metadata": {"review_status": "should-not-commit"},
@@ -3525,7 +3525,7 @@ def test_bulk_civilization_writes_occ_idempotency(auth_client: tuple[httpx.Clien
         },
     )
     detail = _assert_occ_conflict(conflict_batch, expected_event_seq=stale_expected_seq)
-    assert "update_asteroid" in str(detail.get("context", "")).lower()
+    assert "update_civilization" in str(detail.get("context", "")).lower()
     assert detail.get("entity_id") == seed_id
 
     list_after_conflict = client.get("/civilizations", params={"galaxy_id": galaxy_id, "planet_id": planet_id})

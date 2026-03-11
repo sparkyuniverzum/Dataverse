@@ -10,8 +10,8 @@ from app.schemas import (
     CivilizationResponse,
     ParseCommandResponse,
     TaskSchema,
-    UniverseAsteroidSnapshot,
     UniverseBondSnapshot,
+    UniverseCivilizationSnapshot,
     build_moon_facts,
 )
 from app.services.parser_types import AtomicTask
@@ -84,14 +84,13 @@ def task_to_response(task: AtomicTask) -> TaskSchema:
 
 def execution_to_response(tasks: list[AtomicTask], execution: TaskExecutionResult) -> ParseCommandResponse:
     selected_civilizations = [
-        civilization_to_response(civilization)
-        for civilization in getattr(execution, "selected_civilizations", execution.selected_asteroids)
+        civilization_to_response(civilization) for civilization in execution.selected_civilizations
     ]
     return ParseCommandResponse(
         tasks=[task_to_response(task) for task in tasks],
         civilizations=[civilization_to_response(civilization) for civilization in execution.civilizations],
         bonds=[bond_to_response(bond) for bond in execution.bonds],
-        selected_asteroids=selected_civilizations,
+        selected_civilizations=selected_civilizations,
         extinguished_civilization_ids=execution.extinguished_civilization_ids,
         extinguished_bond_ids=execution.extinguished_bond_ids,
         semantic_effects=execution.semantic_effects,
@@ -102,7 +101,7 @@ def universe_civilization_to_snapshot(
     civilization: ProjectedCivilization | Mapping[str, Any],
     *,
     galaxy_id: UUID = DEFAULT_GALAXY_ID,
-) -> UniverseAsteroidSnapshot:
+) -> UniverseCivilizationSnapshot:
     if isinstance(civilization, Mapping):
         metadata = civilization.get("metadata", {})
         if not isinstance(metadata, dict):
@@ -145,7 +144,7 @@ def universe_civilization_to_snapshot(
         table_uuid = (
             table_id if isinstance(table_id, UUID) else derive_table_id(galaxy_id=galaxy_id, table_name=table_name)
         )
-        return UniverseAsteroidSnapshot(
+        return UniverseCivilizationSnapshot(
             id=civilization["id"],
             value=civilization.get("value"),
             table_id=table_uuid,
@@ -171,7 +170,7 @@ def universe_civilization_to_snapshot(
 
     table_name = derive_table_name(value=civilization.value, metadata=civilization.metadata)
     constellation_name, planet_name = split_constellation_and_planet_name(table_name)
-    return UniverseAsteroidSnapshot(
+    return UniverseCivilizationSnapshot(
         id=civilization.id,
         value=civilization.value,
         table_id=derive_table_id(galaxy_id=galaxy_id, table_name=table_name),
@@ -193,22 +192,12 @@ def universe_civilization_to_snapshot(
     )
 
 
-def universe_asteroid_to_snapshot(
-    civilization: ProjectedCivilization | Mapping[str, Any],
-    *,
-    galaxy_id: UUID = DEFAULT_GALAXY_ID,
-) -> UniverseAsteroidSnapshot:
-    # Backward-compatible alias kept for incremental cleanup.
-    return universe_civilization_to_snapshot(civilization, galaxy_id=galaxy_id)
-
-
 def universe_bond_to_snapshot(
     bond: ProjectedBond | Mapping[str, Any],
     *,
     civilization_table_index: Mapping[UUID, tuple[UUID, str, str, str]] | None = None,
-    asteroid_table_index: Mapping[UUID, tuple[UUID, str, str, str]] | None = None,
 ) -> UniverseBondSnapshot:
-    table_index = civilization_table_index or asteroid_table_index or {}
+    table_index = civilization_table_index or {}
     if isinstance(bond, Mapping):
         semantics = bond_semantics(bond.get("type", "RELATION"))
         source_civilization_id = bond["source_civilization_id"]

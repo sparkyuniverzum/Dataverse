@@ -6,11 +6,11 @@ from uuid import UUID
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.core.parser2 import SnapshotSemanticResolver
-from app.services.universe_service import ProjectedAsteroid
+from app.services.universe_service import ProjectedCivilization
 
 
-def _asteroid(civilization_id: str, value: object) -> ProjectedAsteroid:
-    return ProjectedAsteroid(
+def _civilization(civilization_id: str, value: object) -> ProjectedCivilization:
+    return ProjectedCivilization(
         id=UUID(civilization_id),
         value=value,
         metadata={},
@@ -23,8 +23,8 @@ def _asteroid(civilization_id: str, value: object) -> ProjectedAsteroid:
 def test_snapshot_resolver_resolves_exact_name_case_insensitively() -> None:
     resolver = SnapshotSemanticResolver(
         [
-            _asteroid("11111111-1111-1111-1111-111111111111", "Erik"),
-            _asteroid("22222222-2222-2222-2222-222222222222", "Projekt Alfa"),
+            _civilization("11111111-1111-1111-1111-111111111111", "Erik"),
+            _civilization("22222222-2222-2222-2222-222222222222", "Projekt Alfa"),
         ]
     )
 
@@ -36,8 +36,8 @@ def test_snapshot_resolver_resolves_exact_name_case_insensitively() -> None:
 def test_snapshot_resolver_resolves_unique_contains_match() -> None:
     resolver = SnapshotSemanticResolver(
         [
-            _asteroid("11111111-1111-1111-1111-111111111111", "Projekt Alfa"),
-            _asteroid("22222222-2222-2222-2222-222222222222", "Finance"),
+            _civilization("11111111-1111-1111-1111-111111111111", "Projekt Alfa"),
+            _civilization("22222222-2222-2222-2222-222222222222", "Finance"),
         ]
     )
 
@@ -49,8 +49,8 @@ def test_snapshot_resolver_resolves_unique_contains_match() -> None:
 def test_snapshot_resolver_returns_none_for_ambiguous_contains() -> None:
     resolver = SnapshotSemanticResolver(
         [
-            _asteroid("11111111-1111-1111-1111-111111111111", "Projekt Alfa"),
-            _asteroid("22222222-2222-2222-2222-222222222222", "Projekt Beta"),
+            _civilization("11111111-1111-1111-1111-111111111111", "Projekt Alfa"),
+            _civilization("22222222-2222-2222-2222-222222222222", "Projekt Beta"),
         ]
     )
 
@@ -63,8 +63,8 @@ def test_snapshot_resolver_returns_none_for_ambiguous_contains() -> None:
 def test_snapshot_resolver_returns_none_for_ambiguous_exact_normalized() -> None:
     resolver = SnapshotSemanticResolver(
         [
-            _asteroid("11111111-1111-1111-1111-111111111111", "Erik"),
-            _asteroid("22222222-2222-2222-2222-222222222222", "ERIK"),
+            _civilization("11111111-1111-1111-1111-111111111111", "Erik"),
+            _civilization("22222222-2222-2222-2222-222222222222", "ERIK"),
         ]
     )
 
@@ -77,7 +77,7 @@ def test_snapshot_resolver_returns_none_for_ambiguous_exact_normalized() -> None
 def test_snapshot_resolver_reports_not_found_issue() -> None:
     resolver = SnapshotSemanticResolver(
         [
-            _asteroid("11111111-1111-1111-1111-111111111111", "Erik"),
+            _civilization("11111111-1111-1111-1111-111111111111", "Erik"),
         ]
     )
 

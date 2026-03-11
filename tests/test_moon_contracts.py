@@ -9,7 +9,7 @@ from app.schemas import (
     FactSource,
     FactStatus,
     FactValueType,
-    UniverseAsteroidSnapshot,
+    UniverseCivilizationSnapshot,
     build_moon_facts,
     civilization_snapshot_to_moon_row,
     derive_civilization_health,
@@ -61,7 +61,7 @@ def test_build_moon_facts_keeps_metadata_source_when_calculated_key_collides() -
 
 
 def test_civilization_snapshot_to_moon_row_projects_canonical_shape() -> None:
-    snapshot = UniverseAsteroidSnapshot(
+    snapshot = UniverseCivilizationSnapshot(
         id=uuid.uuid4(),
         value="Hrebiky",
         table_id=uuid.uuid4(),

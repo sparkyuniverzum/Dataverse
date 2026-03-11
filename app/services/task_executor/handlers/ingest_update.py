@@ -227,7 +227,7 @@ class IngestUpdateHandler:
             if civilization is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target civilization not found")
 
-            asteroid_uuid = civilization.id
+            civilization_uuid = civilization.id
             expected_event_seq = self.service._parse_expected_event_seq(
                 task.expected_event_seq,
                 field_name="expected_event_seq",
@@ -238,9 +238,9 @@ class IngestUpdateHandler:
                 user_id=ctx.user_id,
                 galaxy_id=ctx.galaxy_id,
                 branch_id=ctx.branch_id,
-                entity_id=asteroid_uuid,
+                entity_id=civilization_uuid,
                 expected_event_seq=expected_event_seq,
-                context=f"UPDATE_ASTEROID {asteroid_uuid}",
+                context=f"UPDATE_CIVILIZATION {civilization_uuid}",
             )
 
             has_change = False
@@ -323,7 +323,7 @@ class IngestUpdateHandler:
                 ctx=ctx,
                 code="MOON_UPDATED",
                 reason="Moon value or metadata was updated.",
-                task_action="UPDATE_ASTEROID",
+                task_action="UPDATE_CIVILIZATION",
                 rule_id="sem.update.civilization",
                 inputs={"civilization_id": civilization.id},
                 outputs={"civilization_id": civilization.id, "table_id": next_table_id},
@@ -334,7 +334,7 @@ class IngestUpdateHandler:
                     ctx=ctx,
                     code="MOON_RECLASSIFIED",
                     reason="Moon moved to another planet/table after update.",
-                    task_action="UPDATE_ASTEROID",
+                    task_action="UPDATE_CIVILIZATION",
                     rule_id="sem.table.reclassify",
                     inputs={
                         "civilization_id": civilization.id,
@@ -354,7 +354,7 @@ class IngestUpdateHandler:
                         ctx=ctx,
                         code="PLANET_INFERRED",
                         reason="Update produced a new inferred planet bucket.",
-                        task_action="UPDATE_ASTEROID",
+                        task_action="UPDATE_CIVILIZATION",
                         rule_id="sem.table.inferred",
                         inputs={"table_name": next_table_name},
                         outputs={
@@ -367,7 +367,7 @@ class IngestUpdateHandler:
             await self.service._apply_auto_semantics_for_civilization(
                 ctx=ctx,
                 civilization=civilization,
-                trigger_action="UPDATE_ASTEROID",
+                trigger_action="UPDATE_CIVILIZATION",
             )
             ctx.result.civilizations.append(civilization)
             return True

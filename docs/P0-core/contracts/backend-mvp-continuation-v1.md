@@ -60,12 +60,12 @@ Sekundární scope:
 
 ## 4.4 Realizační checklist
 
-- [ ] `P0-1.1` Přemapovat mapper názvy a pomocné funkce z `asteroid*` na `civilization*`.
-- [ ] `P0-1.2` Přemapovat lokální proměnné/collection názvy v `universe` projekci.
-- [ ] `P0-1.3` Přemapovat `task_executor` result field naming (`selected/extinguished_*`) na civilization terminologii.
+- [x] 2026-03-11 `P0-1.1` Přemapovat mapper názvy a pomocné funkce z `asteroid*` na `civilization*`.
+- [x] 2026-03-11 `P0-1.2` Přemapovat lokální proměnné/collection názvy v `universe` projekci.
+- [x] 2026-03-11 `P0-1.3` Přemapovat `task_executor` result field naming (`selected/extinguished_*`) na civilization terminologii.
 - [x] 2026-03-11 `P0-1.4` Přemapovat star-core interní mapování domén bez `asteroid*` identifikátorů.
-- [ ] `P0-1.5` Upravit související testy/importy tak, aby nepadaly na přejmenování.
-- [ ] `P0-1.6` Ověřit, že v `app/` nezůstaly runtime `asteroid*` tokeny (kromě explicitně povolených výjimek, pokud budou schváleny).
+- [x] 2026-03-11 `P0-1.5` Ověřit a upravit související testy/importy po přejmenování.
+- [x] 2026-03-11 `P0-1.6` Ověřit, že v `app/` nezůstaly runtime `asteroid*` tokeny (kromě explicitně povolených výjimek, pokud budou schváleny).
 
 ## 4.5 DoD podmínky (P0-1)
 
@@ -81,7 +81,7 @@ P0-1 je hotové pouze pokud platí vše:
 
 Stav:
 
-- [ ] Gate splněno
+- [x] 2026-03-11 Gate splněno
 
 Povinné ověřovací příkazy:
 
@@ -100,8 +100,11 @@ Kritérium splnění:
 
 Evidence (doplnit po implementaci):
 
-- [ ] Command output vložen / odkazován.
-- [ ] Datum a autor uzavření zapsán.
+- [x] 2026-03-11 `P0-1.5`: `rg -n "asteroid_to_domain|civilization_to_domain|_build_entity_domain_maps|_resolve_event_domains" tests app -g"*.py"` neukázal žádný test/import odkazující na starý interní symbol po přejmenování.
+- [x] 2026-03-11 `P0-1.6`: `rg -n "\\basteroid\\b|\\basteroids\\b|ASTEROID" app -g"*.py"` vrací prázdný výstup (bez výjimek).
+- [x] 2026-03-11 `P0-1.1/P0-1.2/P0-1.3`: `rg -n "active_asteroids|ProjectedAsteroid|UniverseAsteroidSnapshot|selected_asteroids|target_asteroid|source_asteroid|UPDATE_ASTEROID" app tests -g"*.py"` vrací prázdný výstup.
+- [x] 2026-03-11 Command output vložen / odkazován (`rg` čistý + cílené pytest sady: parser/task-batch/star-core/api green).
+- [x] 2026-03-11 Datum a autor uzavření zapsán (uživatel + agent).
 
 ## 5. Navazující bloky (po P0-1)
 

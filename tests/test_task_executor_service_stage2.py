@@ -24,10 +24,10 @@ from app.infrastructure.runtime.parser2.intents import (
     UpsertNodeIntent,
 )
 from app.services.parser_types import AtomicTask
-from app.services.universe_service import ProjectedAsteroid
+from app.services.universe_service import ProjectedCivilization
 
 
-def _context(*, civilizations: list[ProjectedAsteroid] | None = None) -> _TaskExecutionContext:
+def _context(*, civilizations: list[ProjectedCivilization] | None = None) -> _TaskExecutionContext:
     async def _append_and_project_event(
         *, entity_id, event_type, payload
     ):  # pragma: no cover - should not be called in these tests
@@ -49,8 +49,8 @@ def _context(*, civilizations: list[ProjectedAsteroid] | None = None) -> _TaskEx
     )
 
 
-def _asteroid(*, value: str, metadata: dict | None = None) -> ProjectedAsteroid:
-    return ProjectedAsteroid(
+def _asteroid(*, value: str, metadata: dict | None = None) -> ProjectedCivilization:
+    return ProjectedCivilization(
         id=uuid4(),
         value=value,
         metadata=metadata or {},
@@ -143,7 +143,7 @@ def test_handle_formula_guardian_select_family_selects_by_target_substring() -> 
     handled = asyncio.run(service._handle_formula_guardian_select_family(task=task, ctx=ctx))
 
     assert handled is True
-    assert [item.id for item in ctx.result.selected_asteroids] == [first.id]
+    assert [item.id for item in ctx.result.selected_civilizations] == [first.id]
 
 
 def test_normalize_runtime_tasks_bridges_single_intent_to_atomic_task() -> None:
@@ -181,7 +181,7 @@ def test_update_asteroid_blocks_non_lifecycle_mutation_on_archived_row() -> None
     archived = _asteroid(value="Archived Item", metadata={"state": "archived", "segment": "legacy"})
     ctx = _context(civilizations=[archived])
     task = AtomicTask(
-        action="UPDATE_ASTEROID",
+        action="UPDATE_CIVILIZATION",
         params={"civilization_id": str(archived.id), "metadata": {"segment": "new"}},
     )
 
@@ -204,7 +204,7 @@ def test_update_asteroid_blocks_invalid_lifecycle_transition() -> None:
     archived = _asteroid(value="Archived Item", metadata={"state": "archived"})
     ctx = _context(civilizations=[archived])
     task = AtomicTask(
-        action="UPDATE_ASTEROID",
+        action="UPDATE_CIVILIZATION",
         params={"civilization_id": str(archived.id), "metadata": {"state": "active"}},
     )
 
@@ -228,7 +228,7 @@ def test_update_asteroid_allows_active_to_archived_transition() -> None:
     active = _asteroid(value="Active Item", metadata={"state": "active"})
     ctx = _context(civilizations=[active])
     task = AtomicTask(
-        action="UPDATE_ASTEROID",
+        action="UPDATE_CIVILIZATION",
         params={"civilization_id": str(active.id), "metadata": {"state": "archived"}},
     )
     seq = {"value": int(active.current_event_seq)}
@@ -368,7 +368,7 @@ def test_record_semantic_effect_confidence_policy_sets_high_and_medium_defaults(
         ctx=ctx,
         code="ANY_EFFECT",
         reason="warning branch",
-        task_action="UPDATE_ASTEROID",
+        task_action="UPDATE_CIVILIZATION",
         severity="warning",
     )
 
