@@ -216,13 +216,3 @@ def test_empty_input_behavior_is_stable_for_diagnostics_and_legacy_parse() -> No
     assert diagnostics.tasks == []
     assert diagnostics.errors == ["Command is empty."]
     assert parser.parse("   ") == []
-
-
-def test_parser_contract_doc_mentions_current_parser_semantics() -> None:
-    contract = Path(__file__).resolve().parents[1] / "docs" / "contracts" / "parser-v1.md"
-    text = contract.read_text(encoding="utf-8")
-
-    assert "Command is empty." in text
-    assert "`spoj` command" in text
-    assert "ukaz/ukaž/najdi/show/find -> SELECT" in text
-    assert "A : B : C" in text

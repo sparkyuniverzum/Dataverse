@@ -3,7 +3,3 @@
 Priority-based documentation is organized directly by folders:
 
 - [P0 Core](/mnt/c/Projekty/Dataverse/docs/P0-core/README.md)
-- [P1 Execution](/mnt/c/Projekty/Dataverse/docs/P1-exec/README.md)
-
-Detailed classification source:
-- [Purpose/Priority Map](/mnt/c/Projekty/Dataverse/docs/P1-exec/plans/documentation-purpose-priority-map-2026-03-11.md)
