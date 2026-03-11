@@ -63,7 +63,7 @@ Sekundární scope:
 - [ ] `P0-1.1` Přemapovat mapper názvy a pomocné funkce z `asteroid*` na `civilization*`.
 - [ ] `P0-1.2` Přemapovat lokální proměnné/collection názvy v `universe` projekci.
 - [ ] `P0-1.3` Přemapovat `task_executor` result field naming (`selected/extinguished_*`) na civilization terminologii.
-- [ ] `P0-1.4` Přemapovat star-core interní mapování domén bez `asteroid*` identifikátorů.
+- [x] 2026-03-11 `P0-1.4` Přemapovat star-core interní mapování domén bez `asteroid*` identifikátorů.
 - [ ] `P0-1.5` Upravit související testy/importy tak, aby nepadaly na přejmenování.
 - [ ] `P0-1.6` Ověřit, že v `app/` nezůstaly runtime `asteroid*` tokeny (kromě explicitně povolených výjimek, pokud budou schváleny).
 

@@ -710,7 +710,7 @@ class StarCoreService:
             branch_id=branch_id,
             as_of=None,
         )
-        table_to_domain, asteroid_to_domain, bond_to_domains = self._build_entity_domain_maps(tables=tables)
+        table_to_domain, civilization_to_domain, bond_to_domains = self._build_entity_domain_maps(tables=tables)
 
         latest_event_seq = await self.event_store.latest_event_seq(
             session=session,
@@ -756,7 +756,7 @@ class StarCoreService:
                 entity_id=event.entity_id,
                 payload=event.payload,
                 table_to_domain=table_to_domain,
-                asteroid_to_domain=asteroid_to_domain,
+                civilization_to_domain=civilization_to_domain,
                 bond_to_domains=bond_to_domains,
             )
             for domain in domains:
@@ -833,7 +833,7 @@ class StarCoreService:
         tables: list[dict[str, Any]],
     ) -> tuple[dict[str, str], dict[str, str], dict[str, set[str]]]:
         table_to_domain: dict[str, str] = {}
-        asteroid_to_domain: dict[str, str] = {}
+        civilization_to_domain: dict[str, str] = {}
         bond_to_domains: dict[str, set[str]] = defaultdict(set)
 
         for table in tables:
@@ -849,7 +849,7 @@ class StarCoreService:
                     continue
                 member_id_uuid = cls._parse_uuid_like(member.get("id"))
                 if member_id_uuid is not None:
-                    asteroid_to_domain[str(member_id_uuid)] = domain_name
+                    civilization_to_domain[str(member_id_uuid)] = domain_name
 
             for bond in (table.get("internal_bonds") or []) + (table.get("external_bonds") or []):
                 if not isinstance(bond, dict):
@@ -858,7 +858,7 @@ class StarCoreService:
                 if bond_id_uuid is not None:
                     bond_to_domains[str(bond_id_uuid)].add(domain_name)
 
-        return table_to_domain, asteroid_to_domain, bond_to_domains
+        return table_to_domain, civilization_to_domain, bond_to_domains
 
     @classmethod
     def _resolve_event_domains(
@@ -867,7 +867,7 @@ class StarCoreService:
         entity_id: UUID,
         payload: Any,
         table_to_domain: dict[str, str],
-        asteroid_to_domain: dict[str, str],
+        civilization_to_domain: dict[str, str],
         bond_to_domains: dict[str, set[str]],
     ) -> set[str]:
         domains: set[str] = set()
@@ -877,9 +877,9 @@ class StarCoreService:
         if table_domain:
             domains.add(table_domain)
 
-        asteroid_domain = asteroid_to_domain.get(entity_key)
-        if asteroid_domain:
-            domains.add(asteroid_domain)
+        civilization_domain = civilization_to_domain.get(entity_key)
+        if civilization_domain:
+            domains.add(civilization_domain)
 
         bond_domains = bond_to_domains.get(entity_key)
         if bond_domains:
@@ -906,14 +906,12 @@ class StarCoreService:
             "civilization_id",
             "source_civilization_id",
             "target_civilization_id",
-            "source_civilization_id",
-            "target_civilization_id",
         ):
-            asteroid_uuid = cls._parse_uuid_like(payload_dict.get(key))
-            if asteroid_uuid is None:
+            civilization_uuid = cls._parse_uuid_like(payload_dict.get(key))
+            if civilization_uuid is None:
                 continue
-            asteroid_key = str(asteroid_uuid)
-            domain = asteroid_to_domain.get(asteroid_key)
+            civilization_key = str(civilization_uuid)
+            domain = civilization_to_domain.get(civilization_key)
             if domain:
                 domains.add(domain)
 
