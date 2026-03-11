@@ -29,6 +29,10 @@ from app.domains.planets.queries import (
     list_latest_planet_contracts,
     list_planet_tables,
 )
+from app.domains.shared.commands import (
+    SharedCommandError,
+    append_event as append_shared_event,
+)
 from app.models import Event, TableContract, User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -63,6 +67,10 @@ def _query_to_http_exception(
     if isinstance(exc, PlanetQueryForbiddenError):
         return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+
+def _shared_command_to_http_exception(exc: SharedCommandError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 def _coerce_archetype(raw: object) -> PlanetArchetype | None:
@@ -362,15 +370,19 @@ async def _append_planet_event(
     event_type: str,
     payload: dict,
 ) -> Event:
-    event = await services.event_store.append_event(
-        session=session,
-        user_id=current_user.id,
-        galaxy_id=galaxy_id,
-        branch_id=branch_id,
-        entity_id=table_id,
-        event_type=event_type,
-        payload=payload,
-    )
+    try:
+        event = await append_shared_event(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+            entity_id=table_id,
+            event_type=event_type,
+            payload=payload,
+        )
+    except SharedCommandError as exc:
+        raise _shared_command_to_http_exception(exc) from exc
     if branch_id is None:
         await services.cosmos_service.read_model_projector.apply_events(session=session, events=[event])
     return event

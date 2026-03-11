@@ -11,6 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.app_factory import ServiceContainer, get_or_create_services
 from app.core.task_executor.models import TaskExecutionResult
+from app.domains.shared.commands import (
+    SharedCommandError,
+    build_idempotency_request_hash,
+    check_idempotency_replay,
+    store_idempotency_response,
+)
 from app.models import User
 from app.services.parser_types import AtomicTask
 from app.services.trace_context import ensure_trace_context, extract_trace_id_from_traceparent
@@ -83,6 +89,10 @@ async def ensure_onboarding_progress_safe(
 def normalize_idempotency_key(raw: str | None) -> str | None:
     candidate = str(raw or "").strip()
     return candidate if candidate else None
+
+
+def _shared_command_to_http_exception(exc: SharedCommandError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 async def resolve_galaxy_id_for_user(
@@ -174,31 +184,42 @@ async def run_scoped_idempotent(
             target_galaxy_id, target_branch_id = resolved_scope
 
         if normalized_idempotency_key is not None:
-            request_hash = services.idempotency_service.request_hash(request_payload)
-            replay = await services.idempotency_service.check_replay(
-                session=session,
-                user_id=current_user.id,
-                galaxy_id=target_galaxy_id,
-                branch_id=target_branch_id,
-                endpoint=endpoint_key,
-                idempotency_key=normalized_idempotency_key,
-                request_hash=request_hash,
-            )
-            if replay is not None:
-                replayed_response = replay_loader(replay.response_payload)
-            else:
-                response_to_store = await execute(target_galaxy_id, target_branch_id)
-                await services.idempotency_service.store_response(
+            try:
+                request_hash = build_idempotency_request_hash(
+                    services=services,
+                    request_payload=request_payload,
+                )
+                replay = await check_idempotency_replay(
                     session=session,
+                    services=services,
                     user_id=current_user.id,
                     galaxy_id=target_galaxy_id,
                     branch_id=target_branch_id,
                     endpoint=endpoint_key,
                     idempotency_key=normalized_idempotency_key,
                     request_hash=request_hash,
-                    status_code=status.HTTP_200_OK,
-                    response_payload=response_dumper(response_to_store),
                 )
+            except SharedCommandError as exc:
+                raise _shared_command_to_http_exception(exc) from exc
+            if replay is not None:
+                replayed_response = replay_loader(replay.response_payload)
+            else:
+                response_to_store = await execute(target_galaxy_id, target_branch_id)
+                try:
+                    await store_idempotency_response(
+                        session=session,
+                        services=services,
+                        user_id=current_user.id,
+                        galaxy_id=target_galaxy_id,
+                        branch_id=target_branch_id,
+                        endpoint=endpoint_key,
+                        idempotency_key=normalized_idempotency_key,
+                        request_hash=request_hash,
+                        status_code=status.HTTP_200_OK,
+                        response_payload=response_dumper(response_to_store),
+                    )
+                except SharedCommandError as exc:
+                    raise _shared_command_to_http_exception(exc) from exc
         else:
             response_to_store = await execute(target_galaxy_id, target_branch_id)
 

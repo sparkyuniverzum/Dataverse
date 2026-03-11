@@ -52,7 +52,11 @@ from app.domains.planets import (
     queries as planet_queries,
     schemas as planet_schemas,
 )
-from app.domains.shared import models as shared_models
+from app.domains.shared import (
+    commands as shared_commands,
+    models as shared_models,
+    queries as shared_queries,
+)
 from app.domains.star_core import (
     commands as star_core_commands,
     models as star_core_models,
@@ -506,14 +510,36 @@ def test_shared_domain_is_infrastructure_only() -> None:
     assert not hasattr(shared_models, "ImportJob")
     assert not hasattr(shared_models, "ImportError")
 
+    assert hasattr(shared_commands, "SharedCommandPlan")
+    assert hasattr(shared_commands, "SharedCommandError")
+    assert hasattr(shared_commands, "build_idempotency_request_hash")
+    assert hasattr(shared_commands, "check_idempotency_replay")
+    assert hasattr(shared_commands, "store_idempotency_response")
+    assert hasattr(shared_commands, "append_event")
+    assert hasattr(shared_commands, "append_outbox_event")
+
+    assert hasattr(shared_queries, "SharedQueryError")
+    assert hasattr(shared_queries, "SharedQueryNotFoundError")
+    assert hasattr(shared_queries, "SharedQueryConflictError")
+    assert hasattr(shared_queries, "SharedQueryForbiddenError")
+    assert hasattr(shared_queries, "latest_event_seq")
+    assert hasattr(shared_queries, "list_events_after")
+    assert hasattr(shared_queries, "list_events")
+    assert hasattr(shared_queries, "list_outbox_events")
+
     auth_models_source = inspect.getsource(auth_models)
     branch_models_source = inspect.getsource(branch_models)
     import_models_source = inspect.getsource(import_models)
     shared_models_source = inspect.getsource(shared_models)
+    shared_commands_source = inspect.getsource(shared_commands)
+    shared_queries_source = inspect.getsource(shared_queries)
     _assert_domain_module_is_web_independent(auth_models_source, module_name="auth.models")
     _assert_domain_module_is_web_independent(branch_models_source, module_name="branches.models")
     _assert_domain_module_is_web_independent(import_models_source, module_name="imports.models")
     _assert_domain_module_is_web_independent(shared_models_source, module_name="shared.models")
+    _assert_domain_module_is_web_independent(shared_commands_source, module_name="shared.commands")
+    _assert_domain_module_is_web_independent(shared_queries_source, module_name="shared.queries")
+    _assert_query_module_is_read_only(shared_queries_source, module_name="shared.queries")
 
 
 def test_auth_domain_professional_setup() -> None:

@@ -11,6 +11,11 @@ from app.api.runtime import get_service_container
 from app.app_factory import ServiceContainer
 from app.db import AsyncSessionLocal
 from app.domains.galaxies.queries import GalaxyQueryError, resolve_galaxy_scope as resolve_galaxy_scope_query
+from app.domains.shared.queries import (
+    SharedQueryError,
+    latest_event_seq as latest_event_seq_query,
+    list_events_after as list_events_after_query,
+)
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 
@@ -25,6 +30,10 @@ def sse_frame(*, event: str, data: dict, event_id: int | None = None) -> str:
     payload = json.dumps(dict(data), ensure_ascii=False, separators=(",", ":"))
     lines.append(f"data: {payload}")
     return "\n".join(lines) + "\n\n"
+
+
+def _shared_query_to_http_exception(exc: SharedQueryError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @router.get("/galaxies/{galaxy_id}/events/stream", status_code=status.HTTP_200_OK)
@@ -50,16 +59,19 @@ async def galaxy_events_stream(
             )
         except GalaxyQueryError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
-        initial_cursor = (
-            int(last_event_seq)
-            if last_event_seq is not None
-            else await services.event_store.latest_event_seq(
-                session=bootstrap_session,
-                user_id=current_user.id,
-                galaxy_id=target_galaxy_id,
-                branch_id=target_branch_id,
-            )
-        )
+        if last_event_seq is not None:
+            initial_cursor = int(last_event_seq)
+        else:
+            try:
+                initial_cursor = await latest_event_seq_query(
+                    session=bootstrap_session,
+                    services=services,
+                    user_id=current_user.id,
+                    galaxy_id=target_galaxy_id,
+                    branch_id=target_branch_id,
+                )
+            except SharedQueryError as exc:
+                raise _shared_query_to_http_exception(exc) from exc
 
     poll_seconds = max(0.3, poll_ms / 1000.0)
     heartbeat_ticks = max(1, int(round(heartbeat_sec / poll_seconds)))
@@ -84,14 +96,18 @@ async def galaxy_events_stream(
                     break
 
                 async with AsyncSessionLocal() as stream_session:
-                    events = await services.event_store.list_events_after(
-                        session=stream_session,
-                        user_id=current_user.id,
-                        galaxy_id=target_galaxy_id,
-                        branch_id=target_branch_id,
-                        after_event_seq=cursor,
-                        limit=batch_size,
-                    )
+                    try:
+                        events = await list_events_after_query(
+                            session=stream_session,
+                            services=services,
+                            user_id=current_user.id,
+                            galaxy_id=target_galaxy_id,
+                            branch_id=target_branch_id,
+                            after_event_seq=cursor,
+                            limit=batch_size,
+                        )
+                    except SharedQueryError as exc:
+                        raise _shared_query_to_http_exception(exc) from exc
 
                 if events:
                     cursor = int(events[-1].event_seq)
