@@ -2815,6 +2815,55 @@ def test_table_contract_versioning_returns_latest(auth_client: tuple[httpx.Clien
     assert body["physics_rulebook"]["defaults"]["color"] == "#92ffd8"
 
 
+def test_table_contract_upsert_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    table_name = f"ContractReplay-{uuid.uuid4()}"
+    label = f"ContractReplayEntity-{uuid.uuid4()}"
+
+    created = client.post(
+        "/civilizations/ingest",
+        json={"value": label, "metadata": {"table": table_name, "cena": 110}, "galaxy_id": galaxy_id},
+    )
+    assert created.status_code == 200, created.text
+
+    snapshot = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot.status_code == 200, snapshot.text
+    civilization = next((item for item in snapshot.json()["civilizations"] if _stringify(item["value"]) == label), None)
+    assert civilization is not None
+    table_id = civilization["table_id"]
+
+    idempotency_key = f"contract-upsert-idempotency-{uuid.uuid4()}"
+    payload = {
+        "galaxy_id": galaxy_id,
+        "idempotency_key": idempotency_key,
+        "required_fields": ["cena"],
+        "field_types": {"cena": "number"},
+        "validators": [{"field": "cena", "operator": ">", "value": 0}],
+    }
+
+    first = client.post(f"/contracts/{table_id}", json=payload)
+    assert first.status_code == 201, first.text
+    first_body = first.json()
+    assert first_body["version"] == 1
+
+    second = client.post(f"/contracts/{table_id}", json=payload)
+    assert second.status_code == 201, second.text
+    second_body = second.json()
+    assert second_body["id"] == first_body["id"]
+    assert second_body["version"] == first_body["version"]
+
+    conflict = client.post(
+        f"/contracts/{table_id}",
+        json={
+            **payload,
+            "required_fields": ["cena", "mena"],
+            "field_types": {"cena": "number", "mena": "string"},
+        },
+    )
+    assert conflict.status_code == 409, conflict.text
+    assert "Idempotency key was already used with a different request payload" in conflict.text
+
+
 def test_table_contract_is_enforced_for_ingest_and_mutate(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     table_name = f"ContractGuard-{uuid.uuid4()}"

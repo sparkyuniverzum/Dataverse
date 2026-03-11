@@ -111,7 +111,8 @@ Evidence (doplnit po implementaci):
 ## 5.1 P0-2 Idempotency hardening
 
 - [x] 2026-03-11 `P0-2.1` Branch command surface (`create/promote/close`) sjednocen na `run_scoped_idempotent`.
-- [ ] `P0-2.2` Dovést zbývající write command endpointy mimo `run_scoped_*` wrapper (zejména `contracts`, `io`, vybrané `galaxies/*` write cesty).
+- [x] 2026-03-11 `P0-2.2a` `POST /contracts/{table_id}` převeden na `run_scoped_idempotent`.
+- [ ] `P0-2.2b` Dovést zbývající write command endpointy mimo `run_scoped_*` wrapper (zejména `io`, vybrané `galaxies/*` write cesty).
 - [ ] Sjednotit mutační endpointy na konzistentní scoped idempotency policy napříč celým BE API.
 
 Evidence (P0-2.1):
@@ -123,6 +124,14 @@ Evidence (P0-2.1):
   - `test_branch_close_is_idempotent_and_hides_branch_scope` (s `idempotency_key`)
 - [x] 2026-03-11 `ruff check app/api/routers/branches.py app/schema_models/branch_contracts.py tests/test_api_integration.py` -> `All checks passed!`
 - [x] 2026-03-11 `python -m py_compile app/api/routers/branches.py app/schema_models/branch_contracts.py tests/test_api_integration.py` -> `OK`
+
+Evidence (P0-2.2a):
+
+- [x] 2026-03-11 `TableContractUpsertRequest` rozšířen o `idempotency_key`.
+- [x] 2026-03-11 `POST /contracts/{table_id}` používá `run_scoped_idempotent` (`endpoint_key=POST:/contracts/{table_id}`).
+- [x] 2026-03-11 Přidána API regrese `test_table_contract_upsert_replays_with_idempotency_key` (replay + payload mismatch guard).
+- [x] 2026-03-11 `ruff check app/api/routers/contracts.py app/schema_models/branch_contracts.py tests/test_api_integration.py` -> `All checks passed!`
+- [x] 2026-03-11 `python -m py_compile app/api/routers/contracts.py app/schema_models/branch_contracts.py tests/test_api_integration.py` -> `OK`
 
 ## 5.2 P1-1 Parser fallback policy
 

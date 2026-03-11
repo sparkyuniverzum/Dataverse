@@ -7,10 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import table_contract_to_public
 from app.api.runtime import (
-    commit_if_active,
     get_service_container,
     resolve_galaxy_id_for_user,
-    transactional_context,
+    run_scoped_idempotent,
 )
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
@@ -52,11 +51,11 @@ async def upsert_table_contract(
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
 ) -> TableContractPublic:
-    async with transactional_context(session):
+    async def execute_scoped(target_galaxy_id: UUID, _: UUID | None) -> TableContractPublic:
         await services.cosmos_service.upsert_table_contract(
             session=session,
             user_id=current_user.id,
-            galaxy_id=payload.galaxy_id,
+            galaxy_id=target_galaxy_id,
             table_id=table_id,
             schema_registry=payload.schema_registry,
             required_fields=payload.required_fields,
@@ -70,8 +69,33 @@ async def upsert_table_contract(
         contract = await services.cosmos_service.get_effective_table_contract(
             session=session,
             user_id=current_user.id,
-            galaxy_id=payload.galaxy_id,
+            galaxy_id=target_galaxy_id,
             table_id=table_id,
         )
-    await commit_if_active(session)
-    return table_contract_to_public(contract)
+        return table_contract_to_public(contract)
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=payload.galaxy_id,
+        branch_id=None,
+        endpoint_key="POST:/contracts/{table_id}",
+        idempotency_key=payload.idempotency_key,
+        request_payload={
+            "table_id": str(table_id),
+            "galaxy_id": str(payload.galaxy_id),
+            "required_fields": payload.required_fields,
+            "field_types": payload.field_types,
+            "unique_rules": payload.unique_rules,
+            "validators": payload.validators,
+            "auto_semantics": payload.auto_semantics,
+            "schema_registry": payload.schema_registry,
+            "formula_registry": payload.formula_registry,
+            "physics_rulebook": payload.physics_rulebook,
+        },
+        execute=execute_scoped,
+        replay_loader=TableContractPublic.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="Contract upsert failed",
+    )

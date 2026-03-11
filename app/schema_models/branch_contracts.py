@@ -51,6 +51,7 @@ def _normalize_contract_dict_list(values: list[Any]) -> list[dict[str, Any]]:
 
 class TableContractUpsertRequest(BaseModel):
     galaxy_id: uuid.UUID
+    idempotency_key: str | None = None
     schema_registry: dict[str, Any] = Field(default_factory=dict)
     required_fields: list[str] = Field(default_factory=list)
     field_types: dict[str, str] = Field(default_factory=dict)
