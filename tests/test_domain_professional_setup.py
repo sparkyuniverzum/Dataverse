@@ -3,12 +3,14 @@ from __future__ import annotations
 import inspect
 from uuid import uuid4
 
+from app.domains.auth import models as auth_models
 from app.domains.bonds import (
     commands as bond_commands,
     models as bond_models,
     queries as bond_queries,
     schemas as bond_schemas,
 )
+from app.domains.branches import models as branch_models
 from app.domains.civilizations import (
     commands as civilization_commands,
     models as civilization_models,
@@ -21,6 +23,7 @@ from app.domains.galaxies import (
     queries as galaxy_queries,
     schemas as galaxy_schemas,
 )
+from app.domains.imports import models as import_models
 from app.domains.moons import (
     commands as moon_commands,
     models as moon_models,
@@ -33,6 +36,7 @@ from app.domains.planets import (
     queries as planet_queries,
     schemas as planet_schemas,
 )
+from app.domains.shared import models as shared_models
 from app.domains.star_core import (
     commands as star_core_commands,
     models as star_core_models,
@@ -363,6 +367,31 @@ def test_galaxies_domain_professional_setup() -> None:
     _assert_domain_module_is_web_independent(commands_source, module_name="galaxies.commands")
     _assert_domain_module_is_web_independent(queries_source, module_name="galaxies.queries")
     _assert_query_module_is_read_only(queries_source, module_name="galaxies.queries")
+
+
+def test_shared_domain_is_infrastructure_only() -> None:
+    assert auth_models.AuthSession.__tablename__ == "auth_sessions"
+    assert branch_models.Branch.__tablename__ == "branches"
+    assert import_models.ImportJob.__tablename__ == "import_jobs"
+    assert import_models.ImportError.__tablename__ == "import_errors"
+
+    assert shared_models.Event.__tablename__ == "events"
+    assert shared_models.OutboxEvent.__tablename__ == "event_outbox"
+    assert shared_models.IdempotencyRecord.__tablename__ == "idempotency_records"
+
+    assert not hasattr(shared_models, "AuthSession")
+    assert not hasattr(shared_models, "Branch")
+    assert not hasattr(shared_models, "ImportJob")
+    assert not hasattr(shared_models, "ImportError")
+
+    auth_models_source = inspect.getsource(auth_models)
+    branch_models_source = inspect.getsource(branch_models)
+    import_models_source = inspect.getsource(import_models)
+    shared_models_source = inspect.getsource(shared_models)
+    _assert_domain_module_is_web_independent(auth_models_source, module_name="auth.models")
+    _assert_domain_module_is_web_independent(branch_models_source, module_name="branches.models")
+    _assert_domain_module_is_web_independent(import_models_source, module_name="imports.models")
+    _assert_domain_module_is_web_independent(shared_models_source, module_name="shared.models")
 
 
 def test_star_core_domain_professional_setup() -> None:

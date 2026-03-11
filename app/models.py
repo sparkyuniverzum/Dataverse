@@ -2,7 +2,9 @@ from __future__ import annotations
 
 # Backward-compatible facade: keep `app.models` import path stable while
 # SQLAlchemy models are organized by canonical ontology domains.
+from app.domains.auth.models import AuthSession
 from app.domains.bonds.models import Bond
+from app.domains.branches.models import Branch
 from app.domains.civilizations.models import CivilizationRM
 from app.domains.galaxies.models import (
     Galaxy,
@@ -11,18 +13,10 @@ from app.domains.galaxies.models import (
     GalaxySummaryRM,
     OnboardingProgress,
 )
+from app.domains.imports.models import ImportError, ImportJob
 from app.domains.moons import MoonCapability
 from app.domains.planets import TableContract
-from app.domains.shared import (
-    AuthSession,
-    Base,
-    Branch,
-    Event,
-    IdempotencyRecord,
-    ImportError,
-    ImportJob,
-    OutboxEvent,
-)
+from app.domains.shared import Base, Event, IdempotencyRecord, OutboxEvent
 from app.domains.star_core import CalcStateRM, PhysicsStateRM, StarCorePolicyRM, User
 
 __all__ = [
