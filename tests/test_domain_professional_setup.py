@@ -1,16 +1,27 @@
 from __future__ import annotations
 
 import inspect
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.domains.auth import models as auth_models
+from app.domains.auth import (
+    commands as auth_commands,
+    models as auth_models,
+    queries as auth_queries,
+    schemas as auth_schemas,
+)
 from app.domains.bonds import (
     commands as bond_commands,
     models as bond_models,
     queries as bond_queries,
     schemas as bond_schemas,
 )
-from app.domains.branches import models as branch_models
+from app.domains.branches import (
+    commands as branch_commands,
+    models as branch_models,
+    queries as branch_queries,
+    schemas as branch_schemas,
+)
 from app.domains.civilizations import (
     commands as civilization_commands,
     models as civilization_models,
@@ -308,6 +319,52 @@ def test_planets_domain_professional_setup() -> None:
     _assert_query_module_is_read_only(queries_source, module_name="planets.queries")
 
 
+def test_branches_domain_professional_setup() -> None:
+    assert branch_models.Branch.__tablename__ == "branches"
+
+    required_schema_names = (
+        "BranchCreateRequest",
+        "BranchPublic",
+        "BranchPromoteResponse",
+    )
+    for schema_name in required_schema_names:
+        assert hasattr(branch_schemas, schema_name), f"Missing branches schema `{schema_name}`"
+
+    assert hasattr(branch_commands, "BranchCommandPlan")
+    assert hasattr(branch_commands, "BranchCommandError")
+    assert hasattr(branch_commands, "plan_create_branch")
+    assert hasattr(branch_commands, "plan_promote_branch")
+    assert hasattr(branch_queries, "BranchQueryError")
+    assert hasattr(branch_queries, "BranchQueryNotFoundError")
+    assert hasattr(branch_queries, "BranchQueryConflictError")
+    assert hasattr(branch_queries, "BranchQueryForbiddenError")
+    assert hasattr(branch_queries, "list_branches")
+
+    create_plan = branch_commands.plan_create_branch(
+        galaxy_id=uuid4(),
+        name="  timeline-main  ",
+        as_of=None,
+    )
+    assert create_plan.request_payload["name"] == "  timeline-main  "
+
+    promote_plan = branch_commands.plan_promote_branch(
+        branch_id=uuid4(),
+        galaxy_id=uuid4(),
+    )
+    assert "branch_id" in promote_plan.request_payload
+    assert "galaxy_id" in promote_plan.request_payload
+
+    models_source = inspect.getsource(branch_models)
+    schemas_source = inspect.getsource(branch_schemas)
+    commands_source = inspect.getsource(branch_commands)
+    queries_source = inspect.getsource(branch_queries)
+    _assert_domain_module_is_web_independent(models_source, module_name="branches.models")
+    _assert_domain_module_is_web_independent(schemas_source, module_name="branches.schemas")
+    _assert_domain_module_is_web_independent(commands_source, module_name="branches.commands")
+    _assert_domain_module_is_web_independent(queries_source, module_name="branches.queries")
+    _assert_query_module_is_read_only(queries_source, module_name="branches.queries")
+
+
 def test_galaxies_domain_professional_setup() -> None:
     assert galaxy_models.Galaxy.__tablename__ == "galaxies"
     assert galaxy_models.OnboardingProgress.__tablename__ == "onboarding_progress"
@@ -392,6 +449,70 @@ def test_shared_domain_is_infrastructure_only() -> None:
     _assert_domain_module_is_web_independent(branch_models_source, module_name="branches.models")
     _assert_domain_module_is_web_independent(import_models_source, module_name="imports.models")
     _assert_domain_module_is_web_independent(shared_models_source, module_name="shared.models")
+
+
+def test_auth_domain_professional_setup() -> None:
+    assert auth_models.AuthSession.__tablename__ == "auth_sessions"
+
+    required_schema_names = (
+        "RegisterRequest",
+        "LoginRequest",
+        "RefreshRequest",
+        "AuthResponse",
+        "RefreshResponse",
+        "LogoutResponse",
+    )
+    for schema_name in required_schema_names:
+        assert hasattr(auth_schemas, schema_name), f"Missing auth schema `{schema_name}`"
+
+    assert hasattr(auth_commands, "AuthCommandPlan")
+    assert hasattr(auth_commands, "AuthCommandError")
+    assert hasattr(auth_commands, "plan_register")
+    assert hasattr(auth_commands, "plan_login")
+    assert hasattr(auth_commands, "plan_refresh")
+    assert hasattr(auth_commands, "plan_logout")
+    assert hasattr(auth_queries, "AuthContextResult")
+    assert hasattr(auth_queries, "AuthQueryError")
+    assert hasattr(auth_queries, "decode_access_token")
+    assert hasattr(auth_queries, "resolve_auth_context")
+    assert hasattr(auth_queries, "get_user_from_context")
+
+    register_plan = auth_commands.plan_register(
+        email="operator@dataverse.local",
+        password="safe-password",
+        galaxy_name="Main Galaxy",
+    )
+    assert register_plan.request_payload["email"] == "operator@dataverse.local"
+    assert register_plan.request_payload["galaxy_name"] == "Main Galaxy"
+
+    login_plan = auth_commands.plan_login(
+        email="operator@dataverse.local",
+        password="safe-password",
+    )
+    assert login_plan.request_payload["email"] == "operator@dataverse.local"
+
+    refresh_plan = auth_commands.plan_refresh(refresh_token="refresh-token")
+    assert refresh_plan.request_payload["refresh_token"] == "refresh-token"
+
+    logout_plan = auth_commands.plan_logout(session_id=uuid4(), reason="logout")
+    assert logout_plan.request_payload["reason"] == "logout"
+
+    refresh_response = auth_schemas.RefreshResponse(
+        access_token="access",
+        refresh_token="refresh",
+        expires_at=datetime.now(UTC),
+    )
+    assert refresh_response.token_type == "bearer"
+
+    models_source = inspect.getsource(auth_models)
+    schemas_source = inspect.getsource(auth_schemas)
+    commands_source = inspect.getsource(auth_commands)
+    queries_source = inspect.getsource(auth_queries)
+    _assert_domain_module_is_web_independent(models_source, module_name="auth.models")
+    _assert_domain_module_is_web_independent(schemas_source, module_name="auth.schemas")
+    _assert_domain_module_is_web_independent(commands_source, module_name="auth.commands")
+    _assert_domain_module_is_web_independent(queries_source, module_name="auth.queries")
+    _assert_query_module_is_read_only(queries_source, module_name="auth.queries")
 
 
 def test_star_core_domain_professional_setup() -> None:

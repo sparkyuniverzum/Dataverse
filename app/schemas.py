@@ -2,7 +2,9 @@ from __future__ import annotations
 
 # Backward-compatible facade: keep `app.schemas` import path stable while
 # schema families are grouped by canonical ontology domains.
+from app.domains.auth.schemas import *  # noqa: F401,F403
 from app.domains.bonds.schemas import *  # noqa: F401,F403
+from app.domains.branches.schemas import *  # noqa: F401,F403
 from app.domains.civilizations.schemas import *  # noqa: F401,F403
 from app.domains.galaxies.schemas import *  # noqa: F401,F403
 from app.domains.imports.schemas import *  # noqa: F401,F403
