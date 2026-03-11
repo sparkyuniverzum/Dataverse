@@ -646,6 +646,53 @@ def test_task_executor_rolls_back_on_failed_link(auth_client: tuple[httpx.Client
     assert not any(token in value for value in atom_values)
 
 
+def test_galaxy_extinguish_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    idempotency_key = f"galaxy-extinguish-idempotency-{uuid.uuid4()}"
+
+    first = client.patch(
+        f"/galaxies/{galaxy_id}/extinguish",
+        params={"idempotency_key": idempotency_key},
+    )
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+    assert first_body["id"] == galaxy_id
+    assert first_body["deleted_at"] is not None
+
+    second = client.patch(
+        f"/galaxies/{galaxy_id}/extinguish",
+        params={"idempotency_key": idempotency_key},
+    )
+    assert second.status_code == 200, second.text
+    second_body = second.json()
+    assert second_body["id"] == first_body["id"]
+    assert second_body["deleted_at"] == first_body["deleted_at"]
+
+
+def test_onboarding_update_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    idempotency_key = f"onboarding-update-idempotency-{uuid.uuid4()}"
+    payload = {
+        "action": "sync_machine",
+        "machine": {"step": "schema", "planet_dropped": True},
+        "idempotency_key": idempotency_key,
+    }
+
+    first = client.patch(f"/galaxies/{galaxy_id}/onboarding", json=payload)
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+    assert first_body["machine"]["planet_dropped"] is True
+    assert isinstance(first_body["machine"]["step"], str)
+    assert first_body["machine"]["step"]
+
+    second = client.patch(f"/galaxies/{galaxy_id}/onboarding", json=payload)
+    assert second.status_code == 200, second.text
+    second_body = second.json()
+    assert second_body["machine"]["step"] == first_body["machine"]["step"]
+    assert second_body["machine"]["planet_dropped"] == first_body["machine"]["planet_dropped"]
+    assert second_body["updated_at"] == first_body["updated_at"]
+
+
 def test_snapshot_excludes_soft_deleted_atoms_and_orphaned_bonds(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     a_label = f"snapshot-a-{uuid.uuid4()}"
@@ -1464,6 +1511,30 @@ def test_star_core_mvp_endpoints_return_policy_runtime_and_pulse(auth_client: tu
         assert "quality_score" not in domain
         assert "writes_per_minute" not in domain
         assert "hot_event_types" not in domain
+
+
+def test_star_core_policy_lock_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    idempotency_key = f"star-core-lock-idempotency-{uuid.uuid4()}"
+    payload = {
+        "profile_key": "SENTINEL",
+        "lock_after_apply": True,
+        "physical_profile_key": "FORGE",
+        "physical_profile_version": 2,
+        "idempotency_key": idempotency_key,
+    }
+
+    first = client.post(f"/galaxies/{galaxy_id}/star-core/policy/lock", json=payload)
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+    assert first_body["lock_status"] == "locked"
+    assert first_body["locked_at"] is not None
+
+    second = client.post(f"/galaxies/{galaxy_id}/star-core/policy/lock", json=payload)
+    assert second.status_code == 200, second.text
+    second_body = second.json()
+    assert second_body["profile_key"] == first_body["profile_key"]
+    assert second_body["locked_at"] == first_body["locked_at"]
 
 
 def test_star_core_planet_physics_endpoint_returns_runtime_shape(auth_client: tuple[httpx.Client, str]) -> None:

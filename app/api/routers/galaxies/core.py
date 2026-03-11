@@ -10,6 +10,7 @@ from app.api.runtime import (
     commit_if_active,
     ensure_onboarding_progress_safe,
     get_service_container,
+    run_scoped_idempotent,
     transactional_context,
 )
 from app.app_factory import ServiceContainer
@@ -90,6 +91,7 @@ async def create_galaxy(
 async def extinguish_galaxy(
     galaxy_id: UUID,
     expected_event_seq: int | None = Query(default=None, ge=0),
+    idempotency_key: str | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
@@ -98,13 +100,14 @@ async def extinguish_galaxy(
         galaxy_id=galaxy_id,
         expected_event_seq=expected_event_seq,
     )
-    async with transactional_context(session):
+
+    async def execute_scoped(target_galaxy_id: UUID, _: UUID | None) -> GalaxyPublic:
         try:
             galaxy = await extinguish_galaxy_command(
                 session=session,
                 services=services,
                 user_id=current_user.id,
-                galaxy_id=galaxy_id,
+                galaxy_id=target_galaxy_id,
                 expected_event_seq=(
                     int(plan.request_payload["expected_event_seq"])
                     if plan.request_payload["expected_event_seq"] is not None
@@ -113,5 +116,20 @@ async def extinguish_galaxy(
             )
         except GalaxyCommandError as exc:
             raise _command_to_http_exception(exc) from exc
-    await commit_if_active(session)
-    return galaxy_to_public(galaxy)
+        return galaxy_to_public(galaxy)
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=galaxy_id,
+        branch_id=None,
+        endpoint_key="PATCH:/galaxies/{galaxy_id}/extinguish",
+        idempotency_key=idempotency_key,
+        request_payload=plan.request_payload,
+        execute=execute_scoped,
+        replay_loader=GalaxyPublic.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="Galaxy extinguish failed",
+        resolved_scope=(galaxy_id, None),
+    )

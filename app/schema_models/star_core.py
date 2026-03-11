@@ -26,6 +26,7 @@ class StarCoreProfileApplyRequest(BaseModel):
     lock_after_apply: bool = True
     physical_profile_key: str = Field(default="BALANCE", min_length=3, max_length=32)
     physical_profile_version: int = Field(default=1, ge=1)
+    idempotency_key: str | None = None
 
 
 class StarCorePhysicsProfileMigrateRequest(BaseModel):
@@ -33,6 +34,7 @@ class StarCorePhysicsProfileMigrateRequest(BaseModel):
     to_version: int = Field(ge=1)
     reason: str = Field(min_length=1, max_length=240)
     dry_run: bool = True
+    idempotency_key: str | None = None
 
 
 class StarCorePhysicsProfileMigrateResponse(BaseModel):
@@ -134,6 +136,7 @@ class StarCorePlanetPhysicsResponse(BaseModel):
 class StarCoreOutboxRunOnceRequest(BaseModel):
     requeue_limit: int = Field(default=128, ge=1, le=4096)
     relay_batch_size: int = Field(default=64, ge=1, le=2048)
+    idempotency_key: str | None = None
 
 
 class StarCoreOutboxRunOnceResponse(BaseModel):

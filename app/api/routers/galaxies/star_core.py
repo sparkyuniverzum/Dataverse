@@ -16,7 +16,13 @@ from app.api.mappers.public import (
     star_core_runtime_to_public,
 )
 from app.api.routers.galaxies.deps import resolve_galaxy_scope
-from app.api.runtime import commit_if_active, get_service_container, resolve_trace_context, transactional_context
+from app.api.runtime import (
+    commit_if_active,
+    get_service_container,
+    resolve_trace_context,
+    run_scoped_idempotent,
+    transactional_context,
+)
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
 from app.domains.star_core.commands import (
@@ -117,13 +123,14 @@ async def star_core_policy_lock(
         services=services,
         galaxy_id=galaxy_id,
     )
-    async with transactional_context(session):
+
+    async def execute_scoped(target_scope_galaxy_id: UUID, _: UUID | None) -> StarCorePolicyPublic:
         try:
             policy = await apply_profile_and_lock_command(
                 session=session,
                 services=services,
                 user_id=current_user.id,
-                galaxy_id=target_galaxy_id,
+                galaxy_id=target_scope_galaxy_id,
                 profile_key=str(plan.request_payload["profile_key"]),
                 physical_profile_key=str(plan.request_payload["physical_profile_key"]),
                 physical_profile_version=int(plan.request_payload["physical_profile_version"]),
@@ -131,8 +138,23 @@ async def star_core_policy_lock(
             )
         except StarCoreCommandError as exc:
             raise _command_to_http_exception(exc) from exc
-    await commit_if_active(session)
-    return star_core_policy_to_public(policy)
+        return star_core_policy_to_public(policy)
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=target_galaxy_id,
+        branch_id=None,
+        endpoint_key="POST:/galaxies/{galaxy_id}/star-core/policy/lock",
+        idempotency_key=payload.idempotency_key,
+        request_payload=plan.request_payload,
+        execute=execute_scoped,
+        replay_loader=StarCorePolicyPublic.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="Star-core policy lock failed",
+        resolved_scope=(target_galaxy_id, None),
+    )
 
 
 @router.get(
@@ -188,13 +210,14 @@ async def star_core_physics_profile_migrate(
         services=services,
         galaxy_id=galaxy_id,
     )
-    async with transactional_context(session):
+
+    async def execute_scoped(target_scope_galaxy_id: UUID, _: UUID | None) -> StarCorePhysicsProfileMigrateResponse:
         try:
             migration = await migrate_physics_profile_command(
                 session=session,
                 services=services,
                 user_id=current_user.id,
-                galaxy_id=target_galaxy_id,
+                galaxy_id=target_scope_galaxy_id,
                 from_version=int(plan.request_payload["from_version"]),
                 to_version=int(plan.request_payload["to_version"]),
                 reason=str(plan.request_payload["reason"]),
@@ -202,8 +225,23 @@ async def star_core_physics_profile_migrate(
             )
         except StarCoreCommandError as exc:
             raise _command_to_http_exception(exc) from exc
-    await commit_if_active(session)
-    return star_core_physics_migration_to_public(migration)
+        return star_core_physics_migration_to_public(migration)
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=target_galaxy_id,
+        branch_id=None,
+        endpoint_key="POST:/galaxies/{galaxy_id}/star-core/physics/profile/migrate",
+        idempotency_key=payload.idempotency_key,
+        request_payload=plan.request_payload,
+        execute=execute_scoped,
+        replay_loader=StarCorePhysicsProfileMigrateResponse.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="Star-core physics profile migrate failed",
+        resolved_scope=(target_galaxy_id, None),
+    )
 
 
 @router.get(

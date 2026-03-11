@@ -100,6 +100,7 @@ class OnboardingUpdateRequest(BaseModel):
     action: OnboardingAction = OnboardingAction.advance
     mode: OnboardingMode | None = None
     machine: OnboardingMachineUpdate | None = None
+    idempotency_key: str | None = None
 
     @model_validator(mode="after")
     def validate_action(self) -> OnboardingUpdateRequest:
@@ -112,3 +113,4 @@ class OnboardingUpdateRequest(BaseModel):
 
 class GalaxyCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
+    idempotency_key: str | None = None

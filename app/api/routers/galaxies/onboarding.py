@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.runtime import commit_if_active, get_service_container, transactional_context
+from app.api.runtime import get_service_container, run_scoped_idempotent
 from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
 from app.domains.galaxies.commands import (
@@ -78,7 +78,8 @@ async def update_galaxy_onboarding(
         machine=payload.machine.model_dump(exclude_none=True) if payload.machine is not None else None,
     )
     normalized_payload = OnboardingUpdateRequest.model_validate(plan.request_payload)
-    async with transactional_context(session):
+
+    async def execute_scoped(_: UUID, __: UUID | None) -> OnboardingPublic:
         try:
             response = await update_onboarding_command(
                 session=session,
@@ -89,5 +90,20 @@ async def update_galaxy_onboarding(
             )
         except GalaxyCommandError as exc:
             raise _command_to_http_exception(exc) from exc
-    await commit_if_active(session)
-    return response
+        return response
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=target_galaxy.id,
+        branch_id=None,
+        endpoint_key="PATCH:/galaxies/{galaxy_id}/onboarding",
+        idempotency_key=payload.idempotency_key,
+        request_payload=plan.request_payload,
+        execute=execute_scoped,
+        replay_loader=OnboardingPublic.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="Onboarding update failed",
+        resolved_scope=(target_galaxy.id, None),
+    )
