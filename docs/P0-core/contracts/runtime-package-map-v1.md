@@ -75,4 +75,4 @@ Scope: backend runtime package ownership after infrastructure cleanup
 
 ## 6. Remaining open items
 
-- [ ] Run full hardening gate: `pytest -q tests/test_api_integration.py`
+- [x] 2026-03-11 Full hardening gate passed: `pytest -q tests/test_api_integration.py` -> `100 passed, 1 skipped`

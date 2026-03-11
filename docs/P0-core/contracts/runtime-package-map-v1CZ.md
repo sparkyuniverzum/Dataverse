@@ -75,4 +75,4 @@ Scope: vlastnictví backend runtime balíčků po infrastructure cleanupu
 
 ## 6. Otevřené položky
 
-- [ ] Spustit plný hardening gate: `pytest -q tests/test_api_integration.py`
+- [x] 2026-03-11 Plný hardening gate prošel: `pytest -q tests/test_api_integration.py` -> `100 passed, 1 skipped`
