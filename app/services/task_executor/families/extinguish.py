@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 
 from app.services.parser_types import AtomicTask
-from app.services.universe_service import ProjectedAsteroid
+from app.services.universe_service import ProjectedCivilization
 
 if TYPE_CHECKING:
     from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
@@ -72,7 +72,7 @@ async def handle_extinguish_family(
         delete_target = task.params.get("target")
         condition = task.params.get("condition")
 
-        targets: list[ProjectedAsteroid] = []
+        targets: list[ProjectedCivilization] = []
         if civilization_id:
             asteroid_uuid = self._parse_uuid(civilization_id)
             if asteroid_uuid is None:
@@ -80,17 +80,17 @@ async def handle_extinguish_family(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Invalid civilization_id format",
                 )
-            civilization = ctx.asteroids_by_id.get(asteroid_uuid)
+            civilization = ctx.civilizations_by_id.get(asteroid_uuid)
             if civilization:
                 targets = [civilization]
         elif target:
-            targets = self._find_asteroids_by_target(
-                civilizations=list(ctx.asteroids_by_id.values()),
+            targets = self._find_civilizations_by_target(
+                civilizations=list(ctx.civilizations_by_id.values()),
                 target=str(target),
                 condition=(str(condition) if condition else None),
             )
         elif delete_target:
-            civilization = self._find_asteroid_by_target(list(ctx.asteroids_by_id.values()), str(delete_target))
+            civilization = self._find_civilization_by_target(list(ctx.civilizations_by_id.values()), str(delete_target))
             if civilization:
                 targets = [civilization]
         else:
@@ -127,7 +127,7 @@ async def handle_extinguish_family(
             )
             deleted_event = await ctx.append_and_project_event(
                 entity_id=civilization.id,
-                event_type="ASTEROID_SOFT_DELETED",
+                event_type="CIVILIZATION_SOFT_DELETED",
                 payload={},
             )
             civilization.is_deleted = True
@@ -175,7 +175,7 @@ async def handle_extinguish_family(
                     outputs={"bond_id": bond.id, "is_deleted": True},
                 )
 
-            ctx.asteroids_by_id.pop(civilization.id, None)
+            ctx.civilizations_by_id.pop(civilization.id, None)
 
         return True
 

@@ -13,7 +13,7 @@ from app.models import TableContract
 from app.presets.bundle_presets import BundleDefinition, get_preset_bundle, list_preset_bundles
 from app.services.parser_types import AtomicTask
 from app.services.schema_preset_service import PresetApplyPlan, SchemaPresetService
-from app.services.universe_service import ProjectedAsteroid, UniverseService, derive_table_id, derive_table_name
+from app.services.universe_service import ProjectedCivilization, UniverseService, derive_table_id, derive_table_name
 
 
 @dataclass(frozen=True)
@@ -475,7 +475,7 @@ class PresetBundleService:
                 civilization_id = civilization.get("id")
                 value = civilization.get("value")
                 metadata = civilization.get("metadata") if isinstance(civilization.get("metadata"), dict) else {}
-            elif isinstance(civilization, ProjectedAsteroid):
+            elif isinstance(civilization, ProjectedCivilization):
                 civilization_id = civilization.id
                 value = civilization.value
                 metadata = civilization.metadata if isinstance(civilization.metadata, dict) else {}

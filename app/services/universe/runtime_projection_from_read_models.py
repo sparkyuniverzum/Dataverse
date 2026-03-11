@@ -10,8 +10,8 @@ from app.models import Bond, CalcStateRM, CivilizationRM, PhysicsStateRM
 from app.services.bond_semantics import normalize_bond_type
 from app.services.guardian_service import evaluate_guardians
 from app.services.universe.types import (
-    ProjectedAsteroid,
     ProjectedBond,
+    ProjectedCivilization,
     derive_table_id,
     derive_table_name,
     split_constellation_and_planet_name,
@@ -27,7 +27,7 @@ async def project_state_from_read_model(
     *,
     user_id: UUID,
     galaxy_id: UUID,
-) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+) -> tuple[list[ProjectedCivilization], list[ProjectedBond]]:
     asteroid_rows = list(
         (
             await session.execute(
@@ -46,7 +46,7 @@ async def project_state_from_read_model(
         .all()
     )
     active_asteroids = [
-        ProjectedAsteroid(
+        ProjectedCivilization(
             id=civilization.id,
             value=civilization.value,
             metadata=civilization.metadata_ if isinstance(civilization.metadata_, dict) else {},
@@ -278,7 +278,7 @@ async def enrich_main_timeline_from_read_models(
     *,
     user_id: UUID,
     galaxy_id: UUID,
-    active_asteroids: list[ProjectedAsteroid],
+    active_asteroids: list[ProjectedCivilization],
     active_bonds: list[ProjectedBond],
 ) -> list[dict[str, Any]]:
     if not active_asteroids:

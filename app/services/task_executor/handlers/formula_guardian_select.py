@@ -16,8 +16,8 @@ class FormulaGuardianSelectHandler:
 
     async def handle(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
         if isinstance(task, SelectNodesIntent):
-            selected = self.service._find_asteroids_by_target(
-                civilizations=list(ctx.asteroids_by_id.values()),
+            selected = self.service._find_civilizations_by_target(
+                civilizations=list(ctx.civilizations_by_id.values()),
                 target=str(task.target.value),
                 condition=task.condition,
             )
@@ -25,8 +25,8 @@ class FormulaGuardianSelectHandler:
             return True
 
         if isinstance(task, SetFormulaIntent):
-            target_asteroid = self.service._resolve_single_asteroid_by_target(
-                list(ctx.asteroids_by_id.values()), str(task.target.value)
+            target_asteroid = self.service._resolve_single_civilization_by_target(
+                list(ctx.civilizations_by_id.values()), str(task.target.value)
             )
             if target_asteroid is None:
                 raise HTTPException(
@@ -54,7 +54,7 @@ class FormulaGuardianSelectHandler:
                     civilization_id=target_asteroid.id,
                     value=target_asteroid.value,
                     metadata=next_metadata,
-                    asteroids_by_id=ctx.asteroids_by_id,
+                    civilizations_by_id=ctx.civilizations_by_id,
                     contract_cache=ctx.contract_cache,
                     execution_context=ctx,
                 )
@@ -85,8 +85,8 @@ class FormulaGuardianSelectHandler:
                     detail="ADD_GUARDIAN uses unsupported operator",
                 )
 
-            target_asteroid = self.service._resolve_single_asteroid_by_target(
-                list(ctx.asteroids_by_id.values()), str(task.target.value)
+            target_asteroid = self.service._resolve_single_civilization_by_target(
+                list(ctx.civilizations_by_id.values()), str(task.target.value)
             )
             if target_asteroid is None:
                 raise HTTPException(
@@ -140,7 +140,7 @@ class FormulaGuardianSelectHandler:
                     civilization_id=target_asteroid.id,
                     value=target_asteroid.value,
                     metadata=next_metadata,
-                    asteroids_by_id=ctx.asteroids_by_id,
+                    civilizations_by_id=ctx.civilizations_by_id,
                     contract_cache=ctx.contract_cache,
                     execution_context=ctx,
                 )

@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 
 from app.core.parser2.intents import ExtinguishNodeIntent, Intent
-from app.services.universe_service import ProjectedAsteroid
+from app.services.universe_service import ProjectedCivilization
 
 if TYPE_CHECKING:
     from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
@@ -20,8 +20,11 @@ class ExtinguishHandler:
         if not isinstance(task, ExtinguishNodeIntent):
             return False
 
-        targets: list[ProjectedAsteroid] = []
-        civilization = self.service._find_asteroid_by_target(list(ctx.asteroids_by_id.values()), str(task.target.value))
+        targets: list[ProjectedCivilization] = []
+        civilization = self.service._find_civilization_by_target(
+            list(ctx.civilizations_by_id.values()),
+            str(task.target.value),
+        )
         if civilization:
             targets = [civilization]
 
@@ -51,7 +54,7 @@ class ExtinguishHandler:
             )
             deleted_event = await ctx.append_and_project_event(
                 entity_id=civilization.id,
-                event_type="ASTEROID_SOFT_DELETED",
+                event_type="CIVILIZATION_SOFT_DELETED",
                 payload={},
             )
             civilization.is_deleted = True
@@ -99,11 +102,12 @@ class ExtinguishHandler:
                     outputs={"bond_id": bond.id, "is_deleted": True},
                 )
 
-            ctx.asteroids_by_id.pop(civilization.id, None)
+            ctx.civilizations_by_id.pop(civilization.id, None)
 
         ctx.bonds_by_id = {
             bond_id: bond
             for bond_id, bond in ctx.bonds_by_id.items()
-            if bond.source_civilization_id in ctx.asteroids_by_id and bond.target_civilization_id in ctx.asteroids_by_id
+            if bond.source_civilization_id in ctx.civilizations_by_id
+            and bond.target_civilization_id in ctx.civilizations_by_id
         }
         return True

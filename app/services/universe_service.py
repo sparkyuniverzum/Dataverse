@@ -27,8 +27,8 @@ from app.services.universe.runtime_projection_from_read_models import (
 from app.services.universe.tables_snapshot import build_tables_snapshot
 from app.services.universe.types import (
     DEFAULT_GALAXY_ID,
-    ProjectedAsteroid,
     ProjectedBond,
+    ProjectedCivilization,
     derive_table_id,
     derive_table_name,
     split_constellation_and_planet_name,
@@ -37,7 +37,7 @@ from app.services.universe.types import (
 __all__ = [
     "UniverseService",
     "DEFAULT_GALAXY_ID",
-    "ProjectedAsteroid",
+    "ProjectedCivilization",
     "ProjectedBond",
     "derive_table_id",
     "derive_table_name",
@@ -65,12 +65,12 @@ class UniverseService:
     def _apply_event(
         self,
         event: Event,
-        asteroids_by_id: dict[UUID, ProjectedAsteroid],
+        civilizations_by_id: dict[UUID, ProjectedCivilization],
         bonds_by_id: dict[UUID, ProjectedBond],
     ) -> None:
         apply_projection_event(
             event=event,
-            asteroids_by_id=asteroids_by_id,
+            civilizations_by_id=civilizations_by_id,
             bonds_by_id=bonds_by_id,
         )
 
@@ -119,7 +119,7 @@ class UniverseService:
         *,
         user_id: UUID,
         galaxy_id: UUID,
-    ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+    ) -> tuple[list[ProjectedCivilization], list[ProjectedBond]]:
         return await project_state_from_read_model(
             self,
             session,
@@ -193,7 +193,7 @@ class UniverseService:
         *,
         user_id: UUID,
         galaxy_id: UUID,
-        active_asteroids: list[ProjectedAsteroid],
+        active_asteroids: list[ProjectedCivilization],
         active_bonds: list[ProjectedBond],
     ) -> list[dict[str, Any]]:
         return await enrich_main_timeline_from_read_models(
@@ -212,7 +212,7 @@ class UniverseService:
         galaxy_id: UUID,
         branch_id: UUID | None,
         as_of: datetime | None,
-    ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+    ) -> tuple[list[ProjectedCivilization], list[ProjectedBond]]:
         return await project_state_from_events(
             self,
             session,
@@ -230,7 +230,7 @@ class UniverseService:
         galaxy_id: UUID,
         branch_id: UUID,
         as_of: datetime | None,
-    ) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+    ) -> tuple[list[ProjectedCivilization], list[ProjectedBond]]:
         return await project_state_from_branch(
             self,
             session,
@@ -249,7 +249,7 @@ class UniverseService:
         branch_id: UUID | None = None,
         as_of: datetime | None = None,
         apply_calculations: bool = True,
-    ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond | dict[str, Any]]]:
+    ) -> tuple[list[ProjectedCivilization | dict[str, Any]], list[ProjectedBond | dict[str, Any]]]:
         await self._ensure_galaxy_access(session, user_id=user_id, galaxy_id=galaxy_id)
         if branch_id is not None:
             active_asteroids, active_bonds = await self._project_state_from_branch(
@@ -327,7 +327,7 @@ class UniverseService:
         galaxy_id: UUID = DEFAULT_GALAXY_ID,
         branch_id: UUID | None = None,
         as_of: datetime | None = None,
-    ) -> tuple[list[ProjectedAsteroid | dict[str, Any]], list[ProjectedBond | dict[str, Any]]]:
+    ) -> tuple[list[ProjectedCivilization | dict[str, Any]], list[ProjectedBond | dict[str, Any]]]:
         return await self.project_state(
             session=session,
             user_id=user_id,

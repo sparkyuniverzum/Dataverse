@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Branch, Event
 from app.services.bond_semantics import normalize_bond_type
-from app.services.universe.types import ProjectedAsteroid, ProjectedBond, ProjectionPayloadError
+from app.services.universe.types import ProjectedBond, ProjectedCivilization, ProjectionPayloadError
 
 if TYPE_CHECKING:
     from app.services.universe_service import UniverseService
@@ -18,14 +18,14 @@ if TYPE_CHECKING:
 
 def apply_event(
     event: Event,
-    asteroids_by_id: dict[UUID, ProjectedAsteroid],
+    civilizations_by_id: dict[UUID, ProjectedCivilization],
     bonds_by_id: dict[UUID, ProjectedBond],
 ) -> None:
     payload = event.payload if isinstance(event.payload, dict) else {}
 
-    if event.event_type == "ASTEROID_CREATED":
+    if event.event_type == "CIVILIZATION_CREATED":
         metadata = payload.get("metadata", {})
-        asteroids_by_id[event.entity_id] = ProjectedAsteroid(
+        civilizations_by_id[event.entity_id] = ProjectedCivilization(
             id=event.entity_id,
             value=payload.get("value"),
             metadata=metadata if isinstance(metadata, dict) else {},
@@ -37,7 +37,7 @@ def apply_event(
         return
 
     if event.event_type == "METADATA_UPDATED":
-        civilization = asteroids_by_id.get(event.entity_id)
+        civilization = civilizations_by_id.get(event.entity_id)
         if civilization is None:
             return
         metadata_patch = payload.get("metadata", {})
@@ -53,16 +53,16 @@ def apply_event(
         civilization.current_event_seq = int(event.event_seq)
         return
 
-    if event.event_type == "ASTEROID_VALUE_UPDATED":
-        civilization = asteroids_by_id.get(event.entity_id)
+    if event.event_type == "CIVILIZATION_VALUE_UPDATED":
+        civilization = civilizations_by_id.get(event.entity_id)
         if civilization is None:
             return
         civilization.value = payload.get("value")
         civilization.current_event_seq = int(event.event_seq)
         return
 
-    if event.event_type == "ASTEROID_SOFT_DELETED":
-        civilization = asteroids_by_id.get(event.entity_id)
+    if event.event_type == "CIVILIZATION_SOFT_DELETED":
+        civilization = civilizations_by_id.get(event.entity_id)
         if civilization is None:
             return
         civilization.is_deleted = True
@@ -121,7 +121,7 @@ async def project_state_from_events(
     galaxy_id: UUID,
     branch_id: UUID | None,
     as_of: datetime | None,
-) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+) -> tuple[list[ProjectedCivilization], list[ProjectedBond]]:
     events = await service.event_store.list_events(
         session=session,
         user_id=user_id,
@@ -130,15 +130,15 @@ async def project_state_from_events(
         as_of=as_of,
     )
 
-    asteroids_by_id: dict[UUID, ProjectedAsteroid] = {}
+    civilizations_by_id: dict[UUID, ProjectedCivilization] = {}
     bonds_by_id: dict[UUID, ProjectedBond] = {}
     for event in events:
         try:
-            service._apply_event(event, asteroids_by_id, bonds_by_id)
+            service._apply_event(event, civilizations_by_id, bonds_by_id)
         except ProjectionPayloadError as exc:
             raise _map_projection_error(exc) from exc
 
-    active_asteroids = [a for a in asteroids_by_id.values() if not a.is_deleted]
+    active_asteroids = [a for a in civilizations_by_id.values() if not a.is_deleted]
     active_asteroids.sort(key=lambda item: (item.created_at, str(item.id)))
     active_ids = {item.id for item in active_asteroids}
 
@@ -161,7 +161,7 @@ async def project_state_from_branch(
     galaxy_id: UUID,
     branch_id: UUID,
     as_of: datetime | None,
-) -> tuple[list[ProjectedAsteroid], list[ProjectedBond]]:
+) -> tuple[list[ProjectedCivilization], list[ProjectedBond]]:
     branch = (await session.execute(select(Branch).where(Branch.id == branch_id))).scalar_one_or_none()
     if branch is None or branch.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
@@ -201,15 +201,15 @@ async def project_state_from_branch(
         as_of=as_of,
     )
 
-    asteroids_by_id: dict[UUID, ProjectedAsteroid] = {}
+    civilizations_by_id: dict[UUID, ProjectedCivilization] = {}
     bonds_by_id: dict[UUID, ProjectedBond] = {}
     for event in [*main_events, *branch_events]:
         try:
-            service._apply_event(event, asteroids_by_id, bonds_by_id)
+            service._apply_event(event, civilizations_by_id, bonds_by_id)
         except ProjectionPayloadError as exc:
             raise _map_projection_error(exc) from exc
 
-    active_asteroids = [a for a in asteroids_by_id.values() if not a.is_deleted]
+    active_asteroids = [a for a in civilizations_by_id.values() if not a.is_deleted]
     active_asteroids.sort(key=lambda item: (item.created_at, str(item.id)))
     active_ids = {item.id for item in active_asteroids}
 

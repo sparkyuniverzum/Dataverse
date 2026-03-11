@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import MoonCapability, TableContract
 from app.services.table_contract_effective import EffectiveTableContract, compile_effective_table_contract
-from app.services.universe_service import ProjectedAsteroid, derive_table_id, derive_table_name
+from app.services.universe_service import ProjectedCivilization, derive_table_id, derive_table_name
 
 
 class TableContractValidator:
@@ -309,7 +309,7 @@ class TableContractValidator:
         civilization_id: UUID | None,
         value: Any,
         metadata: dict[str, Any],
-        asteroids_by_id: dict[UUID, ProjectedAsteroid],
+        civilizations_by_id: dict[UUID, ProjectedCivilization],
         cache: dict[UUID, EffectiveTableContract | None],
     ) -> None:
         metadata_dict = metadata if isinstance(metadata, dict) else {}
@@ -425,7 +425,7 @@ class TableContractValidator:
                 for field_name in fields
             )
 
-            for other in asteroids_by_id.values():
+            for other in civilizations_by_id.values():
                 if civilization_id is not None and other.id == civilization_id:
                     continue
 

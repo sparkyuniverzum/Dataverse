@@ -24,11 +24,11 @@ class LinkMutationHandler:
         if not isinstance(task, CreateLinkIntent):
             return False
 
-        source_civilization = self.service._resolve_single_asteroid_by_target(
-            civilizations=list(ctx.asteroids_by_id.values()), target=task.source.value
+        source_civilization = self.service._resolve_single_civilization_by_target(
+            civilizations=list(ctx.civilizations_by_id.values()), target=task.source.value
         )
-        target_civilization = self.service._resolve_single_asteroid_by_target(
-            civilizations=list(ctx.asteroids_by_id.values()), target=task.target.value
+        target_civilization = self.service._resolve_single_civilization_by_target(
+            civilizations=list(ctx.civilizations_by_id.values()), target=task.target.value
         )
 
         if source_civilization is None:

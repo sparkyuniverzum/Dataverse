@@ -8,8 +8,8 @@ from uuid import UUID
 
 from app.services.bond_semantics import bond_semantics, normalize_bond_type
 from app.services.universe.types import (
-    ProjectedAsteroid,
     ProjectedBond,
+    ProjectedCivilization,
     derive_table_id,
     derive_table_name,
     normalize_table_name,
@@ -42,7 +42,7 @@ def build_tables_snapshot(
     service: UniverseService,
     *,
     galaxy_id: UUID,
-    civilizations: list[ProjectedAsteroid | dict[str, Any]],
+    civilizations: list[ProjectedCivilization | dict[str, Any]],
     bonds: list[ProjectedBond | dict[str, Any]],
     contract_hints: Mapping[UUID, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
@@ -74,7 +74,7 @@ def build_tables_snapshot(
                     "table_id": table_uuid,
                 }
             )
-        elif isinstance(civilization, ProjectedAsteroid):
+        elif isinstance(civilization, ProjectedCivilization):
             table_name = derive_table_name(value=civilization.value, metadata=civilization.metadata)
             asteroid_rows.append(
                 {

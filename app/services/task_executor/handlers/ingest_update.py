@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import HTTPException, status
 
 from app.core.parser2.intents import AssignAttributeIntent, Intent, UpsertNodeIntent
-from app.services.universe_service import ProjectedAsteroid, derive_table_name, split_constellation_and_planet_name
+from app.services.universe_service import ProjectedCivilization, derive_table_name, split_constellation_and_planet_name
 
 if TYPE_CHECKING:
     from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
@@ -54,14 +54,14 @@ class IngestUpdateHandler:
                     value=civilization.value,
                     metadata=civilization.metadata,
                 )
-                for civilization in ctx.asteroids_by_id.values()
+                for civilization in ctx.civilizations_by_id.values()
                 if not civilization.is_deleted
             }
 
             existing = next(
                 (
                     civilization
-                    for civilization in ctx.asteroids_by_id.values()
+                    for civilization in ctx.civilizations_by_id.values()
                     if civilization.value == value
                     and not civilization.is_deleted
                     and self.service._projected_table_id_for_value(
@@ -74,7 +74,7 @@ class IngestUpdateHandler:
                 None,
             )
             if existing is None and ctx.preload_scope == "partial":
-                candidate = await self.service._load_active_asteroid_by_value(
+                candidate = await self.service._load_active_civilization_by_value(
                     session=ctx.session,
                     user_id=ctx.user_id,
                     galaxy_id=ctx.galaxy_id,
@@ -88,7 +88,7 @@ class IngestUpdateHandler:
                     )
                     if candidate_table_id == requested_table_id:
                         existing = candidate
-                        ctx.asteroids_by_id[existing.id] = existing
+                        ctx.civilizations_by_id[existing.id] = existing
                     else:
                         # The fast value lookup found a row in a different table.
                         # Hydrate full scope and retry table-aware match before creating a new row.
@@ -96,7 +96,7 @@ class IngestUpdateHandler:
                         existing = next(
                             (
                                 civilization
-                                for civilization in ctx.asteroids_by_id.values()
+                                for civilization in ctx.civilizations_by_id.values()
                                 if civilization.value == value
                                 and not civilization.is_deleted
                                 and self.service._projected_table_id_for_value(
@@ -116,17 +116,17 @@ class IngestUpdateHandler:
                     civilization_id=None,
                     value=value,
                     metadata=dict(metadata),
-                    asteroids_by_id=ctx.asteroids_by_id,
+                    civilizations_by_id=ctx.civilizations_by_id,
                     contract_cache=ctx.contract_cache,
                     execution_context=ctx,
                 )
                 civilization_id = uuid4()
                 created_event = await ctx.append_and_project_event(
                     entity_id=civilization_id,
-                    event_type="ASTEROID_CREATED",
+                    event_type="CIVILIZATION_CREATED",
                     payload={"value": value, "metadata": metadata},
                 )
-                civilization = ProjectedAsteroid(
+                civilization = ProjectedCivilization(
                     id=civilization_id,
                     value=value,
                     metadata=dict(metadata),
@@ -135,7 +135,7 @@ class IngestUpdateHandler:
                     deleted_at=None,
                     current_event_seq=int(created_event.event_seq),
                 )
-                ctx.asteroids_by_id[civilization.id] = civilization
+                ctx.civilizations_by_id[civilization.id] = civilization
                 self.service._record_semantic_effect(
                     ctx=ctx,
                     code="MOON_UPSERTED",
@@ -182,7 +182,7 @@ class IngestUpdateHandler:
                         civilization_id=civilization.id,
                         value=civilization.value,
                         metadata=next_metadata,
-                        asteroids_by_id=ctx.asteroids_by_id,
+                        civilizations_by_id=ctx.civilizations_by_id,
                         contract_cache=ctx.contract_cache,
                         execution_context=ctx,
                     )
@@ -247,7 +247,7 @@ class IngestUpdateHandler:
                                 },
                             )
 
-            await self.service._apply_auto_semantics_for_asteroid(
+            await self.service._apply_auto_semantics_for_civilization(
                 ctx=ctx,
                 civilization=civilization,
                 trigger_action="INGEST",
@@ -257,8 +257,8 @@ class IngestUpdateHandler:
             return True
 
         if isinstance(task, AssignAttributeIntent):
-            civilization = self.service._resolve_single_asteroid_by_target(
-                civilizations=list(ctx.asteroids_by_id.values()), target=task.target.value
+            civilization = self.service._resolve_single_civilization_by_target(
+                civilizations=list(ctx.civilizations_by_id.values()), target=task.target.value
             )
             if civilization is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target civilization not found")
@@ -294,7 +294,7 @@ class IngestUpdateHandler:
                     value=item.value,
                     metadata=item.metadata,
                 )
-                for item in ctx.asteroids_by_id.values()
+                for item in ctx.civilizations_by_id.values()
                 if not item.is_deleted
             }
 
@@ -323,7 +323,7 @@ class IngestUpdateHandler:
                 civilization_id=civilization.id,
                 value=next_value,
                 metadata=next_metadata,
-                asteroids_by_id=ctx.asteroids_by_id,
+                civilizations_by_id=ctx.civilizations_by_id,
                 contract_cache=ctx.contract_cache,
                 execution_context=ctx,
             )
@@ -331,7 +331,7 @@ class IngestUpdateHandler:
             if civilization.value != next_value:
                 value_event = await ctx.append_and_project_event(
                     entity_id=civilization.id,
-                    event_type="ASTEROID_VALUE_UPDATED",
+                    event_type="CIVILIZATION_VALUE_UPDATED",
                     payload={"value": next_value},
                 )
                 civilization.current_event_seq = int(value_event.event_seq)
@@ -400,7 +400,7 @@ class IngestUpdateHandler:
                         },
                     )
 
-            await self.service._apply_auto_semantics_for_asteroid(
+            await self.service._apply_auto_semantics_for_civilization(
                 ctx=ctx,
                 civilization=civilization,
                 trigger_action="UPDATE_ASTEROID",

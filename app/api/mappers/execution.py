@@ -18,15 +18,15 @@ from app.services.bond_semantics import bond_semantics
 from app.services.parser_types import AtomicTask
 from app.services.universe_service import (
     DEFAULT_GALAXY_ID,
-    ProjectedAsteroid,
     ProjectedBond,
+    ProjectedCivilization,
     derive_table_id,
     derive_table_name,
     split_constellation_and_planet_name,
 )
 
 
-def civilization_to_response(civilization: ProjectedAsteroid | Mapping[str, Any]) -> CivilizationResponse:
+def civilization_to_response(civilization: ProjectedCivilization | Mapping[str, Any]) -> CivilizationResponse:
     if isinstance(civilization, Mapping):
         return CivilizationResponse(
             id=civilization["id"],
@@ -95,7 +95,7 @@ def execution_to_response(tasks: list[AtomicTask], execution: TaskExecutionResul
 
 
 def universe_asteroid_to_snapshot(
-    civilization: ProjectedAsteroid | Mapping[str, Any],
+    civilization: ProjectedCivilization | Mapping[str, Any],
     *,
     galaxy_id: UUID = DEFAULT_GALAXY_ID,
 ) -> UniverseAsteroidSnapshot:

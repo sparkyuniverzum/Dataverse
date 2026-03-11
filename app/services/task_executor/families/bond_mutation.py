@@ -42,9 +42,9 @@ async def handle_link_and_bond_mutation_family(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="source_civilization_id and target_civilization_id must be different",
             )
-        if source_uuid not in ctx.asteroids_by_id:
+        if source_uuid not in ctx.civilizations_by_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source civilization not found")
-        if target_uuid not in ctx.asteroids_by_id:
+        if target_uuid not in ctx.civilizations_by_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target civilization not found")
 
         expected_source_event_seq = self._parse_expected_event_seq(

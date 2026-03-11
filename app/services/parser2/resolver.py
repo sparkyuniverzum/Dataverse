@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.core.parser2.intents import NodeSelector, NodeSelectorType
 from app.core.parser2.planner import SemanticResolver
-from app.services.universe_service import ProjectedAsteroid
+from app.services.universe_service import ProjectedCivilization
 
 
 class SnapshotSemanticResolver(SemanticResolver):
@@ -15,7 +15,7 @@ class SnapshotSemanticResolver(SemanticResolver):
     Ambiguous matches return None to avoid accidental mis-resolution.
     """
 
-    def __init__(self, civilizations: list[ProjectedAsteroid]) -> None:
+    def __init__(self, civilizations: list[ProjectedCivilization]) -> None:
         self._exact: dict[str, list[NodeSelector]] = {}
         self._contains_source: list[tuple[str, NodeSelector]] = []
 

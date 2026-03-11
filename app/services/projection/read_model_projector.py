@@ -16,7 +16,7 @@ from app.services.guardian_service import evaluate_guardians
 from app.services.physics_engine_service import PhysicsEngineService
 
 
-class AsteroidCreatedPayload(BaseModel):
+class CivilizationCreatedPayload(BaseModel):
     value: Any
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -26,7 +26,7 @@ class MetadataUpdatedPayload(BaseModel):
     metadata_remove: list[str] = Field(default_factory=list)
 
 
-class AsteroidValueUpdatedPayload(BaseModel):
+class CivilizationValueUpdatedPayload(BaseModel):
     value: Any
 
 
@@ -112,12 +112,12 @@ class ReadModelProjector:
         payload = event.payload if isinstance(event.payload, dict) else {}
         projected = False
 
-        if event_type == "ASTEROID_CREATED":
+        if event_type == "CIVILIZATION_CREATED":
             try:
-                created_payload = AsteroidCreatedPayload.model_validate(payload)
+                created_payload = CivilizationCreatedPayload.model_validate(payload)
             except ValidationError:
-                created_payload = AsteroidCreatedPayload(value=payload.get("value"), metadata={})
-            await self._project_asteroid_created(
+                created_payload = CivilizationCreatedPayload(value=payload.get("value"), metadata={})
+            await self._project_civilization_created(
                 session=session,
                 user_id=event.user_id,
                 galaxy_id=event.galaxy_id,
@@ -141,13 +141,13 @@ class ReadModelProjector:
             )
             projected = True
 
-        elif event_type == "ASTEROID_VALUE_UPDATED":
+        elif event_type == "CIVILIZATION_VALUE_UPDATED":
             try:
-                value_payload = AsteroidValueUpdatedPayload.model_validate(payload)
+                value_payload = CivilizationValueUpdatedPayload.model_validate(payload)
             except ValidationError:
                 value_payload = None
             if value_payload is not None:
-                await self._project_asteroid_value_updated(
+                await self._project_civilization_value_updated(
                     session=session,
                     user_id=event.user_id,
                     galaxy_id=event.galaxy_id,
@@ -156,8 +156,8 @@ class ReadModelProjector:
                 )
                 projected = True
 
-        elif event_type == "ASTEROID_SOFT_DELETED":
-            await self._project_asteroid_soft_deleted(
+        elif event_type == "CIVILIZATION_SOFT_DELETED":
+            await self._project_civilization_soft_deleted(
                 session=session,
                 user_id=event.user_id,
                 galaxy_id=event.galaxy_id,
@@ -497,17 +497,17 @@ class ReadModelProjector:
         )
 
         # keep soft-delete behavior for bonds mirrored in read model
-        # (already handled via BOND_SOFT_DELETED / ASTEROID_SOFT_DELETED projection paths)
+        # (already handled via BOND_SOFT_DELETED / CIVILIZATION_SOFT_DELETED projection paths)
         return
 
-    async def _project_asteroid_created(
+    async def _project_civilization_created(
         self,
         *,
         session: AsyncSession,
         user_id: UUID,
         galaxy_id: UUID,
         civilization_id: UUID,
-        payload: AsteroidCreatedPayload,
+        payload: CivilizationCreatedPayload,
         happened_at: datetime,
     ) -> None:
         stmt = insert(CivilizationRM).values(
@@ -573,7 +573,7 @@ class ReadModelProjector:
             next_metadata.pop(key, None)
         locked_atom.metadata_ = next_metadata
 
-    async def _project_asteroid_soft_deleted(
+    async def _project_civilization_soft_deleted(
         self,
         *,
         session: AsyncSession,
@@ -608,14 +608,14 @@ class ReadModelProjector:
             .values(is_deleted=True, deleted_at=happened_at)
         )
 
-    async def _project_asteroid_value_updated(
+    async def _project_civilization_value_updated(
         self,
         *,
         session: AsyncSession,
         user_id: UUID,
         galaxy_id: UUID,
         civilization_id: UUID,
-        payload: AsteroidValueUpdatedPayload,
+        payload: CivilizationValueUpdatedPayload,
     ) -> None:
         await session.execute(
             update(CivilizationRM)

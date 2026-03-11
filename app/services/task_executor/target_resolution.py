@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 
-from app.services.universe_service import ProjectedAsteroid
+from app.services.universe_service import ProjectedCivilization
 
 
 class TargetResolver:
@@ -24,11 +24,11 @@ class TargetResolver:
             return None
 
     @classmethod
-    def find_asteroid_by_target(
+    def find_civilization_by_target(
         cls,
-        civilizations: list[ProjectedAsteroid],
+        civilizations: list[ProjectedCivilization],
         target: str,
-    ) -> ProjectedAsteroid | None:
+    ) -> ProjectedCivilization | None:
         normalized = target.strip().lower()
         if not normalized:
             return None
@@ -53,11 +53,11 @@ class TargetResolver:
         return None
 
     @classmethod
-    def resolve_single_asteroid_by_target(
+    def resolve_single_civilization_by_target(
         cls,
-        civilizations: list[ProjectedAsteroid],
+        civilizations: list[ProjectedCivilization],
         target: str,
-    ) -> ProjectedAsteroid | None:
+    ) -> ProjectedCivilization | None:
         normalized = str(target or "").strip()
         if not normalized:
             return None
@@ -90,15 +90,15 @@ class TargetResolver:
         return None
 
     @classmethod
-    def find_asteroids_by_target(
+    def find_civilizations_by_target(
         cls,
-        civilizations: list[ProjectedAsteroid],
+        civilizations: list[ProjectedCivilization],
         target: str,
         condition: str | None,
-    ) -> list[ProjectedAsteroid]:
+    ) -> list[ProjectedCivilization]:
         target_norm = target.strip().lower()
         condition_norm = condition.strip().lower() if condition else None
-        selected: list[ProjectedAsteroid] = []
+        selected: list[ProjectedCivilization] = []
         for civilization in civilizations:
             label = cls.value_to_text(civilization.value).lower()
             if target_norm not in label:

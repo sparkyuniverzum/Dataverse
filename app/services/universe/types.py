@@ -54,7 +54,7 @@ def split_constellation_and_planet_name(table_name: str | None) -> tuple[str, st
 
 
 @dataclass
-class ProjectedAsteroid:
+class ProjectedCivilization:
     id: UUID
     value: Any
     metadata: dict[str, Any]

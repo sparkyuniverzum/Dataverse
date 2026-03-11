@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from app.services.universe_service import (
-    ProjectedAsteroid,
+    ProjectedCivilization,
     derive_table_id,
     derive_table_name,
     split_constellation_and_planet_name,
@@ -55,12 +55,12 @@ class AutoSemanticsService:
             return planet
         return ""
 
-    async def _load_auto_semantic_rules_for_asteroid(
+    async def _load_auto_semantic_rules_for_civilization(
         self,
         *,
         session: AsyncSession,
         galaxy_id: UUID,
-        civilization: ProjectedAsteroid,
+        civilization: ProjectedCivilization,
         contract_cache: dict[UUID, EffectiveTableContract | None],
     ) -> list[dict[str, Any]]:
         if session is None:
@@ -103,11 +103,11 @@ class AutoSemanticsService:
                 extracted.append(item)
         return extracted
 
-    async def apply_auto_semantics_for_asteroid(
+    async def apply_auto_semantics_for_civilization(
         self,
         *,
         ctx: _TaskExecutionContext,
-        civilization: ProjectedAsteroid,
+        civilization: ProjectedCivilization,
         trigger_action: str,
     ) -> None:
         # Stage 1 automation: contract-driven table bucketing.
@@ -125,7 +125,7 @@ class AutoSemanticsService:
         guard = 0
         while guard < 4:
             guard += 1
-            rules = await self.executor._load_auto_semantic_rules_for_asteroid(
+            rules = await self.executor._load_auto_semantic_rules_for_civilization(
                 session=ctx.session,
                 galaxy_id=ctx.galaxy_id,
                 civilization=civilization,
@@ -142,7 +142,7 @@ class AutoSemanticsService:
                     value=item.value,
                     metadata=item.metadata,
                 )
-                for item in ctx.asteroids_by_id.values()
+                for item in ctx.civilizations_by_id.values()
                 if not item.is_deleted
             }
 
@@ -185,7 +185,7 @@ class AutoSemanticsService:
                     civilization_id=civilization.id,
                     value=civilization.value,
                     metadata=next_metadata,
-                    asteroids_by_id=ctx.asteroids_by_id,
+                    civilizations_by_id=ctx.civilizations_by_id,
                     contract_cache=ctx.contract_cache,
                     execution_context=ctx,
                 )

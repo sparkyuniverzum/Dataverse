@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import HTTPException, status
 
 from app.services.parser_types import AtomicTask
-from app.services.universe_service import ProjectedAsteroid, derive_table_name, split_constellation_and_planet_name
+from app.services.universe_service import ProjectedCivilization, derive_table_name, split_constellation_and_planet_name
 
 if TYPE_CHECKING:
     from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
@@ -31,7 +31,7 @@ def _normalize_metadata_remove(raw_value: object) -> list[str]:
     return keys
 
 
-def _normalize_lifecycle_state(civilization: ProjectedAsteroid) -> str:
+def _normalize_lifecycle_state(civilization: ProjectedCivilization) -> str:
     metadata = civilization.metadata if isinstance(civilization.metadata, dict) else {}
     raw = metadata.get("state", metadata.get("status"))
     state = str(raw or "").strip().upper()
@@ -84,14 +84,14 @@ async def handle_ingest_update_family(
                 value=civilization.value,
                 metadata=civilization.metadata,
             )
-            for civilization in ctx.asteroids_by_id.values()
+            for civilization in ctx.civilizations_by_id.values()
             if not civilization.is_deleted
         }
 
         existing = next(
             (
                 civilization
-                for civilization in ctx.asteroids_by_id.values()
+                for civilization in ctx.civilizations_by_id.values()
                 if civilization.value == value
                 and not civilization.is_deleted
                 and self._projected_table_id_for_value(
@@ -104,7 +104,7 @@ async def handle_ingest_update_family(
             None,
         )
         if existing is None and ctx.preload_scope == "partial":
-            candidate = await self._load_active_asteroid_by_value(
+            candidate = await self._load_active_civilization_by_value(
                 session=ctx.session,
                 user_id=ctx.user_id,
                 galaxy_id=ctx.galaxy_id,
@@ -118,7 +118,7 @@ async def handle_ingest_update_family(
                 )
                 if candidate_table_id == requested_table_id:
                     existing = candidate
-                    ctx.asteroids_by_id[existing.id] = existing
+                    ctx.civilizations_by_id[existing.id] = existing
                 else:
                     # The fast value lookup found a row in a different table.
                     # Hydrate full scope and retry table-aware match before creating a new row.
@@ -126,7 +126,7 @@ async def handle_ingest_update_family(
                     existing = next(
                         (
                             civilization
-                            for civilization in ctx.asteroids_by_id.values()
+                            for civilization in ctx.civilizations_by_id.values()
                             if civilization.value == value
                             and not civilization.is_deleted
                             and self._projected_table_id_for_value(
@@ -146,17 +146,17 @@ async def handle_ingest_update_family(
                 civilization_id=None,
                 value=value,
                 metadata=dict(metadata),
-                asteroids_by_id=ctx.asteroids_by_id,
+                civilizations_by_id=ctx.civilizations_by_id,
                 contract_cache=ctx.contract_cache,
                 execution_context=ctx,
             )
             civilization_id = uuid4()
             created_event = await ctx.append_and_project_event(
                 entity_id=civilization_id,
-                event_type="ASTEROID_CREATED",
+                event_type="CIVILIZATION_CREATED",
                 payload={"value": value, "metadata": metadata},
             )
-            civilization = ProjectedAsteroid(
+            civilization = ProjectedCivilization(
                 id=civilization_id,
                 value=value,
                 metadata=dict(metadata),
@@ -165,7 +165,7 @@ async def handle_ingest_update_family(
                 deleted_at=None,
                 current_event_seq=int(created_event.event_seq),
             )
-            ctx.asteroids_by_id[civilization.id] = civilization
+            ctx.civilizations_by_id[civilization.id] = civilization
             self._record_semantic_effect(
                 ctx=ctx,
                 code="MOON_UPSERTED",
@@ -212,7 +212,7 @@ async def handle_ingest_update_family(
                     civilization_id=civilization.id,
                     value=civilization.value,
                     metadata=next_metadata,
-                    asteroids_by_id=ctx.asteroids_by_id,
+                    civilizations_by_id=ctx.civilizations_by_id,
                     contract_cache=ctx.contract_cache,
                     execution_context=ctx,
                 )
@@ -277,7 +277,7 @@ async def handle_ingest_update_family(
                             },
                         )
 
-        await self._apply_auto_semantics_for_asteroid(
+        await self._apply_auto_semantics_for_civilization(
             ctx=ctx,
             civilization=civilization,
             trigger_action=action,
@@ -294,7 +294,7 @@ async def handle_ingest_update_family(
                 detail="UPDATE_ASTEROID requires valid civilization_id",
             )
 
-        civilization = ctx.asteroids_by_id.get(asteroid_uuid)
+        civilization = ctx.civilizations_by_id.get(asteroid_uuid)
         if civilization is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target civilization not found")
         expected_event_seq = self._parse_expected_event_seq(
@@ -326,7 +326,7 @@ async def handle_ingest_update_family(
                 value=item.value,
                 metadata=item.metadata,
             )
-            for item in ctx.asteroids_by_id.values()
+            for item in ctx.civilizations_by_id.values()
             if not item.is_deleted
         }
         if "value" in task.params:
@@ -430,7 +430,7 @@ async def handle_ingest_update_family(
             civilization_id=civilization.id,
             value=next_value,
             metadata=next_metadata,
-            asteroids_by_id=ctx.asteroids_by_id,
+            civilizations_by_id=ctx.civilizations_by_id,
             contract_cache=ctx.contract_cache,
             execution_context=ctx,
         )
@@ -438,7 +438,7 @@ async def handle_ingest_update_family(
         if civilization.value != next_value:
             value_event = await ctx.append_and_project_event(
                 entity_id=civilization.id,
-                event_type="ASTEROID_VALUE_UPDATED",
+                event_type="CIVILIZATION_VALUE_UPDATED",
                 payload={"value": next_value},
             )
             civilization.current_event_seq = int(value_event.event_seq)
@@ -511,7 +511,7 @@ async def handle_ingest_update_family(
                     },
                 )
 
-        await self._apply_auto_semantics_for_asteroid(
+        await self._apply_auto_semantics_for_civilization(
             ctx=ctx,
             civilization=civilization,
             trigger_action=action,
