@@ -17,7 +17,7 @@ function diff(required, provided) {
 
 export const SEMANTIC_CONSTITUTION_VERSION = "1.0.0";
 export const SEMANTIC_CONSTITUTION_SCOPE = "semantic-constitution-v1";
-export const SEMANTIC_CONSTITUTION_DOC = "docs/contracts/semantic-constitution-v1.md";
+export const SEMANTIC_CONSTITUTION_DOC = "docs/P0-core/contracts/semantic-constitution-v1.md";
 
 export const SEMANTIC_REQUIRED_OPERATORS = Object.freeze(["+", ":", "->", ":=", "-"]);
 export const SEMANTIC_FE_SUPPORTED_OPERATORS = Object.freeze(["+", ":", "->", ":=", "-"]);

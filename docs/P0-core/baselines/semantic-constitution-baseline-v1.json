@@ -1,0 +1,63 @@
+{
+  "version": "1.0.0",
+  "scope": "semantic-constitution-v1",
+  "contract_doc": "docs/P0-core/contracts/semantic-constitution-v1.md",
+  "source_of_truth": {
+    "required_doc_markers": [
+      "## II. Sémantická gramatika (slovesa/operátory)",
+      "### `:` Příslušnost / definice",
+      "### `+` Relace / propojení",
+      "### `->` Tok / akce",
+      "### `:=` (nebo `=`) Hodnota atributu",
+      "### `-` Zhasnutí (extinguish)",
+      "## III. Železná pravidla systému (zákony)",
+      "Zákon zachování informace",
+      "Zákon větví",
+      "Zákon kontraktu",
+      "| Moon | Měsíc (Capability) |",
+      "| Civilization | Civilizace (Instance) |"
+    ],
+    "parser_operator_examples": [
+      {
+        "query": "A + B",
+        "expected_actions": ["INGEST", "INGEST", "LINK"],
+        "expected_link_type": "RELATION"
+      },
+      {
+        "query": "A : B",
+        "expected_actions": ["INGEST", "INGEST", "LINK"],
+        "expected_link_type": "TYPE"
+      },
+      {
+        "query": "Delete : A",
+        "expected_actions": ["DELETE"]
+      },
+      {
+        "query": "Hlídej : Projekt.celkem > 1000 -> pulse",
+        "expected_actions": ["ADD_GUARDIAN"]
+      }
+    ],
+    "soft_delete_extinguish_routes": [
+      "PATCH /asteroids/{asteroid_id}/extinguish",
+      "PATCH /bonds/{bond_id}/extinguish",
+      "PATCH /planets/{table_id}/extinguish",
+      "PATCH /galaxies/{galaxy_id}/extinguish"
+    ],
+    "no_delete_route_prefixes": [
+      "/asteroids",
+      "/bonds",
+      "/planets",
+      "/galaxies"
+    ],
+    "branch_name_normalization_examples": [
+      {
+        "raw": "  Sprint Alpha ",
+        "normalized": "sprint alpha"
+      },
+      {
+        "raw": "OPS-Review",
+        "normalized": "ops-review"
+      }
+    ]
+  }
+}

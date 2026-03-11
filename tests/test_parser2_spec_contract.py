@@ -15,7 +15,7 @@ from app.services.parser2 import (
     UpsertNodeIntent,
 )
 
-_SPEC_PATH = Path(__file__).resolve().parents[1] / "docs/contracts/parser-v2-spec.md"
+_SPEC_PATH = Path(__file__).resolve().parents[1] / "docs/P0-core/contracts/parser-v2-spec.md"
 _CASE_RE = re.compile(r"^\s*(?P<idx>\d+)\.\s+`(?P<input>[^`]*)`(?:\s+\([^)]*\))?\s+->\s+`(?P<expected>[^`]*)`\s*$")
 _CANONICAL_PREFIXES = ("ENTITY(", "TYPE(", "REL(", "EXT(", "ASSIGN(", "FLOW(", "GROUP(")
 _ERROR_PREFIXES = ("PARSE_", "LEX_")

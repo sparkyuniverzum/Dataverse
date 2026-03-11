@@ -52,7 +52,7 @@ def test_moon_freeze_gate_baseline_envelope_is_stable() -> None:
     baseline = _load_baseline()
     assert baseline["version"] == "1.0.0"
     assert baseline["scope"] == "moon-contract-v1"
-    assert baseline["contract_doc"] == "docs/contracts/moon-contract-v1.md"
+    assert baseline["contract_doc"] == "docs/P0-core/contracts/moon-contract-v1.md"
 
 
 def test_moon_freeze_gate_routes_match_contract_exactly_and_keep_soft_delete_only() -> None:
@@ -73,7 +73,7 @@ def test_moon_freeze_gate_routes_match_contract_exactly_and_keep_soft_delete_onl
 
 
 def test_moon_freeze_gate_contract_doc_keeps_invariant_markers() -> None:
-    contract_doc = _root() / "docs/contracts/moon-contract-v1.md"
+    contract_doc = _root() / "docs/P0-core/contracts/moon-contract-v1.md"
     body = contract_doc.read_text(encoding="utf-8")
 
     required_markers = [

@@ -59,7 +59,7 @@ def test_api_v1_openapi_baseline_envelope_is_stable() -> None:
 
     assert baseline["version"] == "1.0.0"
     assert baseline["scope"] == "api-v1-openapi-freeze"
-    assert baseline["contract_doc"] == "docs/contracts/api-v1.md"
+    assert baseline["contract_doc"] == "docs/P0-core/contracts/api-v1.md"
     assert source["openapi"] == "3.1.0"
     assert isinstance(source["info_title"], str) and source["info_title"].strip()
     assert isinstance(source["info_version"], str) and source["info_version"].strip()

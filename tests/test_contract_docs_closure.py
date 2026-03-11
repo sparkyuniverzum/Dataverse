@@ -13,20 +13,20 @@ def _read_doc(relative_path: str) -> str:
 
 def test_contract_closure_docs_exist_with_required_sections() -> None:
     expected: dict[str, list[str]] = {
-        "docs/contracts/semantic-constitution-v1.md": [
+        "docs/P0-core/contracts/semantic-constitution-v1.md": [
             "## III. Železná pravidla systému (zákony)",
             "Zákon zachování informace",
             "hard-delete",
             "| Moon | Měsíc (Capability) |",
             "| Civilization | Civilizace (Instance) |",
         ],
-        "docs/contracts/galaxy-workspace-contract-v1.md": [
+        "docs/P0-core/contracts/galaxy-workspace-contract-v1.md": [
             "## 3. Invariants",
             "GET /galaxies",
             "POST /branches",
             "GET /galaxies/{galaxy_id}/onboarding",
         ],
-        "docs/contracts/moon-contract-v1.md": [
+        "docs/P0-core/contracts/moon-contract-v1.md": [
             "## 2. Moon capability classes (MVP)",
             "Dictionary Moon",
             "Validation Moon",
@@ -35,26 +35,26 @@ def test_contract_closure_docs_exist_with_required_sections() -> None:
             "GET /civilizations",
             "PATCH /civilizations/{civilization_id}/mutate",
         ],
-        "docs/contracts/civilization-contract-v1.md": [
+        "docs/P0-core/contracts/civilization-contract-v1.md": [
             "## 3. Lifecycle API surface",
             "POST /civilizations/ingest",
             "PATCH /civilizations/{civilization_id}/mutate",
             "PATCH /civilizations/{civilization_id}/extinguish",
         ],
-        "docs/contracts/mineral-contract-v1.md": [
+        "docs/P0-core/contracts/mineral-contract-v1.md": [
             "## 3. Validation and typing contract",
             "required_fields",
             "field_types",
             "validators",
             "unique_rules",
         ],
-        "docs/contracts/planet-builder-mvp-v2.md": [
+        "docs/P0-core/contracts/planet-builder-mvp-v2.md": [
             "## 2. Canonical ontology (frozen for this MVP)",
             "Moon = capability module attached to a planet contract.",
             "Civilization = row instance on a planet.",
             "## 13. Definition of Done (go/no-go)",
         ],
-        "docs/contracts/canonical-ux-ontology-v1.md": [
+        "docs/P0-core/contracts/canonical-ux-ontology-v1.md": [
             "## 5. Domain truth",
             "Moon is a capability module attached to a planet contract.",
             "Civilization is a row instance on a planet.",
@@ -66,7 +66,7 @@ def test_contract_closure_docs_exist_with_required_sections() -> None:
             "## 9. Entity ontology",
             "## 10. Interaction ontology",
         ],
-        "docs/contracts/ux-rework-blueprint-v1.md": [
+        "docs/P1-exec/direction/ux-rework-blueprint-v1.md": [
             "## 3. Implementation Prime Directive",
             "User experience is the primary implementation criterion.",
             "Dataverse is a system for understanding, designing, changing, and comparing workspace reality over time.",
@@ -89,7 +89,7 @@ def test_contract_closure_docs_exist_with_required_sections() -> None:
 
 
 def test_contract_gap_diff_references_full_mvp_layers() -> None:
-    body = _read_doc("docs/contracts/contract-gap-diff-v2.md")
+    body = _read_doc("docs/P0-core/contracts/contract-gap-diff-v2.md")
     for layer in (
         "Galaxy workspace v1",
         "Moon capability v1",
@@ -103,7 +103,7 @@ def test_contract_gap_diff_references_full_mvp_layers() -> None:
 
 
 def test_runtime_alias_migration_adr_exists_with_required_sections() -> None:
-    body = _read_doc("docs/upgrade/adr-moon-civilization-runtime-alias-migration-v1.md")
+    body = _read_doc("docs/P2-ref/adr/adr-moon-civilization-runtime-alias-migration-v1.md")
     for snippet in (
         "Moon = capability",
         "Civilization = row",
@@ -115,7 +115,7 @@ def test_runtime_alias_migration_adr_exists_with_required_sections() -> None:
 
 
 def test_canonical_ux_ontology_doc_links_domain_runtime_and_ux_layers() -> None:
-    body = _read_doc("docs/contracts/canonical-ux-ontology-v1.md")
+    body = _read_doc("docs/P0-core/contracts/canonical-ux-ontology-v1.md")
     for snippet in (
         "domain truth",
         "runtime truth",
@@ -130,7 +130,7 @@ def test_canonical_ux_ontology_doc_links_domain_runtime_and_ux_layers() -> None:
 
 
 def test_ux_rework_blueprint_doc_contains_prime_directive_and_rollout() -> None:
-    body = _read_doc("docs/contracts/ux-rework-blueprint-v1.md")
+    body = _read_doc("docs/P1-exec/direction/ux-rework-blueprint-v1.md")
     for snippet in (
         "Implementation Prime Directive",
         "User experience is the primary implementation criterion.",

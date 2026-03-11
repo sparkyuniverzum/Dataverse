@@ -30,7 +30,7 @@ function endpointDiff(beSignatures, feSignatures) {
 
 export const MOON_CONTRACT_VERSION = "1.0.0";
 export const MOON_CONTRACT_SCOPE = "moon-contract-v1";
-export const MOON_CONTRACT_DOC = "docs/contracts/moon-contract-v1.md";
+export const MOON_CONTRACT_DOC = "docs/P0-core/contracts/moon-contract-v1.md";
 
 export const MOON_CREATE_REQUEST_BE_FIELDS = Object.freeze([
   "planet_id",

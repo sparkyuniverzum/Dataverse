@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs/contracts/planet-builder-mvp-v2.md"
+DOC = ROOT / "docs/P0-core/contracts/planet-builder-mvp-v2.md"
 
 
 def _read_doc() -> str:
-    assert DOC.exists(), "Missing contract doc: docs/contracts/planet-builder-mvp-v2.md"
+    assert DOC.exists(), "Missing contract doc: docs/P0-core/contracts/planet-builder-mvp-v2.md"
     return DOC.read_text(encoding="utf-8")
 
 

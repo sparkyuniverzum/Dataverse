@@ -135,7 +135,7 @@ Release hardening gate:
 Backend quality gate (parser-level rigor):
 - `make be-gate` (quick, local pre-commit)
 - `make be-gate-strict` (includes full API integration suite)
-- runbook: `docs/release/backend-quality-gate.md`
+- runbook: `docs/P0-core/release/backend-quality-gate.md`
 
 Python format/lint stack (Ruff + pre-commit):
 - `make fmt-py` (auto-fix lint + format)
@@ -169,4 +169,4 @@ Pro efektivni lokalni FE/BE+e2e smycku pouzij:
 4. `./scripts/dev_fast_check.sh staging` (staging smoke sada)
 
 Detaily a slash-command workflow:
-- `docs/upgrade/codex-agent-workflow-setup-v1.md`
+- `docs/P2-ref/reference/codex-agent-workflow-setup-v1.md`

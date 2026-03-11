@@ -132,12 +132,14 @@ function helperSignaturesFromDataverseApi() {
 
 describe("api v1 FE freeze gate", () => {
   it("matches frozen baseline envelope", () => {
-    const baselinePath = fileURLToPath(new URL("../../../docs/api-v1-openapi-baseline-v1.json", import.meta.url));
+    const baselinePath = fileURLToPath(
+      new URL("../../../docs/P0-core/baselines/api-v1-openapi-baseline-v1.json", import.meta.url)
+    );
     const baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
 
     expect(API_V1_CONTRACT_VERSION).toBe("1.0.0");
     expect(API_V1_CONTRACT_SCOPE).toBe("api-v1-openapi-freeze");
-    expect(API_V1_CONTRACT_DOC).toBe("docs/contracts/api-v1.md");
+    expect(API_V1_CONTRACT_DOC).toBe("docs/P0-core/contracts/api-v1.md");
     expect(baseline.version).toBe(API_V1_CONTRACT_VERSION);
     expect(baseline.scope).toBe(API_V1_CONTRACT_SCOPE);
     expect(baseline.contract_doc).toBe(API_V1_CONTRACT_DOC);
@@ -149,7 +151,9 @@ describe("api v1 FE freeze gate", () => {
   });
 
   it("keeps FE endpoint inventory inside OpenAPI v1 baseline", () => {
-    const baselinePath = fileURLToPath(new URL("../../../docs/api-v1-openapi-baseline-v1.json", import.meta.url));
+    const baselinePath = fileURLToPath(
+      new URL("../../../docs/P0-core/baselines/api-v1-openapi-baseline-v1.json", import.meta.url)
+    );
     const baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
 
     const report = apiV1ContractDiff({

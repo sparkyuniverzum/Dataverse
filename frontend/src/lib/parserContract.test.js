@@ -26,15 +26,15 @@ function hasControlChars(text) {
 
 describe("parser contract FE freeze gate", () => {
   it("keeps parser v1/v2 contract envelope and docs anchored", () => {
-    const v1Path = fileURLToPath(new URL("../../../docs/contracts/parser-v1.md", import.meta.url));
-    const v2Path = fileURLToPath(new URL("../../../docs/contracts/parser-v2-spec.md", import.meta.url));
+    const v1Path = fileURLToPath(new URL("../../../docs/P0-core/contracts/parser-v1.md", import.meta.url));
+    const v2Path = fileURLToPath(new URL("../../../docs/P0-core/contracts/parser-v2-spec.md", import.meta.url));
     const v1 = readFileSync(v1Path, "utf-8");
     const v2 = readFileSync(v2Path, "utf-8");
 
     expect(PARSER_CONTRACT_VERSION).toBe("1.0.0");
     expect(PARSER_CONTRACT_SCOPE).toBe("parser-v1-v2-fe-freeze");
-    expect(PARSER_V1_DOC).toBe("docs/contracts/parser-v1.md");
-    expect(PARSER_V2_SPEC_DOC).toBe("docs/contracts/parser-v2-spec.md");
+    expect(PARSER_V1_DOC).toBe("docs/P0-core/contracts/parser-v1.md");
+    expect(PARSER_V2_SPEC_DOC).toBe("docs/P0-core/contracts/parser-v2-spec.md");
     expect(v1).toContain("## Deterministic parse order");
     expect(v1).toContain("## Metadata in parentheses");
     expect(v2).toContain("## 3. Grammar (EBNF)");

@@ -36,13 +36,13 @@ function routeSignatureFromUrl(urlText, method = "PATCH") {
 describe("semanticConstitution FE freeze gate", () => {
   it("matches frozen semantic constitution baseline envelope", () => {
     const baselinePath = fileURLToPath(
-      new URL("../../../docs/semantic-constitution-baseline-v1.json", import.meta.url)
+      new URL("../../../docs/P0-core/baselines/semantic-constitution-baseline-v1.json", import.meta.url)
     );
     const baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
 
     expect(SEMANTIC_CONSTITUTION_VERSION).toBe("1.0.0");
     expect(SEMANTIC_CONSTITUTION_SCOPE).toBe("semantic-constitution-v1");
-    expect(SEMANTIC_CONSTITUTION_DOC).toBe("docs/contracts/semantic-constitution-v1.md");
+    expect(SEMANTIC_CONSTITUTION_DOC).toBe("docs/P0-core/contracts/semantic-constitution-v1.md");
     expect(baseline.version).toBe(SEMANTIC_CONSTITUTION_VERSION);
     expect(baseline.scope).toBe(SEMANTIC_CONSTITUTION_SCOPE);
     expect(baseline.contract_doc).toBe(SEMANTIC_CONSTITUTION_DOC);
@@ -50,7 +50,7 @@ describe("semanticConstitution FE freeze gate", () => {
 
   it("keeps parser operator semantics aligned with FE command builders", () => {
     const baselinePath = fileURLToPath(
-      new URL("../../../docs/semantic-constitution-baseline-v1.json", import.meta.url)
+      new URL("../../../docs/P0-core/baselines/semantic-constitution-baseline-v1.json", import.meta.url)
     );
     const baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
     const examples = baseline.source_of_truth.parser_operator_examples;
@@ -97,7 +97,7 @@ describe("semanticConstitution FE freeze gate", () => {
 
   it("keeps FE operator inventory and branch normalization aligned", () => {
     const baselinePath = fileURLToPath(
-      new URL("../../../docs/semantic-constitution-baseline-v1.json", import.meta.url)
+      new URL("../../../docs/P0-core/baselines/semantic-constitution-baseline-v1.json", import.meta.url)
     );
     const baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
 

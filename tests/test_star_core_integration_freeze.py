@@ -62,7 +62,7 @@ def _seed_star_activity(client: httpx.Client, galaxy_id: str, *, table_name: str
 
 def test_star_baseline_v1_integration_freeze_gate(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
-    baseline = _load_json("docs/star-contract-baseline-v1.json")
+    baseline = _load_json("docs/P0-core/baselines/star-contract-baseline-v1.json")
     source = baseline["source_of_truth"]
 
     _seed_star_activity(client, galaxy_id, table_name="Core > Baseline")
@@ -90,7 +90,7 @@ def test_star_baseline_v1_integration_freeze_gate(auth_client: tuple[httpx.Clien
 
 def test_star_physics_v2_integration_freeze_gate(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
-    baseline = _load_json("docs/star-physics-contract-baseline-v2.json")
+    baseline = _load_json("docs/P0-core/baselines/star-physics-contract-baseline-v2.json")
     source = baseline["source_of_truth"]
 
     _seed_star_activity(client, galaxy_id, table_name="Physics > Baseline")

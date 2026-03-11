@@ -5,12 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 required_files=(
-  "docs/contracts/api-v1.md"
-  "docs/contracts/parser-v1.md"
-  "docs/contracts/table-contract-v1.md"
-  "docs/upgrade/v1.md"
-  "docs/release/v1-freeze-checklist.md"
-  "docs/release/v1-rollout-runbook.md"
+  "docs/P0-core/contracts/api-v1.md"
+  "docs/P0-core/contracts/parser-v1.md"
+  "docs/P0-core/contracts/table-contract-v1.md"
+  "docs/P2-ref/reference/v1.md"
+  "docs/P0-core/release/v1-freeze-checklist.md"
+  "docs/P0-core/release/v1-rollout-runbook.md"
   ".env.example"
 )
 

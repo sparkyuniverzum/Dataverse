@@ -128,7 +128,9 @@ describe("starContract BE->FE usage diff", () => {
   });
 
   it("matches frozen baseline v1", () => {
-    const baselinePath = fileURLToPath(new URL("../../../../docs/star-contract-baseline-v1.json", import.meta.url));
+    const baselinePath = fileURLToPath(
+      new URL("../../../../docs/P0-core/baselines/star-contract-baseline-v1.json", import.meta.url)
+    );
     const baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
     expect(baseline.version).toBe("v1");
     expect(baseline.source_of_truth.policy.be_fields).toEqual(STAR_POLICY_BE_FIELDS);
@@ -147,7 +149,7 @@ describe("starContract BE->FE usage diff", () => {
 
   it("matches frozen star physics baseline v2", () => {
     const baselinePath = fileURLToPath(
-      new URL("../../../../docs/star-physics-contract-baseline-v2.json", import.meta.url)
+      new URL("../../../../docs/P0-core/baselines/star-physics-contract-baseline-v2.json", import.meta.url)
     );
     const baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
     expect(baseline.version).toBe("v2");

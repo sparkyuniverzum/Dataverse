@@ -6,7 +6,7 @@ function normalizeSignatures(values) {
 
 export const API_V1_CONTRACT_VERSION = "1.0.0";
 export const API_V1_CONTRACT_SCOPE = "api-v1-openapi-freeze";
-export const API_V1_CONTRACT_DOC = "docs/contracts/api-v1.md";
+export const API_V1_CONTRACT_DOC = "docs/P0-core/contracts/api-v1.md";
 
 export const API_V1_AUTH_SESSION_SIGNATURES = Object.freeze([
   "GET /auth/me",

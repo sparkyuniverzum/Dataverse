@@ -24,12 +24,12 @@ function routeSignatureFromUrl(urlText, method = "GET") {
 
 describe("table contract FE freeze gate", () => {
   it("matches frozen table contract envelope and doc markers", () => {
-    const docPath = fileURLToPath(new URL("../../../docs/contracts/table-contract-v1.md", import.meta.url));
+    const docPath = fileURLToPath(new URL("../../../docs/P0-core/contracts/table-contract-v1.md", import.meta.url));
     const contractDoc = readFileSync(docPath, "utf-8");
 
     expect(TABLE_CONTRACT_VERSION).toBe("1.0.0");
     expect(TABLE_CONTRACT_SCOPE).toBe("table-contract-v1");
-    expect(TABLE_CONTRACT_DOC).toBe("docs/contracts/table-contract-v1.md");
+    expect(TABLE_CONTRACT_DOC).toBe("docs/P0-core/contracts/table-contract-v1.md");
     expect(contractDoc).toContain("## `/universe/snapshot` table fields");
     expect(contractDoc).toContain("## `/universe/tables` aggregate contract");
     expect(contractDoc).toContain("## Sector projection rules");

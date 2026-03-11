@@ -15,7 +15,7 @@ function diff(required, provided) {
 
 export const TABLE_CONTRACT_VERSION = "1.0.0";
 export const TABLE_CONTRACT_SCOPE = "table-contract-v1";
-export const TABLE_CONTRACT_DOC = "docs/contracts/table-contract-v1.md";
+export const TABLE_CONTRACT_DOC = "docs/P0-core/contracts/table-contract-v1.md";
 
 export const SNAPSHOT_ASTEROID_TABLE_BE_FIELDS = Object.freeze(["table_id", "table_name"]);
 export const SNAPSHOT_ASTEROID_TABLE_FE_USED_FIELDS = Object.freeze(["table_id", "table_name"]);

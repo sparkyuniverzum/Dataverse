@@ -24,13 +24,15 @@ import {
 
 describe("moonContract FE freeze gate", () => {
   it("matches frozen moon baseline and keeps FE inventories aligned", () => {
-    const baselinePath = fileURLToPath(new URL("../../../docs/moon-contract-baseline-v1.json", import.meta.url));
+    const baselinePath = fileURLToPath(
+      new URL("../../../docs/P0-core/baselines/moon-contract-baseline-v1.json", import.meta.url)
+    );
     const baseline = JSON.parse(readFileSync(baselinePath, "utf-8"));
     const source = baseline.source_of_truth;
 
     expect(MOON_CONTRACT_VERSION).toBe("1.0.0");
     expect(MOON_CONTRACT_SCOPE).toBe("moon-contract-v1");
-    expect(MOON_CONTRACT_DOC).toBe("docs/contracts/moon-contract-v1.md");
+    expect(MOON_CONTRACT_DOC).toBe("docs/P0-core/contracts/moon-contract-v1.md");
     expect(baseline.version).toBe(MOON_CONTRACT_VERSION);
     expect(baseline.scope).toBe(MOON_CONTRACT_SCOPE);
     expect(baseline.contract_doc).toBe(MOON_CONTRACT_DOC);
