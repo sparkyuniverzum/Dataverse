@@ -15,6 +15,7 @@ Scope: `app/`
 2. Preserve OCC and idempotency behavior on mutate/extinguish/mineral writes.
 3. Do not break projection convergence (`snapshot + tables` must stay consistent).
 4. Contract violations must return actionable, repair-ready error messages.
+5. Absolute no-shortcut policy: no temporary parallel mutation paths, no validation/OCC bypasses, no workaround runtime branches without explicit user approval.
 
 ## High-Impact Areas
 

@@ -6,7 +6,6 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.app_factory import ServiceContainer
 from app.domains.bonds.policy import canonical_bond_pair, resolve_validation_decision
 from app.domains.bonds.schemas import (
     BondValidateNormalized,
@@ -130,7 +129,7 @@ def _find_bond_by_id(*, active_bonds: list[Any], bond_id: UUID | None) -> Any | 
 async def validate_bond_request(
     *,
     session: AsyncSession,
-    services: ServiceContainer,
+    services: Any,
     user_id: UUID,
     galaxy_id: UUID,
     branch_id: UUID | None,

@@ -5,8 +5,6 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.app_factory import ServiceContainer
-
 
 class CivilizationQueryNotFoundError(LookupError):
     pass
@@ -19,7 +17,7 @@ class CivilizationQueryConflictError(ValueError):
 async def list_active_civilizations(
     *,
     session: AsyncSession,
-    services: ServiceContainer,
+    services: Any,
     user_id: UUID,
     galaxy_id: UUID,
     branch_id: UUID | None,
@@ -36,7 +34,7 @@ async def list_active_civilizations(
 async def get_active_civilization(
     *,
     session: AsyncSession,
-    services: ServiceContainer,
+    services: Any,
     user_id: UUID,
     galaxy_id: UUID,
     branch_id: UUID | None,
@@ -59,7 +57,7 @@ async def get_active_civilization(
 async def resolve_planet_table_name(
     *,
     session: AsyncSession,
-    services: ServiceContainer,
+    services: Any,
     user_id: UUID,
     galaxy_id: UUID,
     branch_id: UUID | None,

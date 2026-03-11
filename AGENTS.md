@@ -18,6 +18,14 @@ Scope: entire repository.
 6. Keep FE/BE terminology aligned: `civilization` is canonical, `moon` is UX alias.
 7. Keep workflow logs operator-readable and chronologically consistent.
 
+## Absolute No-Shortcut Rule (Mandatory)
+
+1. Quick-fix shortcuts are strictly forbidden.
+2. Never introduce temporary parallel runtime paths to "unblock tests" or "patch behavior fast".
+3. Never bypass canonical contracts, OCC, validation, or domain boundaries as a workaround.
+4. If canonical fix is not ready inside the current block, stop and report blockers/options instead of shipping a shortcut.
+5. Any intentional workaround requires explicit user approval before implementation.
+
 ## Collaboration Contract (Mandatory)
 
 1. Work in implementation blocks.

@@ -4450,7 +4450,7 @@ def test_planet_moon_impact_endpoint_scope_and_shape(auth_client: tuple[httpx.Cl
     assert int(summary["active_violations_count"]) >= 0
 
 
-def test_civilization_first_class_alias_endpoints(auth_client: tuple[httpx.Client, str]) -> None:
+def test_civilization_first_class_canonical_endpoints(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     planet_name = f"CivilizationAlias > Planet-{uuid.uuid4().hex[:8]}"
     created_planet = client.post(
@@ -4492,18 +4492,14 @@ def test_civilization_first_class_alias_endpoints(auth_client: tuple[httpx.Clien
     listed_row = next((item for item in listed_items if item.get("moon_id") == moon_id), None)
     assert listed_row is not None
 
-    # Backward-compatible alias parity: `/moons` must expose the same row.
-    listed_moons = client.get("/moons", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
-    assert listed_moons.status_code == 200, listed_moons.text
-    listed_moons_items = listed_moons.json().get("items", [])
-    listed_moons_row = next((item for item in listed_moons_items if item.get("moon_id") == moon_id), None)
-    assert listed_moons_row is not None
+    removed_alias_list = client.get("/moons", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
+    assert removed_alias_list.status_code == 404, removed_alias_list.text
 
     mutated = client.patch(
-        f"/moons/{moon_id}/mutate",
+        f"/civilizations/{moon_id}/minerals/state",
         json={
             "galaxy_id": galaxy_id,
-            "minerals": {"state": "archived"},
+            "typed_value": "archived",
             "expected_event_seq": event_seq,
             "idempotency_key": f"civilization-alias-mutate-{uuid.uuid4()}",
         },
@@ -4514,13 +4510,13 @@ def test_civilization_first_class_alias_endpoints(auth_client: tuple[httpx.Clien
     mutated_seq = int(mutated.json().get("current_event_seq") or 0)
     assert mutated_seq > event_seq
 
-    detail_via_moons = client.get(f"/moons/{moon_id}", params={"galaxy_id": galaxy_id})
-    assert detail_via_moons.status_code == 200, detail_via_moons.text
-    detail_facts = {item["key"]: item for item in detail_via_moons.json().get("facts", [])}
+    detail_via_civilizations = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
+    assert detail_via_civilizations.status_code == 200, detail_via_civilizations.text
+    detail_facts = {item["key"]: item for item in detail_via_civilizations.json().get("facts", [])}
     assert detail_facts["state"]["typed_value"] == "archived"
 
     extinguished = client.patch(
-        f"/moons/{moon_id}/extinguish",
+        f"/civilizations/{moon_id}/extinguish",
         params={
             "galaxy_id": galaxy_id,
             "expected_event_seq": mutated_seq,
@@ -4528,14 +4524,15 @@ def test_civilization_first_class_alias_endpoints(auth_client: tuple[httpx.Clien
         },
     )
     assert extinguished.status_code == 200, extinguished.text
-    assert extinguished.json()["moon_id"] == moon_id
-    assert extinguished.json()["is_deleted"] is True
+    extinguished_body = extinguished.json()
+    assert str(extinguished_body.get("moon_id") or extinguished_body.get("id") or "") == str(moon_id)
+    assert extinguished_body["is_deleted"] is True
 
     missing_after_delete = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
     assert missing_after_delete.status_code == 404, missing_after_delete.text
 
 
-def test_moons_alias_deprecation_marker_and_parity(auth_client: tuple[httpx.Client, str]) -> None:
+def test_moons_alias_endpoints_removed(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     planet_name = f"MoonAliasParity > Planet-{uuid.uuid4().hex[:8]}"
     created_planet = client.post(
@@ -4570,38 +4567,11 @@ def test_moons_alias_deprecation_marker_and_parity(auth_client: tuple[httpx.Clie
     expected_event_seq = int(created.json().get("current_event_seq") or 0)
     assert expected_event_seq >= 1
 
-    def _assert_moons_alias_headers(response: httpx.Response) -> None:
-        assert response.headers.get("X-Dataverse-Deprecated-Alias") == "true"
-        assert response.headers.get("X-Dataverse-Canonical-Route") == "/civilizations"
-
-    listed_civilizations = client.get(
-        "/civilizations",
-        params={"galaxy_id": galaxy_id, "planet_id": planet_id},
-    )
-    assert listed_civilizations.status_code == 200, listed_civilizations.text
     listed_moons = client.get("/moons", params={"galaxy_id": galaxy_id, "planet_id": planet_id})
-    assert listed_moons.status_code == 200, listed_moons.text
-    _assert_moons_alias_headers(listed_moons)
-    civ_item = next(
-        (item for item in listed_civilizations.json().get("items", []) if item.get("moon_id") == moon_id),
-        None,
-    )
-    moon_item = next((item for item in listed_moons.json().get("items", []) if item.get("moon_id") == moon_id), None)
-    assert civ_item is not None
-    assert moon_item is not None
-    assert moon_item["moon_id"] == civ_item["moon_id"]
-    assert moon_item["planet_id"] == civ_item["planet_id"]
-    assert moon_item["label"] == civ_item["label"]
-    assert moon_item["current_event_seq"] == civ_item["current_event_seq"]
+    assert listed_moons.status_code == 404, listed_moons.text
 
-    detail_civilization = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
-    assert detail_civilization.status_code == 200, detail_civilization.text
     detail_moon = client.get(f"/moons/{moon_id}", params={"galaxy_id": galaxy_id})
-    assert detail_moon.status_code == 200, detail_moon.text
-    _assert_moons_alias_headers(detail_moon)
-    detail_civ_facts = {item["key"]: item for item in detail_civilization.json().get("facts", [])}
-    detail_moon_facts = {item["key"]: item for item in detail_moon.json().get("facts", [])}
-    assert detail_moon_facts == detail_civ_facts
+    assert detail_moon.status_code == 404, detail_moon.text
 
     mutated_moon = client.patch(
         f"/moons/{moon_id}/mutate",
@@ -4612,33 +4582,17 @@ def test_moons_alias_deprecation_marker_and_parity(auth_client: tuple[httpx.Clie
             "idempotency_key": f"moon-alias-parity-mutate-{uuid.uuid4()}",
         },
     )
-    assert mutated_moon.status_code == 200, mutated_moon.text
-    _assert_moons_alias_headers(mutated_moon)
-    mutated_moon_body = mutated_moon.json()
-    mutated_event_seq = int(mutated_moon_body.get("current_event_seq") or 0)
-    assert mutated_event_seq > expected_event_seq
-    moon_facts_by_key = {item["key"]: item for item in mutated_moon_body.get("facts", [])}
-    assert moon_facts_by_key["state"]["typed_value"] == "archived"
-
-    detail_civilization_after_mutate = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
-    assert detail_civilization_after_mutate.status_code == 200, detail_civilization_after_mutate.text
-    civ_facts_after_mutate = {item["key"]: item for item in detail_civilization_after_mutate.json().get("facts", [])}
-    assert civ_facts_after_mutate["state"]["typed_value"] == "archived"
+    assert mutated_moon.status_code == 404, mutated_moon.text
 
     extinguished_moon = client.patch(
         f"/moons/{moon_id}/extinguish",
         params={
             "galaxy_id": galaxy_id,
-            "expected_event_seq": mutated_event_seq,
+            "expected_event_seq": expected_event_seq,
             "idempotency_key": f"moon-alias-parity-extinguish-{uuid.uuid4()}",
         },
     )
-    assert extinguished_moon.status_code == 200, extinguished_moon.text
-    _assert_moons_alias_headers(extinguished_moon)
-    assert extinguished_moon.json()["is_deleted"] is True
-
-    missing_after_extinguish = client.get(f"/civilizations/{moon_id}", params={"galaxy_id": galaxy_id})
-    assert missing_after_extinguish.status_code == 404, missing_after_extinguish.text
+    assert extinguished_moon.status_code == 404, extinguished_moon.text
 
 
 def test_civilization_mineral_endpoint_patch_remove_and_health(auth_client: tuple[httpx.Client, str]) -> None:
@@ -4700,8 +4654,8 @@ def test_civilization_mineral_endpoint_patch_remove_and_health(auth_client: tupl
     assert mineral_mutate_body["state"] == "ACTIVE"
     assert mineral_mutate_body["violation_count"] == 0
 
-    remove_via_alias = client.patch(
-        f"/moons/{moon_id}/minerals/segment",
+    remove_via_canonical = client.patch(
+        f"/civilizations/{moon_id}/minerals/segment",
         json={
             "galaxy_id": galaxy_id,
             "remove": True,
@@ -4709,10 +4663,8 @@ def test_civilization_mineral_endpoint_patch_remove_and_health(auth_client: tupl
             "idempotency_key": f"civilization-mineral-endpoint-remove-{uuid.uuid4()}",
         },
     )
-    assert remove_via_alias.status_code == 200, remove_via_alias.text
-    assert remove_via_alias.headers.get("X-Dataverse-Deprecated-Alias") == "true"
-    assert remove_via_alias.headers.get("X-Dataverse-Canonical-Route") == "/civilizations"
-    removed_body = remove_via_alias.json()
+    assert remove_via_canonical.status_code == 200, remove_via_canonical.text
+    removed_body = remove_via_canonical.json()
     remove_event_seq = int(removed_body.get("current_event_seq") or 0)
     assert remove_event_seq > mutate_event_seq
     removed_facts = {fact["key"]: fact for fact in removed_body.get("facts", [])}
