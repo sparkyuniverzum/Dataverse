@@ -6,8 +6,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.event_envelope import DomainEventEnvelope, OutboxStatus
 from app.models import Event, OutboxEvent
-from app.services.event_envelope import DomainEventEnvelope, OutboxStatus
 
 
 class EventStoreService:

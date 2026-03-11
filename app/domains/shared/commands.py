@@ -7,7 +7,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.event_envelope import DomainEventEnvelope
+from app.infrastructure.runtime.event_envelope import DomainEventEnvelope
 
 
 class SharedCommandError(Exception):

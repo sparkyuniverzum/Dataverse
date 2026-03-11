@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.infrastructure.runtime.event_envelope import build_domain_event_envelope
 from app.infrastructure.runtime.event_store_service import EventStoreService
-from app.services.event_envelope import build_domain_event_envelope
 
 
 class _FakeSession:

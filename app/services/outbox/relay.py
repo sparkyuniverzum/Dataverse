@@ -7,9 +7,9 @@ from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.event_envelope import OutboxStatus
 from app.infrastructure.runtime.event_store_service import EventStoreService
 from app.models import OutboxEvent
-from app.services.event_envelope import OutboxStatus
 from app.services.logging_helpers import structured_log_extra
 from app.services.telemetry_spans import start_span
 

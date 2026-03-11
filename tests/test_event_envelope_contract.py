@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.services.event_envelope import DomainEventEnvelope, OutboxStatus, build_domain_event_envelope
+from app.infrastructure.runtime.event_envelope import DomainEventEnvelope, OutboxStatus, build_domain_event_envelope
 
 
 def test_build_domain_event_envelope_populates_required_fields() -> None:
