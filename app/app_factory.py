@@ -11,14 +11,14 @@ from app.core.parser2 import Parser2ExecutorBridge, Parser2SemanticPlanner
 from app.core.task_executor.service import TaskExecutorService
 from app.db import AsyncSessionLocal, dispose_db_engines
 from app.domains.bonds.dashboard_service import BondDashboardService
+from app.infrastructure.runtime.event_store_service import EventStoreService
+from app.infrastructure.runtime.idempotency_service import IdempotencyService
 from app.modules.auth.service import AuthService
 from app.services.constellation_dashboard_service import ConstellationDashboardService
 from app.services.cosmos_service import CosmosService
 from app.services.event_consumers import OnboardingBootstrapConsumer, OutboxConsumerRegistry
-from app.services.event_store_service import EventStoreService
 from app.services.galaxy_dashboard_service import GalaxyDashboardService
 from app.services.galaxy_lifecycle_service import GalaxyLifecycleService
-from app.services.idempotency_service import IdempotencyService
 from app.services.io_service import ImportExportService
 from app.services.moon_dashboard_service import MoonDashboardService
 from app.services.onboarding_service import OnboardingService

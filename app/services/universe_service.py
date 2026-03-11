@@ -9,8 +9,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.event_store_service import EventStoreService
 from app.models import Event, Galaxy, TableContract
-from app.services.event_store_service import EventStoreService
 from app.services.universe.event_projection import (
     apply_event as apply_projection_event,
     project_state_from_branch,

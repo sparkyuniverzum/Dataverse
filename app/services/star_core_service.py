@@ -10,9 +10,9 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.event_store_service import EventStoreService
 from app.models import PhysicsStateRM, StarCorePolicyRM
 from app.services.constellation_dashboard_service import ConstellationDashboardService
-from app.services.event_store_service import EventStoreService
 from app.services.universe_service import UniverseService
 
 

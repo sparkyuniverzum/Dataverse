@@ -10,9 +10,9 @@ from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.event_store_service import EventStoreService
 from app.models import Branch, Event, Galaxy, MoonCapability, TableContract
 from app.services.db_advisory_lock import acquire_transaction_lock
-from app.services.event_store_service import EventStoreService
 from app.services.galaxy_scope_service import resolve_user_galaxy_for_user
 from app.services.moon_capability_matrix import ensure_capability_matrix_transition
 from app.services.projection.read_model_projector import ReadModelProjector
