@@ -14,10 +14,10 @@ from app.api.runtime import (
 )
 from app.app_factory import ServiceContainer
 from app.db import get_session
+from app.infrastructure.runtime.parser.command_service import ScopedContext, resolve_tasks_for_payload
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import ParseCommandPlanResponse, ParseCommandRequest, ParseCommandResponse
-from app.services.parser_command_service import ScopedContext, resolve_tasks_for_payload
 
 router = APIRouter(tags=["parser"])
 
