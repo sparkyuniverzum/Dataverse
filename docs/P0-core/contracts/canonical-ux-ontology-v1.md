@@ -4,17 +4,18 @@ Status: active (canonical planning baseline)
 Date: 2026-03-10
 Owner: Product UX + Core FE/BE architecture
 Depends on:
+
 - `docs/P0-core/contracts/galaxy-workspace-contract-v1.md`
 - `docs/P0-core/contracts/moon-contract-v1.md`
 - `docs/P0-core/contracts/civilization-contract-v1.md`
 - `docs/P0-core/contracts/mineral-contract-v1.md`
 - `docs/P0-core/contracts/planet-builder-mvp-v2.md`
 - `docs/P1-exec/direction/planet-civilization-domain-canonical-v1.md`
-- `docs/P2-ref/adr/adr-moon-civilization-runtime-alias-migration-v1.md`
 
 ## 1. What changed
 
 This document defines the canonical UX ontology baseline for full product rework:
+
 1. one language for product design,
 2. one mapping between domain and runtime,
 3. one behavior model for core entities,
@@ -25,12 +26,14 @@ This is the mandatory base for future end-to-end workflow design.
 ## 2. Why it changed
 
 The current project is semantically correct but operationally ambiguous:
+
 1. Moon contract defines `Moon` as capability.
 2. Civilization contract defines `Civilization` as row instance.
 3. Runtime migration keeps `/moons*` as row alias for compatibility.
 4. Planet/civilization delivery documents use `civilization` as canonical runtime language.
 
 Without one official UX ontology, workflow design would keep mixing:
+
 - capability semantics,
 - row semantics,
 - alias semantics,
@@ -39,10 +42,12 @@ Without one official UX ontology, workflow design would keep mixing:
 ## 3. Scope of this document
 
 This version covers only:
+
 1. `A` entity ontology,
 2. `B` interaction ontology.
 
 This version does not yet define:
+
 1. full screen architecture,
 2. navigation map,
 3. full end-to-end user journeys,
@@ -51,6 +56,7 @@ This version does not yet define:
 ## 4. Canonical decision order
 
 When wording conflicts, use this priority order:
+
 1. `domain truth`
 2. `runtime truth`
 3. `UX language`
@@ -64,6 +70,7 @@ Compatibility wording may exist, but it must never redefine domain meaning.
 
 Galaxy is the workspace boundary and tenant scope.
 Galaxy owns:
+
 - planet lifecycle scope,
 - civilization scope,
 - branch timelines,
@@ -71,6 +78,7 @@ Galaxy owns:
 - star governance context.
 
 Galaxy is not:
+
 - a visual tab,
 - a branch,
 - a session-only selection.
@@ -79,12 +87,14 @@ Galaxy is not:
 
 Star is the law and governance layer for one galaxy.
 Star owns:
+
 - constitution,
 - policy lock state,
 - physical profile,
 - runtime control context.
 
 Star is not:
+
 - a planet,
 - a dashboard card,
 - a row-level object.
@@ -93,12 +103,14 @@ Star is not:
 
 Planet is a table aggregate and structural data carrier.
 Planet owns:
+
 - table contract boundary,
 - civilization population container,
 - capability attachment boundary,
 - visual placement in workspace.
 
 Planet is not:
+
 - a capability,
 - a single row,
 - a temporary draft.
@@ -109,12 +121,14 @@ Moon is a capability module attached to a planet contract.
 Moon is not a row instance.
 
 Moon capability classes include:
+
 - Dictionary Moon,
 - Validation Moon,
 - Formula Moon,
 - Bridge Moon.
 
 Moon owns:
+
 - capability behavior,
 - validation semantics,
 - formula semantics,
@@ -122,6 +136,7 @@ Moon owns:
 - contract-driven effects on civilization writes and projections.
 
 Moon is not:
+
 - live row population,
 - a civilization alias in domain truth,
 - a first-class row CRUD entity.
@@ -130,6 +145,7 @@ Moon is not:
 
 Civilization is a row instance on a planet.
 It is the live population entity that can be:
+
 - created,
 - mutated,
 - validated,
@@ -137,6 +153,7 @@ It is the live population entity that can be:
 - extinguished.
 
 Civilization owns:
+
 - row data,
 - lifecycle state,
 - typed mineral values,
@@ -144,6 +161,7 @@ Civilization owns:
 - projection visibility.
 
 Civilization is not:
+
 - a capability module,
 - a table contract,
 - a planet.
@@ -154,6 +172,7 @@ Mineral is a typed field value inside civilization data.
 Mineral is a fact/value layer, not a standalone population entity.
 
 Mineral owns:
+
 - typed value,
 - source type,
 - validation outcome,
@@ -163,12 +182,14 @@ Mineral owns:
 
 Bond is a relation between civilizations.
 Bond owns:
+
 - source-target relation,
 - bond semantics,
 - lifecycle state,
 - link-driven runtime implications.
 
 Bond is not:
+
 - a capability block,
 - a planet,
 - a branch edge in version control sense.
@@ -177,11 +198,13 @@ Bond is not:
 
 Branch is an isolated experimental timeline within one galaxy.
 Branch owns:
+
 - isolated event history,
 - promote/review lifecycle,
 - temporary divergence from main timeline.
 
 Branch is not:
+
 - a visual folder,
 - a saved filter,
 - a draft object.
@@ -190,6 +213,7 @@ Branch is not:
 
 Star Core is the governance and runtime control plane.
 It owns:
+
 - policy,
 - physics profile,
 - runtime health,
@@ -198,6 +222,7 @@ It owns:
 - outbox operations.
 
 Star Core is not:
+
 - the primary editing surface for planets/civilizations,
 - the onboarding shell,
 - a replacement for timeline or workflow log.
@@ -205,6 +230,7 @@ Star Core is not:
 ## 6. Runtime truth
 
 Current implementation carries the ontology through these rules:
+
 1. `civilization` is the canonical row runtime term.
 2. `/civilizations*` is the canonical row CRUD namespace.
 3. `/moons*` is a compatibility alias for row lifecycle during migration only.
@@ -220,6 +246,7 @@ Runtime implication:
 ### 7.1 Primary language for new UX work
 
 Default UX vocabulary for new product work must be:
+
 - Galaxy
 - Star
 - Planet
@@ -232,6 +259,7 @@ Default UX vocabulary for new product work must be:
 ### 7.2 Controlled use of `moon`
 
 `Moon` may appear in UX only in one of these cases:
+
 1. capability assembly or capability explanation surfaces,
 2. explicit migration/alias explanation,
 3. frozen legacy copy that has not yet been migrated.
@@ -255,6 +283,7 @@ If old runtime or old copy still exposes `moon` for row lifecycle, the UI must m
 ## 9. Entity ontology
 
 Each entity below is defined by:
+
 1. what it is,
 2. why it exists,
 3. what it owns,
@@ -273,12 +302,14 @@ Why it exists:
 It prevents cross-tenant and cross-workspace ambiguity.
 
 What it owns:
+
 - workspace scope,
 - onboarding record,
 - active branch universe,
 - star governance context.
 
 What it can react to:
+
 - create,
 - select,
 - extinguish,
@@ -287,12 +318,14 @@ What it can react to:
 - branch promote.
 
 What it can affect:
+
 - every read/write scope resolution,
 - visible workspace identity,
 - available branches,
 - available governance context.
 
 States:
+
 - available,
 - selected,
 - onboarding_incomplete,
@@ -300,6 +333,7 @@ States:
 - archived.
 
 User actions:
+
 - list,
 - create,
 - enter,
@@ -308,6 +342,7 @@ User actions:
 - extinguish.
 
 UI must not imply:
+
 - that galaxy is just a recent file,
 - that galaxy switch is harmless if there is active draft state.
 
@@ -320,12 +355,14 @@ Why it exists:
 It gates and explains higher-order rules before builder/runtime mutation flows.
 
 What it owns:
+
 - policy lock,
 - physical profile,
 - governance rules,
 - control-plane state.
 
 What it can react to:
+
 - lock,
 - profile apply,
 - profile migrate,
@@ -333,12 +370,14 @@ What it can react to:
 - runtime query.
 
 What it can affect:
+
 - planet creation gates,
 - runtime interpretation,
 - governance surfaces,
 - explainability copy in restricted flows.
 
 States:
+
 - unlocked,
 - locked,
 - policy_ready,
@@ -346,6 +385,7 @@ States:
 - governance_warning.
 
 User actions:
+
 - inspect,
 - lock,
 - apply policy/profile,
@@ -353,6 +393,7 @@ User actions:
 - inspect runtime.
 
 UI must not imply:
+
 - that star is optional once governance gates are active,
 - that it is a decorative metaphor only.
 
@@ -365,6 +406,7 @@ Why it exists:
 It gives civilization data and capabilities one deterministic container.
 
 What it owns:
+
 - table identity,
 - contract boundary,
 - capability attachment boundary,
@@ -372,6 +414,7 @@ What it owns:
 - visual placement.
 
 What it can react to:
+
 - placement,
 - rename/reclassify,
 - contract update,
@@ -379,12 +422,14 @@ What it can react to:
 - visualization refresh.
 
 What it can affect:
+
 - available civilization schema,
 - available capability behavior,
 - dashboard aggregates,
 - layout and navigation.
 
 States:
+
 - absent,
 - placed,
 - empty,
@@ -394,6 +439,7 @@ States:
 - archived.
 
 User actions:
+
 - create/place,
 - inspect,
 - configure,
@@ -403,6 +449,7 @@ User actions:
 - archive.
 
 UI must not imply:
+
 - that planet and schema block are the same object,
 - that planet creation automatically means usable population.
 
@@ -415,6 +462,7 @@ Why it exists:
 It explains and structures non-row behavior on the planet layer.
 
 What it owns:
+
 - capability identity,
 - validation/typing behavior,
 - formula behavior,
@@ -422,18 +470,21 @@ What it owns:
 - contract-level effects.
 
 What it can react to:
+
 - capability assembly,
 - contract commit,
 - capability preview,
 - contract replacement/versioning.
 
 What it can affect:
+
 - civilization validation,
 - allowed mineral values,
 - formula projections,
 - bond semantics and bridge rules.
 
 States:
+
 - unavailable,
 - selectable,
 - assembled,
@@ -442,12 +493,14 @@ States:
 - superseded.
 
 User actions:
+
 - inspect capability meaning,
 - add/remove capability blocks in builder,
 - preview capability effects,
 - commit capability changes.
 
 UI must not imply:
+
 - that user is editing row data,
 - that capability blocks are civilizations,
 - that `/moons*` row CRUD is the canonical capability surface.
@@ -461,6 +514,7 @@ Why it exists:
 It is the primary mutable population entity for day-to-day operator work.
 
 What it owns:
+
 - row identity,
 - row data,
 - current lifecycle state,
@@ -469,6 +523,7 @@ What it owns:
 - bond eligibility.
 
 What it can react to:
+
 - create,
 - ingest,
 - mutate,
@@ -478,6 +533,7 @@ What it can react to:
 - projection replay.
 
 What it can affect:
+
 - planet row counts,
 - dashboard summaries,
 - visual runtime state,
@@ -485,6 +541,7 @@ What it can affect:
 - validation and repair flows.
 
 States:
+
 - absent,
 - draft,
 - previewed,
@@ -496,6 +553,7 @@ States:
 - historical.
 
 User actions:
+
 - create,
 - inspect,
 - edit,
@@ -505,6 +563,7 @@ User actions:
 - recover from blocked write.
 
 UI must not imply:
+
 - that civilization is a capability,
 - that civilization deletion is hard delete,
 - that selection equals committed edit mode.
@@ -518,6 +577,7 @@ Why it exists:
 It gives civilization state meaningful, typed, explainable content.
 
 What it owns:
+
 - key,
 - typed value,
 - source type,
@@ -525,6 +585,7 @@ What it owns:
 - formula or calculated status where applicable.
 
 What it can react to:
+
 - direct edit,
 - parser intent,
 - formula recompute,
@@ -532,12 +593,14 @@ What it can react to:
 - guardian/blocking rule.
 
 What it can affect:
+
 - row validity,
 - calculated outputs,
 - preview warnings,
 - downstream governance or bridge rules.
 
 States:
+
 - empty,
 - populated,
 - invalid,
@@ -547,12 +610,14 @@ States:
 - archived_with_row.
 
 User actions:
+
 - edit,
 - inspect source,
 - repair invalid value,
 - trace formula/calculation origin.
 
 UI must not imply:
+
 - that mineral is an independent row object,
 - that calculated value is directly editable when it is not.
 
@@ -565,12 +630,14 @@ Why it exists:
 It expresses relation, flow, or guardian semantics between row entities.
 
 What it owns:
+
 - source/target identity,
 - bond type,
 - relation lifecycle,
 - cross-planet implications.
 
 What it can react to:
+
 - preview,
 - create,
 - retype,
@@ -579,12 +646,14 @@ What it can react to:
 - scope mismatch.
 
 What it can affect:
+
 - graph topology,
 - bridge capability outcomes,
 - explainability and repair hints,
 - dashboard and runtime state.
 
 States:
+
 - absent,
 - draft,
 - previewed,
@@ -594,6 +663,7 @@ States:
 - historical.
 
 User actions:
+
 - inspect,
 - create,
 - preview,
@@ -601,6 +671,7 @@ User actions:
 - extinguish.
 
 UI must not imply:
+
 - that every line is always valid to commit,
 - that blocked relation is a silent no-op.
 
@@ -613,12 +684,14 @@ Why it exists:
 It allows safe experimentation before promote to main.
 
 What it owns:
+
 - branch identity,
 - branch name,
 - branch timeline,
 - promote state.
 
 What it can react to:
+
 - create,
 - select,
 - timeline writes,
@@ -626,12 +699,14 @@ What it can react to:
 - closure.
 
 What it can affect:
+
 - read scope,
 - write scope,
 - preview comparison,
 - review and merge flows.
 
 States:
+
 - absent,
 - active,
 - selected,
@@ -641,6 +716,7 @@ States:
 - closed.
 
 User actions:
+
 - create,
 - enter,
 - compare,
@@ -648,6 +724,7 @@ User actions:
 - promote.
 
 UI must not imply:
+
 - that branch is only a visual filter,
 - that main and branch timelines are interchangeable.
 
@@ -660,6 +737,7 @@ Why it exists:
 It centralizes policy, runtime health, metrics, and operator-level controls.
 
 What it owns:
+
 - policy state,
 - runtime state,
 - pulse data,
@@ -667,6 +745,7 @@ What it owns:
 - outbox status.
 
 What it can react to:
+
 - policy lock,
 - profile migration,
 - outbox run once,
@@ -674,12 +753,14 @@ What it can react to:
 - metrics request.
 
 What it can affect:
+
 - operator trust,
 - governance review,
 - remediation actions,
 - readiness for release/promote decisions.
 
 States:
+
 - nominal,
 - warning,
 - degraded,
@@ -687,12 +768,14 @@ States:
 - action_required.
 
 User actions:
+
 - inspect,
 - run operator action,
 - review metrics,
 - confirm policy/governance state.
 
 UI must not imply:
+
 - that star-core actions are part of everyday row editing flow,
 - that control-plane operations are reversible like local drafts.
 
@@ -704,6 +787,7 @@ If an interaction is not defined here or in a more specific contract, UX must tr
 ### 10.1 Galaxy interactions
 
 Galaxy may react with:
+
 - Star
 - Planet
 - Branch
@@ -711,6 +795,7 @@ Galaxy may react with:
 - Star Core
 
 Galaxy may not directly react with:
+
 - Mineral as top-level independent scope
 - Bond as cross-galaxy relation
 
@@ -720,11 +805,13 @@ Every meaningful user flow starts in one resolved galaxy scope.
 ### 10.2 Star interactions
 
 Star may react with:
+
 - Galaxy
 - Planet creation gate
 - Star Core
 
 Star may not directly react with:
+
 - individual mineral editing as primary UX object
 
 Behavior rule:
@@ -733,6 +820,7 @@ Star influences governance and readiness, not row-level editing mechanics direct
 ### 10.3 Planet interactions
 
 Planet may react with:
+
 - Moon capability
 - Civilization
 - Bond summaries
@@ -740,6 +828,7 @@ Planet may react with:
 - visual placement/runtime projection
 
 Planet may not react as if it were:
+
 - a row editor
 - a capability itself
 
@@ -749,12 +838,14 @@ Planet is the container and contract surface for civilization work.
 ### 10.4 Moon interactions
 
 Moon may react with:
+
 - Planet contract
 - Builder capability assembly
 - Civilization validation path
 - Formula and bridge effects
 
 Moon may not react as if it were:
+
 - direct row CRUD
 - a selected population member
 
@@ -764,6 +855,7 @@ Moon changes row behavior indirectly through contract/capability semantics.
 ### 10.5 Civilization interactions
 
 Civilization may react with:
+
 - Planet
 - Mineral
 - Bond
@@ -772,6 +864,7 @@ Civilization may react with:
 - grid/canvas/inspector selection
 
 Civilization may not react as if it were:
+
 - a capability pack
 - a global entity outside planet scope
 
@@ -781,6 +874,7 @@ Civilization is the primary unit of data editing and explanation in operational 
 ### 10.6 Mineral interactions
 
 Mineral may react with:
+
 - Civilization
 - validators
 - formulas
@@ -788,6 +882,7 @@ Mineral may react with:
 - repair hints
 
 Mineral may not react as if it were:
+
 - a free-floating entity without civilization context
 
 Behavior rule:
@@ -796,12 +891,14 @@ Mineral editing must remain explainable and typed.
 ### 10.7 Bond interactions
 
 Bond may react with:
+
 - Civilization to Civilization
 - Planet-level bridge implications
 - parser preview
 - repair hints for blocking or ambiguity
 
 Bond may not react as if it were:
+
 - a loose decorative line without semantic consequences
 
 Behavior rule:
@@ -810,11 +907,13 @@ Every bond operation must surface validity, scope, and impact.
 ### 10.8 Branch interactions
 
 Branch may react with:
+
 - Galaxy
 - Planet/Civilization/Bond reads and writes
 - compare/review/promote flows
 
 Branch may not react as if it were:
+
 - a draft rail replacement
 - a UI-local undo stack
 
@@ -824,6 +923,7 @@ Branch is timeline isolation, not widget-local state.
 ### 10.9 Star Core interactions
 
 Star Core may react with:
+
 - Star
 - Galaxy
 - runtime health
@@ -831,6 +931,7 @@ Star Core may react with:
 - outbox operations
 
 Star Core may not react as if it were:
+
 - the normal path for creating or editing civilizations
 
 Behavior rule:
@@ -839,6 +940,7 @@ Star Core is governance/supporting control plane, not primary authoring surface.
 ### 10.10 Parser interactions
 
 Parser may react with:
+
 - Planet intents
 - Civilization intents
 - Mineral intents
@@ -847,11 +949,13 @@ Parser may react with:
 - explainability and ambiguity handling
 
 Parser may not react as:
+
 - a hidden expert-only sidecar,
 - an unreviewable mutation black box.
 
 Behavior rule:
 Parser is a first-class intent engine that must always resolve into:
+
 1. understood intent,
 2. clarification needed,
 3. blocked by rule.
@@ -859,6 +963,7 @@ Parser is a first-class intent engine that must always resolve into:
 ### 10.11 UI surface interactions
 
 Core UI surfaces may react with these entity classes:
+
 - Galaxy Gate <-> Galaxy, onboarding, recent context
 - Workspace shell <-> Galaxy, Branch, runtime state
 - Main surface <-> Planet, Civilization, Bond
@@ -872,6 +977,7 @@ No surface may invent its own ontology. All labels and states must map back to s
 ### 10.12 Runtime and error interactions
 
 Runtime may react with UX through:
+
 - preview results,
 - validation errors,
 - OCC conflicts,
@@ -881,6 +987,7 @@ Runtime may react with UX through:
 
 Behavior rule:
 Errors must map to:
+
 1. what failed,
 2. why it failed,
 3. what stayed unchanged,

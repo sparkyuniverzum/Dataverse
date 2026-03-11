@@ -1,7 +1,7 @@
 # Documentation Triage - 2026-03-11
 
 Status: closed (cleanup executed + references rewired)
-Scope: `docs/` (58 active files + historical removed-set log)
+Scope: `docs/` (49 active files + historical removed-set log)
 Owner: agent + user
 
 ## Rule set used
@@ -16,7 +16,7 @@ Owner: agent + user
 - handoff-only session notes
 - historical backlog/audit artifacts superseded by canonical docs
 
-## Aktualni (58)
+## Aktualni (49)
 
 - `docs/README.md`
 - `docs/P0-core/README.md`
@@ -67,17 +67,8 @@ Owner: agent + user
 - `docs/P1-exec/plans/planet-civilization-implementation-plan-v1.md`
 - `docs/P1-exec/plans/service-maturity-matrix-v1.md`
 - `docs/P1-exec/plans/ux-refactor-bundled-gate-plan-2026-03-10.md`
-- `docs/P2-ref/README.md`
-- `docs/P2-ref/adr/adr-moon-civilization-runtime-alias-migration-v1.md`
-- `docs/P2-ref/adr/adr-star-physics-laws-v2.md`
-- `docs/P2-ref/reference/codex-agent-workflow-setup-v1.md`
-- `docs/P2-ref/reference/dod-system-mvp-v2.md`
-- `docs/P2-ref/reference/domain_units.md`
-- `docs/P2-ref/reference/effective_usage_seed.md`
-- `docs/P2-ref/reference/v1-release-notes.md`
-- `docs/P2-ref/reference/v1.md`
 
-## Historical Removed Set (28)
+## Historical Removed Set (37)
 
 - `removed: contracts/civilization-mineral-contract-v2.md`
 - `removed: contracts/contract-gate-plan-v2.md`
@@ -107,8 +98,17 @@ Owner: agent + user
 - `removed: upgrade/session-handoff-2026-03-08.md`
 - `removed: upgrade/session-handoff-2026-03-10-prh3-prh4.md`
 - `removed: upgrade/session-handoff-2026-03-10-slice9.md`
+- `removed: P2-ref/README.md`
+- `removed: P2-ref/adr/adr-moon-civilization-runtime-alias-migration-v1.md`
+- `removed: P2-ref/adr/adr-star-physics-laws-v2.md`
+- `removed: P2-ref/reference/codex-agent-workflow-setup-v1.md`
+- `removed: P2-ref/reference/dod-system-mvp-v2.md`
+- `removed: P2-ref/reference/domain_units.md`
+- `removed: P2-ref/reference/effective_usage_seed.md`
+- `removed: P2-ref/reference/v1-release-notes.md`
+- `removed: P2-ref/reference/v1.md`
 
 ## Notes
 
-1. Cleanup is already executed: active documents were moved into `P0-core`, `P1-exec`, and `P2-ref`.
+1. Cleanup is already executed: active documents are in `P0-core` and `P1-exec`.
 2. The historical removed set above is informational only and intentionally non-resolvable.

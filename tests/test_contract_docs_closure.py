@@ -102,18 +102,6 @@ def test_contract_gap_diff_references_full_mvp_layers() -> None:
         assert marker in body
 
 
-def test_runtime_alias_migration_adr_exists_with_required_sections() -> None:
-    body = _read_doc("docs/P2-ref/adr/adr-moon-civilization-runtime-alias-migration-v1.md")
-    for snippet in (
-        "Moon = capability",
-        "Civilization = row",
-        "Migration phases",
-        "/moons*",
-        "/civilizations*",
-    ):
-        assert snippet in body
-
-
 def test_canonical_ux_ontology_doc_links_domain_runtime_and_ux_layers() -> None:
     body = _read_doc("docs/P0-core/contracts/canonical-ux-ontology-v1.md")
     for snippet in (

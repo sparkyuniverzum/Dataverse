@@ -9,7 +9,7 @@ Owner: Core Architecture
   - `docs/P0-core/contracts/parser-v1.md`
   - `docs/P0-core/contracts/table-contract-v1.md`
 - [x] Upgrade roadmap reflects implemented state:
-  - `docs/P2-ref/reference/v1.md`
+  - `docs/P1-exec/plans/planet-civilization-implementation-plan-v1.md`
 - [x] No new features are merged after freeze start.
 
 ## Backend readiness

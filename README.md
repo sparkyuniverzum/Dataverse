@@ -169,4 +169,5 @@ Pro efektivni lokalni FE/BE+e2e smycku pouzij:
 4. `./scripts/dev_fast_check.sh staging` (staging smoke sada)
 
 Detaily a slash-command workflow:
-- `docs/P2-ref/reference/codex-agent-workflow-setup-v1.md`
+- `docs/P1-exec/README.md`
+- `docs/P1-exec/plans/documentation-purpose-priority-map-2026-03-11.md`

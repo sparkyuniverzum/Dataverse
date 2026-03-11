@@ -1,7 +1,7 @@
 # Documentation Purpose/Priority Map - 2026-03-11
 
 Status: active (canonical classification map)
-Scope: all current files under `docs/` (58 files)
+Scope: all current files under `docs/` (49 files)
 Owner: product + engineering
 
 ## 1. Visual system
@@ -9,7 +9,6 @@ Owner: product + engineering
 Priority labels:
 - `[P0-CORE]` = runtime truth, gates, mandatory rules
 - `[P1-EXEC]` = active execution and steering docs
-- `[P2-REF]` = reference/history docs
 
 Purpose labels:
 - `[A]` Normative contracts
@@ -18,16 +17,14 @@ Purpose labels:
 - `[D]` Product/UX direction
 - `[E]` Active implementation management
 - `[F]` Process/agent rules
-- `[G]` Historical/reference
 
 ## 2. Dashboard
 
 | Priority | Meaning | Count | Share |
 |---|---|---:|---:|
-| `[P0-CORE]` | runtime truth + gates | 33 | 57% |
-| `[P1-EXEC]` | active execution docs | 17 | 29% |
-| `[P2-REF]` | reference/history | 8 | 14% |
-| **Total** |  | **58** | **100%** |
+| `[P0-CORE]` | runtime truth + gates | 33 | 67% |
+| `[P1-EXEC]` | active execution docs | 16 | 33% |
+| **Total** |  | **49** | **100%** |
 
 ## 3. Purpose map (ordered by priority)
 
@@ -91,27 +88,15 @@ Purpose labels:
 - `docs/P1-exec/plans/documentation-triage-2026-03-11.md`
 - `docs/P1-exec/plans/documentation-purpose-priority-map-2026-03-11.md`
 
-### `[P1-EXEC][F]` Process and Agent Editing Rules (5)
+### `[P1-EXEC][F]` Process and Agent Editing Rules (4)
 
 - `docs/P0-core/contracts/AGENTS.md`
 - `docs/README.md`
 - `docs/P0-core/README.md`
 - `docs/P1-exec/README.md`
-- `docs/P2-ref/README.md`
-
-### `[P2-REF][G]` Historical, ADR and General Reference (8)
-
-- `docs/P2-ref/reference/dod-system-mvp-v2.md`
-- `docs/P2-ref/reference/domain_units.md`
-- `docs/P2-ref/reference/effective_usage_seed.md`
-- `docs/P2-ref/reference/v1-release-notes.md`
-- `docs/P2-ref/adr/adr-moon-civilization-runtime-alias-migration-v1.md`
-- `docs/P2-ref/adr/adr-star-physics-laws-v2.md`
-- `docs/P2-ref/reference/codex-agent-workflow-setup-v1.md`
-- `docs/P2-ref/reference/v1.md`
 
 ## 4. Operating rule from this map
 
-1. New docs must declare purpose and target priority (`P0/P1/P2`) in header.
-2. If a `P2` artifact becomes operationally required by tests/scripts/runbook, reclassify it to `P1` or `P0`.
+1. New docs must declare purpose and target priority (`P0/P1`) in header.
+2. If an artifact becomes operationally required by tests/scripts/runbook, keep it in `P0` or `P1`.
 3. If a `P1` artifact is fully merged into a canonical `P0` doc, move it to archive in the next cleanup block.
