@@ -201,8 +201,8 @@ class AutoSemanticsService:
                 after_constellation_name, after_planet_name = split_constellation_and_planet_name(after_table_name)
                 self.executor._record_semantic_effect(
                     ctx=ctx,
-                    code="MOON_RECLASSIFIED",
-                    reason="Auto semantic rule moved moon to another planet bucket.",
+                    code="CIVILIZATION_RECLASSIFIED",
+                    reason="Auto semantic rule moved civilization to another planet bucket.",
                     task_action=trigger_action,
                     rule_id=str(rule.get("id") or "sem.auto.bucket_by_metadata_value"),
                     inputs={

@@ -101,10 +101,10 @@ def test_handle_ingest_update_family_ingest_does_not_reuse_existing_from_other_t
     assert created.metadata.get("table") == "Finance > Material"
     assert ctx.context_civilization_ids == [created.id]
     codes = [str(item.get("code")) for item in ctx.result.semantic_effects]
-    assert "MOON_UPSERTED" in codes
+    assert "CIVILIZATION_UPSERTED" in codes
     assert "PLANET_INFERRED" in codes
     confidence_by_code = {str(item.get("code")): str(item.get("confidence")) for item in ctx.result.semantic_effects}
-    assert confidence_by_code.get("MOON_UPSERTED") == "certain"
+    assert confidence_by_code.get("CIVILIZATION_UPSERTED") == "certain"
     assert confidence_by_code.get("PLANET_INFERRED") == "high"
     assert all(str(item.get("because") or "").strip() for item in ctx.result.semantic_effects)
 
@@ -341,8 +341,8 @@ def test_handle_ingest_update_family_applies_auto_semantic_reclassification() ->
     assert created.metadata.get("table") == "HR > Zamestnanci"
     assert created.metadata.get("table_name") == "HR > Zamestnanci"
     confidence_by_code = {str(item.get("code")): str(item.get("confidence")) for item in ctx.result.semantic_effects}
-    assert "MOON_RECLASSIFIED" in confidence_by_code
-    assert confidence_by_code.get("MOON_RECLASSIFIED") == "certain"
+    assert "CIVILIZATION_RECLASSIFIED" in confidence_by_code
+    assert confidence_by_code.get("CIVILIZATION_RECLASSIFIED") == "certain"
     if "PLANET_INFERRED" in confidence_by_code:
         assert confidence_by_code.get("PLANET_INFERRED") == "high"
     assert all(str(item.get("because") or "").strip() for item in ctx.result.semantic_effects)

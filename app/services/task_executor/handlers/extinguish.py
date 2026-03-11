@@ -65,10 +65,10 @@ class ExtinguishHandler:
                 ctx.result.extinguished_civilization_ids.append(civilization.id)
             self.service._record_semantic_effect(
                 ctx=ctx,
-                code="MOON_EXTINGUISHED",
-                reason="Moon was soft-deleted.",
+                code="CIVILIZATION_EXTINGUISHED",
+                reason="Civilization was soft-deleted.",
                 task_action="EXTINGUISH",
-                rule_id="sem.moon.extinguish",
+                rule_id="sem.civilization.extinguish",
                 inputs={"civilization_id": civilization.id},
                 outputs={"civilization_id": civilization.id, "is_deleted": True},
             )
@@ -95,7 +95,7 @@ class ExtinguishHandler:
                 self.service._record_semantic_effect(
                     ctx=ctx,
                     code="BOND_EXTINGUISHED",
-                    reason="Connected bond was soft-deleted because its moon endpoint was extinguished.",
+                    reason="Connected bond was soft-deleted because its civilization endpoint was extinguished.",
                     task_action="EXTINGUISH",
                     rule_id="sem.bond.cascade_extinguish",
                     inputs={"bond_id": bond.id, "civilization_id": civilization.id},

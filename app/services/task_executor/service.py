@@ -175,16 +175,18 @@ class TaskExecutorService:
         safe_inputs = inputs if isinstance(inputs, dict) else {}
         safe_outputs = outputs if isinstance(outputs, dict) else {}
 
-        if normalized_code == "MOON_UPSERTED":
-            return "Zadany zaznam prosel pres idempotentni upsert (vytvoreni nebo synchronizace existujiciho mesice)."
-        if normalized_code == "MOON_UPDATED":
-            return "Executor zapsal zmenu hodnoty nebo metadata do existujiciho mesice."
-        if normalized_code == "MOON_RECLASSIFIED":
+        if normalized_code == "CIVILIZATION_UPSERTED":
+            return (
+                "Zadany zaznam prosel pres idempotentni upsert " "(vytvoreni nebo synchronizace existujici civilizace)."
+            )
+        if normalized_code == "CIVILIZATION_UPDATED":
+            return "Executor zapsal zmenu hodnoty nebo metadata do existujici civilizace."
+        if normalized_code == "CIVILIZATION_RECLASSIFIED":
             from_table = str(safe_inputs.get("from_table_name") or "").strip()
             to_table = str(safe_inputs.get("to_table_name") or "").strip()
             if from_table and to_table:
                 return f"Klasifikace se zmenila z '{from_table}' na '{to_table}'."
-            return "Klasifikace mesice se zmenila na jinou planetu/tabulku."
+            return "Klasifikace civilizace se zmenila na jinou planetu/tabulku."
         if normalized_code == "PLANET_INFERRED":
             table_name = str(safe_inputs.get("table_name") or safe_outputs.get("planet_name") or "").strip()
             if table_name:
@@ -199,8 +201,8 @@ class TaskExecutorService:
             return "Typ vazby se meni soft-replace postupem: stara vazba se zhasne a zalozi se nova kanonicka vazba."
         if normalized_code == "BOND_EXTINGUISHED":
             return "Vazba byla zhasnuta soft-delete pravidlem (bez hard delete)."
-        if normalized_code == "MOON_EXTINGUISHED":
-            return "Mesic byl zhasnut soft-delete pravidlem (bez hard delete)."
+        if normalized_code == "CIVILIZATION_EXTINGUISHED":
+            return "Civilizace byla zhasnuta soft-delete pravidlem (bez hard delete)."
         if normalized_code == "FORMULA_SET":
             return "Vzorec byl ulozen jako metadata pravidlo ciloveho mesice."
         if normalized_code == "GUARDIAN_ADDED":

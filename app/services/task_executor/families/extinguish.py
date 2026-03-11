@@ -138,10 +138,10 @@ async def handle_extinguish_family(
                 ctx.result.extinguished_civilization_ids.append(civilization.id)
             self._record_semantic_effect(
                 ctx=ctx,
-                code="MOON_EXTINGUISHED",
-                reason="Moon was soft-deleted.",
+                code="CIVILIZATION_EXTINGUISHED",
+                reason="Civilization was soft-deleted.",
                 task_action=action,
-                rule_id="sem.moon.extinguish",
+                rule_id="sem.civilization.extinguish",
                 inputs={"civilization_id": civilization.id},
                 outputs={"civilization_id": civilization.id, "is_deleted": True},
             )
@@ -168,7 +168,7 @@ async def handle_extinguish_family(
                 self._record_semantic_effect(
                     ctx=ctx,
                     code="BOND_EXTINGUISHED",
-                    reason="Connected bond was soft-deleted because its moon endpoint was extinguished.",
+                    reason="Connected bond was soft-deleted because its civilization endpoint was extinguished.",
                     task_action=action,
                     rule_id="sem.bond.cascade_extinguish",
                     inputs={"bond_id": bond.id, "civilization_id": civilization.id},

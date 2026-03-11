@@ -102,8 +102,8 @@ class IngestUpdateHandler:
                 ctx.civilizations_by_id[civilization.id] = civilization
                 self.service._record_semantic_effect(
                     ctx=ctx,
-                    code="MOON_UPSERTED",
-                    reason="Moon row was created from INGEST command.",
+                    code="CIVILIZATION_UPSERTED",
+                    reason="Civilization row was created from INGEST command.",
                     task_action="INGEST",
                     rule_id="sem.upsert.ingest",
                     inputs={"value": value, "table_name": requested_table_name},
@@ -165,8 +165,8 @@ class IngestUpdateHandler:
                     )
                     self.service._record_semantic_effect(
                         ctx=ctx,
-                        code="MOON_UPSERTED",
-                        reason="Existing moon metadata was synchronized from INGEST command.",
+                        code="CIVILIZATION_UPSERTED",
+                        reason="Existing civilization metadata was synchronized from INGEST command.",
                         task_action="INGEST",
                         rule_id="sem.upsert.ingest",
                         inputs={
@@ -179,8 +179,8 @@ class IngestUpdateHandler:
                         next_constellation_name, next_planet_name = split_constellation_and_planet_name(next_table_name)
                         self.service._record_semantic_effect(
                             ctx=ctx,
-                            code="MOON_RECLASSIFIED",
-                            reason="Moon changed table classification after metadata update.",
+                            code="CIVILIZATION_RECLASSIFIED",
+                            reason="Civilization changed table classification after metadata update.",
                             task_action="INGEST",
                             rule_id="sem.table.reclassify",
                             inputs={
@@ -321,8 +321,8 @@ class IngestUpdateHandler:
             )
             self.service._record_semantic_effect(
                 ctx=ctx,
-                code="MOON_UPDATED",
-                reason="Moon value or metadata was updated.",
+                code="CIVILIZATION_UPDATED",
+                reason="Civilization value or metadata was updated.",
                 task_action="UPDATE_CIVILIZATION",
                 rule_id="sem.update.civilization",
                 inputs={"civilization_id": civilization.id},
@@ -332,8 +332,8 @@ class IngestUpdateHandler:
                 next_constellation_name, next_planet_name = split_constellation_and_planet_name(next_table_name)
                 self.service._record_semantic_effect(
                     ctx=ctx,
-                    code="MOON_RECLASSIFIED",
-                    reason="Moon moved to another planet/table after update.",
+                    code="CIVILIZATION_RECLASSIFIED",
+                    reason="Civilization moved to another planet/table after update.",
                     task_action="UPDATE_CIVILIZATION",
                     rule_id="sem.table.reclassify",
                     inputs={

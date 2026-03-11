@@ -183,10 +183,22 @@ Evidence:
   - `test_branch_close_is_idempotent_and_hides_branch_scope`
   - `test_branch_promote_rejects_closed_branch`
 
+## 5.4 P1-3 Executor semantic terminology cleanup
+
+- [x] 2026-03-11 Sjednoceny semantic effect kódy row runtime entity z `MOON_*` na `CIVILIZATION_*`.
+- [x] 2026-03-11 Upraveny důvodové texty semantic efektů pro row lifecycle (civilization, ne moon).
+- [x] 2026-03-11 Sjednoceny i legacy handler větve, aby nevznikala interní terminologická divergence.
+
+Evidence:
+
+- [x] 2026-03-11 `rg -n "MOON_UPSERTED|MOON_UPDATED|MOON_RECLASSIFIED|MOON_EXTINGUISHED" app tests -g"*.py"` -> prázdný výstup.
+- [x] 2026-03-11 `PYTHONPATH=. pytest -q tests/test_task_executor_service_stage2.py -rs` -> `17 passed`.
+- [x] 2026-03-11 `if python -m py_compile app/services/task_executor/families/ingest_update.py app/services/task_executor/families/extinguish.py app/services/task_executor/handlers/ingest_update.py app/services/task_executor/handlers/extinguish.py app/services/task_executor/service.py app/services/auto_semantics_service.py tests/test_task_executor_service_stage2.py; then echo OK; else echo NOK; fi` -> `OK`.
+
 ## 6. Pravidlo průběžné kontroly
 
 Po každém bloku:
 
-1. aktualizovat checklist (`[ ]` -> `[x]`),
+1. aktualizovat checklist (open -> closed),
 2. doplnit command evidence,
 3. nezavírat blok bez evidence gate.
