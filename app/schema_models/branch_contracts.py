@@ -11,6 +11,7 @@ class BranchCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     galaxy_id: uuid.UUID | None = None
     as_of: datetime | None = None
+    idempotency_key: str | None = None
 
 
 class BranchPublic(BaseModel):

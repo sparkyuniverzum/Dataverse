@@ -2307,6 +2307,71 @@ def test_branch_create_rejects_duplicate_normalized_name(auth_client: tuple[http
     assert "same normalized name" in duplicate.text
 
 
+def test_branch_create_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    key = f"branch-create-idempotency-{uuid.uuid4()}"
+    payload = {
+        "name": f"Scenario Idempotent {uuid.uuid4()}",
+        "galaxy_id": galaxy_id,
+        "idempotency_key": key,
+    }
+
+    created_first = client.post("/branches", json=payload)
+    assert created_first.status_code == 201, created_first.text
+    first_body = created_first.json()
+
+    created_second = client.post("/branches", json=payload)
+    assert created_second.status_code == 201, created_second.text
+    second_body = created_second.json()
+
+    assert second_body["id"] == first_body["id"]
+    assert second_body["created_at"] == first_body["created_at"]
+
+
+def test_branch_promote_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    branch_label = f"branch-promote-idempotent-{uuid.uuid4()}"
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"PromoteIdempotent-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    created_branch = client.post(
+        "/civilizations/ingest",
+        json={"value": branch_label, "galaxy_id": galaxy_id, "branch_id": branch_id},
+    )
+    assert created_branch.status_code == 200, created_branch.text
+
+    idempotency_key = f"branch-promote-idempotency-{uuid.uuid4()}"
+    promoted_first = client.post(
+        f"/branches/{branch_id}/promote",
+        params={"galaxy_id": galaxy_id, "idempotency_key": idempotency_key},
+    )
+    assert promoted_first.status_code == 200, promoted_first.text
+    first_body = promoted_first.json()
+    assert first_body["branch"]["deleted_at"] is not None
+
+    promoted_second = client.post(
+        f"/branches/{branch_id}/promote",
+        params={"galaxy_id": galaxy_id, "idempotency_key": idempotency_key},
+    )
+    assert promoted_second.status_code == 200, promoted_second.text
+    second_body = promoted_second.json()
+
+    assert second_body["branch"]["id"] == first_body["branch"]["id"]
+    assert second_body["branch"]["deleted_at"] == first_body["branch"]["deleted_at"]
+    assert second_body["promoted_events_count"] == first_body["promoted_events_count"]
+
+    snapshot_main_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
+    assert snapshot_main_after.status_code == 200, snapshot_main_after.text
+    main_rows = snapshot_main_after.json()["civilizations"]
+    matching = [row for row in main_rows if _stringify(row.get("value")) == branch_label]
+    assert len(matching) == 1
+
+
 def test_branch_snapshot_isolated_from_new_main_events(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     base_label = f"branch-base-{uuid.uuid4()}"
@@ -2501,14 +2566,21 @@ def test_branch_close_is_idempotent_and_hides_branch_scope(auth_client: tuple[ht
     )
     assert branch.status_code == 201, branch.text
     branch_id = branch.json()["id"]
+    idempotency_key = f"branch-close-idempotency-{uuid.uuid4()}"
 
-    closed_first = client.post(f"/branches/{branch_id}/close", params={"galaxy_id": galaxy_id})
+    closed_first = client.post(
+        f"/branches/{branch_id}/close",
+        params={"galaxy_id": galaxy_id, "idempotency_key": idempotency_key},
+    )
     assert closed_first.status_code == 200, closed_first.text
     closed_first_body = closed_first.json()["branch"]
     assert closed_first_body["id"] == branch_id
     assert closed_first_body["deleted_at"] is not None
 
-    closed_second = client.post(f"/branches/{branch_id}/close", params={"galaxy_id": galaxy_id})
+    closed_second = client.post(
+        f"/branches/{branch_id}/close",
+        params={"galaxy_id": galaxy_id, "idempotency_key": idempotency_key},
+    )
     assert closed_second.status_code == 200, closed_second.text
     closed_second_body = closed_second.json()["branch"]
     assert closed_second_body["id"] == branch_id
