@@ -13,7 +13,7 @@ Scope: `docs/P0-core/contracts/`
 
 1. Keep status claims tied to executable evidence (command + result).
 2. Mark open items explicitly with `[ ]` and closure with `[x]` + date.
-3. Keep terminology consistent (`civilization` canonical, `moon` alias).
+3. Keep terminology consistent (`civilization` row runtime canonical, `moon` capability/UX term).
 4. Do not mark closure without gate evidence.
 
 ## Documentation Pattern

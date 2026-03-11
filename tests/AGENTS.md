@@ -14,6 +14,7 @@ Scope: `tests/`
 1. Prefer precise failure reasons over broad assertions.
 2. Keep release-gate tests deterministic and isolated.
 3. For integration failures, capture API detail payload and expected transition state.
+4. Use canonical API terminology in new tests (`civilization` for row runtime, `moon` for capability/UX context); do not add new `/asteroids*` expectations.
 
 ## Canonical Backend Gate
 

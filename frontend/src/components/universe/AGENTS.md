@@ -16,6 +16,7 @@ Scope: `frontend/src/components/universe/`
 3. Avoid adding more logic into `UniverseWorkspace.jsx` unless necessary; prefer small helper modules.
 4. Monolith creation is prohibited in this scope; split new behavior into focused files/hooks.
 5. Any lifecycle/mineral behavior change must keep existing e2e path stable.
+6. Keep naming/API mapping explicit: `civilization` is row runtime entity, `moon` is capability layer over table/planet in UX.
 
 ## Key Files
 

@@ -15,8 +15,16 @@ Scope: entire repository.
 3. Monolith creation is prohibited: do not introduce new oversized all-in-one files/components/modules.
 4. When logic grows, split by responsibility into small composable units (helpers/hooks/services).
 5. For flaky tests, stabilize logic first, then assertions.
-6. Keep FE/BE terminology aligned: `civilization` is canonical, `moon` is UX alias.
+6. Keep FE/BE terminology aligned: `civilization` is canonical row entity, `moon` is capability over table/planet; new `asteroid*` terminology is forbidden.
 7. Keep workflow logs operator-readable and chronologically consistent.
+
+## API Terminology Baseline (Mandatory)
+
+1. Canonical row lifecycle CRUD/mutation surface is `/civilizations*`.
+2. Moon capability is a first-class domain over table/planet (`/planets/{planet_id}/capabilities`, moon summaries/dashboard views).
+3. If `/moons*` row endpoints are touched, treat them as legacy compatibility only; do not use them as canonical surface for new runtime behavior.
+4. `/asteroids*` is removed API surface; do not reintroduce it in runtime, docs, or new tests.
+5. New module/function/variable naming must use `civilization` (row) and `moon` (capability/UX), never `asteroid`.
 
 ## Absolute No-Shortcut Rule (Mandatory)
 
