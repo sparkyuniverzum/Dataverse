@@ -209,6 +209,14 @@ class Parser2ExecutorBridge:
         metadata = {intent.field: intent.value}
 
         if selector.selector_type == NodeSelectorType.NAME:
+            if intent.expected_event_seq is not None:
+                errors.append(
+                    BridgeIssue(
+                        code="BRIDGE_UNSUPPORTED_OCC_SELECTOR",
+                        message="ASSIGN_ATTRIBUTE expected_event_seq requires ID selector target",
+                    )
+                )
+                return
             known_name_upserts.add(selector.value)
             tasks.append(
                 AtomicTask(
@@ -222,10 +230,13 @@ class Parser2ExecutorBridge:
             civilization_id = self._validate_uuid_selector(selector=selector, errors=errors)
             if civilization_id is None:
                 return
+            params = {"civilization_id": civilization_id, "metadata": metadata}
+            if intent.expected_event_seq is not None:
+                params["expected_event_seq"] = int(intent.expected_event_seq)
             tasks.append(
                 AtomicTask(
                     action="UPDATE_ASTEROID",
-                    params={"civilization_id": civilization_id, "metadata": metadata},
+                    params=params,
                 )
             )
             return

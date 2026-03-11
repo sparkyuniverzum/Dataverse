@@ -72,6 +72,7 @@ def test_bridge_maps_assign_attribute_to_ingest_or_update() -> None:
                 target=NodeSelector(selector_type=NodeSelectorType.ID, value=civilization_id),
                 field="state",
                 value="ok",
+                expected_event_seq=7,
             ),
         ]
     )
@@ -80,7 +81,30 @@ def test_bridge_maps_assign_attribute_to_ingest_or_update() -> None:
     assert result.errors == []
     assert [task.action for task in result.tasks] == ["INGEST", "UPDATE_ASTEROID"]
     assert result.tasks[0].params == {"value": "Erik", "metadata": {"salary": 50000}}
-    assert result.tasks[1].params == {"civilization_id": civilization_id, "metadata": {"state": "ok"}}
+    assert result.tasks[1].params == {
+        "civilization_id": civilization_id,
+        "metadata": {"state": "ok"},
+        "expected_event_seq": 7,
+    }
+
+
+def test_bridge_rejects_assign_attribute_occ_for_name_selector() -> None:
+    bridge = Parser2ExecutorBridge()
+    envelope = IntentEnvelope(
+        intents=[
+            AssignAttributeIntent(
+                target=NodeSelector(selector_type=NodeSelectorType.NAME, value="Erik"),
+                field="state",
+                value="ok",
+                expected_event_seq=5,
+            )
+        ]
+    )
+
+    result = bridge.to_atomic_tasks(envelope)
+    assert result.tasks == []
+    assert len(result.errors) == 1
+    assert result.errors[0].code == "BRIDGE_UNSUPPORTED_OCC_SELECTOR"
 
 
 def test_bridge_maps_links_for_name_and_id_selectors() -> None:

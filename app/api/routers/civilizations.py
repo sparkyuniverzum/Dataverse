@@ -25,12 +25,8 @@ router = APIRouter(tags=["civilizations"])
 
 def _normalize_metadata_patch(
     metadata: dict[str, Any],
-    *,
-    allow_reserved: bool,
 ) -> dict[str, Any]:
     patch = dict(metadata or {})
-    if allow_reserved:
-        return patch
     reserved = sorted(
         {str(key) for key in patch.keys() if str(key or "").strip().lower() in FACT_RESERVED_METADATA_KEYS}
     )
@@ -55,9 +51,8 @@ async def _mutate_civilization_impl(
     current_user: User,
     services: ServiceContainer,
     endpoint_key: str,
-    allow_reserved_metadata: bool,
 ) -> CivilizationResponse:
-    metadata_patch = _normalize_metadata_patch(payload.metadata, allow_reserved=allow_reserved_metadata)
+    metadata_patch = _normalize_metadata_patch(payload.metadata)
     params: dict[str, Any] = {"civilization_id": str(civilization_id)}
     if payload.value is not None:
         params["value"] = payload.value
@@ -117,16 +112,16 @@ async def _extinguish_civilization_impl(
     def map_execution(execution) -> CivilizationResponse:
         if civilization_id not in execution.extinguished_civilization_ids:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Civilization not found")
-        deleted_asteroid = next(
+        deleted_civilization = next(
             (civilization for civilization in execution.extinguished_asteroids if civilization.id == civilization_id),
             None,
         )
-        if deleted_asteroid is None:
+        if deleted_civilization is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Extinguish result is inconsistent",
             )
-        return civilization_to_response(deleted_asteroid)
+        return civilization_to_response(deleted_civilization)
 
     return await run_scoped_atomic_idempotent(
         session=session,
@@ -147,7 +142,7 @@ async def _extinguish_civilization_impl(
 
 
 @router.post("/civilizations/ingest", response_model=CivilizationResponse, status_code=status.HTTP_200_OK)
-async def ingest_asteroid(
+async def ingest_civilization(
     payload: CivilizationIngestRequest,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -206,34 +201,6 @@ async def extinguish_civilization(
 
 
 @router.patch(
-    "/civilizations/{civilization_id}/raw-extinguish",
-    response_model=CivilizationResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def raw_extinguish_civilization(
-    civilization_id: UUID,
-    galaxy_id: UUID | None = Query(default=None),
-    branch_id: UUID | None = Query(default=None),
-    expected_event_seq: int | None = Query(default=None, ge=0),
-    idempotency_key: str | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-    services: ServiceContainer = Depends(get_service_container),
-) -> CivilizationResponse:
-    return await _extinguish_civilization_impl(
-        civilization_id=civilization_id,
-        galaxy_id=galaxy_id,
-        branch_id=branch_id,
-        expected_event_seq=expected_event_seq,
-        idempotency_key=idempotency_key,
-        session=session,
-        current_user=current_user,
-        services=services,
-        endpoint_key="PATCH:/civilizations/{civilization_id}/raw-extinguish",
-    )
-
-
-@router.patch(
     "/civilizations/{civilization_id}/mutate",
     response_model=CivilizationResponse,
     status_code=status.HTTP_200_OK,
@@ -252,28 +219,4 @@ async def mutate_civilization(
         current_user=current_user,
         services=services,
         endpoint_key="PATCH:/civilizations/{civilization_id}/mutate",
-        allow_reserved_metadata=False,
-    )
-
-
-@router.patch(
-    "/civilizations/{civilization_id}/raw-mutate",
-    response_model=CivilizationResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def raw_mutate_civilization(
-    civilization_id: UUID,
-    payload: CivilizationMutateRequest,
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-    services: ServiceContainer = Depends(get_service_container),
-) -> CivilizationResponse:
-    return await _mutate_civilization_impl(
-        civilization_id=civilization_id,
-        payload=payload,
-        session=session,
-        current_user=current_user,
-        services=services,
-        endpoint_key="PATCH:/civilizations/{civilization_id}/raw-mutate",
-        allow_reserved_metadata=True,
     )

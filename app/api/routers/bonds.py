@@ -120,16 +120,6 @@ def _resolve_decision(*, reasons: list[BondValidateReason]) -> tuple[str, bool, 
     return "WARN", True, False
 
 
-def _reason_from_unexpected_exception(exc: Exception) -> BondValidateReason:
-    return BondValidateReason(
-        code="BOND_VALIDATE_INTERNAL_ERROR",
-        severity="error",
-        blocking=True,
-        message="Bond preview encountered an unexpected runtime error.",
-        context={"error_type": type(exc).__name__},
-    )
-
-
 @router.post("/bonds/validate", response_model=BondValidateResponse, status_code=status.HTTP_200_OK)
 async def validate_bond(
     payload: BondValidateRequest,
@@ -217,8 +207,8 @@ async def validate_bond(
                 ):
                     existing_bond_id = bond.id
                     break
-    except Exception as exc:
-        reasons.append(_reason_from_unexpected_exception(exc))
+    except HTTPException as exc:
+        reasons.append(_reason_from_http_exception(exc))
 
     preview = BondValidatePreview(
         cross_planet=cross_planet,
@@ -310,8 +300,6 @@ async def validate_bond(
                     pass
         except HTTPException as exc:
             reasons.append(_reason_from_http_exception(exc))
-        except Exception as exc:
-            reasons.append(_reason_from_unexpected_exception(exc))
 
     if not reasons and operation == "create" and existing_bond_id is not None:
         reasons.append(

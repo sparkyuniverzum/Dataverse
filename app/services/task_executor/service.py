@@ -22,6 +22,7 @@ from app.services.parser2.intents import (
     BulkIntent,
     Intent,
 )
+from app.services.parser_types import AtomicTask
 from app.services.projection.read_model_projector import ReadModelProjector
 from app.services.table_contract_effective import EffectiveTableContract
 from app.services.task_executor.contract_validation import TableContractValidator
@@ -32,7 +33,13 @@ from app.services.task_executor.families.ingest_update import handle_ingest_upda
 from app.services.task_executor.handlers.extinguish import ExtinguishHandler
 from app.services.task_executor.handlers.formula_guardian_select import FormulaGuardianSelectHandler
 from app.services.task_executor.handlers.ingest_update import IngestUpdateHandler
+from app.services.task_executor.handlers.intent_command import IntentCommandHandler
 from app.services.task_executor.handlers.link_mutation import LinkMutationHandler
+from app.services.task_executor.intent_commands import (
+    IntentCommand,
+    IntentCommandValidationError,
+    intent_command_from_atomic_task,
+)
 from app.services.task_executor.models import TaskExecutionResult
 from app.services.task_executor.occ_guards import OccGuards
 from app.services.task_executor.target_resolution import TargetResolver
@@ -70,6 +77,10 @@ class _PreloadPlan:
     include_connected_bonds: bool = False
 
 
+InputTask = Intent | AtomicTask
+RuntimeTask = Intent | IntentCommand
+
+
 class TaskExecutorService:
     def __init__(
         self,
@@ -86,6 +97,7 @@ class TaskExecutorService:
         self.contract_validator = TableContractValidator()
         self.auto_semantics_service = AutoSemanticsService(self)
         self.handlers = [
+            IntentCommandHandler(self),
             IngestUpdateHandler(self),
             LinkMutationHandler(self),
             ExtinguishHandler(self),
@@ -472,10 +484,26 @@ class TaskExecutorService:
         )
 
     @staticmethod
+    def _normalize_runtime_tasks(*, tasks: list[InputTask]) -> list[RuntimeTask]:
+        normalized: list[RuntimeTask] = []
+        for task in tasks:
+            if isinstance(task, AtomicTask):
+                try:
+                    normalized.append(intent_command_from_atomic_task(task))
+                except IntentCommandValidationError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail=f"Invalid atomic task: {exc}",
+                    ) from exc
+                continue
+            normalized.append(task)
+        return normalized
+
+    @staticmethod
     def _full_preload_plan() -> _PreloadPlan:
         return _PreloadPlan(scope="full")
 
-    def _build_preload_plan(self, *, tasks: list[Intent], branch_id: UUID | None) -> _PreloadPlan:
+    def _build_preload_plan(self, *, tasks: list[RuntimeTask], branch_id: UUID | None) -> _PreloadPlan:
         # Branch timelines are reconstructed from events on read, so partial read-model preload is unsafe there.
         if branch_id is not None:
             return self._full_preload_plan()
@@ -614,7 +642,7 @@ class TaskExecutorService:
         self,
         *,
         session: AsyncSession,
-        tasks: list[Intent],
+        tasks: list[RuntimeTask],
         user_id: UUID,
         galaxy_id: UUID,
         branch_id: UUID | None,
@@ -628,12 +656,7 @@ class TaskExecutorService:
         )
         return civilizations, bonds, "full"
 
-    async def _dispatch_task_family(self, *, task: Intent, ctx: _TaskExecutionContext) -> bool:
-        if hasattr(task, "action"):
-            for handler in self.atomic_family_handlers:
-                if await handler(task=task, ctx=ctx):
-                    return True
-            return False
+    async def _dispatch_task_family(self, *, task: RuntimeTask, ctx: _TaskExecutionContext) -> bool:
         for handler in self.handlers:
             if await handler.handle(task=task, ctx=ctx):
                 return True
@@ -756,7 +779,7 @@ class TaskExecutorService:
         context.append_and_project_event = append_with_tracking
         return context
 
-    async def _run_task_sequence(self, *, tasks: list[Intent], ctx: _TaskExecutionContext) -> None:
+    async def _run_task_sequence(self, *, tasks: list[RuntimeTask], ctx: _TaskExecutionContext) -> None:
         def _task_label(item: Any) -> str:
             kind = getattr(item, "kind", None)
             if isinstance(kind, str) and kind.strip():
@@ -791,7 +814,7 @@ class TaskExecutorService:
         self,
         session: AsyncSession,
         *,
-        tasks: list[Intent],
+        tasks: list[InputTask],
         user_id: UUID,
         galaxy_id: UUID = DEFAULT_GALAXY_ID,
         branch_id: UUID | None = None,
@@ -799,9 +822,10 @@ class TaskExecutorService:
     ) -> TaskExecutionResult:
         async with self._track_execution():
             self._ensure_transaction_ready(session=session, manage_transaction=manage_transaction)
+            runtime_tasks = self._normalize_runtime_tasks(tasks=tasks)
             active_asteroids, active_bonds, preload_scope = await self._load_initial_context_state(
                 session=session,
-                tasks=tasks,
+                tasks=runtime_tasks,
                 user_id=user_id,
                 galaxy_id=galaxy_id,
                 branch_id=branch_id,
@@ -823,7 +847,7 @@ class TaskExecutorService:
                     active_bonds=active_bonds,
                     preload_scope=preload_scope,
                 )
-                await self._run_task_sequence(tasks=tasks, ctx=context)
+                await self._run_task_sequence(tasks=runtime_tasks, ctx=context)
                 await self._sync_read_model_if_needed(branch_id=branch_id, ctx=context)
 
             return result

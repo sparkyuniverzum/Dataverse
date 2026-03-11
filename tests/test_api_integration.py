@@ -72,7 +72,7 @@ def _parallel_mutate_with_expected_seq(
         ) as worker_client:
             barrier.wait(timeout=10.0)
             response = worker_client.patch(
-                f"/civilizations/{civilization_id}/raw-mutate",
+                f"/civilizations/{civilization_id}/mutate",
                 json={
                     "metadata": {"race_status": status_label},
                     "expected_event_seq": expected_event_seq,
@@ -225,6 +225,20 @@ def test_auth_session_lifecycle_login_refresh_logout_and_me(client: httpx.Client
             client.headers.update({"Authorization": previous_authorization})
         else:
             client.headers.pop("Authorization", None)
+
+
+def test_asteroids_alias_endpoints_are_not_found(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    missing_id = str(uuid.uuid4())
+
+    get_removed = client.get(f"/asteroids/{missing_id}", params={"galaxy_id": galaxy_id})
+    assert get_removed.status_code == 404, get_removed.text
+
+    post_removed = client.post(
+        "/asteroids/ingest",
+        json={"value": f"Legacy-{uuid.uuid4()}", "metadata": {}, "galaxy_id": galaxy_id},
+    )
+    assert post_removed.status_code == 404, post_removed.text
 
 
 def test_parser_accepts_query_text_and_equal_pair(auth_client: tuple[httpx.Client, str]) -> None:
@@ -582,7 +596,7 @@ def test_semantic_constitution_endpoint_by_endpoint_closure_v1(auth_client: tupl
     assert extinguish_bond.json()["id"] == type_bond_id
     assert extinguish_bond.json()["is_deleted"] is True
 
-    extinguish_asteroid = client.patch(f"/civilizations/{guardian_id}/raw-extinguish", params={"galaxy_id": galaxy_id})
+    extinguish_asteroid = client.patch(f"/civilizations/{guardian_id}/extinguish", params={"galaxy_id": galaxy_id})
     assert extinguish_asteroid.status_code == 200, extinguish_asteroid.text
     assert extinguish_asteroid.json()["id"] == guardian_id
     assert extinguish_asteroid.json()["is_deleted"] is True
@@ -665,7 +679,7 @@ def test_snapshot_excludes_soft_deleted_atoms_and_orphaned_bonds(auth_client: tu
     assert atom_b_id in before_atom_ids
     assert bond_id in before_bond_ids
 
-    extinguish_atom = client.patch(f"/civilizations/{atom_a_id}/raw-extinguish", params={"galaxy_id": galaxy_id})
+    extinguish_atom = client.patch(f"/civilizations/{atom_a_id}/extinguish", params={"galaxy_id": galaxy_id})
     assert extinguish_atom.status_code == 200, extinguish_atom.text
 
     after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id})
@@ -716,7 +730,7 @@ def test_snapshot_as_of_returns_historical_state(auth_client: tuple[httpx.Client
     assert atom_a_id not in before_creation_ids
     assert atom_b_id not in before_creation_ids
 
-    extinguish = client.patch(f"/civilizations/{atom_a_id}/raw-extinguish", params={"galaxy_id": galaxy_id})
+    extinguish = client.patch(f"/civilizations/{atom_a_id}/extinguish", params={"galaxy_id": galaxy_id})
     assert extinguish.status_code == 200, extinguish.text
     deleted_at = _parse_iso_datetime(extinguish.json()["deleted_at"])
 
@@ -908,14 +922,14 @@ def test_mutate_asteroid_updates_value_and_metadata(auth_client: tuple[httpx.Cli
     civilization_id = created.json()["id"]
 
     patch_value = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={"value": renamed, "galaxy_id": galaxy_id},
     )
     assert patch_value.status_code == 200, patch_value.text
     assert _stringify(patch_value.json()["value"]) == renamed
 
     patch_meta = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={"metadata": {"stav": "aktivni"}, "galaxy_id": galaxy_id},
     )
     assert patch_meta.status_code == 200, patch_meta.text
@@ -939,13 +953,13 @@ def test_mutate_asteroid_occ_rejects_stale_expected_event_seq(auth_client: tuple
     initial_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=civilization_id)
 
     ok_mutate = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={"value": renamed, "expected_event_seq": initial_seq, "galaxy_id": galaxy_id},
     )
     assert ok_mutate.status_code == 200, ok_mutate.text
 
     stale_mutate = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={"metadata": {"status": "stale-write"}, "expected_event_seq": initial_seq, "galaxy_id": galaxy_id},
     )
     detail = _assert_occ_conflict(stale_mutate, expected_event_seq=initial_seq)
@@ -1006,7 +1020,7 @@ def test_snapshot_and_write_responses_expose_current_event_seq(auth_client: tupl
     assert snapshot_before["current_event_seq"] == civilization["current_event_seq"]
 
     mutated = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={"value": renamed, "galaxy_id": galaxy_id},
     )
     assert mutated.status_code == 200, mutated.text
@@ -1027,14 +1041,14 @@ def test_mutate_idempotency_key_replays_success_and_guards_payload(auth_client: 
     civilization_id = created.json()["id"]
 
     first = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={"metadata": {"stage": "done"}, "idempotency_key": key, "galaxy_id": galaxy_id},
     )
     assert first.status_code == 200, first.text
     first_body = first.json()
 
     replay = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={"metadata": {"stage": "done"}, "idempotency_key": key, "galaxy_id": galaxy_id},
     )
     assert replay.status_code == 200, replay.text
@@ -1043,13 +1057,13 @@ def test_mutate_idempotency_key_replays_success_and_guards_payload(auth_client: 
     assert replay_body["current_event_seq"] == first_body["current_event_seq"]
 
     no_key_repeat = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={"metadata": {"stage": "done"}, "galaxy_id": galaxy_id},
     )
     assert no_key_repeat.status_code == 422
 
     key_conflict = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={"metadata": {"stage": "other"}, "idempotency_key": key, "galaxy_id": galaxy_id},
     )
     assert key_conflict.status_code == 409
@@ -1101,13 +1115,13 @@ def test_extinguish_asteroid_occ_rejects_stale_expected_event_seq(auth_client: t
     initial_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=civilization_id)
 
     updated = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={"metadata": {"phase": "updated"}, "galaxy_id": galaxy_id},
     )
     assert updated.status_code == 200, updated.text
 
     stale_delete = client.patch(
-        f"/civilizations/{civilization_id}/raw-extinguish",
+        f"/civilizations/{civilization_id}/extinguish",
         params={"galaxy_id": galaxy_id, "expected_event_seq": initial_seq},
     )
     detail = _assert_occ_conflict(stale_delete, expected_event_seq=initial_seq)
@@ -1134,7 +1148,7 @@ def test_link_occ_rejects_stale_expected_source_seq(auth_client: tuple[httpx.Cli
     target_seq = _latest_entity_event_seq(client, galaxy_id=galaxy_id, entity_id=target_civilization_id)
 
     source_mutate = client.patch(
-        f"/civilizations/{source_civilization_id}/raw-mutate",
+        f"/civilizations/{source_civilization_id}/mutate",
         json={"metadata": {"touch": "new"}, "galaxy_id": galaxy_id},
     )
     assert source_mutate.status_code == 200, source_mutate.text
@@ -2377,7 +2391,7 @@ def test_branch_extinguish_does_not_delete_main_timeline(auth_client: tuple[http
     branch_id = branch.json()["id"]
 
     extinguished = client.patch(
-        f"/civilizations/{civilization_id}/raw-extinguish",
+        f"/civilizations/{civilization_id}/extinguish",
         params={"galaxy_id": galaxy_id, "branch_id": branch_id},
     )
     assert extinguished.status_code == 200, extinguished.text
@@ -2752,7 +2766,7 @@ def test_table_contract_is_enforced_for_ingest_and_mutate(auth_client: tuple[htt
     assert "unique rule" in unique_violation.text
 
     invalid_mutate = client.patch(
-        f"/civilizations/{seeded_id}/raw-mutate",
+        f"/civilizations/{seeded_id}/mutate",
         json={"metadata": {"cena": -5}, "galaxy_id": galaxy_id},
     )
     assert invalid_mutate.status_code == 422, invalid_mutate.text
@@ -2806,13 +2820,13 @@ def test_table_contract_semantic_validator_is_non_blocking(auth_client: tuple[ht
     assert ingested.status_code == 200, ingested.text
 
     mutate_ok = client.patch(
-        f"/civilizations/{seeded_id}/raw-mutate",
+        f"/civilizations/{seeded_id}/mutate",
         json={"metadata": {"owner": "Team-B", "cena": 55}, "galaxy_id": galaxy_id},
     )
     assert mutate_ok.status_code == 200, mutate_ok.text
 
     mutate_bad = client.patch(
-        f"/civilizations/{seeded_id}/raw-mutate",
+        f"/civilizations/{seeded_id}/mutate",
         json={"metadata": {"cena": -1}, "galaxy_id": galaxy_id},
     )
     assert mutate_bad.status_code == 422, mutate_bad.text
@@ -4953,7 +4967,7 @@ def test_civilization_contract_gate_create_mutate_extinguish_and_converge(
     assert expected_seq >= 1
 
     mutated = client.patch(
-        f"/civilizations/{civilization_id}/raw-mutate",
+        f"/civilizations/{civilization_id}/mutate",
         json={
             "metadata": {"state": "archived"},
             "expected_event_seq": expected_seq,
@@ -4977,7 +4991,7 @@ def test_civilization_contract_gate_create_mutate_extinguish_and_converge(
     assert civilization_id in member_ids_before
 
     extinguished = client.patch(
-        f"/civilizations/{civilization_id}/raw-extinguish",
+        f"/civilizations/{civilization_id}/extinguish",
         params={"galaxy_id": galaxy_id, "expected_event_seq": extinguish_expected_seq},
     )
     assert extinguished.status_code == 200, extinguished.text

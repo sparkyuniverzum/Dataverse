@@ -5,11 +5,11 @@ import os
 from app.api.routers.bonds import router as bonds_router
 from app.api.routers.branches import router as branches_router
 from app.api.routers.capabilities import router as capabilities_router
-from app.api.routers.civilizations import router as asteroids_router
+from app.api.routers.civilizations import router as civilizations_router
 from app.api.routers.contracts import router as contracts_router
 from app.api.routers.galaxies import router as galaxies_router
 from app.api.routers.io import router as io_router
-from app.api.routers.moons import router as civilization_capability_router
+from app.api.routers.moons import router as moon_alias_router
 from app.api.routers.parser import router as parser_router
 from app.api.routers.planets import router as planets_router
 from app.api.routers.presets import router as presets_router
@@ -44,12 +44,12 @@ app.include_router(galaxies_router)
 app.include_router(branches_router)
 app.include_router(contracts_router)
 app.include_router(presets_router)
-app.include_router(asteroids_router)
+app.include_router(civilizations_router)
 app.include_router(bonds_router)
 app.include_router(parser_router)
 app.include_router(tasks_router)
 app.include_router(universe_router)
 app.include_router(io_router)
 app.include_router(planets_router)
-app.include_router(civilization_capability_router)
+app.include_router(moon_alias_router)
 app.include_router(capabilities_router)
