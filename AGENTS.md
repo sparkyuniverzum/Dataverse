@@ -24,6 +24,7 @@ Scope: entire repository.
 2. Do not maintain parallel active EN+CZ copies of the same document unless explicitly requested for external delivery.
 3. Source code, API paths, error codes, telemetry keys/event names, and DB schema/table/column names must remain in English.
 4. In Czech documentation, keep technical identifiers in original English form and format them as code (for example: `/civilizations*`, `event_seq`).
+5. If EN mirrors are kept for history, store them under explicit archive paths (for example `docs/P0-core/contracts/archive/en/`) and do not list them as active references.
 
 ## UI Copy Policy (Mandatory)
 

@@ -1,117 +1,117 @@
-# Human-Agent Alignment Protocol v1
+# Protokol sladění člověk-agent v1
 
-Status: active (mandatory collaboration override for UX-first work)
-Date: 2026-03-11
-Owner: user + coding agent
-Scope: entire repository when the task is framed as UX, refactor, product experience, or operating-center quality
+Stav: aktivní (povinný override spolupráce pro UX-first práci)
+Datum: 2026-03-11
+Vlastník: uživatel + agent
+Rozsah: celý repozitář, pokud je úkol rámovaný jako UX, refaktor, produktový zážitek nebo kvalita operating-center
 
-## 1. Why this exists
+## 1. Proč tento protokol existuje
 
-This protocol exists because technical refactor closure was previously mistaken for user-experience closure.
+Tento protokol vznikl, protože technické uzavření refaktoru bylo dříve zaměněno za uzavření uživatelského zážitku.
 
-That is not acceptable for UX-first work.
+To je pro UX-first práci nepřijatelné.
 
-If the user asks for a refactor focused on experience, then:
-1. architecture cleanup is not enough,
-2. internal seam extraction is not enough,
-3. documentation closure is not enough,
-4. the result must be validated against visible user impact.
+Když uživatel zadá refaktor zaměřený na experience:
+1. úklid architektury nestačí,
+2. interní separace seamů nestačí,
+3. uzavření dokumentace nestačí,
+4. výsledek se musí validovat proti viditelnému dopadu na uživatele.
 
-## 2. Non-negotiable interpretation rule
+## 2. Nepřekročitelné interpretační pravidlo
 
-When repository documents say:
-1. UX is the primary criterion,
-2. weak experience means product failure,
-3. the product must feel like an operating center,
-4. the main work zone must remain primary,
-5. validation must follow journeys and user-visible impact,
+Když repozitářové dokumenty říkají, že:
+1. UX je primární kritérium,
+2. slabá experience znamená selhání produktu,
+3. produkt se musí cítit jako operating center,
+4. hlavní pracovní zóna musí zůstat primární,
+5. validace musí sledovat journey a uživatelsky viditelný dopad,
 
-the agent must treat those statements as hard gates, not as background context.
+agent musí tato tvrzení brát jako tvrdé gate, ne jako kontext na pozadí.
 
-They override convenience, internal elegance, and premature closure.
+Mají přednost před pohodlím, interní elegancí a předčasným uzavřením.
 
-## 3. Mandatory pre-implementation contract
+## 3. Povinný pre-implementation kontrakt
 
-Before any substantial UX/refactor block, the agent must explicitly write:
-1. the binding conditions taken from the governing documents,
-2. what in the current product violates those conditions,
-3. what will count as acceptable proof of completion,
-4. what will not count as completion.
+Před každým významnějším UX/refaktor blokem agent explicitně zapíše:
+1. závazné podmínky převzaté z řídicích dokumentů,
+2. co v aktuálním produktu tyto podmínky porušuje,
+3. co se bude počítat jako přijatelný důkaz dokončení,
+4. co se za dokončení počítat nebude.
 
-Implementation must not start until this framing is written out clearly to the user.
+Implementace nesmí začít, dokud není toto zarámování jasně a explicitně napsané.
 
-## 4. Mandatory completion vocabulary
+## 4. Povinný slovník dokončení
 
-The agent must never use one vague word such as `hotovo` or `done` for mixed states.
+Agent nesmí používat jedno vágní slovo jako `hotovo` nebo `done` pro smíšené stavy.
 
-Completion must always be split into these categories:
+Dokončení musí být vždy rozdělené do kategorií:
 1. `technical completion`
 2. `user-visible completion`
 3. `documentation completion`
 4. `gate completion`
 
-If one of these is missing, the block must say so explicitly.
+Pokud jedna z kategorií chybí, musí to blok explicitně říct.
 
-## 5. UX-first acceptance rule
+## 5. UX-first akceptační pravidlo
 
-For UX/product experience work, the primary acceptance standard is:
-1. visible change in default or target user flow,
-2. improved first impression or journey quality,
-3. operating-center feel in actual interaction,
-4. stronger clarity of hierarchy and action,
-5. user-visible value without requiring hidden internal knowledge.
+Pro UX/product experience práci je primární standard akceptace:
+1. viditelná změna ve výchozím nebo cílovém uživatelském flow,
+2. lepší first impression nebo kvalita journey,
+3. operating-center pocit v reálné interakci,
+4. vyšší srozumitelnost hierarchie a akcí,
+5. uživatelsky viditelná hodnota bez nutnosti znát interní detaily.
 
-The following do **not** count as sufficient proof on their own:
+Následující body samy o sobě **nestačí**:
 1. seam extraction,
 2. token consolidation,
-3. helper or contract creation,
+3. helper nebo contract creation,
 4. monolith reduction,
-5. drawer or mode logic that appears only in edge or hidden states,
-6. documentation closure,
-7. passing focused unit tests without visible product impact.
+5. drawer/mode logika, která je vidět jen v okrajových nebo skrytých stavech,
+6. uzavření dokumentace,
+7. passing focused unit testů bez viditelného produktového dopadu.
 
-## 6. First-impression rule
+## 6. Pravidlo prvního dojmu
 
-If the task concerns product experience, the agent must explicitly evaluate:
-1. what changes on first open,
-2. what changes in the idle/default view,
-3. what changes in the first 30 seconds of use,
-4. whether the difference is visible without opening hidden modes.
+Pokud úkol míří na produktový zážitek, agent musí explicitně vyhodnotit:
+1. co se změní při prvním otevření,
+2. co se změní ve výchozím/idle pohledu,
+3. co se změní v prvních 30 sekundách používání,
+4. jestli je rozdíl viditelný bez otevírání skrytých režimů.
 
-If the answer is "almost nothing visible changed", then the block must not be presented as UX success.
+Pokud odpověď zní „téměř nic viditelného se nezměnilo“, blok se nesmí prezentovat jako UX úspěch.
 
-## 7. Trust repair rule
+## 7. Pravidlo opravy důvěry
 
-If the agent fails to apply the user’s governing conditions, the next block must:
-1. restate the missed conditions explicitly,
-2. explain where the prior block violated them,
-3. avoid shifting verification work back to the user,
-4. re-establish a narrower and more auditable working contract.
+Když agent neaplikuje řídicí podmínky uživatele, další blok musí:
+1. explicitně zopakovat zmeškané podmínky,
+2. vysvětlit, kde předchozí blok podmínky porušil,
+3. nepřesouvat ověřovací práci zpět na uživatele,
+4. obnovit užší a auditovatelnější pracovní kontrakt.
 
-## 8. Command responsibility rule
+## 8. Pravidlo odpovědnosti za příkazy
 
-`Povel pro tebe` is for execution the user actually needs to run.
+`Povel pro tebe` je pouze pro příkazy, které uživatel skutečně potřebuje spustit.
 
-It must not be used to:
-1. ask the user to rediscover context the agent should summarize,
-2. ask the user to read documents the agent was supposed to interpret,
-3. replace missing analysis,
-4. offload the agent’s own reasoning work.
+Nesmí sloužit k tomu, aby:
+1. uživatel znovu dohledával kontext, který má shrnout agent,
+2. uživatel četl dokumenty, které měl interpretovat agent,
+3. nahrazoval chybějící analýzu,
+4. přenášel práci uvažování z agenta na uživatele.
 
-## 9. Required proof for future UX blocks
+## 9. Požadovaný důkaz pro budoucí UX bloky
 
-For any future UX-first block, acceptable proof should include some combination of:
-1. before/after screenshots or an explicit first-view comparison,
-2. concrete list of immediately visible differences,
-3. targeted user-flow validation,
-4. narrow tests for touched logic,
-5. bundled gates when a series of UX blocks is complete.
+Pro jakýkoli další UX-first blok má přijatelný důkaz obsahovat kombinaci:
+1. before/after screenshotů nebo explicitního first-view porovnání,
+2. konkrétního seznamu okamžitě viditelných rozdílů,
+3. cílené validace uživatelského flow,
+4. úzkých testů pro dotčenou logiku,
+5. bundled gate až po uzavření série UX bloků.
 
-## 10. Enforcement summary
+## 10. Souhrn vynucení
 
-For UX/refactor/product-experience tasks:
-1. document conditions first,
-2. judge visible impact before internal cleanliness,
-3. never call architecture-only progress a UX success,
-4. never collapse completion states into one ambiguous success claim,
-5. never send the user to re-read source material instead of delivering the interpretation.
+Pro UX/refaktor/product-experience úkoly:
+1. nejdřív zapiš podmínky,
+2. posuzuj viditelný dopad před interní čistotou,
+3. nikdy neoznač architektura-only progres za UX úspěch,
+4. nikdy neslučuj completion stavy do jednoho vágního tvrzení,
+5. nikdy neposílej uživatele zpátky do materiálů, které má interpretovat agent.

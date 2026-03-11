@@ -1,4 +1,4 @@
-# Planet Civilization Domain Canonical v1 (Retired)
+# Planet Civilization Domain Canonical v1 (Vyřazeno)
 
-Status: retired in restart mode.
-This file is a compatibility placeholder kept only for cross-reference integrity.
+Stav: vyřazeno v restart režimu.
+Tento soubor je kompatibilitní placeholder ponechaný pouze kvůli integritě křížových odkazů.

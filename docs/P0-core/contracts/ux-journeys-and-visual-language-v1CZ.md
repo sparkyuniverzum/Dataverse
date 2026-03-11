@@ -1,8 +1,8 @@
 # UX journey a visual language v1
 
-Status: active (UX journey baseline)
-Date: 2026-03-11
-Owner: Product UX + FE design system
+Stav: aktivní (základní baseline UX cest)
+Datum: 2026-03-11
+Vlastník: Produktové UX + FE design systém
 
 ## 1. Ucel
 
@@ -184,7 +184,7 @@ Success criteria:
 ## 4.4 Barvova semantika
 
 1. Nominal/stable: chladne modre spektrum.
-2. Warning/gate pending: amber.
+2. Varování / čekání na gate: amber.
 3. Blocked/error: cervena s repair affordance.
 4. Branch kontext: jemny tonalni posun + explicitni textovy badge.
 

@@ -1,8 +1,8 @@
 # UX IA a navigacni architektura v1
 
-Status: active (UX architecture baseline)
-Date: 2026-03-11
-Owner: Product UX + FE architecture
+Stav: aktivní (základní baseline UX architektury)
+Datum: 2026-03-11
+Vlastník: Produktové UX + FE architektura
 
 ## 1. Ucel
 
@@ -48,7 +48,7 @@ Pokud je konflikt scena vs operace, vyhrava operace.
 ## 4.1 Globalni navigace (vzdy dostupna)
 
 1. Galaxy switcher.
-2. Scope badge (`MAIN` nebo `BRANCH:<name>`).
+2. Badge rozsahu (`MAIN` nebo `BRANCH:<name>`).
 3. Mode badge (`NORMAL`, `PROMOTE`, `RECOVERY`, `GOVERNANCE`).
 4. Kriticky system status (Star Core pulse a warningy).
 
@@ -63,7 +63,7 @@ Pokud je konflikt scena vs operace, vyhrava operace.
 
 ## 4.3 Star Core navigace
 
-1. Vstup pres explicitni akci (`Open Star Core`).
+1. Vstup pres explicitni akci (`Otevřít Srdce hvězdy`).
 2. Dive transition povoleny, ale preskocitelny.
 3. Exit vzdy vraci uzivatele do predchoziho workspace kontextu a vyberu.
 

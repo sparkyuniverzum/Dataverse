@@ -1,14 +1,14 @@
 # Runtime Package Mapa v1
 
-Status: active
+Stav: aktivní
 Datum: 2026-03-11
-Scope: vlastnictví backend runtime balíčků po infrastructure cleanupu
+Rozsah: vlastnictví backend runtime balíčků po úklidu infrastruktury
 
 ## 1. Co se změnilo
 
 - [x] 2026-03-11 Cross-cutting runtime utility jsou kanonicky v `app/infrastructure/runtime/observability/*`.
 - [x] 2026-03-11 Runtime enginy jsou kanonicky v `app/infrastructure/runtime/*` (event store, idempotency, advisory lock, outbox, parser, parser2).
-- [x] 2026-03-11 Legacy service-level compatibility shimy pro tyto utility byly odstraněny z `app/services/*`.
+- [x] 2026-03-11 Kompatibilní shimy na úrovni `services` pro tyto utility byly odstraněny z `app/services/*`.
 
 ## 2. Proč se to změnilo
 
@@ -34,11 +34,11 @@ Scope: vlastnictví backend runtime balíčků po infrastructure cleanupu
 - `app/infrastructure/runtime/observability/logging_helpers.py`
 - `app/infrastructure/runtime/observability/telemetry_spans.py`
 
-### 3.3 Záměrně ponechaná compatibility facade
+### 3.3 Záměrně ponechaná kompatibilní fasáda
 
-- `app/core/parser2/*` zůstává jako compatibility facade s explicitními module proxy na parser2 implementaci v infrastruktuře.
+- `app/core/parser2/*` zůstává jako kompatibilní fasáda s explicitními module proxy na parser2 implementaci v infrastruktuře.
 
-### 3.4 Odstraněné legacy shim cesty
+### 3.4 Odstraněné zastaralé shim cesty
 
 - `app/services/circuit_breaker.py`
 - `app/services/trace_context.py`

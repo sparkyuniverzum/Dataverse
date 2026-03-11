@@ -1,8 +1,8 @@
 # Kanonická UX ontologie v1 (Canonical UX Ontology v1)
 
-Tady je kompletní a přesný překlad celého dokumentu do češtiny:
+Tento dokument je česká pracovní verze kanonické UX ontologie.
 
-Status: aktivní (kanonický základ plánování / canonical planning baseline)
+Stav: aktivní (kanonický základ plánování)
 Datum: 2026-03-10
 Vlastník: Produktové UX + Core FE/BE architektura
 

@@ -1,18 +1,18 @@
-# Backend MVP Continuation v1
+# Backend MVP pokračování v1
 
-Status: active (official BE continuation plan)
-Date: 2026-03-11
-Owner: Core BE architecture
+Stav: aktivní (oficiální plán pokračování BE)
+Datum: 2026-03-11
+Vlastník: Core BE architektura
 
 ## 1. Co se změnilo
 
 - [x] 2026-03-11 Založen oficiální navazující plán BE po cleanup auditu.
 - [x] 2026-03-11 Nastavena priorita P0-1: `asteroid naming cleanup`.
-- [x] 2026-03-11 Přidán execution checklist, DoD podmínky a gate evidence sekce.
+- [x] 2026-03-11 Přidán realizační checklist, DoD podmínky a sekce gate evidence.
 
 ## 2. Proč to vzniklo
 
-Po porovnání backendu s `backend-mvp-requirements-from-canonical-ux-ontology-v1.md` zůstaly konkrétní mezery:
+Po porovnání backendu s `backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md` zůstaly konkrétní mezery:
 
 1. interní terminologický dluh `asteroid*`,
 2. nejednotné idempotency pokrytí mutačních endpointů,
@@ -36,7 +36,7 @@ Odstranit interní `asteroid*` názvosloví z backend runtime kódu a nahradit h
 - `civilization` pro row entitu,
 - `moon` pro capability kontext.
 
-## 4.2 Scope
+## 4.2 Rozsah
 
 Primární scope:
 
@@ -58,7 +58,7 @@ Sekundární scope:
 2. nový feature vývoj,
 3. FE refaktor (mimo BE blok).
 
-## 4.4 Execution checklist
+## 4.4 Realizační checklist
 
 - [ ] `P0-1.1` Přemapovat mapper názvy a pomocné funkce z `asteroid*` na `civilization*`.
 - [ ] `P0-1.2` Přemapovat lokální proměnné/collection názvy v `universe` projekci.
@@ -75,9 +75,9 @@ P0-1 je hotové pouze pokud platí vše:
 2. Žádná přejmenovací změna neporuší kanonické endpointy (`/civilizations*`, capability surface).
 3. Integrace stále drží soft-delete/OCC/idempotency behavior beze změny semantics.
 4. Cílené testy relevantní k přejmenovaným modulům projdou.
-5. Evidence je zapsána v tomto dokumentu v části `Gate evidence`.
+5. Evidence je zapsána v tomto dokumentu v části `Evidence gate`.
 
-## 4.6 Gate evidence (P0-1)
+## 4.6 Evidence gate (P0-1)
 
 Stav:
 
@@ -126,4 +126,4 @@ Po každém bloku:
 
 1. aktualizovat checklist (`[ ]` -> `[x]`),
 2. doplnit command evidence,
-3. nezavírat blok bez Gate evidence.
+3. nezavírat blok bez evidence gate.

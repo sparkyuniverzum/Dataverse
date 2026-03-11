@@ -1,12 +1,12 @@
 # Backend MVP požadavky z Canonical UX Ontology v1
 
-Status: active (backend MVP extraction baseline)
+Stav: aktivní (základní extrakční baseline backend MVP)
 Datum: 2026-03-11
-Vlastník: Core BE architecture
+Vlastník: Core BE architektura
 
 ## 1. Co se změnilo
 
-- [x] 2026-03-11 Přidán jednotný backend MVP baseline extrahovaný z `canonical-ux-ontology-v1.md`.
+- [x] 2026-03-11 Přidán jednotný backend MVP baseline extrahovaný z `canonical-ux-ontology-v1CZ.md`.
 - [x] 2026-03-11 Ontologické definice převedeny na implementační omezení pro API, datový model, lifecycle a runtime guardy.
 - [x] 2026-03-11 Přidán closure checklist pro BE hardening scope.
 
@@ -22,15 +22,15 @@ Potřebujeme jeden explicitní BE MVP kontrakt, který:
 
 Zdroj ontologie:
 
-- `docs/P0-core/contracts/canonical-ux-ontology-v1.md`
+- `docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md`
 - použité sekce: Domain truth, Runtime truth, Entity ontology, Interaction ontology.
 
-Evidence command set:
+Sada evidenčních příkazů:
 
 ```bash
-sed -n '1,260p' docs/P0-core/contracts/canonical-ux-ontology-v1.md
-sed -n '260,560p' docs/P0-core/contracts/canonical-ux-ontology-v1.md
-sed -n '560,920p' docs/P0-core/contracts/canonical-ux-ontology-v1.md
+sed -n '1,260p' docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md
+sed -n '260,560p' docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md
+sed -n '560,920p' docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md
 ```
 
 ## 4. Kanonická globální BE MVP pravidla

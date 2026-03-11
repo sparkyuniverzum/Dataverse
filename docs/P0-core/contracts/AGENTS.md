@@ -1,26 +1,27 @@
-# Contracts Docs Agent Guide
+# Průvodce Agenta pro kontraktové dokumenty
 
-Scope: `docs/P0-core/contracts/`
+Rozsah: `docs/P0-core/contracts/`
 
-## Mandatory Rule Load
+## Povinné načtení pravidel
 
-1. Read `/mnt/c/Projekty/Dataverse/AGENTS.md`.
-2. Read this file.
-3. Then update any contract/sprint/DoD document.
-4. Follow root `Collaboration Contract (Mandatory)` for block handoff and `Povel pro tebe`.
+1. Přečti `/mnt/c/Projekty/Dataverse/AGENTS.md`.
+2. Přečti tento soubor.
+3. Teprve potom upravuj kontrakt/sprint/DoD dokument.
+4. Dodrž root `Collaboration Contract (Mandatory)` včetně `Povel pro tebe`.
 
-## Local Priorities
+## Lokální priority
 
-1. Keep status claims tied to executable evidence (command + result).
-2. Mark open items explicitly with `[ ]` and closure with `[x]` + date.
-3. Keep terminology consistent (`civilization` row runtime canonical, `moon` capability/UX term).
-4. Do not mark closure without gate evidence.
-5. Contracts in this scope are CZ-first; do not keep parallel active EN mirror docs unless explicitly approved.
-6. Technical identifiers stay English-only (`code`, API paths, error codes, telemetry keys, DB names).
+1. Každé tvrzení o stavu musí být navázané na ověřitelnou evidenci (příkaz + výsledek).
+2. Otevřené položky znač `[ ]` a uzavření `[x]` + datum.
+3. Drž konzistentní terminologii (`civilization` je kanonická row runtime entita, `moon` je capability/UX termín).
+4. Neoznačuj uzavření bez gate evidence.
+5. Aktivní kontrakty v tomto scope jsou CZ-only; paralelní aktivní EN mirror dokumenty nedrž, pokud to není explicitně schválené.
+6. Technické identifikátory zůstávají anglicky (`code`, API paths, error codes, telemetry keys, DB names).
+7. Historické EN mirror dokumenty patří pouze do archivní cesty `archive/en/` a nesmí být vedené jako aktivní reference.
 
-## Documentation Pattern
+## Vzor dokumentace
 
-1. What changed.
-2. Why it changed.
-3. Evidence (test command + pass result).
-4. Remaining open items.
+1. Co se změnilo.
+2. Proč se to změnilo.
+3. Evidence (příkaz + výsledek).
+4. Co ještě zbývá otevřené.

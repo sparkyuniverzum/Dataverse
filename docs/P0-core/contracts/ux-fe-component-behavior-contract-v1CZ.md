@@ -1,8 +1,8 @@
 # UX FE komponentovy behavior kontrakt v1
 
-Status: active (FE behavior baseline)
-Date: 2026-03-11
-Owner: FE architecture + UX engineering
+Stav: aktivní (základní baseline FE chování)
+Datum: 2026-03-11
+Vlastník: FE architektura + UX inženýrství
 
 ## 1. Ucel
 
@@ -116,7 +116,7 @@ Bez ticheho selhani. `blocked` a `repair_required` musi obsahovat duvod a akci.
 2. Validation failure:
    - zobrazit problemovy mineral/pole a duvod pravidla,
    - nabidnout vedeny repair krok.
-3. Scope mismatch:
+3. Neshoda rozsahu (scope mismatch):
    - explicitne zobrazit branch/main context mismatch.
 4. Network/runtime failure:
    - zobrazit resilient retry moznosti s idempotency-safe navodem.

@@ -1,5 +1,5 @@
-# Docs Navigation
+# Dokumentační navigace
 
-Priority-based documentation is organized directly by folders:
+Dokumentace je organizovaná podle priority:
 
 - [P0 Core](/mnt/c/Projekty/Dataverse/docs/P0-core/README.md)
