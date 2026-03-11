@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.mappers.execution import civilization_to_response, universe_asteroid_to_snapshot
+from app.api.mappers.execution import civilization_to_response, universe_civilization_to_snapshot
 from app.api.runtime import (
     get_service_container,
     resolve_scope_for_user,
@@ -44,7 +44,7 @@ router = APIRouter(tags=["civilizations"])
 
 
 def _civilization_row_from_source(source: Any, *, galaxy_id: UUID) -> CivilizationRowContract:
-    snapshot = universe_asteroid_to_snapshot(source, galaxy_id=galaxy_id)
+    snapshot = universe_civilization_to_snapshot(source, galaxy_id=galaxy_id)
     return civilization_snapshot_to_civilization_row(snapshot)
 
 

@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.mappers.execution import universe_asteroid_to_snapshot
+from app.api.mappers.execution import universe_civilization_to_snapshot
 from app.api.mappers.public import table_contract_to_public
 from app.api.runtime import get_service_container, resolve_scope_for_user, run_scoped_idempotent
 from app.app_factory import ServiceContainer
@@ -551,7 +551,7 @@ async def get_planet_moon_impact(
     )
     moon_rows: list[Any] = []
     for civilization in civilizations:
-        snapshot_row = universe_asteroid_to_snapshot(civilization, galaxy_id=resolved_galaxy_id)
+        snapshot_row = universe_civilization_to_snapshot(civilization, galaxy_id=resolved_galaxy_id)
         if snapshot_row.table_id != planet_id:
             continue
         moon_rows.append(civilization_snapshot_to_moon_row(snapshot_row))

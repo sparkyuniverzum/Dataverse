@@ -83,18 +83,19 @@ def task_to_response(task: AtomicTask) -> TaskSchema:
 
 
 def execution_to_response(tasks: list[AtomicTask], execution: TaskExecutionResult) -> ParseCommandResponse:
+    selected_civilizations = [civilization_to_response(civilization) for civilization in execution.selected_asteroids]
     return ParseCommandResponse(
         tasks=[task_to_response(task) for task in tasks],
         civilizations=[civilization_to_response(civilization) for civilization in execution.civilizations],
         bonds=[bond_to_response(bond) for bond in execution.bonds],
-        selected_asteroids=[civilization_to_response(civilization) for civilization in execution.selected_asteroids],
+        selected_asteroids=selected_civilizations,
         extinguished_civilization_ids=execution.extinguished_civilization_ids,
         extinguished_bond_ids=execution.extinguished_bond_ids,
         semantic_effects=execution.semantic_effects,
     )
 
 
-def universe_asteroid_to_snapshot(
+def universe_civilization_to_snapshot(
     civilization: ProjectedCivilization | Mapping[str, Any],
     *,
     galaxy_id: UUID = DEFAULT_GALAXY_ID,
@@ -189,12 +190,22 @@ def universe_asteroid_to_snapshot(
     )
 
 
+def universe_asteroid_to_snapshot(
+    civilization: ProjectedCivilization | Mapping[str, Any],
+    *,
+    galaxy_id: UUID = DEFAULT_GALAXY_ID,
+) -> UniverseAsteroidSnapshot:
+    # Backward-compatible alias kept for incremental cleanup.
+    return universe_civilization_to_snapshot(civilization, galaxy_id=galaxy_id)
+
+
 def universe_bond_to_snapshot(
     bond: ProjectedBond | Mapping[str, Any],
     *,
+    civilization_table_index: Mapping[UUID, tuple[UUID, str, str, str]] | None = None,
     asteroid_table_index: Mapping[UUID, tuple[UUID, str, str, str]] | None = None,
 ) -> UniverseBondSnapshot:
-    table_index = asteroid_table_index or {}
+    table_index = civilization_table_index or asteroid_table_index or {}
     if isinstance(bond, Mapping):
         semantics = bond_semantics(bond.get("type", "RELATION"))
         source_civilization_id = bond["source_civilization_id"]

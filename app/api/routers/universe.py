@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.mappers.execution import universe_asteroid_to_snapshot, universe_bond_to_snapshot
+from app.api.mappers.execution import universe_bond_to_snapshot, universe_civilization_to_snapshot
 from app.api.runtime import get_service_container, resolve_branch_id_for_user, resolve_galaxy_id_for_user
 from app.app_factory import ServiceContainer
 from app.db import get_read_session
@@ -41,7 +41,7 @@ async def universe_snapshot(
         branch_id=branch_id,
         services=services,
     )
-    active_asteroids, active_bonds = await services.universe_service.snapshot(
+    active_civilizations, active_bonds = await services.universe_service.snapshot(
         session=session,
         user_id=current_user.id,
         galaxy_id=target_galaxy_id,
@@ -50,7 +50,8 @@ async def universe_snapshot(
     )
 
     civilization_snapshots = [
-        universe_asteroid_to_snapshot(civilization, galaxy_id=target_galaxy_id) for civilization in active_asteroids
+        universe_civilization_to_snapshot(civilization, galaxy_id=target_galaxy_id)
+        for civilization in active_civilizations
     ]
     table_index: dict[UUID, tuple[UUID, str, str, str]] = {
         civilization.id: (
@@ -67,7 +68,7 @@ async def universe_snapshot(
         bonds=[
             universe_bond_to_snapshot(
                 bond,
-                asteroid_table_index=table_index,
+                civilization_table_index=table_index,
             )
             for bond in active_bonds
         ],
