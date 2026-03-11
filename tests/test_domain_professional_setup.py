@@ -335,6 +335,7 @@ def test_branches_domain_professional_setup() -> None:
     required_schema_names = (
         "BranchCreateRequest",
         "BranchPublic",
+        "BranchCloseResponse",
         "BranchPromoteResponse",
     )
     for schema_name in required_schema_names:
@@ -342,6 +343,8 @@ def test_branches_domain_professional_setup() -> None:
 
     assert hasattr(branch_commands, "BranchCommandPlan")
     assert hasattr(branch_commands, "BranchCommandError")
+    assert hasattr(branch_commands, "close_branch")
+    assert hasattr(branch_commands, "plan_close_branch")
     assert hasattr(branch_commands, "plan_create_branch")
     assert hasattr(branch_commands, "plan_promote_branch")
     assert hasattr(branch_queries, "BranchQueryError")
@@ -363,6 +366,13 @@ def test_branches_domain_professional_setup() -> None:
     )
     assert "branch_id" in promote_plan.request_payload
     assert "galaxy_id" in promote_plan.request_payload
+
+    close_plan = branch_commands.plan_close_branch(
+        branch_id=uuid4(),
+        galaxy_id=uuid4(),
+    )
+    assert "branch_id" in close_plan.request_payload
+    assert "galaxy_id" in close_plan.request_payload
 
     models_source = inspect.getsource(branch_models)
     schemas_source = inspect.getsource(branch_schemas)

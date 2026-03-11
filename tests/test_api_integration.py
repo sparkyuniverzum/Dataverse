@@ -2492,6 +2492,50 @@ def test_branch_promote_replays_branch_events_into_main(auth_client: tuple[httpx
     assert snapshot_branch_after.status_code == 404
 
 
+def test_branch_close_is_idempotent_and_hides_branch_scope(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"CloseScenario-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    closed_first = client.post(f"/branches/{branch_id}/close", params={"galaxy_id": galaxy_id})
+    assert closed_first.status_code == 200, closed_first.text
+    closed_first_body = closed_first.json()["branch"]
+    assert closed_first_body["id"] == branch_id
+    assert closed_first_body["deleted_at"] is not None
+
+    closed_second = client.post(f"/branches/{branch_id}/close", params={"galaxy_id": galaxy_id})
+    assert closed_second.status_code == 200, closed_second.text
+    closed_second_body = closed_second.json()["branch"]
+    assert closed_second_body["id"] == branch_id
+    assert closed_second_body["deleted_at"] == closed_first_body["deleted_at"]
+
+    snapshot_branch_after = client.get("/universe/snapshot", params={"galaxy_id": galaxy_id, "branch_id": branch_id})
+    assert snapshot_branch_after.status_code == 404
+
+
+def test_branch_promote_rejects_closed_branch(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+
+    branch = client.post(
+        "/branches",
+        json={"name": f"ClosedPromote-{uuid.uuid4()}", "galaxy_id": galaxy_id},
+    )
+    assert branch.status_code == 201, branch.text
+    branch_id = branch.json()["id"]
+
+    closed = client.post(f"/branches/{branch_id}/close", params={"galaxy_id": galaxy_id})
+    assert closed.status_code == 200, closed.text
+
+    promoted = client.post(f"/branches/{branch_id}/promote", params={"galaxy_id": galaxy_id})
+    assert promoted.status_code == 409, promoted.text
+    assert "closed" in str(promoted.json().get("detail", "")).lower()
+
+
 def test_branch_promote_after_branch_import_replays_into_main(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     branch_label = f"BranchImportPromote-{uuid.uuid4()}"

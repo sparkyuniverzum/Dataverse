@@ -28,6 +28,10 @@ class BranchPromoteResponse(BaseModel):
     promoted_events_count: int
 
 
+class BranchCloseResponse(BaseModel):
+    branch: BranchPublic
+
+
 def _normalize_contract_string_list(values: list[Any]) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()

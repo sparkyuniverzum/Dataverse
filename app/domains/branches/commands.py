@@ -47,6 +47,15 @@ def plan_promote_branch(*, branch_id: UUID, galaxy_id: UUID | None) -> BranchCom
     )
 
 
+def plan_close_branch(*, branch_id: UUID, galaxy_id: UUID | None) -> BranchCommandPlan:
+    return BranchCommandPlan(
+        request_payload={
+            "branch_id": str(branch_id),
+            "galaxy_id": str(galaxy_id) if galaxy_id is not None else None,
+        }
+    )
+
+
 async def create_branch(
     *,
     session: AsyncSession,
@@ -93,10 +102,34 @@ async def promote_branch(
         raise mapped from exc
 
 
+async def close_branch(
+    *,
+    session: AsyncSession,
+    services: Any,
+    user_id: UUID,
+    branch_id: UUID,
+    galaxy_id: UUID | None,
+) -> Any:
+    try:
+        return await services.cosmos_service.close_branch(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            branch_id=branch_id,
+        )
+    except Exception as exc:
+        mapped = _map_service_exception(exc)
+        if mapped is None:
+            raise
+        raise mapped from exc
+
+
 __all__ = [
     "BranchCommandError",
     "BranchCommandPlan",
+    "close_branch",
     "create_branch",
+    "plan_close_branch",
     "plan_create_branch",
     "plan_promote_branch",
     "promote_branch",

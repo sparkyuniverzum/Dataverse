@@ -139,10 +139,15 @@ class CosmosServiceBranches:
         branch = (
             await session.execute(select(Branch).where(Branch.id == branch_id).with_for_update())
         ).scalar_one_or_none()
-        if branch is None or branch.deleted_at is not None:
+        if branch is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
         if branch.galaxy_id != galaxy.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden branch access")
+        if branch.deleted_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Branch is closed and cannot be promoted",
+            )
 
         branch_events = list(
             (
@@ -180,3 +185,23 @@ class CosmosServiceBranches:
 
         branch.deleted_at = datetime.now(UTC)
         return branch, len(promoted_events)
+
+    async def close_branch(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID | None,
+        branch_id: UUID,
+    ) -> Branch:
+        galaxy = await self._resolve_user_galaxy(session=session, user_id=user_id, galaxy_id=galaxy_id)
+        branch = (
+            await session.execute(select(Branch).where(Branch.id == branch_id).with_for_update())
+        ).scalar_one_or_none()
+        if branch is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branch not found")
+        if branch.galaxy_id != galaxy.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden branch access")
+        if branch.deleted_at is None:
+            branch.deleted_at = datetime.now(UTC)
+        return branch

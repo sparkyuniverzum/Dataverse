@@ -11,7 +11,9 @@ from app.app_factory import ServiceContainer
 from app.db import get_read_session, get_session
 from app.domains.branches.commands import (
     BranchCommandError,
+    close_branch as close_branch_command,
     create_branch as create_branch_command,
+    plan_close_branch,
     plan_create_branch,
     plan_promote_branch,
     promote_branch as promote_branch_command,
@@ -22,7 +24,7 @@ from app.domains.branches.queries import (
 )
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
-from app.schemas import BranchCreateRequest, BranchPromoteResponse, BranchPublic
+from app.schemas import BranchCloseResponse, BranchCreateRequest, BranchPromoteResponse, BranchPublic
 
 router = APIRouter(tags=["branches"])
 
@@ -108,3 +110,31 @@ async def promote_branch(
             raise _command_to_http_exception(exc) from exc
     await commit_if_active(session)
     return BranchPromoteResponse(branch=branch_to_public(branch), promoted_events_count=promoted_events_count)
+
+
+@router.post("/branches/{branch_id}/close", response_model=BranchCloseResponse, status_code=status.HTTP_200_OK)
+async def close_branch(
+    branch_id: UUID,
+    galaxy_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> BranchCloseResponse:
+    plan = plan_close_branch(branch_id=branch_id, galaxy_id=galaxy_id)
+    async with transactional_context(session):
+        try:
+            branch = await close_branch_command(
+                session=session,
+                services=services,
+                user_id=current_user.id,
+                galaxy_id=(
+                    UUID(str(plan.request_payload["galaxy_id"]))
+                    if plan.request_payload["galaxy_id"] is not None
+                    else None
+                ),
+                branch_id=branch_id,
+            )
+        except BranchCommandError as exc:
+            raise _command_to_http_exception(exc) from exc
+    await commit_if_active(session)
+    return BranchCloseResponse(branch=branch_to_public(branch))

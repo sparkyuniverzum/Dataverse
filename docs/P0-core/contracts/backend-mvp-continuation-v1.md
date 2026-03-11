@@ -126,8 +126,18 @@ Evidence:
 
 ## 5.3 P1-2 Branch lifecycle closure
 
-- [ ] Zafixovat explicitní closure surface/semantiku větve.
-- [ ] Udržet deterministický promote/close behavior bez vedlejších branch leaků.
+- [x] 2026-03-11 Zafixovat explicitní closure surface/semantiku větve.
+- [x] 2026-03-11 Udržet deterministický promote/close behavior bez vedlejších branch leaků.
+
+Evidence:
+
+- [x] 2026-03-11 Přidán explicitní endpoint `POST /branches/{branch_id}/close` (idempotentní soft-close).
+- [x] 2026-03-11 `promote` na zavřené větvi vrací explicitní `409` (`Branch is closed and cannot be promoted`) místo nejednoznačného `404`.
+- [x] 2026-03-11 `ruff check app/api/routers/branches.py app/domains/branches/commands.py app/domains/branches/__init__.py app/services/cosmos/service_branches.py app/schema_models/branch_contracts.py tests/test_domain_professional_setup.py tests/test_api_integration.py` -> `All checks passed!`
+- [x] 2026-03-11 `PYTHONPATH=. pytest -q tests/test_domain_professional_setup.py::test_branches_domain_professional_setup -rs` -> `1 passed`.
+- [x] 2026-03-11 Přidány API regrese:
+  - `test_branch_close_is_idempotent_and_hides_branch_scope`
+  - `test_branch_promote_rejects_closed_branch`
 
 ## 6. Pravidlo průběžné kontroly
 
