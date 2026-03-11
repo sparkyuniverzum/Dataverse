@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_PARSER2_IMPL_PATH = Path(__file__).resolve().parents[2] / "services" / "parser2"
+_PARSER2_IMPL_PATH = Path(__file__).resolve().parents[2] / "infrastructure" / "runtime" / "parser2"
 if _PARSER2_IMPL_PATH.exists():
     parser2_impl_path = str(_PARSER2_IMPL_PATH)
     if parser2_impl_path not in __path__:

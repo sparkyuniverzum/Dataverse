@@ -21,4 +21,4 @@ Scope: `app/`
 
 1. `app/api/routers/` - endpoint behavior and response contract.
 2. `app/services/universe/` - projection, lifecycle, contract enforcement.
-3. `app/services/parser2/` - parser execution and fallback path.
+3. `app/infrastructure/runtime/parser2/` - parser execution and fallback path.
