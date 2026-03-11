@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from app.services.outbox.operator import OutboxOperatorService
-from app.services.outbox.runner import OutboxRunOnceSummary
+from app.infrastructure.runtime.outbox.operator import OutboxOperatorService
+from app.infrastructure.runtime.outbox.runner import OutboxRunOnceSummary
 
 
 @dataclass

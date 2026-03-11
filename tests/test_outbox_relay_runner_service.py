@@ -4,8 +4,8 @@ import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from app.services.outbox.relay import OutboxRelayResult
-from app.services.outbox.runner import OutboxRelayRunnerService
+from app.infrastructure.runtime.outbox.relay import OutboxRelayResult
+from app.infrastructure.runtime.outbox.runner import OutboxRelayRunnerService
 
 
 @dataclass

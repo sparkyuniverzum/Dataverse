@@ -10,8 +10,8 @@ from typing import Protocol
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.task_executor.service import TaskExecutorService
+from app.infrastructure.runtime.outbox.runner import OutboxRelayRunnerService
 from app.services.logging_helpers import structured_log_extra
-from app.services.outbox.runner import OutboxRelayRunnerService
 
 logger = logging.getLogger(__name__)
 

@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.outbox.relay import OutboxRelayResult, OutboxRelayService
 from app.services.logging_helpers import structured_log_extra
-from app.services.outbox.relay import OutboxRelayResult, OutboxRelayService
 from app.services.telemetry_spans import start_span
 
 logger = logging.getLogger(__name__)
