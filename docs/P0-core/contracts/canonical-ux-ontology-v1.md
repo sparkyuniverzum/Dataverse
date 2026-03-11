@@ -17,19 +17,12 @@ This is the mandatory base for future end-to-end workflow design.
 
 ## 2. Why it changed
 
-The current project is semantically correct but operationally ambiguous:
+The current project needs one explicit canonical ontology baseline:
 
-1. Moon contract defines `Moon` as capability.
-2. Civilization contract defines `Civilization` as row instance.
-3. Runtime migration keeps `/moons*` as row alias for compatibility.
-4. Planet/civilization delivery documents use `civilization` as canonical runtime language.
-
-Without one official UX ontology, workflow design would keep mixing:
-
-- capability semantics,
-- row semantics,
-- alias semantics,
-- implementation leftovers.
+1. moon = planet capability module,
+2. civilization = planet table row instance,
+3. `/civilizations*` = canonical runtime CRUD namespace,
+4. `/moons*` = compatibility alias only.
 
 ## 3. Scope of this document
 
@@ -47,7 +40,7 @@ This version does not yet define:
 
 ## 4. Canonical decision order
 
-When wording conflicts, use this priority order:
+For terminology and interpretation, use this priority order:
 
 1. `domain truth`
 2. `runtime truth`
@@ -225,7 +218,7 @@ Current implementation carries the ontology through these rules:
 
 1. `civilization` is the canonical row runtime term.
 2. `/civilizations*` is the canonical row CRUD namespace.
-3. `/moons*` is a compatibility alias for row lifecycle during migration only.
+3. `/moons*` is not canonical runtime CRUD and must not be used as row namespace.
 4. Moon capability state is contract-driven on planet/table layer.
 5. Planet contract and civilization row lifecycle are separate write domains.
 6. Runtime scope is always `user_id + galaxy_id (+ optional branch_id)`.
@@ -250,16 +243,13 @@ Default UX vocabulary for new product work must be:
 
 ### 7.2 Controlled use of `moon`
 
-`Moon` may appear in UX only in one of these cases:
-
-1. capability assembly or capability explanation surfaces,
-2. explicit migration/alias explanation,
-3. frozen legacy copy that has not yet been migrated.
+`Moon` may appear in UX only for capability meaning on planet contract surfaces.
+`Moon` must always be qualified as capability (for example: "Moon capability").
 
 ### 7.3 Forbidden ambiguity
 
-UX must not use `moon` as an unqualified synonym for row instance in new flows.
-If old runtime or old copy still exposes `moon` for row lifecycle, the UI must make the compatibility nature explicit.
+UX must never use `moon` as synonym for row instance.
+Row instance must always be labeled as `civilization`.
 
 ## 8. Mapping table
 
@@ -268,7 +258,7 @@ If old runtime or old copy still exposes `moon` for row lifecycle, the UI must m
 | Domain | Moon = capability | `Moon` on capability surfaces | `Moon = row` |
 | Domain | Civilization = row | `Civilization` | `Civilization = capability` |
 | Runtime | `/civilizations*` = row CRUD | `Civilization` | treating `/moons*` as canonical |
-| Runtime | `/moons*` = compatibility alias | `Legacy moon alias` if needed | presenting `/moons*` as source-of-truth naming |
+| Runtime | `/moons*` | Not allowed as row CRUD namespace | introducing `/moons*` row lifecycle endpoints |
 | UX | planet contract extension | `Moon capability` | plain `Moon` when user might infer row |
 | UX | row lifecycle | `Civilization` | `Moon` without qualification |
 
@@ -495,7 +485,7 @@ UI must not imply:
 
 - that user is editing row data,
 - that capability blocks are civilizations,
-- that `/moons*` row CRUD is the canonical capability surface.
+- that capability editing is row CRUD.
 
 ### 9.5 Civilization entity contract
 

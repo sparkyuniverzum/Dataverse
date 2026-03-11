@@ -227,7 +227,7 @@ Současná implementace nese ontologii prostřednictvím těchto pravidel:
 
 1. `civilization` je kanonický runtime termín pro řádek.
 2. `/civilizations*` je kanonický jmenný prostor pro CRUD operace s řádky.
-3. `/moons*` je kompatibilitní alias pro životní cyklus řádku výhradně po dobu migrace.
+3. `/moons*` není kanonický runtime CRUD namespace a nesmí se používat jako jmenný prostor řádků.
 4. Stav schopností Měsíce (Moon capability state) je řízen kontraktem na vrstvě planety/tabulky.
 5. Kontrakt planety a životní cyklus řádku civilizace jsou oddělené domény zápisu.
 6. Rozsah běhu (Runtime scope) je vždy `user_id + galaxy_id (+ volitelně branch_id)`.
@@ -252,16 +252,13 @@ Výchozí UX slovník pro novou práci na produktu musí být:
 
 ### 7.2 Kontrolované použití slova `moon`
 
-`Měsíc (Moon)` se smí v UX objevit pouze v jednom z těchto případů:
-
-1. plochy pro skládání schopností nebo vysvětlení schopností (capability surfaces),
-2. explicitní vysvětlení migrace/aliasu,
-3. zamrazená stará kopie (legacy copy), která ještě nebyla zmigrována.
+`Moon` se může v UX objevit pouze pro význam schopnosti na plochách kontraktu planety.
+`Moon` musí být vždy kvalifikováno jako schopnost (například: "Moon capability").
 
 ### 7.3 Zakázaná nejednoznačnost
 
-UX nesmí v nových tocích (flows) používat `moon` jako nekvalifikované synonymum pro instanci řádku.
-Pokud starý runtime nebo staré texty stále vystavují `moon` pro životní cyklus řádku, UI musí explicitně přiznat povahu zpětné kompatibility.
+UX nikdy nesmí používat `moon` jako synonymum pro instanci řádku.
+Instance řádku musí být vždy označena jako `civilization`.
 
 ## 8. Mapovací tabulka
 
@@ -270,7 +267,7 @@ Pokud starý runtime nebo staré texty stále vystavují `moon` pro životní cy
 | Doména | Moon = schopnost | `Moon` na plochách schopností | `Moon = řádek` |
 | Doména | Civilization = řádek | `Civilization` | `Civilization = schopnost` |
 | Runtime | `/civilizations*` = CRUD řádků | `Civilization` | zacházení s `/moons*` jako s kanonickým termínem |
-| Runtime | `/moons*` = kompatibilitní alias | `Legacy moon alias` (je-li potřeba) | prezentace `/moons*` jako názvosloví zdroje pravdy |
+| Runtime | `/moons*` | Nepovoleno jako jmenný prostor pro CRUD řádků | zavádění endpointů životního cyklu řádku na `/moons*` |
 | UX | rozšíření kontraktu planety | `Moon capability` | pouhé `Moon`, když by si to uživatel mohl vyložit jako řádek |
 | UX | životní cyklus řádku | `Civilization` | `Moon` bez kvalifikace |
 
@@ -497,7 +494,7 @@ UI nesmí naznačovat:
 
 * že uživatel upravuje data řádku,
 * že bloky schopností jsou civilizace,
-* že řádkové CRUD `/moons*` je kanonickou plochou pro schopnosti.
+* že úprava schopností je CRUD řádků.
 
 ### 9.5 Kontrakt entity Civilizace (Civilization)
 
