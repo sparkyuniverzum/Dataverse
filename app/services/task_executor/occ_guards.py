@@ -7,8 +7,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.db_advisory_lock import acquire_transaction_lock
 from app.models import Event
-from app.services.db_advisory_lock import acquire_transaction_lock
 
 
 class OccGuards:

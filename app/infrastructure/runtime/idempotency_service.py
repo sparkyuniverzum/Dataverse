@@ -10,8 +10,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.runtime.db_advisory_lock import acquire_transaction_lock
 from app.models import IdempotencyRecord
-from app.services.db_advisory_lock import acquire_transaction_lock
 
 
 @dataclass(frozen=True)
