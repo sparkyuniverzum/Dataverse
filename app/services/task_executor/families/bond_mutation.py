@@ -13,7 +13,7 @@ from app.services.parser_types import AtomicTask
 from app.services.universe_service import ProjectedBond
 
 if TYPE_CHECKING:
-    from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
+    from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 
 async def handle_link_and_bond_mutation_family(

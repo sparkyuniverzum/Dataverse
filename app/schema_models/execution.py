@@ -6,7 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.core.parser2.intents import Intent
 from app.domains.bonds.schemas import (
     BondResponse,
 )
@@ -100,7 +99,7 @@ class ParseCommandPlanResponse(BaseModel):
 
 
 class TaskBatchExecuteRequest(BaseModel):
-    tasks: list[TaskSchema | Intent]
+    tasks: list[TaskSchema]
     mode: str = "commit"
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None

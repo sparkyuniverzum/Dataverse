@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.core.parser2.intents import NodeSelector, NodeSelectorType
-from app.core.parser2.planner import SemanticResolver
+from app.infrastructure.runtime.parser2.intents import NodeSelector, NodeSelectorType
+from app.infrastructure.runtime.parser2.planner import SemanticResolver
 from app.services.universe_service import ProjectedCivilization
 
 

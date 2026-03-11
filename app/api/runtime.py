@@ -10,7 +10,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.app_factory import ServiceContainer, get_or_create_services
-from app.core.task_executor.models import TaskExecutionResult
 from app.domains.shared.commands import (
     SharedCommandError,
     build_idempotency_request_hash,
@@ -23,6 +22,7 @@ from app.infrastructure.runtime.observability.trace_context import (
 )
 from app.models import User
 from app.services.parser_types import AtomicTask
+from app.services.task_executor.models import TaskExecutionResult
 
 services: ServiceContainer = get_or_create_services()
 logger = logging.getLogger(__name__)

@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.parser2 import Parser2ExecutorBridge, Parser2SemanticPlanner
-from app.core.task_executor.service import TaskExecutorService
 from app.db import AsyncSessionLocal, dispose_db_engines
 from app.domains.bonds.dashboard_service import BondDashboardService
 from app.infrastructure.runtime.event_store_service import EventStoreService
@@ -19,6 +17,8 @@ from app.infrastructure.runtime.outbox.publisher import InProcessOutboxPublisher
 from app.infrastructure.runtime.outbox.relay import OutboxRelayService
 from app.infrastructure.runtime.outbox.runner import OutboxRelayRunnerService
 from app.infrastructure.runtime.parser.parser_legacy_service import ParserService
+from app.infrastructure.runtime.parser2.bridge import Parser2ExecutorBridge
+from app.infrastructure.runtime.parser2.planner import Parser2SemanticPlanner
 from app.modules.auth.service import AuthService
 from app.services.constellation_dashboard_service import ConstellationDashboardService
 from app.services.cosmos_service import CosmosService
@@ -32,6 +32,7 @@ from app.services.preset_bundle_service import PresetBundleService
 from app.services.runtime_shutdown_service import RuntimeShutdownService
 from app.services.schema_preset_service import SchemaPresetService
 from app.services.star_core_service import StarCoreService
+from app.services.task_executor.service import TaskExecutorService
 from app.services.universe_service import UniverseService
 
 

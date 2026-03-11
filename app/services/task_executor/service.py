@@ -14,35 +14,35 @@ from sqlalchemy import and_, cast, func, literal, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.parser2.intents import (
+from app.domains.bonds.semantics import normalize_bond_type
+from app.infrastructure.runtime.event_store_service import EventStoreService
+from app.infrastructure.runtime.parser2.intents import (
     BulkIntent,
     Intent,
 )
-from app.core.task_executor.contract_validation import TableContractValidator
-from app.core.task_executor.families.bond_mutation import handle_link_and_bond_mutation_family
-from app.core.task_executor.families.extinguish import handle_extinguish_family
-from app.core.task_executor.families.formula_guardian_select import handle_formula_guardian_select_family
-from app.core.task_executor.families.ingest_update import handle_ingest_update_family
-from app.core.task_executor.handlers.extinguish import ExtinguishHandler
-from app.core.task_executor.handlers.formula_guardian_select import FormulaGuardianSelectHandler
-from app.core.task_executor.handlers.ingest_update import IngestUpdateHandler
-from app.core.task_executor.handlers.intent_command import IntentCommandHandler
-from app.core.task_executor.handlers.link_mutation import LinkMutationHandler
-from app.core.task_executor.intent_commands import (
-    IntentCommand,
-    IntentCommandValidationError,
-    intent_command_from_atomic_task,
-)
-from app.core.task_executor.models import TaskExecutionResult
-from app.core.task_executor.occ_guards import OccGuards
-from app.core.task_executor.target_resolution import TargetResolver
-from app.domains.bonds.semantics import normalize_bond_type
-from app.infrastructure.runtime.event_store_service import EventStoreService
 from app.models import Bond, CivilizationRM, Event
 from app.services.auto_semantics_service import AutoSemanticsService
 from app.services.parser_types import AtomicTask
 from app.services.projection.read_model_projector import ReadModelProjector
 from app.services.table_contract_effective import EffectiveTableContract
+from app.services.task_executor.contract_validation import TableContractValidator
+from app.services.task_executor.families.bond_mutation import handle_link_and_bond_mutation_family
+from app.services.task_executor.families.extinguish import handle_extinguish_family
+from app.services.task_executor.families.formula_guardian_select import handle_formula_guardian_select_family
+from app.services.task_executor.families.ingest_update import handle_ingest_update_family
+from app.services.task_executor.handlers.extinguish import ExtinguishHandler
+from app.services.task_executor.handlers.formula_guardian_select import FormulaGuardianSelectHandler
+from app.services.task_executor.handlers.ingest_update import IngestUpdateHandler
+from app.services.task_executor.handlers.intent_command import IntentCommandHandler
+from app.services.task_executor.handlers.link_mutation import LinkMutationHandler
+from app.services.task_executor.intent_commands import (
+    IntentCommand,
+    IntentCommandValidationError,
+    intent_command_from_atomic_task,
+)
+from app.services.task_executor.models import TaskExecutionResult
+from app.services.task_executor.occ_guards import OccGuards
+from app.services.task_executor.target_resolution import TargetResolver
 from app.services.universe_service import (
     DEFAULT_GALAXY_ID,
     ProjectedBond,

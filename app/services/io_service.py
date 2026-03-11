@@ -16,9 +16,9 @@ from pydantic import BaseModel
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.task_executor.service import TaskExecutorService
 from app.models import ImportError, ImportJob
 from app.services.parser_types import AtomicTask
+from app.services.task_executor.service import TaskExecutorService
 from app.services.universe_service import UniverseService
 
 

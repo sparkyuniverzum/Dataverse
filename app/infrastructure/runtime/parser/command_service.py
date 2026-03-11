@@ -8,7 +8,11 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.parser2 import Parser2SemanticPlanner, SnapshotSemanticResolver, parser_v2_fallback_to_v1_enabled
+from app.infrastructure.runtime.parser2 import (
+    Parser2SemanticPlanner,
+    SnapshotSemanticResolver,
+    parser_v2_fallback_to_v1_enabled,
+)
 from app.schema_models.execution import ParseCommandRequest
 from app.services.parser_types import AtomicTask
 

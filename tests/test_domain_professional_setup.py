@@ -722,3 +722,40 @@ def test_core_facades_use_explicit_module_proxies_without_path_hacks() -> None:
     for token in forbidden_tokens:
         assert token not in parser2_init, f"Parser2 facade still uses dynamic path hack token `{token}`"
         assert token not in task_executor_init, f"Task executor facade still uses dynamic path hack token `{token}`"
+
+
+def test_canonical_runtime_modules_do_not_import_core_facades() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    forbidden_import_tokens = (
+        "from app.core.task_executor",
+        "import app.core.task_executor",
+        "from app.core.parser2",
+        "import app.core.parser2",
+    )
+    runtime_roots = (
+        repo_root / "app/api",
+        repo_root / "app/services",
+        repo_root / "app/infrastructure/runtime",
+        repo_root / "app/modules",
+    )
+
+    for root in runtime_roots:
+        for python_path in root.rglob("*.py"):
+            source = python_path.read_text(encoding="utf-8")
+            for token in forbidden_import_tokens:
+                assert (
+                    token not in source
+                ), f"Canonical runtime import `{token}` remains in {python_path.relative_to(repo_root)}"
+
+
+def test_models_facade_imports_domain_models_directly() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    source = (repo_root / "app/models.py").read_text(encoding="utf-8")
+    forbidden_tokens = (
+        "from app.domains.moons import",
+        "from app.domains.planets import",
+        "from app.domains.shared import",
+        "from app.domains.star_core import",
+    )
+    for token in forbidden_tokens:
+        assert token not in source, f"models facade still uses package-level import `{token}`"

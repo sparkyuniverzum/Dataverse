@@ -6,8 +6,9 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domains.auth.models import AuthSession
+from app.domains.star_core.models import User
 from app.infrastructure.security.auth_security import TokenClaims, decode_token_safe, utc_now
-from app.models import AuthSession, User
 from app.modules.auth.repository import AuthRepository
 
 

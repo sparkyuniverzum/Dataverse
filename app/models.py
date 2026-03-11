@@ -14,10 +14,11 @@ from app.domains.galaxies.models import (
     OnboardingProgress,
 )
 from app.domains.imports.models import ImportError, ImportJob
-from app.domains.moons import MoonCapability
-from app.domains.planets import TableContract
-from app.domains.shared import Base, Event, IdempotencyRecord, OutboxEvent
-from app.domains.star_core import CalcStateRM, PhysicsStateRM, StarCorePolicyRM, User
+from app.domains.moons.models import MoonCapability
+from app.domains.planets.models import TableContract
+from app.domains.shared.base import Base
+from app.domains.shared.models import Event, IdempotencyRecord, OutboxEvent
+from app.domains.star_core.models import CalcStateRM, PhysicsStateRM, StarCorePolicyRM, User
 
 __all__ = [
     "AuthSession",

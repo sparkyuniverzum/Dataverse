@@ -5,8 +5,8 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.task_executor.models import TaskExecutionResult
 from app.services.parser_types import AtomicTask
+from app.services.task_executor.models import TaskExecutionResult
 
 
 def _transactional_context(session: AsyncSession):

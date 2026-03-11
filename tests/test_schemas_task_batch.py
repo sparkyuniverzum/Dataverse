@@ -30,3 +30,16 @@ def test_task_batch_request_rejects_unknown_mode() -> None:
             mode="dry-run",
             tasks=[{"action": "INGEST", "params": {"value": "A", "metadata": {}}}],
         )
+
+
+def test_task_batch_request_rejects_intent_shape_without_atomic_action() -> None:
+    with pytest.raises(ValidationError):
+        TaskBatchExecuteRequest(
+            tasks=[
+                {
+                    "kind": "UPSERT_NODE",
+                    "node": {"selector_type": "NAME", "value": "A"},
+                    "metadata": {"state": "active"},
+                }
+            ]
+        )

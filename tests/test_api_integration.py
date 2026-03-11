@@ -3309,6 +3309,25 @@ def test_task_batch_preview_does_not_persist_changes(auth_client: tuple[httpx.Cl
     assert int(after["current_event_seq"]) == base_seq
 
 
+def test_task_batch_rejects_intent_payload_shape(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    response = client.post(
+        "/tasks/execute-batch",
+        json={
+            "mode": "commit",
+            "galaxy_id": galaxy_id,
+            "tasks": [
+                {
+                    "kind": "UPSERT_NODE",
+                    "node": {"selector_type": "NAME", "value": f"IntentTask-{uuid.uuid4().hex[:8]}"},
+                    "metadata": {"state": "active"},
+                }
+            ],
+        },
+    )
+    assert response.status_code == 422, response.text
+
+
 def test_task_batch_commit_persists_changes_atomically(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     label = f"BatchCommit-{uuid.uuid4()}"

@@ -5,11 +5,11 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 
-from app.core.parser2.intents import ExtinguishNodeIntent, Intent
+from app.infrastructure.runtime.parser2.intents import ExtinguishNodeIntent, Intent
 from app.services.universe_service import ProjectedCivilization
 
 if TYPE_CHECKING:
-    from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
+    from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 
 class ExtinguishHandler:

@@ -9,7 +9,7 @@ from app.services.parser_types import AtomicTask
 from app.services.universe_service import ProjectedCivilization
 
 if TYPE_CHECKING:
-    from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
+    from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 
 async def handle_extinguish_family(

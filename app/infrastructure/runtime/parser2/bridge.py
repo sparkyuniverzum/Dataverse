@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from app.core.parser2.intents import (
+from app.infrastructure.runtime.parser2.intents import (
     AddGuardianIntent,
     AssignAttributeIntent,
     BulkIntent,

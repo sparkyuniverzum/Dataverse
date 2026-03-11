@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
 
-from app.core.parser2.intents import AddGuardianIntent, Intent, SelectNodesIntent, SetFormulaIntent
+from app.infrastructure.runtime.parser2.intents import AddGuardianIntent, Intent, SelectNodesIntent, SetFormulaIntent
 
 if TYPE_CHECKING:
-    from app.core.task_executor.service import TaskExecutorService, _TaskExecutionContext
+    from app.services.task_executor.service import TaskExecutorService, _TaskExecutionContext
 
 
 class FormulaGuardianSelectHandler:

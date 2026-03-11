@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.core.parser2.lexer import Parser2Lexer
-from app.core.parser2.models import (
+from app.infrastructure.runtime.parser2.lexer import Parser2Lexer
+from app.infrastructure.runtime.parser2.models import (
     AssignNode,
     AstNode,
     EntityNode,
