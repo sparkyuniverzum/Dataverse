@@ -495,12 +495,8 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         selectedConstitution={selectedConstitution}
         onSelectObject={(objectId) => setNavigationState((current) => selectGalaxyObject(current, objectId))}
         onApproachObject={(objectId) => {
-          if (
-            objectId === "star-core" &&
-            navigationModel.mode === "approach_active" &&
-            fetchState.status !== "loading" &&
-            fetchState.status !== "data_unavailable"
-          ) {
+          if (objectId === "star-core" && fetchState.status !== "loading" && fetchState.status !== "data_unavailable") {
+            setNavigationState((current) => beginGalaxyApproach(current, objectId));
             setInteriorUiState(beginStarCoreInteriorUi());
             return;
           }

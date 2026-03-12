@@ -29,14 +29,15 @@ Pouziti:
 
 ### 2.2 Co je otevrene
 
-1. FE runtime navrat na `Blok 3` nad novym `interior` contractem.
+1. FE redesign `Bloku 3` na samostatnou `Star Core interior screen`.
 2. Dalsi FE bloky `Blok 4` az `Blok 8`.
 3. Samostatny pozdejsi produktovy bod `logout / navrat do selectoru galaxií`.
 
 ### 2.3 Co je blocker
 
 1. Zadny canonical BE blocker pro `Blok 3` uz nezustava.
-2. Dalsi prace na `Bloku 3` musi ale uz cist workflow truth z backendu, ne z lokalnich FE modelu.
+2. Otevreny blocker je architektonicky/UX: interior nesmi zustat jen dalsi zoom ve stejnem `Galaxy Space` canvasu.
+3. Dalsi prace na `Bloku 3` musi cist workflow truth z backendu a zaroven oddelit `Galaxy Space` a `Star Core interior` do dvou ruznych pracovnich obrazovek.
 
 ### 2.4 Co je aktivni pravda
 
@@ -62,5 +63,6 @@ BE:
 
 ## 4. Dalsi spravny krok
 
-1. Otevrit `packet` pro navrat FE na `Blok 3`.
+1. Otevrit `packet` pro redesign `Bloku 3`.
 2. Implementovat FE `Blok 3` uz pouze nad `GET /star-core/interior` a navazujicimi canonical endpointy.
+3. Postavit `Star Core interior` jako samostatnou screen surface.

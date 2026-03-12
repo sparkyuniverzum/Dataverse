@@ -200,19 +200,21 @@ Stav bloku:
 - [x] 2026-03-12 FE prototype potvrdil produktovy smer a odhalil chybejici BE orchestration vrstvu.
 - [x] 2026-03-12 BE orchestration baseline byla dodelana pres aktivni BE dokumenty a focused gate.
 - [x] 2026-03-12 Return packet pro FE navrat na `Blok 3` je pripraven.
-- [ ] 2026-03-12 FE runtime navazani na novy `interior` contract je dalsi otevreny krok.
+- [x] 2026-03-12 FE runtime navazani na novy `interior` contract bylo prototypove otevreno.
+- [ ] 2026-03-12 `Blok 3` byl redesignovan na samostatnou `Star Core interior screen`; dalsi otevreny krok je nova runtime implementace tohoto smeru.
 
 ### 8.1 Ucel
 
-Dodelat skutecne governance-first jadro uvnitr hvezdy.
+Dodelat skutecne governance-first jadro uvnitr hvezdy jako samostatnou interior screen.
 
 ### 8.2 Scope
 
-1. dvojklik / approach vstup do jadra,
-2. `Constitution Select`,
-3. `Policy Lock`,
-4. fyzicke `lock-in`,
-5. navrat ven do prostoru po potvrzeni.
+1. `double click` na hvezdu spousti `approach + entry transition` v jednom kroku,
+2. transition otvira samostatnou `Star Core interior screen`,
+3. `Constitution Select`,
+4. `Policy Lock`,
+5. fyzicke `lock-in`,
+6. navrat ven do `Galaxy Space` po potvrzeni.
 
 ### 8.3 Mimo scope
 
@@ -236,6 +238,7 @@ Dodelat skutecne governance-first jadro uvnitr hvezdy.
 5. Reduced-motion varianta musi mit stejnou vyznamovou sekvenci.
 6. Aktivni implementace se ma ridit `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`.
 7. FE nesmi byt jediny nositel stavu `constitution_select`, `policy_lock_ready`, `policy_lock_transition` ani `first_orbit_ready`; tyto workflow stavy musi byt nejdriv ukotveny v canonical BE orchestration contractu.
+8. `Star Core interior` nesmi zustat jen jako dalsi zoom uvnitr `Galaxy Space`; musi to byt samostatna pracovni obrazovka.
 
 ### 8.6 Odchylka vyvoje
 
@@ -256,7 +259,10 @@ Z toho plyne:
 1. FE prototype byl spravny jako objevny krok,
 2. dalsi vyvoj `Bloku 3` se docasne presunul do BE,
 3. canonical orchestration vrstva uz byla zalozena a focused gate probehla green,
-4. FE se ted muze vratit k runtime implementaci `Bloku 3`.
+4. FE se vratilo k runtime implementaci `Bloku 3`,
+5. nasledny prototyp potvrdil dalsi architektonicke rozhodnuti:
+   `Star Core interior` uz nesmi byt drzen jako hloubeji zanořena vrstva uvnitr stejne `Galaxy Space` sceny,
+6. dalsi FE implementace `Bloku 3` musi byt postavena jako samostatna `interior screen`.
 
 ## 9. Blok 4: Planet topology and orbit baseline
 

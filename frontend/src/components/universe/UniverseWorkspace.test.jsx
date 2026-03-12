@@ -401,7 +401,10 @@ describe("UniverseWorkspace", () => {
     expect(screen.getByText("Vybraný objekt: Srdce hvězdy")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "approach star" }));
-    expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("approach_active");
+    await waitFor(() => {
+      expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("approach_active");
+      expect(screen.getByTestId("canvas-interior-phase").textContent).toBe("star_core_interior_entry");
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "clear focus" }));
     expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("space_idle");
@@ -552,7 +555,6 @@ describe("UniverseWorkspace", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "select star" }));
-    fireEvent.click(screen.getByRole("button", { name: "approach star" }));
     fireEvent.click(screen.getByRole("button", { name: "approach star" }));
 
     await waitFor(() => {

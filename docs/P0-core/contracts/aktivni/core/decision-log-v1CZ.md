@@ -116,6 +116,26 @@ Zdroj pravdy:
 2. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
 3. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
 
+### D-006 Interiery nejsou dalsi zoom ve stejnem prostoru
+
+Datum: 2026-03-12
+Stav: aktivni
+
+Rozhodnuti:
+
+1. `Star Core interior` je samostatna pracovni obrazovka, ne dalsi hloubeji zanořena vrstva uvnitr `Galaxy Space`.
+2. Stejny princip ma pozdeji platit i pro interier planety a dalsi hlubsi operacni vrstvy.
+3. Spatial transition muze byt plynuly a diegeticky, ale cil uz neni "zustat ve stejnem canvasu".
+
+Vyrazeno:
+
+1. predstava, ze interier hvezdy bude jen dalsi kamera / zoom uvnitr stejne vesmirne sceny.
+
+Zdroj pravdy:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
+2. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
+
 ## 3. Pravidlo pouziti
 
 1. Pri beznem navrhu a implementaci se tento log cte pred navratem ke starsim diskusim.

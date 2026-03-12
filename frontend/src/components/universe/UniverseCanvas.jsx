@@ -29,10 +29,21 @@ function CameraRig({ controlsRef, navigationModel, movementRef, onHeadingChange,
       Number(activePosition[1] || 0.4),
       Number(activePosition[2] || 0)
     );
+    const interiorTargetYOffset = interiorModel.isOpen
+      ? interiorModel.phase === "first_orbit_ready"
+        ? 0.82
+        : 1.04
+      : 0;
     const desiredDistance = interiorModel.isOpen
       ? interiorModel.phase === "first_orbit_ready"
-        ? 5.1
-        : 4.3
+        ? 7.4
+        : interiorModel.phase === "policy_lock_transition"
+          ? 8.2
+          : interiorModel.phase === "policy_lock_ready"
+            ? 8.8
+            : interiorModel.phase === "constitution_select"
+              ? 9.1
+              : 9.6
       : navigationModel.mode === "approach_active"
         ? activeObject?.type === "star"
           ? activeObject?.approachDistance || 6.7
@@ -46,8 +57,8 @@ function CameraRig({ controlsRef, navigationModel, movementRef, onHeadingChange,
     if (controls) {
       if (navigationModel.mode !== "space_idle" || interiorModel.isOpen) {
         const targetWithParallax = new THREE.Vector3(
-          target.x + pointer.x * (interiorModel.isOpen ? 0.06 : 0.18),
-          target.y + pointer.y * (interiorModel.isOpen ? 0.05 : 0.12),
+          target.x + pointer.x * (interiorModel.isOpen ? 0.04 : 0.18),
+          target.y + interiorTargetYOffset + pointer.y * (interiorModel.isOpen ? 0.035 : 0.12),
           target.z
         );
         controls.target.lerp(targetWithParallax, 1 - Math.exp(-delta * 3.2));
@@ -316,10 +327,11 @@ function ReactorCore({
     const amplitude = visualModel.pulseScale;
     const pulseDamping = approached ? 0.3 : selected ? 0.42 : 0.56;
     const pulse = 1 + Math.sin(t * visualModel.pulseSpeed) * amplitude * pulseDamping;
+    const interiorScale = interiorModel.isOpen ? (interiorModel.phase === "first_orbit_ready" ? 0.92 : 0.78) : 1;
 
     if (rootRef.current) {
       rootRef.current.rotation.y = t * 0.12;
-      rootRef.current.scale.setScalar(pulse + (selected ? 0.014 : 0));
+      rootRef.current.scale.setScalar((pulse + (selected ? 0.014 : 0)) * interiorScale);
     }
     if (cageRef.current) {
       cageRef.current.rotation.x = t * 0.18;

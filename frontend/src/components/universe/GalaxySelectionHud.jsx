@@ -36,7 +36,7 @@ function resolvePrompt(navigationModel) {
     return {
       title: `Přibližuješ se k objektu ${selectedLabel}`.trim(),
       hint: isStarCore
-        ? "Jsi na prahu governance orbity. Esc tě vrátí o krok zpět."
+        ? "Probíhá vstup do governance vrstvy. Esc tě vrátí o krok zpět."
         : "Esc tě vrátí o krok zpět. Ještě nejsi uvnitř další vrstvy.",
     };
   }
@@ -44,7 +44,7 @@ function resolvePrompt(navigationModel) {
     return {
       title: `Vybraný objekt: ${selectedLabel || "objekt"}`,
       hint: isStarCore
-        ? "Dvojklik přiblíží ke governance exterioru. Radar i scéna drží stejný selection focus."
+        ? "Dvojklik spustí přiblížení a vstup do nitra Srdce hvězdy. Radar i scéna drží stejný selection focus."
         : "Dvojklik spustí přiblížení. Radar i scéna drží stejný selection focus.",
     };
   }

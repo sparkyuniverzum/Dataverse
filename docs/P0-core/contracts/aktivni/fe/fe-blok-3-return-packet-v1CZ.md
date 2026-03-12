@@ -12,7 +12,7 @@ Je to zamerne kratky dokument pro setreni kontextu.
 
 ## 2. Presny cil
 
-Vratit FE runtime `Bloku 3` nad canonical backend pravdu pro interier hvezdy.
+Vratit FE runtime `Bloku 3` nad canonical backend pravdu pro interier hvezdy a postavit ho jako samostatnou `Star Core interior screen`.
 
 ## 3. Mimo scope
 
@@ -28,6 +28,7 @@ FE:
 
 1. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
 2. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
+3. `docs/P0-core/contracts/aktivni/fe/fe-blok-3a-star-core-interior-screen-implementacni-dokument-v1CZ.md`
 
 BE:
 
@@ -41,8 +42,9 @@ Pouze tento working set:
 1. `frontend/src/components/universe/UniverseWorkspace.jsx`
 2. `frontend/src/components/universe/UniverseCanvas.jsx`
 3. `frontend/src/components/universe/GalaxySelectionHud.jsx`
-4. `frontend/src/components/universe/starCoreTruthAdapter.js`
-5. nove male `starCoreInterior*` helpery a focused testy
+4. novy samostatny screen komponent pro `Star Core interior`
+5. `frontend/src/components/universe/starCoreTruthAdapter.js`
+6. nove male `starCoreInterior*` helpery a focused testy
 
 ## 6. Backend zavislosti
 
@@ -56,14 +58,17 @@ FE musi pouzit:
 
 1. FE nesmi znovu vymyslet lokalni workflow truth, pokud ji umi vratit backend.
 2. `constitution_select`, `policy_lock_ready`, `policy_lock_transition`, `first_orbit_ready` se musi cist z `interior` contractu.
-3. Screenshoty musi pokryt:
+3. `Star Core interior` nesmi zustat jen dalsi zoom uvnitr stejneho `Galaxy Space` canvasu.
+4. `Blok 3a` musi nejdriv oddelit `StarCoreInteriorScreen` shell, transition a return contract od `UniverseCanvas`.
+5. Screenshoty musi pokryt:
    - `star_core_interior_entry`
    - `constitution_select`
    - `policy_lock_ready`
    - `policy_lock_transition`
    - `first_orbit_ready`
-4. Focused testy musi pokryt adapter, interior state a lock recoverability.
+6. Focused testy musi pokryt adapter, interior screen state a lock recoverability.
 
 ## 8. Otevrene riziko
 
 1. Pokud FE narazi na chybejici pole nebo nejednoznacny `interior` payload, prace se zastavi a vrati zpet do BE contractu, neobejde se to lokalnim workaroundem.
+2. Pokud interior screen znovu zacne vizualne kolidovat s `Galaxy Space`, je to signal spatne architektury, ne jen potreba dalsiho camera polish.

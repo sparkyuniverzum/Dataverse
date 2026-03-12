@@ -12,6 +12,7 @@ Pri bezne praci se maji cist defaultne jen dokumenty v `docs/P0-core/contracts/a
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/runtime-package-map-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/runtime-package-map-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/decision-log-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/decision-log-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/context-handoff-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/context-handoff-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/new-thread-context-packet-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/new-thread-context-packet-v1CZ.md)
 
 ### BE
 
