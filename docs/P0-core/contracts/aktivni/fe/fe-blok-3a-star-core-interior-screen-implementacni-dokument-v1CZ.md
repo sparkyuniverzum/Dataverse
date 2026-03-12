@@ -77,6 +77,7 @@ Tento dokument vykonava:
 5. `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`
 6. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-endpoint-contract-v1CZ.md`
 7. `docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md`
+8. `docs/P0-core/contracts/aktivni/fe/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md`
 
 Pravidlo:
 
@@ -282,6 +283,6 @@ Pro tento blok se completion hlasi po kategoriich:
 
 Po uzavreni `Bloku 3a` ma navazovat:
 
-1. `Blok 3b` finalni obsah `Constitution Select` uvnitr hotoveho shellu,
+1. `Blok 3b` finalni obsah `Constitution Select` uvnitr hotoveho shellu dle oficialni `Ritual Chamber` implementacni mapy,
 2. `Blok 3c` canonical `Policy Lock` command a `first_orbit_ready`,
 3. teprve potom navazujici priprava na `Blok 4`.

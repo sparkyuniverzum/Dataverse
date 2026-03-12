@@ -239,6 +239,7 @@ Dodelat skutecne governance-first jadro uvnitr hvezdy jako samostatnou interior 
 6. Aktivni implementace se ma ridit `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`.
 7. FE nesmi byt jediny nositel stavu `constitution_select`, `policy_lock_ready`, `policy_lock_transition` ani `first_orbit_ready`; tyto workflow stavy musi byt nejdriv ukotveny v canonical BE orchestration contractu.
 8. `Star Core interior` nesmi zustat jen jako dalsi zoom uvnitr `Galaxy Space`; musi to byt samostatna pracovni obrazovka.
+9. User-visible interier se ma ridit `docs/P0-core/contracts/aktivni/fe/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md`.
 
 ### 8.6 Odchylka vyvoje
 
@@ -262,7 +263,8 @@ Z toho plyne:
 4. FE se vratilo k runtime implementaci `Bloku 3`,
 5. nasledny prototyp potvrdil dalsi architektonicke rozhodnuti:
    `Star Core interior` uz nesmi byt drzen jako hloubeji zanořena vrstva uvnitr stejne `Galaxy Space` sceny,
-6. dalsi FE implementace `Bloku 3` musi byt postavena jako samostatna `interior screen`.
+6. dalsi FE implementace `Bloku 3` musi byt postavena jako samostatna `interior screen`,
+7. dalsi user-visible implementace `Bloku 3` se ma ridit oficialni mapou `Blok 3b Ritual Chamber`.
 
 ## 9. Blok 4: Planet topology and orbit baseline
 

@@ -38,11 +38,13 @@ Tento dokument vykonava:
 8. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
 9. `docs/P0-core/contracts/aktivni/fe/fe-blok-3a-star-core-interior-screen-implementacni-dokument-v1CZ.md`
 10. `docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md`
+11. `docs/P0-core/contracts/aktivni/fe/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md`
 
 Provadeci pravidlo:
 
 1. samostatny implementacni krok `shell + transition + return contract` je rozpadnut do `Bloku 3a`,
-2. dokud neni `Blok 3a` implementacne zavreny, nesmi se `Blok 3` tvarit jako finalni interior runtime.
+2. dokud neni `Blok 3a` implementacne zavreny, nesmi se `Blok 3` tvarit jako finalni interior runtime,
+3. user-visible obsah a vizualni kompozice interieru se maji ridit oficialni mapou `Blok 3b Ritual Chamber`.
 
 ## 2. Ucel bloku
 
@@ -271,4 +273,5 @@ Blok 3 se nesmi uzavrit, pokud plati aspon jeden z bodu:
 1. interior stale vypada jako "vic zoomu v tomtez prostoru",
 2. `Galaxy Space` a interior screen se stale perou o pozornost,
 3. `Constitution Select` stale pusobi jako overlay nad vnejsi scenou,
-4. operator nema cit, ze skutecne vstoupil do jine pracovni vrstvy.
+4. operator nema cit, ze skutecne vstoupil do jine pracovni vrstvy,
+5. user-visible vrstva se neřidi `docs/P0-core/contracts/aktivni/fe/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md`.
