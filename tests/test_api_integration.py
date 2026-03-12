@@ -309,6 +309,45 @@ def test_parser_plan_returns_tasks_without_persisting_changes(auth_client: tuple
     assert left not in values
 
 
+def test_parser_lexicon_returns_cz_command_contract(auth_client: tuple[httpx.Client, str]) -> None:
+    client, _galaxy_id = auth_client
+    response = client.get("/parser/lexicon")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body.get("language") == "cs-CZ"
+    assert body.get("lexicon_version") == "1.0"
+    parser_v2_intents = set(body.get("parser_v2_intents") or [])
+    assert {"UPSERT_NODE", "ASSIGN_ATTRIBUTE", "CREATE_LINK", "EXTINGUISH_NODE", "BULK"}.issubset(parser_v2_intents)
+    command_keys = {str(item.get("key")) for item in body.get("commands", []) if isinstance(item, dict)}
+    assert {"vytvor_civilizaci", "nastav_hodnotu", "propoj", "zhasni", "vzorec", "strazce", "davka"}.issubset(
+        command_keys
+    )
+
+
+def test_parser_preview_returns_plan_scope_risk_and_expected_events(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"PreviewTarget-{uuid.uuid4().hex[:8]}"
+    response = client.post(
+        "/parser/preview",
+        json={"query": f"Delete : {label}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body.get("resolved_command") == f"Delete : {label}"
+    assert body.get("parser_version_requested") == "v2"
+    assert isinstance(body.get("tasks"), list) and body["tasks"]
+    actions = [str(task.get("action") or "").upper() for task in body["tasks"]]
+    assert "DELETE" in actions
+    risk_flags = body.get("risk_flags") or {}
+    assert risk_flags.get("destructive") is True
+    assert risk_flags.get("mutating") is True
+    scope = body.get("scope") or {}
+    assert scope.get("galaxy_id") == galaxy_id
+    expected_events = body.get("expected_events") or []
+    assert any("CIVILIZATION_SOFT_DELETED" in (item.get("event_types") or []) for item in expected_events)
+    assert isinstance(body.get("next_step_hint"), str) and body["next_step_hint"]
+
+
 def test_parser_v2_returns_parse_error_for_invalid_syntax(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     execute = client.post(

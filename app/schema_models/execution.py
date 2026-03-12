@@ -98,6 +98,75 @@ class ParseCommandPlanResponse(BaseModel):
     parser_version: str = "v2"
 
 
+class ParserLexiconCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str
+    syntax: str
+    description: str
+    intent_kind: str
+    atomic_actions: list[str] = Field(default_factory=list)
+    aliases: list[str] = Field(default_factory=list)
+    examples: list[str] = Field(default_factory=list)
+
+
+class ParseCommandLexiconResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    language: str = "cs-CZ"
+    lexicon_version: str = "1.0"
+    parser_v2_intents: list[str] = Field(default_factory=list)
+    bridge_actions: list[str] = Field(default_factory=list)
+    legacy_patterns: list[str] = Field(default_factory=list)
+    reserved_terms: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    commands: list[ParserLexiconCommand] = Field(default_factory=list)
+
+
+class ParseCommandPreviewScope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    galaxy_id: uuid.UUID | None = None
+    branch_id: uuid.UUID | None = None
+
+
+class ParseCommandPreviewRiskFlags(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mutating: bool = False
+    destructive: bool = False
+    multi_step: bool = False
+    scope_sensitive: bool = False
+    requires_confirmation: bool = False
+
+
+class ParseCommandPreviewExpectedEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: str
+    event_types: list[str] = Field(default_factory=list)
+    because: str
+
+
+class ParseCommandPreviewResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resolved_command: str
+    parser_version_requested: str
+    parser_version_effective: str
+    parser_path: str
+    fallback_used: bool = False
+    fallback_policy_mode: str
+    fallback_policy_reason: str
+    fallback_detail: str | None = None
+    intents: list[str] = Field(default_factory=list)
+    tasks: list[TaskSchema] = Field(default_factory=list)
+    expected_events: list[ParseCommandPreviewExpectedEvent] = Field(default_factory=list)
+    risk_flags: ParseCommandPreviewRiskFlags
+    scope: ParseCommandPreviewScope
+    next_step_hint: str
+
+
 class TaskBatchExecuteRequest(BaseModel):
     tasks: list[TaskSchema]
     mode: str = "commit"

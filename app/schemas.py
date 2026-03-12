@@ -17,9 +17,15 @@ from app.schema_models.branch_contracts import (  # noqa: F401
     _normalize_contract_string_list,
 )
 from app.schema_models.execution import (  # noqa: F401
+    ParseCommandLexiconResponse,
     ParseCommandPlanResponse,
+    ParseCommandPreviewExpectedEvent,
+    ParseCommandPreviewResponse,
+    ParseCommandPreviewRiskFlags,
+    ParseCommandPreviewScope,
     ParseCommandRequest,
     ParseCommandResponse,
+    ParserLexiconCommand,
     SemanticEffect,
     TaskBatchExecuteRequest,
     TaskBatchExecuteResponse,
