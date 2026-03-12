@@ -1,6 +1,6 @@
 # UX FE Component Behavior Contract v1
 
-Status: active (FE behavior baseline)
+Status: archived historical mirror (inactive reference)
 Date: 2026-03-11
 Owner: FE architecture + UX engineering
 

@@ -47,3 +47,9 @@ Výsledek:
 ## 5. Rozhodnutí
 
 - [x] 2026-03-12 BE předvývojový gate je uzavřen.
+
+## 6. Co zůstává otevřené mimo BE scope
+
+- [x] 2026-03-12 Aktivní FE/UX kontrakty zůstávají záměrně ve stavu `aktivní`; nejsou součástí tohoto BE uzavření.
+- Otevřený FE krok mimo BE scope: `ux-fe-risk-assessment-v1CZ.md` vyžaduje po další FE iteraci potvrdit limity `R2/R4` praktickým viewport smoke checkem.
+- [x] 2026-03-12 Historické EN mirror dokumenty jsou vedené pouze v `docs/P0-core/contracts/archive/en/`.

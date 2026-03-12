@@ -4,30 +4,15 @@ Scope: `frontend/src/components/universe/`
 
 ## Mandatory Rule Load
 
-1. Read `/mnt/c/Projekty/Dataverse/AGENTS.md`.
-2. Read this file.
-3. Only then inspect or edit universe runtime files.
-4. Follow root `Collaboration Contract (Mandatory)` for block handoff and `Povel pro tebe`.
+1. Precti `/mnt/c/Projekty/Dataverse/AGENTS.md`.
+2. Precti tento soubor.
+3. Teprve potom upravuj aktivni universe runtime soubory.
+4. Dodrz root `Collaboration Contract (Mandatory)` vcetne `Povel pro tebe`.
 
 ## Local Priorities
 
-1. Preserve deterministic UI flow across Sidebar, Grid, Setup panel.
-2. Keep workflow log unified (UI + backend stream + runtime impact/repair events).
-3. Avoid adding more logic into `UniverseWorkspace.jsx` unless necessary; prefer small helper modules.
-4. Monolith creation is prohibited in this scope; split new behavior into focused files/hooks.
-5. Any lifecycle/mineral behavior change must keep existing e2e path stable.
-6. Keep naming/API mapping explicit: `civilization` is row runtime entity, `moon` is capability layer over table/planet in UX.
-7. User-facing copy in this scope must be Czech and understandable; use canonical terminology and add short clarifiers where ambiguity can occur (for example: `Měsíc (capability)`).
-
-## Key Files
-
-1. `UniverseWorkspace.jsx` - orchestration, runtime integration.
-2. `QuickGridOverlay.jsx` - operator workflow, composers, workflow log.
-3. `WorkspaceSidebar.jsx` - moon/civilization inspector summary.
-4. `useMoonCrudController.js` - canonical write routes and OCC handling.
-
-## Local Validation
-
-1. `npm --prefix frontend run test -- src/components/universe/QuickGridOverlay.civilizations.test.jsx`
-2. `npm --prefix frontend run test -- src/components/universe/QuickGridOverlay.minerals.test.jsx`
-3. `npm --prefix frontend run test:e2e:planet-civilization-mineral-workflow`
+1. Aktivni FE v tomto scope je po resetu minimalisticky; nepridavej zpet stare surface bez explicitniho schvaleni.
+2. Zachovej cistou, citelnou zakladni workspace plochu jako novy start od nuly.
+3. Pokud se vraci starsi inspirace, ber ji pouze z `frontend/src/_inspiration_reset_20260312/`.
+4. Nepresouvej archivovane soubory zpatky do aktivni cesty po castech bez jasneho planu.
+5. Udrzuj user-visible copy cesky a strucny.

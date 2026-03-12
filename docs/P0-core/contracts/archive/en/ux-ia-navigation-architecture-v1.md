@@ -1,6 +1,6 @@
 # UX IA & Navigation Architecture v1
 
-Status: active (UX architecture baseline)
+Status: archived historical mirror (inactive reference)
 Date: 2026-03-11
 Owner: Product UX + FE architecture
 

@@ -1,6 +1,6 @@
 # Runtime Package Map v1
 
-Status: active
+Status: archived historical mirror (inactive reference)
 Date: 2026-03-11
 Scope: backend runtime package ownership after infrastructure cleanup
 

@@ -1,6 +1,6 @@
 # Canonical UX Ontology v1
 
-Status: active (canonical planning baseline)
+Status: archived historical mirror (inactive reference)
 Date: 2026-03-10
 Owner: Product UX + Core FE/BE architecture
 

@@ -1,6 +1,6 @@
 # UX Journeys & Visual Language v1
 
-Status: active (UX journey baseline)
+Status: archived historical mirror (inactive reference)
 Date: 2026-03-11
 Owner: Product UX + FE design system
 

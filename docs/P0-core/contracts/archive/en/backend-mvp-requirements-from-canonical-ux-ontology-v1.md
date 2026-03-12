@@ -1,12 +1,12 @@
 # Backend MVP Requirements From Canonical UX Ontology v1
 
-Status: active (backend MVP extraction baseline)
+Status: archived historical mirror (inactive reference)
 Date: 2026-03-11
 Owner: Core BE architecture
 
 ## 1. What changed
 
-- [x] 2026-03-11 Added one backend-only MVP requirements baseline extracted from `canonical-ux-ontology-v1.md`.
+- [x] 2026-03-11 Added one backend-only MVP requirements baseline extracted from `archive/en/canonical-ux-ontology-v1.md`.
 - [x] 2026-03-11 Converted ontology language into implementation constraints for API, data model, lifecycle, and runtime guards.
 - [x] 2026-03-11 Added a closure checklist for BE hardening scope tracking.
 
@@ -22,15 +22,15 @@ We need one explicit BE MVP contract that:
 
 Ontology source was read from:
 
-- `docs/P0-core/contracts/canonical-ux-ontology-v1.md`
+- `docs/P0-core/contracts/archive/en/canonical-ux-ontology-v1.md`
 - Sections used: Domain truth, Runtime truth, Entity ontology, Interaction ontology.
 
 Evidence command set used during extraction:
 
 ```bash
-sed -n '1,260p' docs/P0-core/contracts/canonical-ux-ontology-v1.md
-sed -n '260,560p' docs/P0-core/contracts/canonical-ux-ontology-v1.md
-sed -n '560,920p' docs/P0-core/contracts/canonical-ux-ontology-v1.md
+sed -n '1,260p' docs/P0-core/contracts/archive/en/canonical-ux-ontology-v1.md
+sed -n '260,560p' docs/P0-core/contracts/archive/en/canonical-ux-ontology-v1.md
+sed -n '560,920p' docs/P0-core/contracts/archive/en/canonical-ux-ontology-v1.md
 ```
 
 ## 4. Canonical BE MVP rules (global)
