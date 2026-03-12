@@ -143,6 +143,10 @@ Zavest hlavni prostor galaxie jako volne navigovatelny workspace.
 
 ## 7. Blok 2: Spatial Star Core exterior
 
+Stav bloku:
+
+- [ ] 2026-03-12 Implementacni dokument je pripraven; runtime kod jeste neni otevren.
+
 ### 7.1 Ucel
 
 Udelat z hvezdy centralni governance anchor uvnitr prostoru galaxie, ale ne z ni udelat cely workspace.
@@ -174,6 +178,7 @@ Udelat z hvezdy centralni governance anchor uvnitr prostoru galaxie, ale ne z ni
 3. `LOCKED` a `UNLOCKED` se musi lisit prostorove, ne jen copy.
 4. Hvezda nesmi zamknout kameru tak, ze zmizi pocit prostoru galaxie.
 5. Screenshot `Star Core exterior` musi byt produktove presvedcivy i bez vysvetleni.
+6. Aktivni implementace se ma ridit `docs/P0-core/contracts/aktivni/fe/fe-blok-2-implementacni-dokument-v1CZ.md`.
 
 ## 8. Blok 3: Star Core interior + Constitution Select + Policy Lock
 
