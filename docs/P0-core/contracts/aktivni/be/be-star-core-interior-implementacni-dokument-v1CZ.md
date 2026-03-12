@@ -1,6 +1,6 @@
 # BE Star Core Interior implementacni dokument v1
 
-Stav: aktivni
+Stav: splneno jako BE closure gate pro FE Blok 3
 Datum: 2026-03-12
 Vlastnik: BE architektura + FE/UX governance + user-agent alignment
 
@@ -330,7 +330,18 @@ Blok se nesmi uzavrit, pokud:
 
 ## 10. Co je dalsi spravny krok
 
-1. schvalit tento vykonavaci dokument,
-2. implementovat `Krok A` az `Krok G`,
-3. pustit focused BE test gate,
-4. teprve potom vratit FE `Blok 3` do aktivni runtime prace.
+1. `Krok A` az `Krok F` jsou pro prvni canonical vrstvu hotove.
+2. Focused BE gate byla potvrzena.
+3. FE se muze vratit k `Bloku 3` a nahradit exploracni workflow novou BE pravdou.
+4. Dalsi BE rozsireni uz patri jen do navazujicich bloků nebo hardeningu.
+
+## 11. Evidence uzavreni
+
+- [x] 2026-03-12 `Krok A + B` implementovan: `schema_models` + canonical constitution catalog.
+- [x] 2026-03-12 `PYTHONPATH=. pytest -q tests/test_star_core_service.py` probehl green.
+- [x] 2026-03-12 `Krok C + D` implementovan: `get_interior(...)` + `constitution/select` v domene.
+- [x] 2026-03-12 Focused doménové testy pro `Star Core interior` probehly green.
+- [x] 2026-03-12 `Krok E` implementovan: `GET /star-core/interior` + `POST /star-core/interior/constitution/select`.
+- [x] 2026-03-12 Routing wiring a focused integration gate probehly green.
+- [x] 2026-03-12 `Krok F` implementovan: `policy/lock` respektuje selected constitution a vraci canonical `STAR_CORE_LOCK_SELECTION_MISMATCH`.
+- [x] 2026-03-12 Focused gate `PYTHONPATH=. pytest -q tests/test_star_core_service.py tests/test_api_integration.py -k "star_core_policy_lock_rejects_selection_mismatch_and_sets_first_orbit_ready or validate_policy_lock_selection"` probehl green.

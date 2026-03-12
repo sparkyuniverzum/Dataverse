@@ -37,6 +37,8 @@ Tento dokument vykonava:
 4. `docs/P0-core/contracts/aktivni/fe/fe-vision-v2-spatial-galaxy-entry-v1CZ.md`
 5. `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`
 6. `docs/P0-core/contracts/aktivni/ux/ux-operation-layer-grid-command-v1CZ.md`
+7. `docs/P0-core/contracts/aktivni/core/decision-log-v1CZ.md`
+8. `docs/P0-core/contracts/aktivni/core/context-handoff-v1CZ.md`
 
 ## 4. Globalni hard gate pro vsechny bloky
 
@@ -194,9 +196,11 @@ Udelat z hvezdy centralni governance anchor uvnitr prostoru galaxie, ale ne z ni
 
 Stav bloku:
 
-- [ ] 2026-03-12 Implementacni dokument je pripraven.
-- [ ] 2026-03-12 FE prototype potvrdil produktovy smer, ale blok je docasne pozastaven kvuli chybejici canonical BE orchestration vrstve.
-- [ ] 2026-03-12 Dalsi runtime postup FE je podminen BE dokumentem `docs/P0-core/contracts/aktivni/be/be-star-core-interior-orchestration-zadani-v1CZ.md`.
+- [x] 2026-03-12 Implementacni dokument je pripraven.
+- [x] 2026-03-12 FE prototype potvrdil produktovy smer a odhalil chybejici BE orchestration vrstvu.
+- [x] 2026-03-12 BE orchestration baseline byla dodelana pres aktivni BE dokumenty a focused gate.
+- [x] 2026-03-12 Return packet pro FE navrat na `Blok 3` je pripraven.
+- [ ] 2026-03-12 FE runtime navazani na novy `interior` contract je dalsi otevreny krok.
 
 ### 8.1 Ucel
 
@@ -250,8 +254,9 @@ Byla potvrzena rizikova odchylka:
 Z toho plyne:
 
 1. FE prototype byl spravny jako objevny krok,
-2. ale dalsi vyvoj `Bloku 3` se docasne presouva do BE,
-3. FE se k nemu vrati az po zalozeni a schvaleni canonical orchestration vrstvy.
+2. dalsi vyvoj `Bloku 3` se docasne presunul do BE,
+3. canonical orchestration vrstva uz byla zalozena a focused gate probehla green,
+4. FE se ted muze vratit k runtime implementaci `Bloku 3`.
 
 ## 9. Blok 4: Planet topology and orbit baseline
 

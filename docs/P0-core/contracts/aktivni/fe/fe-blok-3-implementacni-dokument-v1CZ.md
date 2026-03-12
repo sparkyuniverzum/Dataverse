@@ -1,6 +1,6 @@
 # FE Blok 3 implementacni dokument v1
 
-Stav: aktivni s BE blockerem (FE smer potvrzen, dalsi krok je canonical BE orchestration)
+Stav: aktivni (BE orchestration baseline pripravena, FE se muze vratit do runtime implementace)
 Datum: 2026-03-12
 Vlastnik: FE architektura + Produktove UX + user-agent governance
 
@@ -21,8 +21,14 @@ FE prototype ukazal spravnou vizi, ale odhalil mezeru v odpovednosti:
 Proto je od ted zavazne:
 
 1. povazovat FE implementaci `Bloku 3` za objevny prototype, ne za canonical finalni smer,
-2. nejdriv zalozit BE orchestration contract,
+2. zalozit a potvrdit BE orchestration contract,
 3. teprve potom dokoncit runtime FE.
+
+Aktualni stav:
+
+1. BE orchestration baseline uz byla dodana,
+2. FE uz neni blokovany chybejicim contractem,
+3. dalsi krok je navrat k runtime FE implementaci nad novou BE pravdou.
 
 ## 1. Vztah k ridicim dokumentum
 
@@ -173,6 +179,8 @@ Pro Blok 3 je povinna tato pravda:
 Navic je od ted povinny navazujici BE contract:
 
 1. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-orchestration-zadani-v1CZ.md`
+2. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-endpoint-contract-v1CZ.md`
+3. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
 
 Implementacni pravidla:
 
@@ -183,6 +191,7 @@ Implementacni pravidla:
 5. `First Orbit` se zobrazi jen po realnem potvrzeni locku.
 6. FE nesmi byt finalni autorita workflow fazi interieru.
 7. Pokud BE orchestration vrstva neni pripravena, FE muze slouzit jen jako exploracni prototype a blok se nesmi uzavrit.
+8. Nyni je minimalni BE orchestration baseline pripravena; FE musi dalsi runtime stavy cist z noveho `interior` contractu misto lokalni workflow domnenky.
 
 ## 8. Pripraveny kod z archivu
 
