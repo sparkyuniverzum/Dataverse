@@ -26,6 +26,10 @@ function createPalette({ primary = "#6ee7ff", secondary = "#f5b36a", halo = "#6e
   };
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
 export function resolveStarCoreSpatialLoadingModel({ galaxyName = "Galaxie", isOnline = true } = {}) {
   return {
     state: "loading",
@@ -54,6 +58,11 @@ export function resolveStarCoreSpatialLoadingModel({ galaxyName = "Galaxie", isO
       showOrbitCue: false,
       ringLocked: false,
       showCommandBeacon: false,
+      haloIntensity: 0.34,
+      orbitOpacity: 0.3,
+      runtimeTempo: 0.18,
+      pulseIntensity: 0.22,
+      domainDensity: 0.16,
     },
   };
 }
@@ -93,6 +102,9 @@ export function resolveStarCoreSpatialStateModel(truth, { error = "" } = {}) {
 
   const unlocked = truth.policy.lock_status !== "locked";
   const state = unlocked ? "star_core_unlocked" : "star_core_locked_ready";
+  const runtimeTempo = clamp((truth.runtime?.writes_per_minute || 0) / 120, 0, 1);
+  const pulseIntensity = clamp((truth.pulse?.sampled_count || 0) / 64, 0, 1);
+  const domainDensity = clamp((truth.domainMetrics?.domains?.length || 0) / 8, 0, 1);
 
   return {
     state,
@@ -143,6 +155,9 @@ export function resolveStarCoreSpatialStateModel(truth, { error = "" } = {}) {
       lockedAt: truth.policy.locked_at,
       haloIntensity: truth.halo.intensity,
       orbitOpacity: truth.halo.orbitOpacity,
+      runtimeTempo,
+      pulseIntensity,
+      domainDensity,
     },
   };
 }

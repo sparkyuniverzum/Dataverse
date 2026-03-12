@@ -21,6 +21,19 @@ describe("starCoreTruthAdapter", () => {
         lock_status: "locked",
         coefficients: { a: "0.12", b: 0.7 },
       },
+      runtimePayload: {
+        as_of_event_seq: 42,
+        events_count: 18,
+        writes_per_minute: 12,
+      },
+      pulsePayload: {
+        sampled_count: 5,
+        events: [{ event_type: "policy.lock" }],
+      },
+      domainMetricsPayload: {
+        total_events_count: 18,
+        domains: [{ domain_name: "governance", status: "stable" }],
+      },
     });
 
     expect(truth.galaxy.name).toBe("My Galaxy");
@@ -30,6 +43,9 @@ describe("starCoreTruthAdapter", () => {
     expect(truth.profileMeta.label).toBe("Sentinel Core");
     expect(truth.physicalProfileMeta.label).toBe("Archive Physics");
     expect(truth.halo.coefficientCount).toBe(2);
+    expect(truth.runtime.writes_per_minute).toBe(12);
+    expect(truth.pulse.sampled_count).toBe(5);
+    expect(truth.domainMetrics.domains).toHaveLength(1);
   });
 
   it("returns null when galaxy is missing", () => {

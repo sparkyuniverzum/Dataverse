@@ -23,6 +23,53 @@ vi.mock("./UniverseCanvas.jsx", () => ({
 
 import UniverseWorkspace from "./UniverseWorkspace.jsx";
 
+function createJsonResponse(payload, ok = true) {
+  return {
+    ok,
+    json: async () => payload,
+  };
+}
+
+function mockWorkspaceFetch({
+  policy = null,
+  physics = null,
+  tables = { items: [] },
+  runtime = { events_count: 0, writes_per_minute: 0 },
+  pulse = { sampled_count: 0, events: [] },
+  domainMetrics = { total_events_count: 0, domains: [] },
+  policyError = null,
+} = {}) {
+  fetch.mockImplementation(async (input) => {
+    const url = String(input || "");
+    if (url.includes("/star-core/policy")) {
+      if (policyError) {
+        return {
+          ok: false,
+          status: policyError.status || 503,
+          text: async () => JSON.stringify({ detail: policyError.detail || "service unavailable" }),
+        };
+      }
+      return createJsonResponse(policy || {});
+    }
+    if (url.includes("/star-core/physics/profile")) {
+      return createJsonResponse(physics || {});
+    }
+    if (url.includes("/star-core/runtime")) {
+      return createJsonResponse(runtime);
+    }
+    if (url.includes("/star-core/pulse")) {
+      return createJsonResponse(pulse);
+    }
+    if (url.includes("/star-core/metrics/domains")) {
+      return createJsonResponse(domainMetrics);
+    }
+    if (url.includes("/universe/tables")) {
+      return createJsonResponse(tables);
+    }
+    return createJsonResponse({ items: [] });
+  });
+}
+
 describe("UniverseWorkspace", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -43,42 +90,37 @@ describe("UniverseWorkspace", () => {
   });
 
   it("renders pre-lock state from BE truth", async () => {
-    fetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          profile_key: "ORIGIN",
-          law_preset: "balanced",
-          profile_mode: "auto",
-          lock_status: "draft",
-          policy_version: 1,
-          locked_at: null,
-          can_edit_core_laws: true,
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          galaxy_id: "g-1",
-          profile_key: "BALANCE",
-          profile_version: 1,
-          lock_status: "draft",
-          coefficients: { a: 0.12, b: 0.4 },
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          items: [
-            {
-              table_id: "t-1",
-              planet_name: "Planeta A",
-              constellation_name: "Orion",
-              sector: { center: { x: 6, z: -2 }, size: 2 },
-            },
-          ],
-        }),
-      });
+    mockWorkspaceFetch({
+      policy: {
+        profile_key: "ORIGIN",
+        law_preset: "balanced",
+        profile_mode: "auto",
+        lock_status: "draft",
+        policy_version: 1,
+        locked_at: null,
+        can_edit_core_laws: true,
+      },
+      physics: {
+        galaxy_id: "g-1",
+        profile_key: "BALANCE",
+        profile_version: 1,
+        lock_status: "draft",
+        coefficients: { a: 0.12, b: 0.4 },
+      },
+      tables: {
+        items: [
+          {
+            table_id: "t-1",
+            planet_name: "Planeta A",
+            constellation_name: "Orion",
+            sector: { center: { x: 6, z: -2 }, size: 2 },
+          },
+        ],
+      },
+      runtime: { events_count: 12, writes_per_minute: 24 },
+      pulse: { sampled_count: 6, events: [{ event_type: "planet.update" }] },
+      domainMetrics: { total_events_count: 18, domains: [{ domain_name: "governance" }] },
+    });
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 
@@ -90,35 +132,31 @@ describe("UniverseWorkspace", () => {
   });
 
   it("renders post-lock ready state from BE truth", async () => {
-    fetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          profile_key: "SENTINEL",
-          law_preset: "integrity_first",
-          profile_mode: "locked",
-          lock_status: "locked",
-          policy_version: 3,
-          locked_at: "2026-03-12T10:00:00Z",
-          can_edit_core_laws: false,
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          galaxy_id: "g-1",
-          profile_key: "FORGE",
-          profile_version: 2,
-          lock_status: "locked",
-          coefficients: { a: 0.12, b: 0.4, c: 0.9 },
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          items: [],
-        }),
-      });
+    mockWorkspaceFetch({
+      policy: {
+        profile_key: "SENTINEL",
+        law_preset: "integrity_first",
+        profile_mode: "locked",
+        lock_status: "locked",
+        policy_version: 3,
+        locked_at: "2026-03-12T10:00:00Z",
+        can_edit_core_laws: false,
+      },
+      physics: {
+        galaxy_id: "g-1",
+        profile_key: "FORGE",
+        profile_version: 2,
+        lock_status: "locked",
+        coefficients: { a: 0.12, b: 0.4, c: 0.9 },
+      },
+      tables: { items: [] },
+      runtime: { events_count: 48, writes_per_minute: 64 },
+      pulse: { sampled_count: 12, events: [{ event_type: "policy.lock" }] },
+      domainMetrics: {
+        total_events_count: 48,
+        domains: [{ domain_name: "governance" }, { domain_name: "physics" }],
+      },
+    });
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 
@@ -129,28 +167,17 @@ describe("UniverseWorkspace", () => {
   });
 
   it("falls back to data_unavailable when policy fetch fails", async () => {
-    fetch
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 503,
-        text: async () => JSON.stringify({ detail: "service unavailable" }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          galaxy_id: "g-1",
-          profile_key: "BALANCE",
-          profile_version: 1,
-          lock_status: "draft",
-          coefficients: {},
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          items: [],
-        }),
-      });
+    mockWorkspaceFetch({
+      policyError: { status: 503, detail: "service unavailable" },
+      physics: {
+        galaxy_id: "g-1",
+        profile_key: "BALANCE",
+        profile_version: 1,
+        lock_status: "draft",
+        coefficients: {},
+      },
+      tables: { items: [] },
+    });
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 
@@ -161,35 +188,25 @@ describe("UniverseWorkspace", () => {
   });
 
   it("switches selection and approach states from canvas actions", async () => {
-    fetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          profile_key: "ORIGIN",
-          law_preset: "balanced",
-          profile_mode: "auto",
-          lock_status: "draft",
-          policy_version: 1,
-          locked_at: null,
-          can_edit_core_laws: true,
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          galaxy_id: "g-1",
-          profile_key: "BALANCE",
-          profile_version: 1,
-          lock_status: "draft",
-          coefficients: { a: 0.12, b: 0.4 },
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          items: [],
-        }),
-      });
+    mockWorkspaceFetch({
+      policy: {
+        profile_key: "ORIGIN",
+        law_preset: "balanced",
+        profile_mode: "auto",
+        lock_status: "draft",
+        policy_version: 1,
+        locked_at: null,
+        can_edit_core_laws: true,
+      },
+      physics: {
+        galaxy_id: "g-1",
+        profile_key: "BALANCE",
+        profile_version: 1,
+        lock_status: "draft",
+        coefficients: { a: 0.12, b: 0.4 },
+      },
+      tables: { items: [] },
+    });
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 

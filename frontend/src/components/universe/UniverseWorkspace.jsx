@@ -5,8 +5,11 @@ import {
   apiErrorFromResponse,
   apiFetch,
   buildGalaxyPlanetsUrl,
+  buildStarCoreDomainMetricsUrl,
   buildStarCorePhysicsProfileUrl,
   buildStarCorePolicyUrl,
+  buildStarCorePulseUrl,
+  buildStarCoreRuntimeUrl,
   buildTablesUrl,
 } from "../../lib/dataverseApi";
 import GalaxySelectionHud from "./GalaxySelectionHud.jsx";
@@ -120,6 +123,17 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
           policyResponse.json(),
           physicsResponse.json(),
         ]);
+        const [runtimePayload, pulsePayload, domainMetricsPayload] = await Promise.all([
+          apiFetch(buildStarCoreRuntimeUrl(API_BASE, galaxyId))
+            .then(async (response) => (response.ok ? response.json() : null))
+            .catch(() => null),
+          apiFetch(buildStarCorePulseUrl(API_BASE, galaxyId))
+            .then(async (response) => (response.ok ? response.json() : null))
+            .catch(() => null),
+          apiFetch(buildStarCoreDomainMetricsUrl(API_BASE, galaxyId))
+            .then(async (response) => (response.ok ? response.json() : null))
+            .catch(() => null),
+        ]);
         let tableRows = [];
         if (tablesResponse.ok) {
           tableRows = readItemsPayload(await tablesResponse.json().catch(() => []));
@@ -134,6 +148,9 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
           connectivity,
           policyPayload,
           physicsProfilePayload,
+          runtimePayload,
+          pulsePayload,
+          domainMetricsPayload,
         });
 
         if (!truth) {

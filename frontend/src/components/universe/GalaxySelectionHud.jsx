@@ -28,16 +28,24 @@ function panelStyle() {
 }
 
 function resolvePrompt(navigationModel) {
+  const selectedObject = navigationModel.selectedObject;
+  const selectedLabel = selectedObject?.label || "";
+  const isStarCore = selectedObject?.id === "star-core" || selectedLabel === "Srdce hvězdy";
+
   if (navigationModel.mode === "approach_active") {
     return {
-      title: `Přibližuješ se k objektu ${navigationModel.selectedObject?.label || ""}`.trim(),
-      hint: "Esc tě vrátí o krok zpět. Ještě nejsi uvnitř další vrstvy.",
+      title: `Přibližuješ se k objektu ${selectedLabel}`.trim(),
+      hint: isStarCore
+        ? "Jsi na prahu governance orbity. Esc tě vrátí o krok zpět."
+        : "Esc tě vrátí o krok zpět. Ještě nejsi uvnitř další vrstvy.",
     };
   }
   if (navigationModel.mode === "object_selected") {
     return {
-      title: `Vybraný objekt: ${navigationModel.selectedObject?.label || "objekt"}`,
-      hint: "Dvojklik spustí přiblížení. Radar i scéna drží stejný selection focus.",
+      title: `Vybraný objekt: ${selectedLabel || "objekt"}`,
+      hint: isStarCore
+        ? "Dvojklik přiblíží ke governance exterioru. Radar i scéna drží stejný selection focus."
+        : "Dvojklik spustí přiblížení. Radar i scéna drží stejný selection focus.",
     };
   }
   return {

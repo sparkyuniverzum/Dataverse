@@ -4,6 +4,10 @@ import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
+import { resolveStarCoreExteriorLabels } from "./starCoreExteriorLabels.js";
+import { resolveStarCoreExteriorState } from "./starCoreExteriorStateModel.js";
+import { resolveStarCoreExteriorVisualModel } from "./starCoreExteriorVisualModel.js";
+
 function createOrbitPoints(radius, y = 0, segments = 80) {
   return Array.from({ length: segments + 1 }, (_, index) => {
     const theta = (index / segments) * Math.PI * 2;
@@ -174,15 +178,35 @@ function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject 
   const ringPrimaryRef = useRef(null);
   const ringSecondaryRef = useRef(null);
   const cageRef = useRef(null);
-  const selected = navigationModel.selectedObjectId === "star-core";
-  const approached = navigationModel.approachTargetId === "star-core";
+  const exteriorState = useMemo(
+    () => resolveStarCoreExteriorState({ model, navigationModel }),
+    [model, navigationModel]
+  );
+  const visualModel = useMemo(
+    () => resolveStarCoreExteriorVisualModel({ model, exteriorState }),
+    [exteriorState, model]
+  );
+  const labels = useMemo(
+    () => resolveStarCoreExteriorLabels({ model, exteriorState, visualModel }),
+    [exteriorState, model, visualModel]
+  );
+  const selected = exteriorState.selected;
+  const approached = exteriorState.approached;
   const orbitCue = useMemo(() => createOrbitPoints(4.8, -0.45), []);
+  const runtimeArc = useMemo(
+    () => createOrbitPoints(visualModel.orbitRadiusPrimary, 0.18),
+    [visualModel.orbitRadiusPrimary]
+  );
+  const domainArc = useMemo(
+    () => createOrbitPoints(visualModel.orbitRadiusSecondary, -0.12),
+    [visualModel.orbitRadiusSecondary]
+  );
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    const amplitude = model.visual.pulseAmplitude;
+    const amplitude = visualModel.pulseScale;
     const pulseDamping = approached ? 0.3 : selected ? 0.42 : 0.56;
-    const pulse = 1 + Math.sin(t * model.visual.pulseSpeed) * amplitude * pulseDamping;
+    const pulse = 1 + Math.sin(t * visualModel.pulseSpeed) * amplitude * pulseDamping;
 
     if (rootRef.current) {
       rootRef.current.rotation.y = t * 0.12;
@@ -223,26 +247,31 @@ function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject 
         <meshStandardMaterial
           color={model.palette.primary}
           emissive={model.palette.secondary}
-          emissiveIntensity={approached ? 1.72 : selected ? 1.48 : 1.32}
+          emissiveIntensity={visualModel.starEmissiveIntensity}
           roughness={0.25}
           metalness={0.1}
         />
       </mesh>
 
-      <mesh scale={approached ? 1.22 : 1.3}>
+      <mesh scale={approached ? 1.2 : 1.28}>
         <icosahedronGeometry args={[1.75, 1]} />
-        <meshBasicMaterial color={model.palette.halo} transparent opacity={0.28} wireframe />
+        <meshBasicMaterial
+          color={visualModel.secondaryRingColor}
+          transparent
+          opacity={visualModel.cageOpacity}
+          wireframe
+        />
       </mesh>
 
       <mesh scale={approached ? 1.94 : 1.8}>
         <sphereGeometry args={[1.45, 40, 40]} />
-        <meshBasicMaterial color={model.palette.governance} transparent opacity={approached ? 0.09 : 0.06} />
+        <meshBasicMaterial color={model.palette.governance} transparent opacity={visualModel.domainShellOpacity} />
       </mesh>
 
       <group ref={cageRef}>
         <lineSegments>
           <edgesGeometry args={[new THREE.IcosahedronGeometry(2.2, 0)]} />
-          <lineBasicMaterial color={model.palette.secondary} transparent opacity={0.36} />
+          <lineBasicMaterial color={visualModel.secondaryRingColor} transparent opacity={visualModel.cageOpacity} />
         </lineSegments>
       </group>
 
@@ -250,9 +279,9 @@ function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject 
         <mesh>
           <torusGeometry args={[3.35, 0.08, 24, 160]} />
           <meshBasicMaterial
-            color={model.visual.ringLocked ? model.palette.halo : model.palette.secondary}
+            color={visualModel.governanceRingColor}
             transparent
-            opacity={model.visual.ringLocked ? 0.78 : 0.68}
+            opacity={visualModel.governanceRingOpacity}
           />
         </mesh>
       </group>
@@ -260,13 +289,38 @@ function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject 
       <group ref={ringSecondaryRef} rotation={[Math.PI / 1.8, 0.22, -0.4]}>
         <mesh>
           <torusGeometry args={[2.85, 0.05, 24, 140]} />
-          <meshBasicMaterial color={model.palette.governance} transparent opacity={0.52} />
+          <meshBasicMaterial
+            color={visualModel.secondaryRingColor}
+            transparent
+            opacity={visualModel.secondaryRingOpacity}
+          />
         </mesh>
       </group>
 
+      <Line
+        points={runtimeArc}
+        color={visualModel.governanceRingColor}
+        transparent
+        opacity={visualModel.runtimeArcOpacity}
+        lineWidth={1.1}
+      />
+      <Line
+        points={domainArc}
+        color={visualModel.secondaryRingColor}
+        transparent
+        opacity={visualModel.secondaryRingOpacity * 0.72}
+        lineWidth={1.1}
+      />
+
       {model.visual.showOrbitCue ? (
         <>
-          <Line points={orbitCue} color={model.palette.halo} transparent opacity={0.56} lineWidth={1.5} />
+          <Line
+            points={orbitCue}
+            color={model.palette.halo}
+            transparent
+            opacity={visualModel.orbitCueOpacity}
+            lineWidth={1.5}
+          />
           <mesh position={[4.8, -0.45, 0]}>
             <sphereGeometry args={[0.18, 20, 20]} />
             <meshBasicMaterial color={model.palette.halo} />
@@ -274,29 +328,15 @@ function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject 
         </>
       ) : null}
 
-      <DiegeticLabel
-        position={[-3.9, 2.7, 0.2]}
-        text={`${model.ringLabels[0].key}: ${model.ringLabels[0].value}`}
-        size={0.28}
-      />
-      <DiegeticLabel
-        position={[3.75, 2.05, -0.25]}
-        text={`${model.ringLabels[1].key}: ${model.ringLabels[1].value}`}
-        size={0.24}
-      />
-      <DiegeticLabel
-        position={[3.4, -2.1, 0.15]}
-        text={`${model.ringLabels[2].key}: ${model.ringLabels[2].value}`}
-        size={0.22}
-      />
-      <DiegeticLabel
-        position={[0, 2.45, 2.65]}
-        text={
-          approached ? "PŘIBLÍŽENÍ KE STŘEDU GALAXIE" : selected ? "HVĚZDA JE VYBRANÁ" : "HVĚZDA JE ORIENTAČNÍ KOTVA"
-        }
-        size={0.19}
-        color={model.palette.governance}
-      />
+      {labels.map((label) => (
+        <DiegeticLabel
+          key={label.key}
+          position={label.position}
+          text={label.text}
+          size={label.size}
+          color={label.color}
+        />
+      ))}
     </group>
   );
 }
@@ -310,7 +350,14 @@ export default function UniverseCanvas({
   onHeadingChange = () => {},
   onClearFocus = () => {},
 }) {
-  const locked = model.state === "star_core_locked_ready";
+  const exteriorState = useMemo(
+    () => resolveStarCoreExteriorState({ model, navigationModel }),
+    [model, navigationModel]
+  );
+  const exteriorVisualModel = useMemo(
+    () => resolveStarCoreExteriorVisualModel({ model, exteriorState }),
+    [exteriorState, model]
+  );
   const controlsRef = useRef(null);
   const movementRef = useRef({ forward: false, backward: false });
 
@@ -374,7 +421,7 @@ export default function UniverseCanvas({
           panSpeed={0.65}
         />
         <Stars radius={80} depth={36} count={3600} factor={4} saturation={0} fade speed={0.24} />
-        <TacticalGrid color={model.palette.halo} intensity={locked ? 0.34 : 0.24} />
+        <TacticalGrid color={model.palette.halo} intensity={exteriorVisualModel.tacticalGridIntensity} />
         <CameraRig
           controlsRef={controlsRef}
           navigationModel={navigationModel}
@@ -401,7 +448,7 @@ export default function UniverseCanvas({
           ))}
 
         <EffectComposer>
-          <Bloom mipmapBlur luminanceThreshold={0.15} intensity={locked ? 1.2 : 1.6} />
+          <Bloom mipmapBlur luminanceThreshold={0.15} intensity={exteriorVisualModel.bloomIntensity} />
         </EffectComposer>
       </Canvas>
     </div>

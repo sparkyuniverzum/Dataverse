@@ -24,11 +24,15 @@ describe("starCoreSpatialStateModel", () => {
       profileMeta: { label: "Origin Core" },
       physicalProfileMeta: { key: "BALANCE" },
       halo: { intensity: 0.4, orbitOpacity: 0.5 },
+      runtime: { writes_per_minute: 18 },
+      pulse: { sampled_count: 4 },
+      domainMetrics: { domains: [{ domain_name: "governance" }] },
     });
 
     expect(model.state).toBe("star_core_unlocked");
     expect(model.ringLabels[0]).toEqual({ key: "GOVERNANCE", value: "UNLOCKED" });
     expect(model.visual.showCommandBeacon).toBe(true);
+    expect(model.visual.runtimeTempo).toBeGreaterThan(0);
   });
 
   it("creates locked ready state with orbital cue", () => {
@@ -45,12 +49,16 @@ describe("starCoreSpatialStateModel", () => {
       profileMeta: { label: "Sentinel Core" },
       physicalProfileMeta: { key: "FORGE" },
       halo: { intensity: 0.48, orbitOpacity: 0.72 },
+      runtime: { writes_per_minute: 48 },
+      pulse: { sampled_count: 12 },
+      domainMetrics: { domains: [{ domain_name: "governance" }, { domain_name: "physics" }] },
     });
 
     expect(model.state).toBe("star_core_locked_ready");
     expect(model.ringLabels[1]).toEqual({ key: "STATUS", value: "POLICY_READY" });
     expect(model.visual.showOrbitCue).toBe(true);
     expect(model.globalStage).toBe("ONBOARDING_READY");
+    expect(model.visual.domainDensity).toBeGreaterThan(0);
   });
 
   it("creates unavailable state with explicit scope error", () => {
