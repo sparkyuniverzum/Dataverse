@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import GalaxySelectionHud from "./GalaxySelectionHud.jsx";
@@ -82,5 +82,49 @@ describe("GalaxySelectionHud", () => {
 
     expect(screen.getByText("Přibližuješ se k objektu Srdce hvězdy")).toBeTruthy();
     expect(screen.getAllByTestId("galaxy-radar")).toHaveLength(1);
+  });
+
+  it("renders star core command affordance in interior mode", () => {
+    render(
+      <GalaxySelectionHud
+        model={{
+          galaxyName: "Moje Galaxie",
+          globalStage: "ONBOARDING_INCOMPLETE",
+          syncLabel: "SYNC ONLINE",
+          errorHint: "",
+        }}
+        navigationModel={{
+          mode: "approach_active",
+          selectedObject: { label: "Srdce hvězdy", subtitle: "My Galaxy" },
+        }}
+        radarModel={{
+          galaxyName: "Moje Galaxie",
+          headingDegrees: 24,
+          markers: [],
+        }}
+        interiorModel={{
+          phase: "policy_lock_ready",
+          isOpen: true,
+          errorMessage: "",
+          isFirstOrbitReady: false,
+        }}
+        selectedConstitution={{
+          id: "rovnovaha",
+          title: "Rovnováha",
+          subtitle: "Stabilní režim",
+        }}
+        lockTransitionModel={{
+          title: "Ústava je připravena k uzamčení",
+          hint: "Rovnováha stabilizuje první růst galaxie.",
+          actionLabel: "Potvrdit ústavu a uzamknout politiky",
+          disabled: false,
+        }}
+      />
+    );
+
+    const affordance = screen.getByTestId("star-core-lock-affordance");
+    expect(affordance).toBeTruthy();
+    expect(within(affordance).getByText("Ústava je připravena k uzamčení")).toBeTruthy();
+    expect(screen.getByTestId("star-core-primary-action")).toBeTruthy();
   });
 });

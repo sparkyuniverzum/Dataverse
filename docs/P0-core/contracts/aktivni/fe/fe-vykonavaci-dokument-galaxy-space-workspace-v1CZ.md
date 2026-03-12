@@ -192,6 +192,10 @@ Udelat z hvezdy centralni governance anchor uvnitr prostoru galaxie, ale ne z ni
 
 ## 8. Blok 3: Star Core interior + Constitution Select + Policy Lock
 
+Stav bloku:
+
+- [ ] 2026-03-12 Implementacni dokument je pripraven; runtime kod jeste neni otevren.
+
 ### 8.1 Ucel
 
 Dodelat skutecne governance-first jadro uvnitr hvezdy.
@@ -224,6 +228,7 @@ Dodelat skutecne governance-first jadro uvnitr hvezdy.
 3. Po locku musi vzniknout jasny orbitalni signal dalsiho kroku.
 4. Musi existovat before/after screenshot `pred lock` a `po lock`.
 5. Reduced-motion varianta musi mit stejnou vyznamovou sekvenci.
+6. Aktivni implementace se ma ridit `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`.
 
 ## 9. Blok 4: Planet topology and orbit baseline
 

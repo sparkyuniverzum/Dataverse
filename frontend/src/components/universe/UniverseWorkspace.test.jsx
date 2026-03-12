@@ -2,17 +2,32 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./UniverseCanvas.jsx", () => ({
-  default: ({ model, navigationModel, spaceObjects, onSelectObject, onApproachObject, onClearFocus }) => (
+  default: ({
+    model,
+    navigationModel,
+    spaceObjects,
+    interiorModel,
+    selectedConstitution,
+    onSelectObject,
+    onApproachObject,
+    onSelectConstitution,
+    onClearFocus,
+  }) => (
     <div data-testid="universe-canvas">
       <span data-testid="canvas-state">{model.state}</span>
       <span data-testid="canvas-nav-mode">{navigationModel.mode}</span>
       <span data-testid="canvas-selected-object">{navigationModel.selectedObjectId || "none"}</span>
       <span data-testid="canvas-object-count">{spaceObjects.length}</span>
+      <span data-testid="canvas-interior-phase">{interiorModel.phase}</span>
+      <span data-testid="canvas-selected-constitution">{selectedConstitution?.id || "none"}</span>
       <button type="button" onClick={() => onSelectObject("star-core")}>
         select star
       </button>
       <button type="button" onClick={() => onApproachObject("star-core")}>
         approach star
+      </button>
+      <button type="button" onClick={() => onSelectConstitution("rovnovaha")}>
+        select constitution
       </button>
       <button type="button" onClick={onClearFocus}>
         clear focus
@@ -41,6 +56,9 @@ function mockWorkspaceFetch({
 } = {}) {
   fetch.mockImplementation(async (input) => {
     const url = String(input || "");
+    if (url.includes("/star-core/policy/lock")) {
+      return createJsonResponse({ ok: true });
+    }
     if (url.includes("/star-core/policy")) {
       if (policyError) {
         return {
@@ -80,12 +98,14 @@ describe("UniverseWorkspace", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders explicit data_unavailable state when galaxy is missing", () => {
+  it("renders explicit data_unavailable state when galaxy is missing", async () => {
     const { container } = render(<UniverseWorkspace />);
 
     expect(screen.getByTestId("workspace-reset-root")).toBeTruthy();
     expect(container.querySelectorAll('span[aria-hidden="true"]').length).toBeGreaterThan(200);
-    expect(screen.getByTestId("canvas-state").textContent).toBe("data_unavailable");
+    await waitFor(() => {
+      expect(screen.getByTestId("canvas-state").textContent).toBe("data_unavailable");
+    });
     expect(screen.getByText("Volná navigace galaxií")).toBeTruthy();
   });
 
@@ -223,5 +243,83 @@ describe("UniverseWorkspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "clear focus" }));
     expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("space_idle");
+  });
+
+  it("opens interior flow from unlocked star approach and locks via canonical endpoint", async () => {
+    let lockSeen = false;
+
+    fetch.mockImplementation(async (input, init) => {
+      const url = String(input || "");
+      if (url.includes("/star-core/policy/lock")) {
+        lockSeen = true;
+        const payload = JSON.parse(String(init?.body || "{}"));
+        expect(payload.profile_key).toBe("ORIGIN");
+        expect(payload.physical_profile_key).toBe("BALANCE");
+        return createJsonResponse({ ok: true });
+      }
+      if (url.includes("/star-core/policy")) {
+        return createJsonResponse(
+          lockSeen
+            ? {
+                profile_key: "ORIGIN",
+                law_preset: "balanced",
+                profile_mode: "locked",
+                lock_status: "locked",
+                policy_version: 2,
+                locked_at: "2026-03-12T10:00:00Z",
+                can_edit_core_laws: false,
+              }
+            : {
+                profile_key: "ORIGIN",
+                law_preset: "balanced",
+                profile_mode: "auto",
+                lock_status: "draft",
+                policy_version: 1,
+                locked_at: null,
+                can_edit_core_laws: true,
+              }
+        );
+      }
+      if (url.includes("/star-core/physics/profile")) {
+        return createJsonResponse({
+          galaxy_id: "g-1",
+          profile_key: "BALANCE",
+          profile_version: 1,
+          lock_status: lockSeen ? "locked" : "draft",
+          coefficients: { a: 0.12, b: 0.4 },
+        });
+      }
+      if (url.includes("/star-core/runtime")) return createJsonResponse({ events_count: 0, writes_per_minute: 0 });
+      if (url.includes("/star-core/pulse")) return createJsonResponse({ sampled_count: 0, events: [] });
+      if (url.includes("/star-core/metrics/domains")) return createJsonResponse({ total_events_count: 0, domains: [] });
+      if (url.includes("/universe/tables")) return createJsonResponse({ items: [] });
+      return createJsonResponse({ items: [] });
+    });
+
+    render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("space_idle");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "select star" }));
+    fireEvent.click(screen.getByRole("button", { name: "approach star" }));
+    fireEvent.click(screen.getByRole("button", { name: "approach star" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("canvas-interior-phase").textContent).toBe("star_core_interior_entry");
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("canvas-interior-phase").textContent).toBe("constitution_select");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "select constitution" }));
+    expect(screen.getByTestId("canvas-interior-phase").textContent).toBe("policy_lock_ready");
+    fireEvent.click(screen.getByTestId("star-core-primary-action"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("canvas-interior-phase").textContent).toBe("first_orbit_ready");
+    });
+    expect(lockSeen).toBe(true);
   });
 });
