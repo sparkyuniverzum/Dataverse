@@ -63,13 +63,13 @@ function resolveInteriorPrompt(interiorModel, lockTransitionModel) {
   }
   if (interiorModel.phase === "constitution_select") {
     return {
-      title: "Vyber ústavu prostoru",
-      hint: "Každý režim mění puls, barvu a chování budoucí galaxie.",
+      title: interiorModel.explainability?.headline || "Vyber ústavu prostoru",
+      hint: interiorModel.explainability?.body || "Každý režim mění puls, barvu a chování budoucí galaxie.",
     };
   }
   return {
-    title: lockTransitionModel?.title || "Star Core command",
-    hint: lockTransitionModel?.hint || "",
+    title: lockTransitionModel?.title || interiorModel.explainability?.headline || "Star Core command",
+    hint: lockTransitionModel?.hint || interiorModel.explainability?.body || "",
   };
 }
 
@@ -199,9 +199,11 @@ export default function GalaxySelectionHud({
           <span style={{ fontSize: "0.78rem", letterSpacing: "0.08em", color: "rgba(165, 233, 255, 0.82)" }}>
             STAR CORE COMMAND
           </span>
-          <strong style={{ fontSize: "1rem" }}>{lockTransitionModel?.title || "Star Core command"}</strong>
+          <strong style={{ fontSize: "1rem" }}>
+            {lockTransitionModel?.title || interiorModel.explainability?.headline || "Star Core command"}
+          </strong>
           <span style={{ color: "rgba(223, 239, 255, 0.76)", fontSize: "0.88rem", lineHeight: 1.42 }}>
-            {lockTransitionModel?.hint || ""}
+            {lockTransitionModel?.hint || interiorModel.explainability?.body || ""}
           </span>
           <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap" }}>
             {lockTransitionModel?.actionLabel ? (

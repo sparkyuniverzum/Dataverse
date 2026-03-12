@@ -47,6 +47,7 @@ function createJsonResponse(payload, ok = true) {
 
 function mockWorkspaceFetch({
   policy = null,
+  interior = null,
   physics = null,
   tables = { items: [] },
   runtime = { events_count: 0, writes_per_minute: 0 },
@@ -58,6 +59,77 @@ function mockWorkspaceFetch({
     const url = String(input || "");
     if (url.includes("/star-core/policy/lock")) {
       return createJsonResponse({ ok: true });
+    }
+    if (url.includes("/star-core/interior/constitution/select")) {
+      return createJsonResponse(
+        interior || {
+          interior_phase: "policy_lock_ready",
+          selected_constitution_id: "rovnovaha",
+          available_constitutions: [
+            {
+              constitution_id: "rovnovaha",
+              title_cz: "Rovnováha",
+              summary_cz: "Stabilní režim",
+              visual_tone: "balanced_blue",
+              profile_key: "ORIGIN",
+              law_preset: "balanced",
+              physical_profile_key: "BALANCE",
+              physical_profile_version: 1,
+              recommended: true,
+              lock_allowed: true,
+            },
+          ],
+          lock_ready: true,
+          lock_blockers: [],
+          lock_transition_state: "idle",
+          first_orbit_ready: false,
+          next_action: { action_key: "confirm_policy_lock", label_cz: "Potvrdit ústavu a uzamknout politiky" },
+          explainability: { headline_cz: "Ústava je připravena k uzamčení", body_cz: "Můžeš pokračovat." },
+          source_truth: {
+            profile_key: "ORIGIN",
+            law_preset: "balanced",
+            physical_profile_key: "BALANCE",
+            physical_profile_version: 1,
+          },
+        }
+      );
+    }
+    if (url.includes("/star-core/interior")) {
+      return createJsonResponse(
+        interior || {
+          interior_phase: "constitution_select",
+          selected_constitution_id: null,
+          available_constitutions: [
+            {
+              constitution_id: "rovnovaha",
+              title_cz: "Rovnováha",
+              summary_cz: "Stabilní režim",
+              visual_tone: "balanced_blue",
+              profile_key: "ORIGIN",
+              law_preset: "balanced",
+              physical_profile_key: "BALANCE",
+              physical_profile_version: 1,
+              recommended: true,
+              lock_allowed: true,
+            },
+          ],
+          lock_ready: false,
+          lock_blockers: ["constitution_required"],
+          lock_transition_state: "idle",
+          first_orbit_ready: false,
+          next_action: { action_key: "select_constitution", label_cz: "Vyber ústavu vesmíru" },
+          explainability: {
+            headline_cz: "Nejdřív vyber ústavu.",
+            body_cz: "Dokud není potvrzen režim vesmíru, policy lock není připraven.",
+          },
+          source_truth: {
+            profile_key: "ORIGIN",
+            law_preset: "balanced",
+            physical_profile_key: "BALANCE",
+            physical_profile_version: 1,
+          },
+        }
+      );
     }
     if (url.includes("/star-core/policy")) {
       if (policyError) {
@@ -137,6 +209,26 @@ describe("UniverseWorkspace", () => {
           },
         ],
       },
+      interior: {
+        interior_phase: "constitution_select",
+        selected_constitution_id: null,
+        available_constitutions: [],
+        lock_ready: false,
+        lock_blockers: ["constitution_required"],
+        lock_transition_state: "idle",
+        first_orbit_ready: false,
+        next_action: { action_key: "select_constitution", label_cz: "Vyber ústavu vesmíru" },
+        explainability: {
+          headline_cz: "Nejdřív vyber ústavu.",
+          body_cz: "Dokud není potvrzen režim vesmíru, policy lock není připraven.",
+        },
+        source_truth: {
+          profile_key: "ORIGIN",
+          law_preset: "balanced",
+          physical_profile_key: "BALANCE",
+          physical_profile_version: 1,
+        },
+      },
       runtime: { events_count: 12, writes_per_minute: 24 },
       pulse: { sampled_count: 6, events: [{ event_type: "planet.update" }] },
       domainMetrics: { total_events_count: 18, domains: [{ domain_name: "governance" }] },
@@ -170,6 +262,23 @@ describe("UniverseWorkspace", () => {
         coefficients: { a: 0.12, b: 0.4, c: 0.9 },
       },
       tables: { items: [] },
+      interior: {
+        interior_phase: "first_orbit_ready",
+        selected_constitution_id: "straz",
+        available_constitutions: [],
+        lock_ready: false,
+        lock_blockers: [],
+        lock_transition_state: "locked",
+        first_orbit_ready: true,
+        next_action: { action_key: "review_first_orbit", label_cz: "První oběžná dráha je připravena" },
+        explainability: { headline_cz: "Politiky jsou uzamčeny.", body_cz: "Governance základ je potvrzen." },
+        source_truth: {
+          profile_key: "SENTINEL",
+          law_preset: "integrity_first",
+          physical_profile_key: "BALANCE",
+          physical_profile_version: 1,
+        },
+      },
       runtime: { events_count: 48, writes_per_minute: 64 },
       pulse: { sampled_count: 12, events: [{ event_type: "policy.lock" }] },
       domainMetrics: {
@@ -197,6 +306,26 @@ describe("UniverseWorkspace", () => {
         coefficients: {},
       },
       tables: { items: [] },
+      interior: {
+        interior_phase: "constitution_select",
+        selected_constitution_id: null,
+        available_constitutions: [],
+        lock_ready: false,
+        lock_blockers: ["constitution_required"],
+        lock_transition_state: "idle",
+        first_orbit_ready: false,
+        next_action: { action_key: "select_constitution", label_cz: "Vyber ústavu vesmíru" },
+        explainability: {
+          headline_cz: "Nejdřív vyber ústavu.",
+          body_cz: "Dokud není potvrzen režim vesmíru, policy lock není připraven.",
+        },
+        source_truth: {
+          profile_key: "ORIGIN",
+          law_preset: "balanced",
+          physical_profile_key: "BALANCE",
+          physical_profile_version: 1,
+        },
+      },
     });
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
@@ -226,6 +355,39 @@ describe("UniverseWorkspace", () => {
         coefficients: { a: 0.12, b: 0.4 },
       },
       tables: { items: [] },
+      interior: {
+        interior_phase: "constitution_select",
+        selected_constitution_id: null,
+        available_constitutions: [
+          {
+            constitution_id: "rovnovaha",
+            title_cz: "Rovnováha",
+            summary_cz: "Stabilní režim",
+            visual_tone: "balanced_blue",
+            profile_key: "ORIGIN",
+            law_preset: "balanced",
+            physical_profile_key: "BALANCE",
+            physical_profile_version: 1,
+            recommended: true,
+            lock_allowed: true,
+          },
+        ],
+        lock_ready: false,
+        lock_blockers: ["constitution_required"],
+        lock_transition_state: "idle",
+        first_orbit_ready: false,
+        next_action: { action_key: "select_constitution", label_cz: "Vyber ústavu vesmíru" },
+        explainability: {
+          headline_cz: "Nejdřív vyber ústavu.",
+          body_cz: "Dokud není potvrzen režim vesmíru, policy lock není připraven.",
+        },
+        source_truth: {
+          profile_key: "ORIGIN",
+          law_preset: "balanced",
+          physical_profile_key: "BALANCE",
+          physical_profile_version: 1,
+        },
+      },
     });
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
@@ -256,6 +418,93 @@ describe("UniverseWorkspace", () => {
         expect(payload.profile_key).toBe("ORIGIN");
         expect(payload.physical_profile_key).toBe("BALANCE");
         return createJsonResponse({ ok: true });
+      }
+      if (url.includes("/star-core/interior/constitution/select")) {
+        return createJsonResponse({
+          interior_phase: "policy_lock_ready",
+          selected_constitution_id: "rovnovaha",
+          available_constitutions: [
+            {
+              constitution_id: "rovnovaha",
+              title_cz: "Rovnováha",
+              summary_cz: "Stabilní režim",
+              visual_tone: "balanced_blue",
+              profile_key: "ORIGIN",
+              law_preset: "balanced",
+              physical_profile_key: "BALANCE",
+              physical_profile_version: 1,
+              recommended: true,
+              lock_allowed: true,
+            },
+          ],
+          lock_ready: true,
+          lock_blockers: [],
+          lock_transition_state: "idle",
+          first_orbit_ready: false,
+          next_action: { action_key: "confirm_policy_lock", label_cz: "Potvrdit ústavu a uzamknout politiky" },
+          explainability: { headline_cz: "Ústava je připravena k uzamčení", body_cz: "Můžeš pokračovat." },
+          source_truth: {
+            profile_key: "ORIGIN",
+            law_preset: "balanced",
+            physical_profile_key: "BALANCE",
+            physical_profile_version: 1,
+          },
+        });
+      }
+      if (url.includes("/star-core/interior")) {
+        return createJsonResponse(
+          lockSeen
+            ? {
+                interior_phase: "first_orbit_ready",
+                selected_constitution_id: "rovnovaha",
+                available_constitutions: [],
+                lock_ready: false,
+                lock_blockers: [],
+                lock_transition_state: "locked",
+                first_orbit_ready: true,
+                next_action: { action_key: "review_first_orbit", label_cz: "První oběžná dráha je připravena" },
+                explainability: { headline_cz: "Politiky jsou uzamčeny.", body_cz: "Governance základ je potvrzen." },
+                source_truth: {
+                  profile_key: "ORIGIN",
+                  law_preset: "balanced",
+                  physical_profile_key: "BALANCE",
+                  physical_profile_version: 1,
+                },
+              }
+            : {
+                interior_phase: "constitution_select",
+                selected_constitution_id: null,
+                available_constitutions: [
+                  {
+                    constitution_id: "rovnovaha",
+                    title_cz: "Rovnováha",
+                    summary_cz: "Stabilní režim",
+                    visual_tone: "balanced_blue",
+                    profile_key: "ORIGIN",
+                    law_preset: "balanced",
+                    physical_profile_key: "BALANCE",
+                    physical_profile_version: 1,
+                    recommended: true,
+                    lock_allowed: true,
+                  },
+                ],
+                lock_ready: false,
+                lock_blockers: ["constitution_required"],
+                lock_transition_state: "idle",
+                first_orbit_ready: false,
+                next_action: { action_key: "select_constitution", label_cz: "Vyber ústavu vesmíru" },
+                explainability: {
+                  headline_cz: "Nejdřív vyber ústavu.",
+                  body_cz: "Dokud není potvrzen režim vesmíru, policy lock není připraven.",
+                },
+                source_truth: {
+                  profile_key: "ORIGIN",
+                  law_preset: "balanced",
+                  physical_profile_key: "BALANCE",
+                  physical_profile_version: 1,
+                },
+              }
+        );
       }
       if (url.includes("/star-core/policy")) {
         return createJsonResponse(
@@ -314,7 +563,9 @@ describe("UniverseWorkspace", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "select constitution" }));
-    expect(screen.getByTestId("canvas-interior-phase").textContent).toBe("policy_lock_ready");
+    await waitFor(() => {
+      expect(screen.getByTestId("canvas-interior-phase").textContent).toBe("policy_lock_ready");
+    });
     fireEvent.click(screen.getByTestId("star-core-primary-action"));
 
     await waitFor(() => {

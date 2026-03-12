@@ -6,6 +6,8 @@ import {
   apiFetch,
   buildGalaxyPlanetsUrl,
   buildStarCoreDomainMetricsUrl,
+  buildStarCoreInteriorConstitutionSelectUrl,
+  buildStarCoreInteriorUrl,
   buildStarCorePhysicsProfileUrl,
   buildStarCorePolicyLockUrl,
   buildStarCorePolicyUrl,
@@ -23,20 +25,17 @@ import {
   selectGalaxyObject,
 } from "./galaxyNavigationStateModel.js";
 import { buildGalaxySpaceObjects, resolveGalaxyRadarModel } from "./galaxyRadarModel.js";
-import { buildStarCorePolicyLockPayload, findStarCoreConstitutionOption } from "./starCoreConstitutionModel.js";
 import {
-  advanceStarCoreInterior,
-  beginStarCoreInterior,
-  beginStarCorePolicyLock,
-  closeStarCoreInterior,
-  createInitialStarCoreInteriorState,
-  resolveStarCoreInteriorEscape,
+  adaptStarCoreInteriorTruth,
+  beginStarCoreInteriorUi,
+  beginStarCorePolicyLockUi,
+  closeStarCoreInteriorUi,
+  createInitialStarCoreInteriorUiState,
+  resolveStarCoreInteriorEntryComplete,
   resolveStarCoreInteriorModel,
-  resolveStarCorePolicyLockFailure,
-  resolveStarCorePolicyLockSuccess,
-  selectStarCoreConstitution,
-} from "./starCoreInteriorStateModel.js";
-import { resolveStarCoreLockTransitionModel } from "./starCoreLockTransitionModel.js";
+  resolveStarCorePolicyLockUiFailure,
+  resolveStarCorePolicyLockUiSuccess,
+} from "./starCoreInteriorAdapter.js";
 import { adaptStarCoreTruth } from "./starCoreTruthAdapter.js";
 import { resolveStarCoreSpatialLoadingModel, resolveStarCoreSpatialStateModel } from "./starCoreSpatialStateModel.js";
 import UniverseCanvas from "./UniverseCanvas.jsx";
@@ -91,14 +90,16 @@ async function loadWorkspaceTruth({ defaultGalaxy = null, connectivity = null })
     return {
       status: "data_unavailable",
       truth: null,
+      interiorTruth: null,
       tableRows: [],
       error: "Chybí aktivní galaxie pro načtení Star Core.",
     };
   }
 
-  const [policyResponse, physicsResponse, tablesResponse] = await Promise.all([
+  const [policyResponse, physicsResponse, interiorResponse, tablesResponse] = await Promise.all([
     apiFetch(buildStarCorePolicyUrl(API_BASE, galaxyId)),
     apiFetch(buildStarCorePhysicsProfileUrl(API_BASE, galaxyId)),
+    apiFetch(buildStarCoreInteriorUrl(API_BASE, galaxyId)),
     apiFetch(buildTablesUrl(API_BASE, null, galaxyId, null)),
   ]);
 
@@ -108,8 +109,15 @@ async function loadWorkspaceTruth({ defaultGalaxy = null, connectivity = null })
   if (!physicsResponse.ok) {
     throw await apiErrorFromResponse(physicsResponse, "Nepodařilo se načíst fyziku Srdce hvězdy.");
   }
+  if (!interiorResponse.ok) {
+    throw await apiErrorFromResponse(interiorResponse, "Nepodařilo se načíst interiér Srdce hvězdy.");
+  }
 
-  const [policyPayload, physicsProfilePayload] = await Promise.all([policyResponse.json(), physicsResponse.json()]);
+  const [policyPayload, physicsProfilePayload, interiorPayload] = await Promise.all([
+    policyResponse.json(),
+    physicsResponse.json(),
+    interiorResponse.json(),
+  ]);
   const [runtimePayload, pulsePayload, domainMetricsPayload] = await Promise.all([
     apiFetch(buildStarCoreRuntimeUrl(API_BASE, galaxyId))
       .then(async (response) => (response.ok ? response.json() : null))
@@ -149,6 +157,7 @@ async function loadWorkspaceTruth({ defaultGalaxy = null, connectivity = null })
   return {
     status: truth.policy.lock_status === "locked" ? "star_core_locked_ready" : "star_core_unlocked",
     truth,
+    interiorTruth: adaptStarCoreInteriorTruth(interiorPayload),
     tableRows,
     error: "",
   };
@@ -166,12 +175,13 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
   const [fetchState, setFetchState] = useState({
     status: defaultGalaxy?.id ? "loading" : "data_unavailable",
     truth: null,
+    interiorTruth: null,
     tableRows: [],
     error: "",
   });
   const [navigationState, setNavigationState] = useState(createInitialGalaxyNavigationState);
   const [headingDegrees, setHeadingDegrees] = useState(0);
-  const [interiorState, setInteriorState] = useState(createInitialStarCoreInteriorState);
+  const [interiorUiState, setInteriorUiState] = useState(createInitialStarCoreInteriorUiState);
   const [reducedMotion, setReducedMotion] = useState(readReducedMotionPreference);
 
   useEffect(() => {
@@ -182,6 +192,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         setFetchState((current) => ({
           status: "loading",
           truth: current.truth,
+          interiorTruth: current.interiorTruth,
           tableRows: current.tableRows,
           error: "",
         }));
@@ -191,12 +202,13 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         const nextState = await loadWorkspaceTruth({ defaultGalaxy, connectivity });
         if (!active) return;
         setFetchState(nextState);
-        setInteriorState(closeStarCoreInterior());
+        setInteriorUiState(closeStarCoreInteriorUi());
       } catch (error) {
         if (!active) return;
         setFetchState({
           status: "data_unavailable",
           truth: null,
+          interiorTruth: null,
           tableRows: [],
           error: String(error?.message || "Načtení Star Core selhalo."),
         });
@@ -228,8 +240,8 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
   useEffect(() => {
     function handleKeyDown(event) {
       if (event.key !== "Escape") return;
-      if (interiorState.phase !== "closed") {
-        setInteriorState((current) => resolveStarCoreInteriorEscape(current));
+      if (interiorUiState.isOpen) {
+        setInteriorUiState(closeStarCoreInteriorUi());
         return;
       }
       setNavigationState((current) => resolveGalaxyEscape(current));
@@ -239,7 +251,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [interiorState.phase]);
+  }, [interiorUiState.isOpen]);
 
   const model = useMemo(() => {
     if (fetchState.status === "loading") {
@@ -259,15 +271,39 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     () => resolveGalaxyNavigationModel({ navigationState, spaceObjects }),
     [navigationState, spaceObjects]
   );
-  const interiorModel = useMemo(() => resolveStarCoreInteriorModel(interiorState), [interiorState]);
-  const selectedConstitution = useMemo(
-    () => findStarCoreConstitutionOption(interiorModel.selectedConstitutionId),
-    [interiorModel.selectedConstitutionId]
+  const interiorModel = useMemo(
+    () => resolveStarCoreInteriorModel({ interiorTruth: fetchState.interiorTruth, uiState: interiorUiState }),
+    [fetchState.interiorTruth, interiorUiState]
   );
-  const lockTransitionModel = useMemo(
-    () => resolveStarCoreLockTransitionModel({ interiorModel, selectedConstitution }),
-    [interiorModel, selectedConstitution]
-  );
+  const selectedConstitution = interiorModel.selectedConstitution;
+  const lockTransitionModel = useMemo(() => {
+    if (!interiorModel.isOpen) return null;
+    if (interiorModel.isFirstOrbitReady) {
+      return {
+        title: interiorModel.explainability.headline || "První orbita je připravená",
+        hint: interiorModel.explainability.body || "",
+        actionLabel: "Vrátit se do prostoru",
+        disabled: false,
+      };
+    }
+    if (interiorModel.isLockPending) {
+      return {
+        title: "Uzamykám Srdce hvězdy",
+        hint: "Governance prstenec se právě fyzicky uzavírá.",
+        actionLabel: "Uzamykám Srdce hvězdy",
+        disabled: true,
+      };
+    }
+    if (interiorModel.canConfirmLock) {
+      return {
+        title: interiorModel.explainability.headline || "Ústava je připravena k uzamčení",
+        hint: interiorModel.explainability.body || "",
+        actionLabel: interiorModel.nextAction.label || "Potvrdit ústavu a uzamknout politiky",
+        disabled: false,
+      };
+    }
+    return null;
+  }, [interiorModel]);
   const radarModel = useMemo(
     () =>
       resolveGalaxyRadarModel({
@@ -280,22 +316,22 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
   );
 
   useEffect(() => {
-    if (interiorState.phase !== "star_core_interior_entry") return undefined;
+    if (interiorUiState.transientPhase !== "star_core_interior_entry") return undefined;
     const timeoutId = window.setTimeout(
       () => {
-        setInteriorState((current) => advanceStarCoreInterior(current));
+        setInteriorUiState((current) => resolveStarCoreInteriorEntryComplete(current));
       },
       reducedMotion ? 40 : 900
     );
     return () => window.clearTimeout(timeoutId);
-  }, [interiorState.phase, reducedMotion]);
+  }, [interiorUiState.transientPhase, reducedMotion]);
 
   useEffect(() => {
     if (navigationModel.approachTargetId === "star-core") return;
-    if (interiorState.phase !== "closed") {
-      setInteriorState(closeStarCoreInterior());
+    if (interiorUiState.isOpen) {
+      setInteriorUiState(closeStarCoreInteriorUi());
     }
-  }, [interiorState.phase, navigationModel.approachTargetId]);
+  }, [interiorUiState.isOpen, navigationModel.approachTargetId]);
 
   useEffect(() => {
     if (
@@ -320,10 +356,18 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
 
   async function handleConfirmPolicyLock() {
     const galaxyId = String(defaultGalaxy?.id || "").trim();
-    const payload = buildStarCorePolicyLockPayload(interiorModel.selectedConstitutionId);
+    const payload =
+      interiorModel.sourceTruth.profileKey && interiorModel.sourceTruth.physicalProfileKey
+        ? {
+            profile_key: interiorModel.sourceTruth.profileKey,
+            lock_after_apply: true,
+            physical_profile_key: interiorModel.sourceTruth.physicalProfileKey,
+            physical_profile_version: interiorModel.sourceTruth.physicalProfileVersion,
+          }
+        : null;
     if (!galaxyId || !payload) return;
 
-    setInteriorState((current) => beginStarCorePolicyLock(current));
+    setInteriorUiState((current) => beginStarCorePolicyLockUi(current));
 
     try {
       const response = await apiFetch(buildStarCorePolicyLockUrl(API_BASE, galaxyId), {
@@ -345,12 +389,56 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
 
       const nextState = await loadWorkspaceTruth({ defaultGalaxy, connectivity });
       setFetchState(nextState);
-      setInteriorState((current) => resolveStarCorePolicyLockSuccess(current));
-      setNavigationState((current) => beginGalaxyApproach(current, "star-core"));
+      setInteriorUiState((current) => resolveStarCorePolicyLockUiSuccess(current));
     } catch (error) {
-      setInteriorState((current) =>
-        resolveStarCorePolicyLockFailure(current, String(error?.message || "Uzamčení politik se nepodařilo."))
+      setInteriorUiState((current) =>
+        resolveStarCorePolicyLockUiFailure(current, String(error?.message || "Uzamčení politik se nepodařilo."))
       );
+    }
+  }
+
+  async function handleSelectConstitution(constitutionId) {
+    const galaxyId = String(defaultGalaxy?.id || "").trim();
+    const normalizedConstitutionId = String(constitutionId || "")
+      .trim()
+      .toLowerCase();
+    if (!galaxyId || !normalizedConstitutionId) return;
+
+    try {
+      const response = await apiFetch(buildStarCoreInteriorConstitutionSelectUrl(API_BASE, galaxyId), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          constitution_id: normalizedConstitutionId,
+          idempotency_key:
+            typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+              ? crypto.randomUUID()
+              : `star-core-select-${Date.now()}`,
+        }),
+      });
+      if (!response.ok) {
+        throw await apiErrorFromResponse(response, "Nepodařilo se vybrat ústavu Srdce hvězdy.");
+      }
+      const interiorPayload = await response.json();
+      setFetchState((current) => ({
+        ...current,
+        interiorTruth: adaptStarCoreInteriorTruth(interiorPayload),
+      }));
+      setInteriorUiState((current) => ({
+        ...current,
+        isOpen: true,
+        transientPhase: "",
+        isLockPending: false,
+        errorMessage: "",
+      }));
+    } catch (error) {
+      setInteriorUiState((current) => ({
+        ...current,
+        isOpen: true,
+        errorMessage: String(error?.message || "Výběr ústavy se nepodařilo uložit."),
+      }));
     }
   }
 
@@ -410,16 +498,15 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
           if (
             objectId === "star-core" &&
             navigationModel.mode === "approach_active" &&
-            model.state === "star_core_unlocked"
+            fetchState.status !== "loading" &&
+            fetchState.status !== "data_unavailable"
           ) {
-            setInteriorState((current) => beginStarCoreInterior(current, { reducedMotion }));
+            setInteriorUiState(beginStarCoreInteriorUi());
             return;
           }
           setNavigationState((current) => beginGalaxyApproach(current, objectId));
         }}
-        onSelectConstitution={(constitutionId) =>
-          setInteriorState((current) => selectStarCoreConstitution(current, constitutionId))
-        }
+        onSelectConstitution={handleSelectConstitution}
         onHeadingChange={setHeadingDegrees}
         onClearFocus={() => setNavigationState(clearGalaxySelection())}
       />
@@ -431,7 +518,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         selectedConstitution={selectedConstitution}
         lockTransitionModel={lockTransitionModel}
         onConfirmPolicyLock={handleConfirmPolicyLock}
-        onReturnToSpace={() => setInteriorState(closeStarCoreInterior())}
+        onReturnToSpace={() => setInteriorUiState(closeStarCoreInteriorUi())}
       />
     </main>
   );

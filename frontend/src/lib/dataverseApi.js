@@ -581,6 +581,14 @@ export function buildStarCorePolicyUrl(apiBase, galaxyId, { branchId = null } = 
   return url.toString();
 }
 
+export function buildStarCoreInteriorUrl(apiBase, galaxyId) {
+  return `${apiBase}/galaxies/${galaxyId}/star-core/interior`;
+}
+
+export function buildStarCoreInteriorConstitutionSelectUrl(apiBase, galaxyId) {
+  return `${apiBase}/galaxies/${galaxyId}/star-core/interior/constitution/select`;
+}
+
 export function buildStarCorePolicyLockUrl(apiBase, galaxyId) {
   return `${apiBase}/galaxies/${galaxyId}/star-core/policy/lock`;
 }

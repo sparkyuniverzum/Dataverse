@@ -4,7 +4,6 @@ import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import { resolveStarCoreConstitutionOptions } from "./starCoreConstitutionModel.js";
 import { resolveStarCoreExteriorLabels } from "./starCoreExteriorLabels.js";
 import { resolveStarCoreExteriorState } from "./starCoreExteriorStateModel.js";
 import { resolveStarCoreExteriorVisualModel } from "./starCoreExteriorVisualModel.js";
@@ -213,9 +212,10 @@ function StarCoreInterior({ model, interiorModel, selectedConstitution, onSelect
   const interiorGlow = interiorModel.phase === "policy_lock_transition" ? "#fff0ba" : "#aef6ff";
   const orbitRadius = interiorModel.phase === "first_orbit_ready" ? 4.1 : 3.3;
   const orbitCue = useMemo(() => createOrbitPoints(orbitRadius, -0.12), [orbitRadius]);
-  const constitutionOptions = useMemo(() => resolveStarCoreConstitutionOptions(), []);
-  const showConstitutions =
-    interiorModel.phase === "constitution_select" || interiorModel.phase === "policy_lock_ready";
+  const constitutionOptions = Array.isArray(interiorModel.availableConstitutions)
+    ? interiorModel.availableConstitutions
+    : [];
+  const showConstitutions = interiorModel.canSelectConstitution;
 
   return (
     <group position={[0, 0.4, 0]}>
@@ -253,13 +253,9 @@ function StarCoreInterior({ model, interiorModel, selectedConstitution, onSelect
       <DiegeticLabel
         position={[0, 2.7, 0]}
         text={
-          interiorModel.phase === "constitution_select"
-            ? "Srdce hvězdy čeká na volbu ústavy"
-            : interiorModel.phase === "policy_lock_transition"
-              ? "Governance prstenec se uzavírá"
-              : interiorModel.phase === "first_orbit_ready"
-                ? "První oběžná dráha je připravená"
-                : "Jádro prostoru je otevřené"
+          interiorModel.phase === "star_core_interior_entry"
+            ? "Jádro prostoru se otevírá"
+            : interiorModel.explainability.headline || "Jádro prostoru je otevřené"
         }
         size={0.22}
         color="#fff0cf"
