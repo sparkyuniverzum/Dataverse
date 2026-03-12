@@ -37,6 +37,7 @@ Tento dokument vykonava:
 7. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-endpoint-contract-v1CZ.md`
 8. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
 9. `docs/P0-core/contracts/aktivni/fe/fe-blok-3a-star-core-interior-screen-implementacni-dokument-v1CZ.md`
+10. `docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md`
 
 Provadeci pravidlo:
 
@@ -202,6 +203,7 @@ Pro tento blok je pripraveny kod:
 3. `previewAccessibility.js`
 4. `starCoreTruthAdapter.js`
 5. `planetPhysicsParity.js`
+6. vizualni smer `Ritual Chamber` z `docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md`
 
 V tomto bloku se skutecne maji vratit nebo dale pouzit:
 

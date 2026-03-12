@@ -76,6 +76,7 @@ Tento dokument vykonava:
 4. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
 5. `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`
 6. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-endpoint-contract-v1CZ.md`
+7. `docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md`
 
 Pravidlo:
 
@@ -108,6 +109,7 @@ V tomto bloku je zakazane implementovat:
 Poznamka:
 
 1. tento blok smi pouzit placeholder obsah interior shellu jen pro potvrzeni architektury, ne jako finalni UX `Bloku 3`.
+2. jakmile se shell stabilizuje, dalsi user-visible vrstva se musi ridit `Ritual Chamber` smerem a nesmi sklouznout do panelove kompozice.
 
 ## 5. Screen shell kontrakt
 

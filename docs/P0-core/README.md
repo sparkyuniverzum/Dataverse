@@ -40,6 +40,7 @@ Pri bezne praci se maji cist defaultne jen dokumenty v `docs/P0-core/contracts/a
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-2-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-2-implementacni-dokument-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-3-return-packet-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-3-return-packet-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md)
