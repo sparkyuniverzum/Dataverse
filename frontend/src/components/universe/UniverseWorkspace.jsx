@@ -7,9 +7,10 @@ import {
   buildStarCorePhysicsProfileUrl,
   buildStarCorePolicyUrl,
 } from "../../lib/dataverseApi";
-import StarCoreFirstViewSurface from "./starCoreFirstViewSurface.jsx";
-import { resolveStarCoreFirstViewModel, resolveStarCoreLoadingModel } from "./starCoreFirstViewModel.js";
+import StarCoreHudOverlay from "./StarCoreHudOverlay.jsx";
 import { adaptStarCoreTruth } from "./starCoreTruthAdapter.js";
+import { resolveStarCoreSpatialLoadingModel, resolveStarCoreSpatialStateModel } from "./starCoreSpatialStateModel.js";
+import UniverseCanvas from "./UniverseCanvas.jsx";
 
 function createSeededRandom(seed = 1) {
   let value = seed >>> 0;
@@ -34,7 +35,7 @@ function buildStars(count, seed, { minSize, maxSize, minOpacity, maxOpacity }) {
 }
 
 function createLoadingModel(defaultGalaxy, connectivity) {
-  return resolveStarCoreLoadingModel({
+  return resolveStarCoreSpatialLoadingModel({
     galaxyName: defaultGalaxy?.name || "Galaxie",
     isOnline: connectivity?.isOnline !== false,
   });
@@ -54,6 +55,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     truth: null,
     error: "",
   });
+  const [isStarFocused, setIsStarFocused] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -135,12 +137,10 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
       return createLoadingModel(defaultGalaxy, connectivity);
     }
     if (!fetchState.truth) {
-      return resolveStarCoreFirstViewModel(null);
+      return resolveStarCoreSpatialStateModel(null, { error: fetchState.error });
     }
-    return resolveStarCoreFirstViewModel(fetchState.truth);
-  }, [connectivity, defaultGalaxy, fetchState.status, fetchState.truth]);
-
-  const halo = fetchState.truth?.halo || { intensity: 0.28, orbitOpacity: 0.42 };
+    return resolveStarCoreSpatialStateModel(fetchState.truth, { error: fetchState.error });
+  }, [connectivity, defaultGalaxy, fetchState.error, fetchState.status, fetchState.truth]);
 
   return (
     <main
@@ -151,8 +151,6 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         height: "100vh",
         position: "relative",
         overflow: "hidden",
-        display: "grid",
-        placeItems: "center",
         background:
           "radial-gradient(circle at 50% 48%, rgba(78, 46, 14, 0.26), transparent 18%), radial-gradient(circle at 50% 50%, rgba(245, 160, 44, 0.08), transparent 28%), radial-gradient(circle at 14% 18%, rgba(33, 82, 132, 0.18), transparent 26%), linear-gradient(180deg, #02050c 0%, #010309 100%)",
       }}
@@ -189,29 +187,13 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
           />
         ))}
 
-      <StarCoreFirstViewSurface model={model} halo={halo} loading={fetchState.status === "loading"} />
-
-      {fetchState.error ? (
-        <div
-          role="status"
-          data-testid="star-core-error"
-          style={{
-            position: "absolute",
-            bottom: "1.5rem",
-            left: "50%",
-            transform: "translateX(-50%)",
-            padding: "0.7rem 1rem",
-            borderRadius: "999px",
-            background: "rgba(63, 14, 6, 0.78)",
-            border: "1px solid rgba(255, 145, 110, 0.28)",
-            color: "#ffd7c8",
-            fontSize: "0.86rem",
-            backdropFilter: "blur(12px)",
-          }}
-        >
-          {fetchState.error}
-        </div>
-      ) : null}
+      <UniverseCanvas
+        model={model}
+        isStarFocused={isStarFocused}
+        onSelectStar={() => setIsStarFocused(true)}
+        onClearFocus={() => setIsStarFocused(false)}
+      />
+      <StarCoreHudOverlay model={model} />
     </main>
   );
 }

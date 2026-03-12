@@ -1,6 +1,10 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("./UniverseCanvas.jsx", () => ({
+  default: ({ model }) => <div data-testid="universe-canvas">{model.state}</div>,
+}));
+
 import UniverseWorkspace from "./UniverseWorkspace.jsx";
 
 describe("UniverseWorkspace", () => {
@@ -18,7 +22,8 @@ describe("UniverseWorkspace", () => {
 
     expect(screen.getByTestId("workspace-reset-root")).toBeTruthy();
     expect(container.querySelectorAll('span[aria-hidden="true"]').length).toBeGreaterThan(200);
-    expect(screen.getByText("Nepodařilo se načíst pravdu Srdce hvězdy")).toBeTruthy();
+    expect(screen.getByTestId("universe-canvas").textContent).toBe("data_unavailable");
+    expect(screen.getByText("Srdce hvězdy nemá potvrzený scope")).toBeTruthy();
   });
 
   it("renders pre-lock state from BE truth", async () => {
@@ -48,9 +53,11 @@ describe("UniverseWorkspace", () => {
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 
-    expect(screen.getByText("Načítám pravdu Srdce hvězdy")).toBeTruthy();
-    expect(await screen.findByText("Nejdřív nastav zákony hvězdy")).toBeTruthy();
-    expect(screen.getByText("Otevřít Srdce hvězdy")).toBeTruthy();
+    expect(screen.getByText("Synchronizuji pravdu Srdce hvězdy")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByTestId("universe-canvas").textContent).toBe("star_core_unlocked");
+    });
+    expect(screen.getByText("Potvrdit ústavu a uzamknout politiky")).toBeTruthy();
   });
 
   it("renders post-lock ready state from BE truth", async () => {
@@ -80,8 +87,10 @@ describe("UniverseWorkspace", () => {
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 
-    expect(await screen.findByText("Hvězda je uzamčena. Můžeš založit první planetu")).toBeTruthy();
-    expect(screen.getByText("Založit první planetu")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByTestId("universe-canvas").textContent).toBe("star_core_locked_ready");
+    });
+    expect(screen.getByText("První oběžná dráha je připravená")).toBeTruthy();
   });
 
   it("falls back to data_unavailable when policy fetch fails", async () => {
@@ -105,8 +114,8 @@ describe("UniverseWorkspace", () => {
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Nepodařilo se načíst pravdu Srdce hvězdy")).toBeTruthy();
+      expect(screen.getByTestId("universe-canvas").textContent).toBe("data_unavailable");
     });
-    expect(screen.getAllByTestId("star-core-error").length).toBeGreaterThan(0);
+    expect(screen.getByText("service unavailable")).toBeTruthy();
   });
 });
