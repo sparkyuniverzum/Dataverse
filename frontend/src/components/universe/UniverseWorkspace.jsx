@@ -1,4 +1,15 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import {
+  API_BASE,
+  apiErrorFromResponse,
+  apiFetch,
+  buildStarCorePhysicsProfileUrl,
+  buildStarCorePolicyUrl,
+} from "../../lib/dataverseApi";
+import StarCoreFirstViewSurface from "./starCoreFirstViewSurface.jsx";
+import { resolveStarCoreFirstViewModel, resolveStarCoreLoadingModel } from "./starCoreFirstViewModel.js";
+import { adaptStarCoreTruth } from "./starCoreTruthAdapter.js";
 
 function createSeededRandom(seed = 1) {
   let value = seed >>> 0;
@@ -22,7 +33,14 @@ function buildStars(count, seed, { minSize, maxSize, minOpacity, maxOpacity }) {
   }));
 }
 
-export default function UniverseWorkspace() {
+function createLoadingModel(defaultGalaxy, connectivity) {
+  return resolveStarCoreLoadingModel({
+    galaxyName: defaultGalaxy?.name || "Galaxie",
+    isOnline: connectivity?.isOnline !== false,
+  });
+}
+
+export default function UniverseWorkspace({ defaultGalaxy = null, connectivity = null }) {
   const starLayers = useMemo(
     () => ({
       far: buildStars(140, 20260312, { minSize: 1, maxSize: 2.2, minOpacity: 0.2, maxOpacity: 0.55 }),
@@ -31,16 +49,110 @@ export default function UniverseWorkspace() {
     }),
     []
   );
+  const [fetchState, setFetchState] = useState({
+    status: defaultGalaxy?.id ? "loading" : "data_unavailable",
+    truth: null,
+    error: "",
+  });
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadStarCoreTruth() {
+      const galaxyId = String(defaultGalaxy?.id || "").trim();
+      if (!galaxyId) {
+        if (active) {
+          setFetchState({
+            status: "data_unavailable",
+            truth: null,
+            error: "Chybí aktivní galaxie pro načtení Star Core.",
+          });
+        }
+        return;
+      }
+
+      if (active) {
+        setFetchState((current) => ({
+          status: "loading",
+          truth: current.truth,
+          error: "",
+        }));
+      }
+
+      try {
+        const [policyResponse, physicsResponse] = await Promise.all([
+          apiFetch(buildStarCorePolicyUrl(API_BASE, galaxyId)),
+          apiFetch(buildStarCorePhysicsProfileUrl(API_BASE, galaxyId)),
+        ]);
+
+        if (!policyResponse.ok) {
+          throw await apiErrorFromResponse(policyResponse, "Nepodařilo se načíst policy Srdce hvězdy.");
+        }
+        if (!physicsResponse.ok) {
+          throw await apiErrorFromResponse(physicsResponse, "Nepodařilo se načíst fyziku Srdce hvězdy.");
+        }
+
+        const [policyPayload, physicsProfilePayload] = await Promise.all([
+          policyResponse.json(),
+          physicsResponse.json(),
+        ]);
+        const truth = adaptStarCoreTruth({
+          galaxy: defaultGalaxy,
+          connectivity,
+          policyPayload,
+          physicsProfilePayload,
+        });
+
+        if (!truth) {
+          throw new Error("Star Core truth adapter nevrátil použitelná data.");
+        }
+
+        if (active) {
+          setFetchState({
+            status: truth.policy.lock_status === "locked" ? "star_core_locked_ready" : "star_core_unlocked",
+            truth,
+            error: "",
+          });
+        }
+      } catch (error) {
+        if (!active) return;
+        setFetchState({
+          status: "data_unavailable",
+          truth: null,
+          error: String(error?.message || "Načtení Star Core selhalo."),
+        });
+      }
+    }
+
+    void loadStarCoreTruth();
+    return () => {
+      active = false;
+    };
+  }, [connectivity, defaultGalaxy]);
+
+  const model = useMemo(() => {
+    if (fetchState.status === "loading") {
+      return createLoadingModel(defaultGalaxy, connectivity);
+    }
+    if (!fetchState.truth) {
+      return resolveStarCoreFirstViewModel(null);
+    }
+    return resolveStarCoreFirstViewModel(fetchState.truth);
+  }, [connectivity, defaultGalaxy, fetchState.status, fetchState.truth]);
+
+  const halo = fetchState.truth?.halo || { intensity: 0.28, orbitOpacity: 0.42 };
 
   return (
     <main
       data-testid="workspace-reset-root"
-      aria-label="Dataverse workspace reset"
+      aria-label="Dataverse workspace"
       style={{
         width: "100vw",
         height: "100vh",
         position: "relative",
         overflow: "hidden",
+        display: "grid",
+        placeItems: "center",
         background:
           "radial-gradient(circle at 50% 48%, rgba(78, 46, 14, 0.26), transparent 18%), radial-gradient(circle at 50% 50%, rgba(245, 160, 44, 0.08), transparent 28%), radial-gradient(circle at 14% 18%, rgba(33, 82, 132, 0.18), transparent 26%), linear-gradient(180deg, #02050c 0%, #010309 100%)",
       }}
@@ -76,6 +188,30 @@ export default function UniverseWorkspace() {
             }}
           />
         ))}
+
+      <StarCoreFirstViewSurface model={model} halo={halo} loading={fetchState.status === "loading"} />
+
+      {fetchState.error ? (
+        <div
+          role="status"
+          data-testid="star-core-error"
+          style={{
+            position: "absolute",
+            bottom: "1.5rem",
+            left: "50%",
+            transform: "translateX(-50%)",
+            padding: "0.7rem 1rem",
+            borderRadius: "999px",
+            background: "rgba(63, 14, 6, 0.78)",
+            border: "1px solid rgba(255, 145, 110, 0.28)",
+            color: "#ffd7c8",
+            fontSize: "0.86rem",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          {fetchState.error}
+        </div>
+      ) : null}
     </main>
   );
 }
