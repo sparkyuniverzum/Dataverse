@@ -85,11 +85,13 @@ Poradi:
 9. `risk_flags` (destructive, multi-step, scope-sensitive)
 10. `next_step_hint`
 11. `occ_signals`
-   - seznam OCC dopadovych signalu na entitach,
-   - kazdy signal obsahuje minimalne `action`, `expected_event_seq`, `current_event_seq`, `known`, `because`.
-12. `preview_token`
+
+- seznam OCC dopadovych signalu na entitach,
+- kazdy signal obsahuje minimalne `action`, `expected_event_seq`, `current_event_seq`, `known`, `because`.
+
+1. `preview_token`
     - podpisany token navazany na preview plan hash + scope.
-13. `preview_token_expires_at`
+2. `preview_token_expires_at`
     - expirace tokenu pro `execute` krok.
 
 ## 3.3 Explainability pravidla

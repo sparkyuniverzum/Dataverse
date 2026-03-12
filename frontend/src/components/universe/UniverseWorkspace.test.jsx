@@ -1,8 +1,24 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./UniverseCanvas.jsx", () => ({
-  default: ({ model }) => <div data-testid="universe-canvas">{model.state}</div>,
+  default: ({ model, isStarFocused, isCoreEntered, onSelectStar, onEnterCore, onClearFocus }) => (
+    <div data-testid="universe-canvas">
+      <span data-testid="canvas-state">{model.state}</span>
+      <span data-testid="canvas-view-mode">
+        {isCoreEntered ? "core_entry" : isStarFocused ? "star_focus" : "outer_orbit"}
+      </span>
+      <button type="button" onClick={onSelectStar}>
+        focus star
+      </button>
+      <button type="button" onClick={onEnterCore}>
+        enter core
+      </button>
+      <button type="button" onClick={onClearFocus}>
+        clear focus
+      </button>
+    </div>
+  ),
 }));
 
 import UniverseWorkspace from "./UniverseWorkspace.jsx";
@@ -22,7 +38,7 @@ describe("UniverseWorkspace", () => {
 
     expect(screen.getByTestId("workspace-reset-root")).toBeTruthy();
     expect(container.querySelectorAll('span[aria-hidden="true"]').length).toBeGreaterThan(200);
-    expect(screen.getByTestId("universe-canvas").textContent).toBe("data_unavailable");
+    expect(screen.getByTestId("canvas-state").textContent).toBe("data_unavailable");
     expect(screen.getByText("Srdce hvězdy nemá potvrzený scope")).toBeTruthy();
   });
 
@@ -55,9 +71,9 @@ describe("UniverseWorkspace", () => {
 
     expect(screen.getByText("Synchronizuji pravdu Srdce hvězdy")).toBeTruthy();
     await waitFor(() => {
-      expect(screen.getByTestId("universe-canvas").textContent).toBe("star_core_unlocked");
+      expect(screen.getByTestId("canvas-state").textContent).toBe("star_core_unlocked");
     });
-    expect(screen.getByText("Potvrdit ústavu a uzamknout politiky")).toBeTruthy();
+    expect(screen.getByText("Dvojklikem vstoupíš do Srdce hvězdy")).toBeTruthy();
   });
 
   it("renders post-lock ready state from BE truth", async () => {
@@ -88,9 +104,9 @@ describe("UniverseWorkspace", () => {
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("universe-canvas").textContent).toBe("star_core_locked_ready");
+      expect(screen.getByTestId("canvas-state").textContent).toBe("star_core_locked_ready");
     });
-    expect(screen.getByText("První oběžná dráha je připravená")).toBeTruthy();
+    expect(screen.getByText("Hvězda je uzamčena a pracovní prostor je připraven")).toBeTruthy();
   });
 
   it("falls back to data_unavailable when policy fetch fails", async () => {
@@ -114,8 +130,45 @@ describe("UniverseWorkspace", () => {
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("universe-canvas").textContent).toBe("data_unavailable");
+      expect(screen.getByTestId("canvas-state").textContent).toBe("data_unavailable");
     });
     expect(screen.getByText("service unavailable")).toBeTruthy();
+  });
+
+  it("switches HUD guidance after entering the star core", async () => {
+    fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          profile_key: "ORIGIN",
+          law_preset: "balanced",
+          profile_mode: "auto",
+          lock_status: "draft",
+          policy_version: 1,
+          locked_at: null,
+          can_edit_core_laws: true,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          galaxy_id: "g-1",
+          profile_key: "BALANCE",
+          profile_version: 1,
+          lock_status: "draft",
+          coefficients: { a: 0.12, b: 0.4 },
+        }),
+      });
+
+    render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("canvas-view-mode").textContent).toBe("outer_orbit");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "enter core" }));
+
+    expect(screen.getByTestId("canvas-view-mode").textContent).toBe("core_entry");
+    expect(screen.getByText("Jsi v prahu Srdce hvězdy")).toBeTruthy();
   });
 });

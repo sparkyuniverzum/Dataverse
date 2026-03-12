@@ -1,8 +1,14 @@
 # FE-R1 implementacni dokument v2
 
-Stav: aktivni (vykonavaci priprava pred implementaci spatial FE-R1)
+Stav: nahrazeno (historicky FE-R1 vykonavaci dokument pred prechodem na Galaxy Space Workspace)
 Datum: 2026-03-12
 Vlastnik: FE architektura + Produktove UX + user-agent governance
+
+Nahrazeno aktivnimi dokumenty:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-master-spec-hlavni-pracovni-prostor-galaxie-v1CZ.md`
+2. `docs/P0-core/contracts/aktivni/fe/fe-be-fe-projekcni-mapa-hlavni-pracovni-prostor-v1CZ.md`
+3. `docs/P0-core/contracts/aktivni/fe/fe-builder-system-galaxy-space-workspace-v1CZ.md`
 
 ## 0. Vztah k ridicim dokumentum
 

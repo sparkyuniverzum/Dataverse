@@ -1,8 +1,14 @@
 # FE-R1 priprava: audit archivu v1
 
-Stav: aktivni (povinna priprava pred FE-R1 navrhem)
+Stav: splneno (historicka priprava FE resetu a archivniho auditu)
 Datum: 2026-03-12
 Vlastnik: Produktove UX + FE architektura + user-agent governance
+
+Nahrazeno aktivnimi dokumenty:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-master-spec-hlavni-pracovni-prostor-galaxie-v1CZ.md`
+2. `docs/P0-core/contracts/aktivni/fe/fe-be-fe-projekcni-mapa-hlavni-pracovni-prostor-v1CZ.md`
+3. `docs/P0-core/contracts/aktivni/fe/fe-builder-system-galaxy-space-workspace-v1CZ.md`
 
 ## 1. Ucel
 

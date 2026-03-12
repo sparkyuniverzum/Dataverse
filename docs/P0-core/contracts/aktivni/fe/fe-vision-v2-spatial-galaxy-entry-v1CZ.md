@@ -10,12 +10,19 @@ Tento dokument urcuje nadrazeny smer frontend experience pro vstup do galaxie a 
 
 Neni to implementacni checklist.
 
+Neni to ani detailni master spec staleho hlavniho workspace.
+
 Je to referencni vision dokument, podle ktereho se hodnoti:
 
 1. `Landing / Nexus`,
 2. `workspace entry`,
 3. `Star Core` onboarding,
 4. budoucí FE-R1/FE-R2 bloky.
+
+Detailni definice hlavniho pracovního prostoru je od 2026-03-12 vedena v:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-master-spec-hlavni-pracovni-prostor-galaxie-v1CZ.md`
+2. `docs/P0-core/contracts/aktivni/fe/fe-be-fe-projekcni-mapa-hlavni-pracovni-prostor-v1CZ.md`
 
 ## 2. Zakladni principy
 
@@ -231,11 +238,14 @@ Minimalni dukaz teto vision verze:
 cd /mnt/c/Projekty/Dataverse
 sed -n '1,260p' docs/P0-core/contracts/aktivni/core/canonical-ux-ontology-v1CZ.md
 sed -n '1,260p' docs/P0-core/contracts/aktivni/ux/ux-journeys-and-visual-language-v1CZ.md
-sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-r1-first-view-koncept-v1CZ.md
-sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-r1-implementacni-dokument-v1CZ.md
+sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-master-spec-hlavni-pracovni-prostor-galaxie-v1CZ.md
+sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-be-fe-projekcni-mapa-hlavni-pracovni-prostor-v1CZ.md
+sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-builder-system-galaxy-space-workspace-v1CZ.md
 ```
 
 ## 10. Co zustava otevrene
 
-- [x] 2026-03-12 Vision v2 propsana do FE-R1 konceptu a implementacniho dokumentu.
-- [ ] Pri dalsim FE bloku dodat spatialni implementaci `Constitution Select`.
+- [x] 2026-03-12 Vision v2 byla navazana na `Galaxy Space Workspace` master spec a projekcni mapu.
+- [x] 2026-03-12 Builder system pro hlavni workspace byl oddelen do samostatneho aktivniho dokumentu.
+- [ ] Pri dalsim onboarding/spatial bloku dodat `Constitution Select` uvnitr `Star Core`.
+- [x] 2026-03-12 Detailni definice hlavniho workspace byla oddelena do samostatneho master spec dokumentu.

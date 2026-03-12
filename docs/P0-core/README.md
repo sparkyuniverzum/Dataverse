@@ -26,11 +26,11 @@ Pri bezne praci se maji cist defaultne jen dokumenty v `docs/P0-core/contracts/a
 
 ### FE
 
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-master-spec-hlavni-pracovni-prostor-galaxie-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-master-spec-hlavni-pracovni-prostor-galaxie-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-be-fe-projekcni-mapa-hlavni-pracovni-prostor-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-be-fe-projekcni-mapa-hlavni-pracovni-prostor-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-vision-v2-spatial-galaxy-entry-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-vision-v2-spatial-galaxy-entry-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-builder-system-galaxy-space-workspace-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-builder-system-galaxy-space-workspace-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-r1-priprava-audit-archivu-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-r1-priprava-audit-archivu-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-r1-first-view-koncept-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-r1-first-view-koncept-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-r1-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-r1-implementacni-dokument-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/parser-alias-learning-and-event-preview-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/parser-alias-learning-and-event-preview-v1CZ.md)
@@ -56,11 +56,14 @@ Do `docs/P0-core/contracts/splneno/` se chodi jen:
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-b-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-b-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-c-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-c-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-d-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-d-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-priprava-audit-archivu-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-priprava-audit-archivu-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md)
 
 ### Historie
 
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-implementation-order-and-slice-1-definition-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-implementation-order-and-slice-1-definition-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-r1-first-view-koncept-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-r1-first-view-koncept-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-r1-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-r1-implementacni-dokument-v1CZ.md)
 
 ### Vyrazeno
 

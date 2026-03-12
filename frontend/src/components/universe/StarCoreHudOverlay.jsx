@@ -14,12 +14,62 @@ function hudChipStyle() {
   };
 }
 
-export default function StarCoreHudOverlay({ model }) {
+function resolveViewMode(isStarFocused, isCoreEntered) {
+  if (isCoreEntered) return "core_entry";
+  if (isStarFocused) return "star_focus";
+  return "outer_orbit";
+}
+
+function resolvePromptContent(model, viewMode) {
+  if (model.state === "data_unavailable" || model.state === "loading") {
+    return {
+      title: model.commandPrompt,
+      hint: model.commandHint,
+    };
+  }
+
+  if (model.state === "star_core_locked_ready") {
+    if (viewMode === "core_entry") {
+      return {
+        title: "Jsi uvnitř stabilizovaného Srdce hvězdy",
+        hint: "První orbita už vznikla. Esc tě vrátí zpátky do hlavního prostoru galaxie.",
+      };
+    }
+    return {
+      title: "Hvězda je uzamčena a pracovní prostor je připraven",
+      hint: "První orbita vznikla přímo z jádra. Další FE vrstva naváže založením planety.",
+    };
+  }
+
+  if (viewMode === "core_entry") {
+    return {
+      title: "Jsi v prahu Srdce hvězdy",
+      hint: "Tady naváže volba ústavy prostoru. Esc tě vrátí zpátky do hlavní orbity.",
+    };
+  }
+
+  if (viewMode === "star_focus") {
+    return {
+      title: "Dvojklik otevře vstup do jádra",
+      hint: "Pohybem myši si hvězdu obhlédneš. Dvojklik tě pak dovede dovnitř k ústavě a uzamčení politik.",
+    };
+  }
+
+  return {
+    title: "Dvojklikem vstoupíš do Srdce hvězdy",
+    hint: "Pohybem myši obhlédneš hlavní prostor galaxie. Další rozhodnutí začíná až uvnitř jádra.",
+  };
+}
+
+export default function StarCoreHudOverlay({ model, isStarFocused = false, isCoreEntered = false }) {
+  const viewMode = resolveViewMode(isStarFocused, isCoreEntered);
+  const prompt = resolvePromptContent(model, viewMode);
+
   return (
     <>
       <section
         data-testid="star-core-hud"
-        aria-label="Star Core HUD"
+        aria-label="HUD Srdce hvězdy"
         style={{
           position: "absolute",
           top: "1rem",
@@ -51,12 +101,19 @@ export default function StarCoreHudOverlay({ model }) {
           <span style={{ color: "rgba(223, 239, 255, 0.76)", fontSize: "0.88rem", lineHeight: 1.45 }}>
             {model.hudSubtitle}
           </span>
+          {model.state === "star_core_unlocked" ? (
+            <span style={{ color: "rgba(169, 231, 255, 0.78)", fontSize: "0.8rem", lineHeight: 1.35 }}>
+              {viewMode === "core_entry"
+                ? "Uvnitř jádra se připravuje chytrá volba ústavy prostoru."
+                : "Z hlavního prostoru zatím jen vstupuješ ke hvězdě a ověřuješ její stav."}
+            </span>
+          ) : null}
         </div>
       </section>
 
       <section
         data-testid="star-core-command"
-        aria-label="Star Core command prompt"
+        aria-label="Příkazový prompt Srdce hvězdy"
         style={{
           position: "absolute",
           left: "50%",
@@ -77,12 +134,10 @@ export default function StarCoreHudOverlay({ model }) {
         }}
       >
         <div style={{ fontSize: "0.75rem", letterSpacing: "0.12em", opacity: 0.62, textTransform: "uppercase" }}>
-          Tactical HUD
+          Taktický HUD
         </div>
-        <strong style={{ fontSize: "1rem", fontWeight: 700 }}>{model.commandPrompt}</strong>
-        <span style={{ color: "rgba(220, 237, 255, 0.72)", fontSize: "0.89rem", lineHeight: 1.4 }}>
-          {model.commandHint}
-        </span>
+        <strong style={{ fontSize: "1rem", fontWeight: 700 }}>{prompt.title}</strong>
+        <span style={{ color: "rgba(220, 237, 255, 0.72)", fontSize: "0.89rem", lineHeight: 1.4 }}>{prompt.hint}</span>
         {model.errorHint ? <span style={{ color: "#ffc9b8", fontSize: "0.84rem" }}>{model.errorHint}</span> : null}
       </section>
     </>

@@ -56,6 +56,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     error: "",
   });
   const [isStarFocused, setIsStarFocused] = useState(false);
+  const [isCoreEntered, setIsCoreEntered] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -132,6 +133,19 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     };
   }, [connectivity, defaultGalaxy]);
 
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key !== "Escape") return;
+      setIsCoreEntered(false);
+      setIsStarFocused(false);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   const model = useMemo(() => {
     if (fetchState.status === "loading") {
       return createLoadingModel(defaultGalaxy, connectivity);
@@ -190,10 +204,18 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
       <UniverseCanvas
         model={model}
         isStarFocused={isStarFocused}
+        isCoreEntered={isCoreEntered}
         onSelectStar={() => setIsStarFocused(true)}
-        onClearFocus={() => setIsStarFocused(false)}
+        onEnterCore={() => {
+          setIsStarFocused(true);
+          setIsCoreEntered(true);
+        }}
+        onClearFocus={() => {
+          setIsCoreEntered(false);
+          setIsStarFocused(false);
+        }}
       />
-      <StarCoreHudOverlay model={model} />
+      <StarCoreHudOverlay model={model} isStarFocused={isStarFocused} isCoreEntered={isCoreEntered} />
     </main>
   );
 }
