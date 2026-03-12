@@ -720,7 +720,7 @@ Vysledek:
 
 ## 15. Co zustava otevrene
 
-- [ ] Z navazneho FE bloku udelat vykonavaci dokument `Galaxy Space Workspace v1`.
+- [x] 2026-03-12 Zavazny vykonavaci dokument `Galaxy Space Workspace v1` byl zapsan.
 - [ ] Rozhodnout prvni implementacni rez: kamera + volny pohyb + radar vs. planeta layout.
 - [x] 2026-03-12 Aktivni builder system a jeho vazba na `command bar` + `grid` byly zapsany v samostatnem FE dokumentu.
 - [ ] U kazdeho dalsiho FE dokumentu pridat sekci `Pripraveny kod z archivu` a explicitne vybrat, ktere helpery se vraci.

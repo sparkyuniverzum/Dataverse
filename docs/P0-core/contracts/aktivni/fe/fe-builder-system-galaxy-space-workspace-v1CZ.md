@@ -34,6 +34,7 @@ Tento dokument vykonava:
 4. `docs/P0-core/contracts/aktivni/ux/ux-operation-layer-grid-command-v1CZ.md`
 5. `docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md`
 6. `docs/P0-core/contracts/aktivni/fe/parser-alias-learning-and-event-preview-v1CZ.md`
+7. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
 
 ## 4. Zavazny princip builderu
 
@@ -239,6 +240,6 @@ Vysledek:
 
 ## 14. Co zustava otevrene
 
-- [ ] Zapsat vykonavaci dokument `Galaxy Space Workspace v1` pro prvni rez `free navigation + radar + selection/approach`.
+- [x] 2026-03-12 Zavazny vykonavaci dokument `Galaxy Space Workspace v1` byl zapsan.
 - [ ] Rozhodnout prvni builder implementacni rez po navigacni baseline: `command bar`, nebo `grid open from planet context`.
 - [ ] U dalsiho builder bloku explicitne vybrat, ktere archived helpery se vraci do aktivni runtime.

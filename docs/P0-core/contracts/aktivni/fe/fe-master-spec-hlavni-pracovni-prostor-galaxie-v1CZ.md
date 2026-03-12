@@ -322,6 +322,7 @@ Tento master spec se zavazne opira o:
 
 1. `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`
 2. navaznou `BE -> FE` projekcni mapu pro workspace.
+3. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
 
 Pravidlo:
 
@@ -379,7 +380,7 @@ Vysledek:
 
 ## 15. Co zustava otevrene
 
-- [ ] Navaznym blokem zapsat konkretni vykonavaci dokument `Galaxy Space Workspace v1`.
+- [x] 2026-03-12 Zavazny vykonavaci dokument `Galaxy Space Workspace v1` byl zapsan.
 - [x] 2026-03-12 Aktivni builder system pro `Galaxy Space Workspace` byl zapsan v samostatnem dokumentu.
 - [x] 2026-03-12 Detailni `BE -> FE` projekcni mapa pro vsechny povinne vrstvy workspace byla zapsana.
 - [ ] Teprve potom rozdelit implementaci na proveditelne FE rezy.
