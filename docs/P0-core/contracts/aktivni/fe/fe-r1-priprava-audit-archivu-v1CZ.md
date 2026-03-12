@@ -172,6 +172,7 @@ Stav:
 
 1. [x] 2026-03-12 Technicky inventory uzavren v dokumentu `docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`.
 2. [x] 2026-03-12 `cleanup batch 1` uzavren v dokumentu `docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md`.
+3. [x] 2026-03-12 Prisny FE-R1 navrh zapsan v dokumentu `docs/P0-core/contracts/aktivni/fe/fe-r1-first-view-koncept-v1CZ.md`.
 
 ## 10. Dukazni sada pripravy
 
