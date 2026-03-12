@@ -61,7 +61,7 @@ Scope: entire repository.
 3. User handles: running requested tests and performing git commit.
 4. After every block, agent must provide `Povel pro tebe` with exact copy/paste commands.
 5. Do not claim block completion without an explicit command list for user execution.
-6. For UX-first, refactor, or product-experience work, load and follow `docs/P0-core/governance/human-agent-alignment-protocol-v1.md` before claiming scope, success, or closure.
+6. For UX-first, refactor, or product-experience work, load and follow `docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md` before claiming scope, success, or closure.
 7. Po FE resetu je zavazny postup `priprava -> navrh -> implementace`; agent nesmi preskocit pripravu a jit rovnou do kodu.
 8. Pri praci nad FE archivem musi nejdriv probehnout porada nad `frontend/src/_inspiration_reset_20260312/` se zapisem `OK / NOK / proc / co prevzit / co odstranit`.
 9. `NOK` polozky z FE archivu se po schvalene davce odstranuji definitivne z projektu; agent je nesmi nechavat dlouhodobe lezet bez rozhodnuti.

@@ -60,7 +60,8 @@ describe("StarCoreInteriorScreen", () => {
 
     expect(screen.getByTestId("star-core-interior-screen")).toBeTruthy();
     expect(screen.getByTestId("constitution-selection-focus")).toBeTruthy();
-    expect(screen.queryAllByText("Puls hvezdy: Steady")).toHaveLength(2);
+    expect(screen.getByTestId("ritual-chamber-core")).toBeTruthy();
+    expect(screen.queryAllByText("Puls hvezdy: Steady")).toHaveLength(1);
     fireEvent.click(screen.getByTestId("constitution-option-rovnovaha"));
     expect(props.onSelectConstitution).toHaveBeenCalledWith("rovnovaha");
   });
@@ -84,7 +85,7 @@ describe("StarCoreInteriorScreen", () => {
     render(<StarCoreInteriorScreen {...props} />);
 
     expect(screen.getByText("AKTIVNI VOLBA")).toBeTruthy();
-    expect(screen.getByText("Rovnovaha urci prvni charakter prostoru")).toBeTruthy();
+    expect(screen.getByText("Udrzi prvni prostor citelny, stabilni a pripraveny na navazani.")).toBeTruthy();
     expect(screen.getAllByText("Tonalita: stabilni modry puls").length).toBeGreaterThan(0);
   });
 
@@ -111,6 +112,7 @@ describe("StarCoreInteriorScreen", () => {
 
     fireEvent.click(screen.getByTestId("star-core-primary-action"));
     expect(props.onConfirmPolicyLock).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("ritual-lock-ring")).toBeTruthy();
   });
 
   it("uses explicit return action", () => {
@@ -160,7 +162,7 @@ describe("StarCoreInteriorScreen", () => {
     render(<StarCoreInteriorScreen {...props} />);
 
     expect(screen.getByTestId("first-orbit-ready-surface")).toBeTruthy();
-    expect(screen.queryByTestId("constitution-select-surface")).toBeNull();
+    expect(screen.getByTestId("first-orbit-ring")).toBeTruthy();
     expect(screen.getByText("POTVRZENA USTAVA")).toBeTruthy();
   });
 });

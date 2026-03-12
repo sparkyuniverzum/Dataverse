@@ -6,6 +6,10 @@ Ucel: restart rezim.
 
 Pri bezne praci se maji cist defaultne jen dokumenty v `docs/P0-core/contracts/aktivni/`.
 
+Pro pravidla FE spoluprace je jediny kanonicky governance zdroj:
+
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md)
+
 ### Core
 
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/canonical-ux-ontology-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/canonical-ux-ontology-v1CZ.md)

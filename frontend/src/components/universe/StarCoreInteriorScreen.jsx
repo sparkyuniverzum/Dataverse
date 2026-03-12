@@ -1,22 +1,4 @@
-function frameStyle(screenModel) {
-  return {
-    width: "min(1180px, calc(100vw - 2rem))",
-    minHeight: "min(760px, calc(100vh - 2rem))",
-    display: "grid",
-    gridTemplateRows: "auto 1fr auto",
-    gap: "1rem",
-    padding: "clamp(1rem, 2vw, 1.8rem)",
-    borderRadius: "1.8rem",
-    border: "1px solid rgba(112, 207, 255, 0.16)",
-    background:
-      "radial-gradient(circle at 50% 12%, rgba(255, 177, 89, 0.16), transparent 16%), radial-gradient(circle at 50% 42%, rgba(69, 191, 255, 0.12), transparent 32%), linear-gradient(180deg, rgba(5, 12, 24, 0.98) 0%, rgba(4, 9, 19, 0.97) 58%, rgba(4, 8, 17, 0.99) 100%)",
-    boxShadow: "0 30px 140px rgba(0, 0, 0, 0.52)",
-    transform: `translateY(${screenModel.isEntering ? "24px" : screenModel.isReturning ? "-18px" : "0"}) scale(${screenModel.isEntering ? 0.985 : 1})`,
-    opacity: screenModel.isEntering || screenModel.isReturning ? 0.78 : 1,
-    transition: "transform 260ms ease, opacity 260ms ease",
-    overflow: "hidden",
-  };
-}
+import { resolveStarCoreInteriorVisualModel } from "./starCoreInteriorVisualModel.js";
 
 function actionButtonStyle(primary, disabled) {
   return {
@@ -26,12 +8,16 @@ function actionButtonStyle(primary, disabled) {
       ? disabled
         ? "rgba(55, 81, 102, 0.45)"
         : "linear-gradient(90deg, rgba(134, 223, 255, 0.95), rgba(255, 201, 124, 0.92))"
-      : "rgba(9, 18, 35, 0.76)",
+      : "rgba(9, 18, 35, 0.26)",
     color: primary ? (disabled ? "rgba(221, 238, 255, 0.56)" : "#042136") : "#e1f6ff",
-    padding: "0.82rem 1.08rem",
+    padding: "0.75rem 1.2rem",
     fontWeight: primary ? 700 : 600,
     cursor: disabled ? "default" : "pointer",
     opacity: disabled ? 0.7 : 1,
+    backdropFilter: "blur(10px)",
+    transition: "all 220ms ease",
+    fontSize: "0.88rem",
+    letterSpacing: "0.04em",
   };
 }
 
@@ -69,91 +55,36 @@ function constitutionEffectLine(option) {
   return option?.effectHint || "Urci dalsi chovani prostoru.";
 }
 
-function resolveCopy(interiorModel, lockTransitionModel) {
-  if (interiorModel.phase === "star_core_interior_entry") {
-    return {
-      eyebrow: "STAR CORE INTERIOR",
-      title: "Srdce hvezdy se otevira",
-      body: "Prostor utichne a governance komora se rozvine kolem jadra.",
-    };
-  }
-  if (interiorModel.isFirstOrbitReady) {
-    return {
-      eyebrow: "FIRST ORBIT READY",
-      title: interiorModel.explainability?.headline || "Politiky jsou uzamceny.",
-      body: interiorModel.explainability?.body || "Prvni obezna draha je pripravena jako dalsi fyzicky krok prostoru.",
-    };
-  }
-  if (interiorModel.isLockPending || interiorModel.canConfirmLock) {
-    return {
-      eyebrow: "POLICY LOCK",
-      title: lockTransitionModel?.title || interiorModel.explainability?.headline || "Ustava je pripravena",
-      body: lockTransitionModel?.hint || interiorModel.explainability?.body || "",
-    };
-  }
-  return {
-    eyebrow: "CONSTITUTION SELECT",
-    title: interiorModel.explainability?.headline || "Vyber ustavu prostoru",
-    body: interiorModel.explainability?.body || "Kazdy rezim meni puls, tonalitu a hustotu prvni vrstvy galaxie.",
-  };
-}
-
-function resolveSelectionPrompt(option) {
-  if (!option) {
-    return {
-      title: "Nejdriv se ustali rezim jadra",
-      body: "Vyber rezim, ktery nejlepe popise, jak ma Srdce hvezdy pusobit na prvni prostor.",
-    };
-  }
-  return {
-    title: `${option.title} urci prvni charakter prostoru`,
-    body: constitutionEffectLine(option),
-  };
-}
-
-function resolveStageTheme(interiorModel, focusedConstitution) {
-  const tonePrimary = focusedConstitution?.tonePrimary || "#7ee8ff";
-  const toneSecondary = focusedConstitution?.toneSecondary || "#82ffd4";
-
-  if (interiorModel.isFirstOrbitReady) {
-    return {
-      halo: "rgba(126, 232, 255, 0.22)",
-      glow: "rgba(126, 232, 255, 0.14)",
-      ring: "rgba(143, 232, 255, 0.42)",
-      orbit: "rgba(143, 232, 255, 0.72)",
-      tonePrimary,
-      toneSecondary,
-    };
-  }
-  if (interiorModel.isLockPending) {
-    return {
-      halo: "rgba(255, 218, 145, 0.24)",
-      glow: "rgba(255, 218, 145, 0.18)",
-      ring: "rgba(255, 214, 120, 0.46)",
-      orbit: "rgba(255, 214, 120, 0.76)",
-      tonePrimary: "#ffd27b",
-      toneSecondary: "#ffefb6",
-    };
-  }
-  return {
-    halo: `${tonePrimary}22`,
-    glow: `${toneSecondary}22`,
-    ring: `${tonePrimary}66`,
-    orbit: `${tonePrimary}aa`,
-    tonePrimary,
-    toneSecondary,
-  };
-}
-
 function resolveNodePosition(index, total) {
   const count = Math.max(total, 1);
   const theta = (index / count) * Math.PI * 2 - Math.PI / 2;
-  const radiusX = 34;
-  const radiusY = 28;
+  const radiusX = 38;
+  const radiusY = 32;
   return {
     left: `${50 + Math.cos(theta) * radiusX}%`,
     top: `${50 + Math.sin(theta) * radiusY}%`,
   };
+}
+
+function renderSignalChip(text, tone = "#dff6ff", extraStyle = {}) {
+  return (
+    <span
+      style={{
+        width: "fit-content",
+        padding: "0.4rem 0.7rem",
+        borderRadius: "999px",
+        border: "1px solid rgba(127, 220, 255, 0.12)",
+        background: "rgba(5, 12, 24, 0.42)",
+        color: tone,
+        fontSize: "0.74rem",
+        letterSpacing: "0.08em",
+        backdropFilter: "blur(8px)",
+        ...extraStyle,
+      }}
+    >
+      {text}
+    </span>
+  );
 }
 
 function renderConstitutionNode(option, index, total, selected, onSelectConstitution) {
@@ -169,347 +100,310 @@ function renderConstitutionNode(option, index, total, selected, onSelectConstitu
         left: position.left,
         top: position.top,
         transform: "translate(-50%, -50%)",
-        width: selected ? "132px" : "116px",
-        minHeight: selected ? "132px" : "116px",
-        padding: "0.9rem",
-        borderRadius: "999px",
-        border: `1px solid ${selected ? option.tonePrimary : "rgba(127, 220, 255, 0.18)"}`,
+        width: selected ? "160px" : "130px",
+        minHeight: selected ? "160px" : "130px",
+        padding: "1rem",
+        borderRadius: "50%",
+        border: `1px solid ${selected ? option.tonePrimary : "rgba(127, 220, 255, 0.14)"}`,
         background: selected
-          ? `radial-gradient(circle at 50% 35%, ${option.toneSecondary}66, rgba(8, 18, 33, 0.96) 72%)`
-          : "radial-gradient(circle at 50% 35%, rgba(126, 232, 255, 0.16), rgba(6, 14, 28, 0.94) 72%)",
-        boxShadow: selected ? `0 0 28px ${option.tonePrimary}55` : "0 0 18px rgba(126, 232, 255, 0.12)",
+          ? `radial-gradient(circle at 50% 35%, ${option.toneSecondary}44, rgba(8, 18, 33, 0.88) 72%)`
+          : "radial-gradient(circle at 50% 35%, rgba(126, 232, 255, 0.08), rgba(6, 14, 28, 0.82) 72%)",
+        boxShadow: selected ? `0 0 40px ${option.tonePrimary}44` : "0 0 12px rgba(126, 232, 255, 0.08)",
         color: "#edf7ff",
         display: "grid",
         alignContent: "center",
-        gap: "0.35rem",
+        gap: "0.2rem",
         textAlign: "center",
         cursor: "pointer",
-        backdropFilter: "blur(12px)",
+        backdropFilter: "blur(14px)",
+        transition: "all 350ms cubic-bezier(0.23, 1, 0.32, 1)",
+        zIndex: selected ? 10 : 5,
       }}
     >
-      <strong style={{ fontSize: selected ? "0.98rem" : "0.9rem" }}>{option.title}</strong>
-      <span style={{ color: option.tonePrimary, fontSize: "0.68rem", letterSpacing: "0.08em" }}>
-        {selected ? "AKTIVNI VOLBA" : option.recommended ? "DOPORUCENO" : "REZIM"}
+      <strong style={{ fontSize: selected ? "1.05rem" : "0.85rem", letterSpacing: "0.02em" }}>{option.title}</strong>
+      <span style={{ color: option.tonePrimary, fontSize: "0.62rem", letterSpacing: "0.1em", fontWeight: 700 }}>
+        {selected ? "AKTIVNI VOLBA" : "REZIM"}
       </span>
     </button>
   );
 }
 
-function renderSignalChip(text, align = "left", tone = "#dff6ff") {
-  return (
-    <span
-      style={{
-        justifySelf: align,
-        width: "fit-content",
-        padding: "0.45rem 0.72rem",
-        borderRadius: "999px",
-        border: "1px solid rgba(127, 220, 255, 0.16)",
-        background: "rgba(5, 12, 24, 0.52)",
-        color: tone,
-        fontSize: "0.78rem",
-        letterSpacing: "0.06em",
-        backdropFilter: "blur(10px)",
-      }}
-    >
-      {text}
-    </span>
-  );
-}
-
-function renderConstitutionSelectView({
+function renderRitualChamber({
+  interiorModel,
+  visualModel,
   constitutionOptions,
   focusedConstitution,
-  interiorModel,
-  lockTransitionModel,
   onSelectConstitution,
   onConfirmPolicyLock,
+  onReturnToSpace,
+  lockTransitionModel,
 }) {
-  const selectionPrompt = resolveSelectionPrompt(focusedConstitution);
-  const stageTheme = resolveStageTheme(interiorModel, focusedConstitution);
   const isPolicyLockPhase = interiorModel.phase === "policy_lock_ready" || interiorModel.isLockPending;
 
   return (
-    <section
-      data-testid="constitution-select-surface"
+    <div
+      data-testid="ritual-chamber-spatial-root"
       style={{
         position: "relative",
-        minHeight: "31rem",
+        width: "100%",
+        height: "100%",
         display: "grid",
-        gridTemplateColumns: "minmax(280px, 1fr) minmax(360px, 1.2fr) minmax(280px, 1fr)",
-        alignItems: "center",
-        gap: "1rem",
+        placeItems: "center",
+        perspective: "1200px",
       }}
     >
-      <div style={{ display: "grid", gap: "0.9rem", alignContent: "start" }}>
-        {renderSignalChip("CONSTITUTION SELECT")}
+      {/* Background Ambience */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          width: "50rem",
+          height: "50rem",
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${visualModel.theme.chamberGlow}, transparent 70%)`,
+          filter: "blur(40px)",
+          opacity: 0.6,
+        }}
+      />
+
+      {/* Primary Diegetic Info Layer (Left) */}
+      <div
+        style={{
+          position: "absolute",
+          left: "3rem",
+          top: "50%",
+          transform: "translateY(-50%)",
+          display: "grid",
+          gap: "1.2rem",
+          maxWidth: "22rem",
+          zIndex: 20,
+        }}
+      >
+        {renderSignalChip(visualModel.phaseCopy.eyebrow, visualModel.theme.tonePrimary)}
+        {visualModel.showFirstOrbit ? (
+          <span
+            data-testid="first-orbit-ready-surface"
+            style={{
+              width: "fit-content",
+              padding: "0.4rem 0.7rem",
+              borderRadius: "999px",
+              border: `1px solid ${visualModel.theme.orbitStroke}`,
+              background: "rgba(5, 12, 24, 0.52)",
+              color: "#e9f8ff",
+              fontSize: "0.74rem",
+              letterSpacing: "0.1em",
+              fontWeight: 700,
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            POTVRZENA USTAVA
+          </span>
+        ) : null}
         <div
           data-testid="constitution-selection-focus"
           style={{
             display: "grid",
-            gap: "0.8rem",
-            padding: "1rem",
-            borderRadius: "1.2rem",
-            border: `1px solid ${stageTheme.tonePrimary}33`,
-            background: "linear-gradient(180deg, rgba(8, 16, 31, 0.88), rgba(5, 10, 21, 0.94))",
-            boxShadow: `0 0 40px ${stageTheme.glow}`,
+            gap: "0.6rem",
           }}
         >
-          <span style={{ color: stageTheme.tonePrimary, fontSize: "0.78rem", letterSpacing: "0.12em" }}>
-            {focusedConstitution?.id === interiorModel.recommendedConstitutionId ? "DOPORUCENY FOKUS" : "AKTIVNI FOKUS"}
-          </span>
-          <strong style={{ fontSize: "1.28rem", color: "#fff2d7", lineHeight: 1.1 }}>{selectionPrompt.title}</strong>
-          <span style={{ color: "rgba(223, 239, 255, 0.78)", lineHeight: 1.6 }}>{selectionPrompt.body}</span>
-          {focusedConstitution ? (
-            <div style={{ display: "grid", gap: "0.45rem", color: "rgba(214, 235, 255, 0.8)", fontSize: "0.84rem" }}>
-              <span>{pulseLabel(focusedConstitution)}</span>
-              <span>{toneLabel(focusedConstitution)}</span>
-              <span>{densityLabel(focusedConstitution)}</span>
-            </div>
-          ) : null}
+          <h2 style={{ margin: 0, color: "#fff4de", fontSize: "2.2rem", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
+            {focusedConstitution ? focusedConstitution.title : visualModel.phaseCopy.title}
+          </h2>
+          <p style={{ margin: 0, color: "rgba(223, 239, 255, 0.82)", fontSize: "0.95rem", lineHeight: 1.6 }}>
+            {focusedConstitution ? constitutionEffectLine(focusedConstitution) : visualModel.phaseCopy.body}
+          </p>
         </div>
+
+        {focusedConstitution ? (
+          <div
+            style={{
+              display: "grid",
+              gap: "0.5rem",
+              padding: "1rem",
+              borderRadius: "1rem",
+              border: "1px solid rgba(127, 220, 255, 0.08)",
+              background: "rgba(5, 12, 24, 0.28)",
+              fontSize: "0.82rem",
+              color: "rgba(214, 235, 255, 0.7)",
+            }}
+          >
+            <span>{pulseLabel(focusedConstitution)}</span>
+            <span>{toneLabel(focusedConstitution)}</span>
+            <span>{densityLabel(focusedConstitution)}</span>
+          </div>
+        ) : null}
       </div>
 
+      {/* Central Spatial Core */}
       <div
+        data-testid="ritual-chamber-core"
         style={{
           position: "relative",
-          minHeight: "31rem",
+          width: "40rem",
+          height: "40rem",
           display: "grid",
           placeItems: "center",
         }}
       >
+        {/* Orbital Ring (Selection) */}
         <div
           aria-hidden="true"
           style={{
             position: "absolute",
-            inset: "10% 14%",
+            width: "36rem",
+            height: "14rem",
             borderRadius: "50%",
-            border: `1px solid ${stageTheme.ring}`,
-            boxShadow: `0 0 40px ${stageTheme.glow}, inset 0 0 24px ${stageTheme.glow}`,
+            border: `1px solid ${visualModel.theme.orbitStroke}`,
+            background: visualModel.theme.orbitFill,
+            transform: "rotateX(76deg)",
+            boxShadow: `0 0 30px ${visualModel.theme.chamberGlow}`,
+            transition: "all 600ms ease",
           }}
         />
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: "18% 22%",
-            borderRadius: "50%",
-            border: `1px solid ${stageTheme.orbit}`,
-            transform: "rotateX(68deg)",
-            opacity: 0.86,
-          }}
-        />
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: "28% 32%",
-            borderRadius: "50%",
-            background: `radial-gradient(circle at 50% 45%, ${stageTheme.toneSecondary}aa, ${stageTheme.tonePrimary}33 38%, rgba(4, 10, 21, 0.05) 70%)`,
-            boxShadow: `0 0 80px ${stageTheme.halo}, 0 0 140px ${stageTheme.glow}`,
-            filter: "blur(1px)",
-          }}
-        />
-        {constitutionOptions.map((option, index) =>
-          renderConstitutionNode(
-            option,
-            index,
-            constitutionOptions.length,
-            focusedConstitution?.id === option.id,
-            onSelectConstitution
-          )
-        )}
+
+        {visualModel.showLockRing ? (
+          <div
+            data-testid="ritual-lock-ring"
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              width: `${24 * visualModel.lockRingScale}rem`,
+              height: `${24 * visualModel.lockRingScale}rem`,
+              borderRadius: "50%",
+              border: `2px solid ${visualModel.theme.ringStroke}`,
+              boxShadow: `0 0 50px ${visualModel.theme.chamberBeam}, inset 0 0 30px ${visualModel.theme.chamberGlow}`,
+              transition: "transform 450ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+            }}
+          />
+        ) : null}
+
+        {visualModel.showSelectionOrbit
+          ? constitutionOptions.map((option, index) =>
+              renderConstitutionNode(
+                option,
+                index,
+                constitutionOptions.length,
+                focusedConstitution?.id === option.id,
+                onSelectConstitution
+              )
+            )
+          : null}
+
+        {/* The Heart */}
         <div
           style={{
             position: "relative",
-            width: "220px",
-            height: "220px",
+            width: "18rem",
+            height: "18rem",
             borderRadius: "50%",
             display: "grid",
             placeItems: "center",
-            background: `radial-gradient(circle at 50% 38%, ${stageTheme.toneSecondary}, ${stageTheme.tonePrimary}66 34%, rgba(5, 10, 20, 0.2) 68%)`,
-            boxShadow: `0 0 60px ${stageTheme.glow}, inset 0 0 28px rgba(255, 255, 255, 0.05)`,
-            border: `1px solid ${stageTheme.ring}`,
+            background: visualModel.theme.coreGradient,
+            boxShadow: `0 0 80px ${visualModel.theme.chamberGlow}, 0 0 140px ${visualModel.theme.chamberBeam}`,
+            border: `1px solid ${visualModel.theme.ringStroke}`,
+            transition: "all 800ms ease",
+            zIndex: 15,
           }}
         >
-          <div style={{ display: "grid", gap: "0.4rem", textAlign: "center", maxWidth: "10rem" }}>
-            <span style={{ color: "rgba(245, 248, 255, 0.92)", fontSize: "0.8rem", letterSpacing: "0.12em" }}>
-              STAR CORE
+          <div style={{ display: "grid", gap: "0.4rem", textAlign: "center", maxWidth: "12rem" }}>
+            <span style={{ color: "rgba(245, 248, 255, 0.85)", fontSize: "0.7rem", letterSpacing: "0.15em" }}>
+              {visualModel.stageLabel.toUpperCase()}
             </span>
-            <strong style={{ color: "#fff4de", fontSize: "1.18rem", lineHeight: 1.12 }}>
-              {focusedConstitution?.title || "Vyber ustavu"}
+            <strong style={{ color: "#fff4de", fontSize: "1.4rem", lineHeight: 1.1, letterSpacing: "0.02em" }}>
+              {focusedConstitution?.title || "AKTIVNI JADRO"}
             </strong>
-            <span style={{ color: "rgba(224, 239, 255, 0.74)", fontSize: "0.78rem", lineHeight: 1.45 }}>
-              {focusedConstitution?.subtitle || "Rezim se projevi pulzem a tonalitou prostoru."}
-            </span>
           </div>
         </div>
+
+        {visualModel.showFirstOrbit ? (
+          <div
+            data-testid="first-orbit-ring"
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              width: "34rem",
+              height: "12rem",
+              borderRadius: "50%",
+              border: `1px solid ${visualModel.theme.orbitStroke}`,
+              boxShadow: `0 0 30px ${visualModel.theme.orbitStroke}`,
+              transform: "rotateX(72deg) rotateZ(12deg)",
+              animation: "pulse 4s infinite ease-in-out",
+            }}
+          />
+        ) : null}
       </div>
 
-      <div style={{ display: "grid", gap: "0.9rem", alignContent: "start", justifyItems: "end" }}>
-        {renderSignalChip(`Vliv: ${constitutionEffectLine(focusedConstitution)}`, "end", "#ffe7bf")}
-        {renderSignalChip(
-          interiorModel.explainability?.headline || "Vyber ustavu prostoru",
-          "end",
-          stageTheme.tonePrimary
-        )}
+      {/* Secondary Diegetic Layer (Right) */}
+      <div
+        style={{
+          position: "absolute",
+          right: "3rem",
+          top: "50%",
+          transform: "translateY(-50%)",
+          display: "grid",
+          gap: "1.5rem",
+          justifyItems: "end",
+          maxWidth: "20rem",
+          zIndex: 20,
+        }}
+      >
         {interiorModel.errorMessage ? (
           <div
             style={{
-              width: "100%",
-              padding: "0.9rem 1rem",
+              padding: "1rem",
               borderRadius: "1rem",
-              border: "1px solid rgba(255, 168, 145, 0.28)",
-              background: "rgba(39, 13, 10, 0.44)",
+              border: "1px solid rgba(255, 168, 145, 0.2)",
+              background: "rgba(39, 13, 10, 0.4)",
               color: "#ffc9b8",
-              lineHeight: 1.45,
+              fontSize: "0.85rem",
+              lineHeight: 1.5,
+              backdropFilter: "blur(10px)",
             }}
           >
             {interiorModel.errorMessage}
           </div>
         ) : null}
+
+        {interiorModel.isFirstOrbitReady ? (
+          <button
+            type="button"
+            data-testid="star-core-primary-action"
+            disabled={Boolean(lockTransitionModel?.disabled)}
+            onClick={onReturnToSpace}
+            style={{ ...actionButtonStyle(true, Boolean(lockTransitionModel?.disabled)), minWidth: "16rem" }}
+          >
+            {lockTransitionModel?.actionLabel || "Vratit se do prostoru"}
+          </button>
+        ) : null}
+
         {isPolicyLockPhase && lockTransitionModel?.actionLabel ? (
           <button
             type="button"
             data-testid="star-core-primary-action"
             disabled={Boolean(lockTransitionModel.disabled)}
             onClick={onConfirmPolicyLock}
-            style={{ ...actionButtonStyle(true, Boolean(lockTransitionModel.disabled)), minWidth: "18rem" }}
+            style={{ ...actionButtonStyle(true, Boolean(lockTransitionModel.disabled)), minWidth: "16rem" }}
           >
             {lockTransitionModel.actionLabel}
           </button>
         ) : null}
-      </div>
-    </section>
-  );
-}
 
-function renderFirstOrbitReadyView({ selectedConstitution, interiorModel, lockTransitionModel, onReturnToSpace }) {
-  const stageTheme = resolveStageTheme(interiorModel, selectedConstitution);
-
-  return (
-    <section
-      data-testid="first-orbit-ready-surface"
-      style={{
-        position: "relative",
-        minHeight: "30rem",
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1.25fr) minmax(280px, 0.75fr)",
-        alignItems: "center",
-        gap: "1rem",
-      }}
-    >
-      <div
-        style={{
-          position: "relative",
-          minHeight: "30rem",
-          display: "grid",
-          placeItems: "center",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            width: "26rem",
-            height: "26rem",
-            borderRadius: "50%",
-            border: `1px solid ${stageTheme.ring}`,
-            boxShadow: `0 0 40px ${stageTheme.glow}`,
-          }}
-        />
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            width: "34rem",
-            height: "12rem",
-            borderRadius: "50%",
-            border: `1px solid ${stageTheme.orbit}`,
-            transform: "rotateX(72deg)",
-            boxShadow: `0 0 22px ${stageTheme.orbit}`,
-          }}
-        />
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            width: "34rem",
-            height: "12rem",
-            borderRadius: "50%",
-            border: "1px solid rgba(255,255,255,0.08)",
-            transform: "rotateX(72deg) rotateZ(12deg)",
-          }}
-        />
-        <div
-          style={{
-            position: "relative",
-            width: "220px",
-            height: "220px",
-            borderRadius: "50%",
-            display: "grid",
-            placeItems: "center",
-            background: `radial-gradient(circle at 50% 38%, ${stageTheme.toneSecondary}, ${stageTheme.tonePrimary}66 34%, rgba(5, 10, 20, 0.2) 68%)`,
-            boxShadow: `0 0 60px ${stageTheme.glow}`,
-            border: `1px solid ${stageTheme.ring}`,
-          }}
-        >
-          <div style={{ display: "grid", gap: "0.4rem", textAlign: "center", maxWidth: "11rem" }}>
-            <span style={{ color: "rgba(245, 248, 255, 0.92)", fontSize: "0.8rem", letterSpacing: "0.12em" }}>
-              FIRST ORBIT
-            </span>
-            <strong style={{ color: "#fff4de", fontSize: "1.22rem", lineHeight: 1.08 }}>Politiky jsou uzamceny.</strong>
-            <span style={{ color: "rgba(224, 239, 255, 0.76)", fontSize: "0.8rem", lineHeight: 1.45 }}>
-              Prvni draha uz existuje jako fyzicky signal dalsiho kroku.
-            </span>
-          </div>
-        </div>
-        {selectedConstitution ? (
-          <div
-            style={{
-              position: "absolute",
-              left: "12%",
-              bottom: "14%",
-              width: "14rem",
-              display: "grid",
-              gap: "0.45rem",
-              padding: "0.95rem 1rem",
-              borderRadius: "1rem",
-              border: "1px solid rgba(255, 204, 136, 0.18)",
-              background: "rgba(33, 19, 8, 0.28)",
-              color: "#ffe8bf",
-            }}
-          >
-            <span style={{ fontSize: "0.78rem", letterSpacing: "0.1em" }}>POTVRZENA USTAVA</span>
-            <strong>{selectedConstitution.title}</strong>
-            <span style={{ color: "rgba(255, 232, 191, 0.78)", lineHeight: 1.45 }}>
-              {constitutionEffectLine(selectedConstitution)}
-            </span>
-          </div>
-        ) : null}
+        {renderSignalChip(`PHASE: ${visualModel.stageLabel}`, visualModel.theme.toneSecondary)}
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gap: "0.9rem",
-          alignContent: "center",
-          justifyItems: "end",
-        }}
-      >
-        {renderSignalChip("FIRST ORBIT READY", "end", stageTheme.tonePrimary)}
-        {renderSignalChip(interiorModel.explainability?.body || "Governance zaklad je potvrzen.", "end", "#dff6ff")}
+      {/* Return Control (Top Right) */}
+      <div style={{ position: "absolute", top: "2rem", right: "2rem", zIndex: 30 }}>
         <button
           type="button"
-          data-testid="star-core-primary-action"
-          disabled={Boolean(lockTransitionModel?.disabled)}
+          data-testid="star-core-return-action"
           onClick={onReturnToSpace}
-          style={{ ...actionButtonStyle(true, Boolean(lockTransitionModel?.disabled)), minWidth: "18rem" }}
+          disabled={interiorModel.phase === "policy_lock_transition"}
+          style={actionButtonStyle(false, interiorModel.phase === "policy_lock_transition")}
         >
-          {lockTransitionModel?.actionLabel || "Vratit se do prostoru"}
+          Opustit jadro
         </button>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -524,19 +418,20 @@ export default function StarCoreInteriorScreen({
 }) {
   if (!screenModel?.isVisible) return null;
 
-  const copy = resolveCopy(interiorModel, lockTransitionModel);
   const constitutionOptions = Array.isArray(interiorModel.availableConstitutions)
     ? interiorModel.availableConstitutions
     : [];
-  const canReturn = interiorModel.phase !== "policy_lock_transition";
   const focusedConstitution =
     selectedConstitution ||
     constitutionOptions.find((option) => option.id === interiorModel.selectedConstitutionId) ||
     constitutionOptions.find((option) => option.id === interiorModel.recommendedConstitutionId) ||
     constitutionOptions[0] ||
     null;
-  const showSelectionSurface =
-    interiorModel.phase === "constitution_select" || interiorModel.phase === "policy_lock_ready";
+  const visualModel = resolveStarCoreInteriorVisualModel({
+    interiorModel,
+    selectedConstitution: focusedConstitution,
+    screenModel,
+  });
 
   return (
     <section
@@ -548,79 +443,40 @@ export default function StarCoreInteriorScreen({
         zIndex: 5,
         display: "grid",
         placeItems: "center",
-        padding: "1rem",
-        background:
-          "linear-gradient(180deg, rgba(2, 5, 11, 0.64) 0%, rgba(2, 6, 12, 0.84) 100%), radial-gradient(circle at 50% 20%, rgba(255, 177, 81, 0.14), transparent 24%)",
+        background: visualModel.theme.shellGradient,
+        opacity: visualModel.chamberOpacity,
+        transition: "opacity 400ms ease",
+        overflow: "hidden",
       }}
     >
-      <div style={frameStyle(screenModel)}>
-        <header style={{ display: "grid", gap: "0.8rem" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: "1rem",
-              alignItems: "start",
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ display: "grid", gap: "0.45rem", maxWidth: "44rem" }}>
-              <span style={{ color: "rgba(164, 231, 255, 0.84)", fontSize: "0.78rem", letterSpacing: "0.12em" }}>
-                {copy.eyebrow}
-              </span>
-              <h1 style={{ margin: 0, color: "#fff4de", fontSize: "clamp(1.8rem, 4vw, 3rem)", lineHeight: 1.02 }}>
-                {copy.title}
-              </h1>
-              <p style={{ margin: 0, color: "rgba(230, 241, 255, 0.78)", fontSize: "1rem", lineHeight: 1.55 }}>
-                {copy.body}
-              </p>
-            </div>
-            <button
-              type="button"
-              data-testid="star-core-return-action"
-              onClick={onReturnToSpace}
-              disabled={!canReturn}
-              style={actionButtonStyle(false, !canReturn)}
-            >
-              Zpet do Galaxy Space
-            </button>
-          </div>
-        </header>
+      {renderRitualChamber({
+        interiorModel,
+        visualModel,
+        constitutionOptions,
+        focusedConstitution,
+        onSelectConstitution,
+        onConfirmPolicyLock,
+        onReturnToSpace,
+        lockTransitionModel,
+      })}
 
-        {showSelectionSurface
-          ? renderConstitutionSelectView({
-              constitutionOptions,
-              focusedConstitution,
-              interiorModel,
-              lockTransitionModel,
-              onSelectConstitution,
-              onConfirmPolicyLock,
-            })
-          : null}
-
-        {interiorModel.isFirstOrbitReady
-          ? renderFirstOrbitReadyView({
-              selectedConstitution,
-              interiorModel,
-              lockTransitionModel,
-              onReturnToSpace,
-            })
-          : null}
-
-        <footer
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: "0.75rem",
-            flexWrap: "wrap",
-            color: "rgba(204, 226, 244, 0.7)",
-            fontSize: "0.84rem",
-          }}
-        >
-          <span>{screenModel.stage}</span>
-          <span>{`Backend faze: ${interiorModel.phase}`}</span>
-        </footer>
-      </div>
+      <footer
+        style={{
+          position: "absolute",
+          bottom: "1.5rem",
+          left: "2rem",
+          right: "2rem",
+          display: "flex",
+          justifyContent: "space-between",
+          color: "rgba(204, 226, 244, 0.4)",
+          fontSize: "0.7rem",
+          letterSpacing: "0.1em",
+          pointerEvents: "none",
+        }}
+      >
+        <span>{`SCREEN STATE: ${screenModel.stage.toUpperCase()}`}</span>
+        <span>{`CANONICAL PHASE: ${interiorModel.phase.toUpperCase()}`}</span>
+      </footer>
     </section>
   );
 }

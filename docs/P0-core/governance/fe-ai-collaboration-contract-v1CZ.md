@@ -1,4 +1,4 @@
-# Protokol sladeni clovek-agent v1 (archiv)
+# Zavazny dokument o spolupraci: Senior FE Agent & Clovek (v1) (archiv)
 
 Stav: archivovano (kompatibilitni redirect)
 Datum archivace: 2026-03-12
@@ -11,4 +11,4 @@ Aktivni kanonicky zdroj pravdy pro FE spolupraci je:
 
 Plna archivni verze tohoto puvodniho dokumentu je ulozena zde:
 
-1. `docs/P0-core/governance/archive/human-agent-alignment-protocol-v1-archived-2026-03-12.md`
+1. `docs/P0-core/governance/archive/fe-ai-collaboration-contract-v1CZ-archived-2026-03-12.md`
