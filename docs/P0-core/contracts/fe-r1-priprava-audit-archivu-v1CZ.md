@@ -163,9 +163,14 @@ Po ukonceni schvalene auditni davky vznikne:
 
 1. cisty seznam `OK` inspiraci,
 2. cisty seznam `NOK` kandidatu pro definitivni odstraneni,
-3. navrh noveho FE-R1 first-view konceptu.
+3. technicky inventory `helpers / hooks / store / testy`,
+4. teprve potom navrh noveho FE-R1 first-view konceptu.
 
 Bez teto pripravy se FE-R1 navrh nesmi prezentovat jako schvaleny smer.
+
+Stav:
+
+1. [x] 2026-03-12 Technicky inventory uzavren v dokumentu `docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`.
 
 ## 10. Dukazni sada pripravy
 
@@ -173,4 +178,13 @@ Minimalni dukaz teto pripravy:
 
 1. archivni seznam auditnich davek,
 2. zapsana sablona `OK / NOK`,
-3. potvrzeni poradi `priprava -> navrh -> implementace`.
+3. potvrzeni poradi `priprava -> navrh -> implementace`,
+4. technicky inventory archivu s reuse mapou.
+
+## 11. Povinna sekce v navazujicich implementacnich dokumentech
+
+Kazdy FE implementacni dokument navazujici na tuto pripravu musi obsahovat:
+
+1. sekci `Pripraveny kod z archivu`,
+2. odkaz na `docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`,
+3. rozhodnuti, ktere archived helpery se v danem bloku opravdu pouziji a ktere zatim ne.

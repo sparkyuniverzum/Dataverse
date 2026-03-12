@@ -159,6 +159,19 @@ Aktivni FE test baseline po resetu:
 4. `frontend/src/components/app/WorkspaceShell.test.jsx`
 5. `frontend/src/components/universe/UniverseWorkspace.test.jsx`
 
+## 7.1 Technicky reuse podklad z archivu
+
+K resetu nově patri i aktivni technicky reuse podklad:
+
+1. `docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`
+
+Tento dokument urcuje:
+
+1. jaky pripraveny kod v archivu existuje,
+2. kam se hodi,
+3. kdy se smi vratit,
+4. a jake testy ho maji doprovodit.
+
 ## 8. Vztah ke starsim dokumentum
 
 Aktivni FE reset ramec:
@@ -172,3 +185,15 @@ Predchozi FE slice dokument:
 1. je historicky pro puvodni smer,
 2. neni uz zavaznym aktivnim vykonavacim planem,
 3. zustava pouze jako stopa pred-reset rozhodovani.
+
+## 9. Povinna poznamka pro dalsi implementacni dokumenty
+
+Kazdy dalsi aktivni FE implementacni dokument po resetu musi obsahovat sekci:
+
+1. `Pripraveny kod z archivu`
+
+V teto sekci musi byt zapsano:
+
+1. ktere archived helpery nebo controllery jsou pro dany blok pripraveny,
+2. zda se pouziji hned, nebo az v pozdejsim bloku,
+3. jaky focused test navrat potvrdi.

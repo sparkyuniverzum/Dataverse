@@ -66,6 +66,7 @@ Scope: entire repository.
 8. Pri praci nad FE archivem musi nejdriv probehnout porada nad `frontend/src/_inspiration_reset_20260312/` se zapisem `OK / NOK / proc / co prevzit / co odstranit`.
 9. `NOK` polozky z FE archivu se po schvalene davce odstranuji definitivne z projektu; agent je nesmi nechavat dlouhodobe lezet bez rozhodnuti.
 10. Kazda FE archivni davka musi byt podlozena dukazy odpovidajicimi scope: screenshoty, focused testy a strucne auditni rozhodnuti.
+11. Kazdy navazujici FE implementacni dokument po resetu musi obsahovat sekci `Pripraveny kod z archivu` s odkazem na aktivni reuse mapu a s vyctem helperu/controlleru, ktere se v danem bloku skutecne pouziji.
 
 ## Test Cadence (Mandatory)
 

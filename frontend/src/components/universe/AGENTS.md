@@ -19,6 +19,7 @@ Scope: `frontend/src/components/universe/`
 6. Nepresouvej archivovane soubory zpatky do aktivni cesty po castech bez jasneho planu.
 7. Udrzuj user-visible copy cesky a strucny.
 8. V tomto scope plati zavazne poradi `priprava -> navrh -> implementace`; novy UI smer se nejdriv schvaluje dokumentacne a screenshotove.
+9. Kazdy novy FE implementacni dokument v tomto scope musi obsahovat sekci `Pripraveny kod z archivu` a vyjmenovat konkretni archived helpery/controller moduly, ktere se maji v danem bloku vratit.
 
 ## Local Validation
 
