@@ -69,3 +69,23 @@ Každý hardening běh doplní:
 2. hash commitu,
 3. výstup tří příkazů (`OK/NOK`),
 4. případné odchylky (`durations` outliers) + rozhodnutí.
+
+## 7. Evidence běhů
+
+## 7.1 Běh 2026-03-12 (MVP baseline #1)
+
+1. commit: `1dae6a8`
+2. parser sada: `12 passed in 20.61s` (`OK`)
+3. API sada: `6 passed in 9.55s` (`OK`)
+4. projection sada: `4 passed in 10.74s` (`OK`)
+
+Outliery:
+
+1. `tests/test_parser_command_service.py::test_resolve_tasks_falls_back_to_v1_when_v2_runtime_fails_and_policy_allows` = `1.49s` (v budgetu).
+2. `tests/test_api_integration.py::test_parser_preview_returns_plan_scope_risk_and_expected_events` setup = `3.67s` (setup outlier, call čas zůstal v normě).
+
+Rozhodnutí:
+
+1. Stabilita splněna (`3x OK`, bez `5xx`).
+2. Latency budget bod 3.2.1 je překročen o `0.61s` (`20.61s` vs `20s`).
+3. Gate verdict: `MVP_PASS_WITH_WARNING` (funkčně release-safe, vyžaduje další kalibraci latency budgetu na 3 po sobě jdoucích bězích před přepnutím na striktní PASS/FAIL).
