@@ -99,12 +99,12 @@ export default function GalaxySelectionHud({ model, navigationModel, radarModel 
           width: "min(18rem, calc(100vw - 2rem))",
           display: "grid",
           gap: "0.55rem",
-          padding: "0.95rem 1rem",
+          padding: "0.85rem 0.92rem",
           borderRadius: "1.1rem",
-          border: "1px solid rgba(126, 217, 255, 0.18)",
-          background: "linear-gradient(180deg, rgba(3, 9, 20, 0.82) 0%, rgba(3, 7, 16, 0.68) 100%)",
+          border: "1px solid rgba(126, 217, 255, 0.12)",
+          background: "linear-gradient(180deg, rgba(3, 9, 20, 0.56) 0%, rgba(3, 7, 16, 0.42) 100%)",
           color: "#f2f8ff",
-          backdropFilter: "blur(16px)",
+          backdropFilter: "blur(10px)",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "center" }}>
@@ -120,9 +120,9 @@ export default function GalaxySelectionHud({ model, navigationModel, radarModel 
           style={{ width: "100%", aspectRatio: "1 / 1" }}
         >
           <circle cx="50" cy="50" r="42" fill="rgba(5, 13, 28, 0.72)" stroke="rgba(107, 214, 255, 0.24)" />
-          <circle cx="50" cy="50" r="28" fill="none" stroke="rgba(107, 214, 255, 0.18)" />
-          <line x1="50" y1="8" x2="50" y2="92" stroke="rgba(107, 214, 255, 0.12)" />
-          <line x1="8" y1="50" x2="92" y2="50" stroke="rgba(107, 214, 255, 0.12)" />
+          <circle cx="50" cy="50" r="28" fill="none" stroke="rgba(107, 214, 255, 0.14)" />
+          <line x1="50" y1="8" x2="50" y2="92" stroke="rgba(107, 214, 255, 0.08)" />
+          <line x1="8" y1="50" x2="92" y2="50" stroke="rgba(107, 214, 255, 0.08)" />
           <g transform={headingToArrow(radarModel.headingDegrees)}>
             <polygon points="50,14 46,25 54,25" fill="#8fe8ff" opacity="0.9" />
           </g>

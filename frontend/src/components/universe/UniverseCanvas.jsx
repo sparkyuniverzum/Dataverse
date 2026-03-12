@@ -11,7 +11,7 @@ function createOrbitPoints(radius, y = 0, segments = 80) {
   });
 }
 
-function CameraRig({ controlsRef, navigationModel, onHeadingChange }) {
+function CameraRig({ controlsRef, navigationModel, movementRef, onHeadingChange }) {
   const { camera, pointer } = useThree();
   const headingRef = useRef(0);
 
@@ -50,6 +50,22 @@ function CameraRig({ controlsRef, navigationModel, onHeadingChange }) {
         offset.setLength(nextDistance);
         camera.position.copy(controls.target.clone().add(offset));
       }
+
+      const movement = movementRef.current;
+      if (movement.forward || movement.backward) {
+        const speed = navigationModel.mode === "approach_active" ? 3.8 : 5.4;
+        const direction = new THREE.Vector3();
+        camera.getWorldDirection(direction);
+        direction.y = 0;
+        if (direction.lengthSq() > 0.0001) {
+          direction.normalize();
+          const sign = movement.forward ? 1 : -1;
+          const step = sign * speed * delta;
+          camera.position.addScaledVector(direction, step);
+          controls.target.addScaledVector(direction, step);
+        }
+      }
+
       controls.update();
       const headingRadians = controls.getAzimuthalAngle();
       const headingDegrees = THREE.MathUtils.radToDeg(headingRadians);
@@ -296,10 +312,32 @@ export default function UniverseCanvas({
 }) {
   const locked = model.state === "star_core_locked_ready";
   const controlsRef = useRef(null);
+  const movementRef = useRef({ forward: false, backward: false });
 
   useEffect(() => {
     document.body.style.cursor = "auto";
+    function handleKeyChange(event, pressed) {
+      if (event.key === "w" || event.key === "ArrowUp") {
+        movementRef.current.forward = pressed;
+      }
+      if (event.key === "s" || event.key === "ArrowDown") {
+        movementRef.current.backward = pressed;
+      }
+    }
+
+    function handleKeyDown(event) {
+      handleKeyChange(event, true);
+    }
+
+    function handleKeyUp(event) {
+      handleKeyChange(event, false);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
     return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
       document.body.style.cursor = "auto";
     };
   }, []);
@@ -327,14 +365,22 @@ export default function UniverseCanvas({
           ref={controlsRef}
           enableDamping
           dampingFactor={0.08}
-          minDistance={5.2}
+          minDistance={4.8}
           maxDistance={24}
           maxPolarAngle={Math.PI * 0.47}
           minPolarAngle={Math.PI * 0.2}
+          zoomSpeed={0.84}
+          rotateSpeed={0.86}
+          panSpeed={0.65}
         />
         <Stars radius={80} depth={36} count={3600} factor={4} saturation={0} fade speed={0.24} />
         <TacticalGrid color={model.palette.halo} intensity={locked ? 0.34 : 0.24} />
-        <CameraRig controlsRef={controlsRef} navigationModel={navigationModel} onHeadingChange={onHeadingChange} />
+        <CameraRig
+          controlsRef={controlsRef}
+          navigationModel={navigationModel}
+          movementRef={movementRef}
+          onHeadingChange={onHeadingChange}
+        />
         <ReactorCore
           model={model}
           navigationModel={navigationModel}
