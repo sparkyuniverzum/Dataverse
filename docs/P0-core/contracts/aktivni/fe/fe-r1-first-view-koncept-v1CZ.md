@@ -334,5 +334,5 @@ sed -n '1,240p' docs/P0-core/contracts/aktivni/ux/ux-fe-risk-assessment-v1CZ.md
 
 ## 12. Co zustava otevrene
 
-- [ ] Po schvaleni tohoto navrhu zalozit implementacni dokument FE-R1 s konkretnim scope `pred lock` + `po lock`.
+- [x] 2026-03-12 Implementacni dokument FE-R1 zapsan v `docs/P0-core/contracts/aktivni/fe/fe-r1-implementacni-dokument-v1CZ.md`.
 - [ ] Po implementaci dodat screenshoty a focused testy podle gate.
