@@ -5,10 +5,10 @@ from fastapi.routing import APIRoute
 from app.api.routers import (
     branches as branches_router_module,
     capabilities as capabilities_router_module,
+    civilizations_view as civilizations_view_router_module,
     contracts as contracts_router_module,
     galaxies as galaxies_router_package,
     io as io_router_module,
-    moons as moons_router_module,
     planets as planets_router_module,
     presets as presets_router_module,
     universe as universe_router_module,
@@ -94,8 +94,8 @@ def test_read_heavy_routers_get_routes_use_read_session_dependency() -> None:
         (planets_router_module.router, "GET", "/planets"),
         (planets_router_module.router, "GET", "/planets/{table_id}"),
         (planets_router_module.router, "GET", "/planets/{planet_id}/moon-impact"),
-        (moons_router_module.router, "GET", "/civilizations"),
-        (moons_router_module.router, "GET", "/civilizations/{civilization_id}"),
+        (civilizations_view_router_module.router, "GET", "/civilizations"),
+        (civilizations_view_router_module.router, "GET", "/civilizations/{civilization_id}"),
         (capabilities_router_module.router, "GET", "/planets/{planet_id}/capabilities"),
     ]
     for router, method, path in cases:
