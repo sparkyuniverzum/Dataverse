@@ -195,5 +195,5 @@ To je tady nedostatecne, protoze:
 ## 10. Co je dalsi spravny krok
 
 1. schvalit tento dokument jako canonical BE zadani,
-2. navrhnout konkretni endpoint/model surface,
+2. navrhnout konkretni endpoint/model surface v `be-star-core-interior-endpoint-contract-v1CZ.md`,
 3. teprve potom upravit FE `Blok 3`.
