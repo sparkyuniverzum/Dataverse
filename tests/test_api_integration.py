@@ -345,7 +345,43 @@ def test_parser_preview_returns_plan_scope_risk_and_expected_events(auth_client:
     assert scope.get("galaxy_id") == galaxy_id
     expected_events = body.get("expected_events") or []
     assert any("CIVILIZATION_SOFT_DELETED" in (item.get("event_types") or []) for item in expected_events)
+    occ_signals = body.get("occ_signals") or []
+    assert any(str(item.get("action") or "").upper() == "DELETE" for item in occ_signals)
     assert isinstance(body.get("next_step_hint"), str) and body["next_step_hint"]
+
+
+def test_parser_preview_includes_occ_expected_and_current_event_seq_for_known_target(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
+    client, galaxy_id = auth_client
+    label = f"PreviewOcc-{uuid.uuid4().hex[:8]}"
+
+    created = client.post(
+        "/civilizations/ingest",
+        json={"value": label, "metadata": {"state": "active"}, "galaxy_id": galaxy_id},
+    )
+    assert created.status_code == 200, created.text
+    created_body = created.json()
+    civilization_id = created_body.get("id")
+    current_event_seq = int(created_body.get("current_event_seq") or 0)
+    assert civilization_id
+    assert current_event_seq >= 1
+
+    preview = client.post(
+        "/parser/preview",
+        json={"query": f"Delete : {label}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    occ_signals = preview_body.get("occ_signals") or []
+    delete_occ = next(
+        (item for item in occ_signals if str(item.get("action") or "").upper() == "DELETE" and item.get("known")),
+        None,
+    )
+    assert delete_occ is not None
+    assert delete_occ.get("entity_id") == civilization_id
+    assert int(delete_occ.get("current_event_seq") or 0) >= 1
+    assert int(delete_occ.get("expected_event_seq") or 0) == int(delete_occ.get("current_event_seq") or 0)
 
 
 def test_parser_aliases_crud_and_preview_resolution(auth_client: tuple[httpx.Client, str]) -> None:

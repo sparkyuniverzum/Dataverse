@@ -81,6 +81,9 @@ Poradi:
 8. `scope` (`galaxy_id`, `branch_id`)
 9. `risk_flags` (destructive, multi-step, scope-sensitive)
 10. `next_step_hint`
+11. `occ_signals`
+   - seznam OCC dopadovych signalu na entitach,
+   - kazdy signal obsahuje minimalne `action`, `expected_event_seq`, `current_event_seq`, `known`, `because`.
 
 ## 3.3 Explainability pravidla
 
@@ -88,6 +91,7 @@ Poradi:
 2. OCC riziko musi ukazat:
    - `expected_event_seq`,
    - `current_event_seq` (pokud je zname).
+   - pokud neni target jednoznacny, `known=false` + duvod v `because`.
 3. Scope riziko musi ukazat:
    - aktivni branch/main,
    - potencialni dopad.

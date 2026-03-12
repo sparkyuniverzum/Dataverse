@@ -220,6 +220,19 @@ class ParseCommandPreviewExpectedEvent(BaseModel):
     because: str
 
 
+class ParseCommandPreviewOccSignal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: str
+    entity_kind: str
+    entity_id: uuid.UUID | None = None
+    selector: str | None = None
+    expected_event_seq: int | None = None
+    current_event_seq: int | None = None
+    known: bool = False
+    because: str
+
+
 class ParseCommandPreviewResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -239,6 +252,7 @@ class ParseCommandPreviewResponse(BaseModel):
     intents: list[str] = Field(default_factory=list)
     tasks: list[TaskSchema] = Field(default_factory=list)
     expected_events: list[ParseCommandPreviewExpectedEvent] = Field(default_factory=list)
+    occ_signals: list[ParseCommandPreviewOccSignal] = Field(default_factory=list)
     risk_flags: ParseCommandPreviewRiskFlags
     scope: ParseCommandPreviewScope
     next_step_hint: str

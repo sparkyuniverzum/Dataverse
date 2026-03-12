@@ -20,6 +20,7 @@ from app.schema_models.execution import (  # noqa: F401
     ParseCommandLexiconResponse,
     ParseCommandPlanResponse,
     ParseCommandPreviewExpectedEvent,
+    ParseCommandPreviewOccSignal,
     ParseCommandPreviewResponse,
     ParseCommandPreviewRiskFlags,
     ParseCommandPreviewScope,
