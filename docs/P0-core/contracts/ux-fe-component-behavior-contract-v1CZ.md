@@ -1,8 +1,14 @@
 # UX FE komponentovy behavior kontrakt v1
 
-Stav: aktivní (základní baseline FE chování)
-Datum: 2026-03-11
+Stav: aktivní (release-grade baseline FE chovani)
+Datum: 2026-03-11 (zalozeni), 2026-03-12 (zpřísneni gate)
 Vlastník: FE architektura + UX inženýrství
+
+## 0. Update 2026-03-12
+
+1. Komponentovy behavior gate byl povysen na hard release gate.
+2. Doplneny byly explicitni latency a determinism budgety pro p75/p95.
+3. Doplnena byla stop pravidla pro ontologii, mutation flow a recovery explainability.
 
 ## 1. Ucel
 
@@ -144,9 +150,15 @@ Telemetry event musi obsahovat:
 
 ## 8. Performance budget
 
-1. selection feedback: pod 100 ms,
-2. command feedback (ack): pod 200 ms,
-3. drawer open/close: pod 250 ms,
+1. selection feedback:
+   - p75 <= 80 ms,
+   - p95 <= 120 ms,
+2. command feedback (ack):
+   - p75 <= 180 ms,
+   - p95 <= 300 ms,
+3. drawer open/close:
+   - p75 <= 220 ms,
+   - p95 <= 320 ms,
 4. standard micro-transition: 150-400 ms,
 5. opakovane row editace nesmi triggerovat full scene re-layout.
 
@@ -170,3 +182,37 @@ Telemetry event musi obsahovat:
 2. 3D-only editacni flow bez grid fallback parity.
 3. Tichy alias fallback na odstranene endpointy.
 4. Docasne netypovane pohlcovani chyb v mutation/recovery flow.
+
+## 12. Hard release gate (must pass all)
+
+1. Ontologicka cistota:
+   - `civilization` je jediny row edit surface po strance semantics i copy.
+   - `moon` je capability-only surface.
+2. Mutation determinismus:
+   - zadna ticha ztrata draftu,
+   - zadne „unknown error“ bez repair path.
+3. Recovery explainability:
+   - OCC/validation/scope konflikt vzdy obsahuje jasny dalsi krok.
+4. Runtime UX konzistence:
+   - mode/scope badges jsou stale viditelne a konzistentni s aktivnim kontextem.
+5. Keyboard a reduce-motion parity:
+   - kriticke akce jsou proveditelne bez mysi a bez cinematic zavislosti.
+6. Poruseni kterehokoli bodu 1-5 = hard-stop, release blokovan.
+
+## 12.1 Dukazni evidence (povinna)
+
+1. `technical completion`:
+   - focused testy pro `QuickGridOverlay`, `WorkspaceSidebar`, `CommandBar`, mode/scope indikatory.
+2. `user-visible completion`:
+   - before/after screenshoty hlavnich operation flow.
+   - explicitni seznam, co se zlepsilo v discoverability a rychlosti.
+3. `documentation completion`:
+   - update kontraktu + navazne risk mapy.
+4. `gate completion`:
+   - 1 bundled smoke gate po uzavreni komponentove serie.
+
+## 12.2 Co se nepocita jako completion
+
+1. Jen passing unit testu bez behavior parity v realnem flow.
+2. Jen internal refactor bez zmeny operator UX kvality.
+3. Jen micro-animation polish bez impactu na commit/repair workflow.

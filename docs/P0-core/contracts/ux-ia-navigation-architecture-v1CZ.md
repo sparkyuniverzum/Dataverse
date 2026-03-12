@@ -1,8 +1,14 @@
 # UX IA a navigacni architektura v1
 
-Stav: aktivní (základní baseline UX architektury)
-Datum: 2026-03-11
+Stav: aktivní (release-grade baseline UX architektury)
+Datum: 2026-03-11 (zalozeni), 2026-03-12 (zpřísneni gate)
 Vlastník: Produktové UX + FE architektura
+
+## 0. Update 2026-03-12
+
+1. Baseline quality gate byl povysen na hard release gate.
+2. Doplneny byly explicitni stop podminky (hard-stop) pri poruseni UX principu.
+3. Doplnena byla dukazni sada (technical, user-visible, documentation, gate completion).
 
 ## 1. Ucel
 
@@ -116,14 +122,40 @@ Pokud je konflikt scena vs operace, vyhrava operace.
 3. Explicitni textovy branch badge je povinny.
 4. Stav `MAIN` a `BRANCH` musi byt odlisitelny i v grayscale accessibility modu.
 
-## 9. IA quality gate
+## 9. IA quality gate (hard release gate)
 
-1. First paint hlavni pracovni zony pod 1.5 s na cilovem prostredi.
-2. Zadny kriticky journey krok nesmi vyzadovat skrytou/neobjevitelnou navigaci.
-3. Kazde context switch musi zachovat nebo zamerne resetovat vyber (explicitne ukazano).
-4. Zadna entita nesmi byt editovana pres spatny ontologicky surface:
+1. First paint hlavni pracovni zony (`Operation Layer`) musi byt:
+   - p75 <= 1.2 s,
+   - p95 <= 1.8 s
+   na cilovem prostredi.
+2. Time-to-first-actionable-edit (`workspace ready -> prvni validni row edit`) musi byt:
+   - p75 <= 3.0 s,
+   - p95 <= 4.5 s.
+3. Zadny kriticky journey krok nesmi vyzadovat skrytou/neobjevitelnou navigaci.
+4. Kazdy context switch musi explicitne deklarovat, zda zachovava nebo resetuje vyber.
+5. Zadna entita nesmi byt editovana pres spatny ontologicky surface:
    - zadne moon-as-row editace,
    - zadny star-core-as-row editor.
+6. Keyboard parity je povinna pro vsechny kriticke akce v `Nexus`, `Workspace`, `Star Core`.
+7. Poruseni kterehokoli bodu 1-6 = hard-stop, release blokovan.
+
+## 9.1 Dukazni evidence (povinna)
+
+1. `technical completion`:
+   - targeted FE testy pro navigaci, scope badge a mode switch.
+2. `user-visible completion`:
+   - before/after screenshoty: `Nexus`, `Galaxy Workspace`, `Star Core`.
+   - explicitni seznam viditelnych zmen v prvnich 30 s.
+3. `documentation completion`:
+   - update kontraktu + mapovani rizik/guardrails.
+4. `gate completion`:
+   - alespon 1 bundled smoke gate po uzavreni slice serie.
+
+## 9.2 Co se nepocita jako dukaz
+
+1. Jen passing unit testu bez user-visible rozdilu.
+2. Jen interni refaktor bez meritelneho dopadu na orientaci a rychlost.
+3. Jen „cinematic efekt“ bez zlepseni discoverability a operation flow.
 
 ## 10. Mimo scope
 

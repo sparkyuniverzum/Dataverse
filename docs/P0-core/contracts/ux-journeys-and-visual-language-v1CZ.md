@@ -1,8 +1,14 @@
 # UX journey a visual language v1
 
-Stav: aktivní (základní baseline UX cest)
-Datum: 2026-03-11
+Stav: aktivní (release-grade baseline UX cest)
+Datum: 2026-03-11 (zalozeni), 2026-03-12 (zpřísneni gate)
 Vlastník: Produktové UX + FE design systém
+
+## 0. Update 2026-03-12
+
+1. Journey acceptance byl povysen z baseline na hard release gate.
+2. Doplnena byla explicitni user-visible stop pravidla pro prvni dojem a prvnich 30 s.
+3. Doplnen byl seznam neplatnych dukazu (co se za completion nepocita).
 
 ## 1. Ucel
 
@@ -23,7 +29,7 @@ Dataverse pouziva:
 Pravidlo:
 `Cinematic shell + operational core`.
 
-## 3. Kriticke journey (MVP)
+## 3. Kriticke journey (release baseline)
 
 ## 3.1 J1 - Nulty kontakt (Nexus) a vyber galaxie
 
@@ -195,13 +201,41 @@ Success criteria:
 3. Bond linking je pouze civilization-to-civilization.
 4. Invalid drop target musi vratit jasnou vizualni i textovou odezvu.
 
-## 6. UX quality gate (must pass)
+## 6. UX quality gate (hard release gate)
 
-1. Kazda kriticka akce ma immediate feedback do 200 ms.
-2. Kazde selhani ma actionable dalsi krok.
+1. Kazda kriticka akce ma immediate feedback do 200 ms (p95 <= 300 ms).
+2. Kazde selhani ma actionable dalsi krok (`repair hint` nebo `retry path`).
 3. Zadny journey krok nesmi zaviset na skrytych controls.
 4. Reduce-motion mode drzi plnou funkcni paritu.
 5. Operator musi dokoncit J5+J6 bez povinne dlouhe animace.
+6. Prvni dojem (`Nexus` + vstup do `Workspace`) musi byt:
+   - vizualne konzistentni s operating-center smerem,
+   - bez dead-end kroku,
+   - bez blokujiciho „kde jsem?“ momentu.
+7. V prvnich 30 s musi byt jasne:
+   - aktivni scope (`MAIN` vs `BRANCH`),
+   - aktivni mode,
+   - primarni dalsi akce.
+8. Poruseni kterehokoli bodu 1-7 = hard-stop, release blokovan.
+
+## 6.1 Dukazni sada (povinna)
+
+1. `technical completion`:
+   - focused testy pro journey-critical komponenty a workflow stavy.
+2. `user-visible completion`:
+   - before/after screenshoty pro J1-J4,
+   - seznam okamzitych viditelnych rozdilu (first view + prvnich 30 s),
+   - kratky operator walkthrough pro J5-J8.
+3. `documentation completion`:
+   - update kontraktu + navaznych rizik.
+4. `gate completion`:
+   - bundled smoke gate po uzavreni cele journey serie.
+
+## 6.2 Co se nepocita jako completion
+
+1. Cinematic-only zmena bez zlepseni orientace nebo rychlosti.
+2. Lokalni visual polish bez dopadu na kriticke journey.
+3. Passing testy bez user-visible rozdilu v prvnim pohledu.
 
 ## 7. Anti-patterny (zakazane)
 
@@ -209,3 +243,4 @@ Success criteria:
 2. Full-screen nepruhledny modal pres operacni kontext u komplexnich review tasku.
 3. Dvojznacne labely, ktere stiri moon capability vs civilization row.
 4. Effects-first vizual, ktery skryje commit/repair controls.
+5. Journey flow, ktery vyzaduje znalost interni terminologie bez UI vysvetleni.
