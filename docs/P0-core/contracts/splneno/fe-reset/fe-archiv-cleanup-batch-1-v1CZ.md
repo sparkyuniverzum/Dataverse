@@ -1,6 +1,6 @@
 # FE archiv cleanup batch 1 v1
 
-Stav: aktivni (provedeny cleanup batch 1)
+Stav: splneno (provedeny cleanup batch 1)
 Datum: 2026-03-12
 Vlastnik: FE architektura + user-agent governance
 
@@ -71,7 +71,7 @@ Tyto soubory nejsou v `cleanup batch 1` oznacene jako pripraveny kod, ale ani ja
 
 `Cleanup batch 1` potvrzuje:
 
-1. reuse mapa ve `docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md` zustava platna,
+1. reuse mapa ve `docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md` zustava platna,
 2. smazane surface nepatri do sekce `Pripraveny kod z archivu`,
 3. technicke helpery a jejich archived testy zustavaji nedotcene.
 
@@ -81,8 +81,8 @@ Minimalni dukaz tohoto cleanup bloku:
 
 ```bash
 cd /mnt/c/Projekty/Dataverse
-git diff -- docs/P0-core/README.md docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md docs/P0-core/contracts/fe-r1-priprava-audit-archivu-v1CZ.md docs/P0-core/contracts/fe-archiv-cleanup-batch-1-v1CZ.md frontend/src/_inspiration_reset_20260312/components/WorkspaceShell.jsx frontend/src/_inspiration_reset_20260312/components/GalaxyGateScreen.jsx frontend/src/_inspiration_reset_20260312/components/universe/UniverseWorkspace.jsx frontend/src/_inspiration_reset_20260312/components/universe/WorkspaceSidebar.jsx frontend/src/_inspiration_reset_20260312/components/universe/StageZeroSetupPanel.jsx frontend/src/_inspiration_reset_20260312/components/universe/BondBuilderPanel.jsx
-git status --short docs/P0-core/README.md docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md docs/P0-core/contracts/fe-r1-priprava-audit-archivu-v1CZ.md docs/P0-core/contracts/fe-archiv-cleanup-batch-1-v1CZ.md frontend/src/_inspiration_reset_20260312/components frontend/src/_inspiration_reset_20260312/components/universe
+git diff -- docs/P0-core/README.md docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md docs/P0-core/contracts/aktivni/fe/fe-r1-priprava-audit-archivu-v1CZ.md docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md frontend/src/_inspiration_reset_20260312/components/WorkspaceShell.jsx frontend/src/_inspiration_reset_20260312/components/GalaxyGateScreen.jsx frontend/src/_inspiration_reset_20260312/components/universe/UniverseWorkspace.jsx frontend/src/_inspiration_reset_20260312/components/universe/WorkspaceSidebar.jsx frontend/src/_inspiration_reset_20260312/components/universe/StageZeroSetupPanel.jsx frontend/src/_inspiration_reset_20260312/components/universe/BondBuilderPanel.jsx
+git status --short docs/P0-core/README.md docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md docs/P0-core/contracts/aktivni/fe/fe-r1-priprava-audit-archivu-v1CZ.md docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md frontend/src/_inspiration_reset_20260312/components frontend/src/_inspiration_reset_20260312/components/universe
 ```
 
 Vysledek:

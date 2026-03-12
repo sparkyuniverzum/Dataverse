@@ -1,6 +1,6 @@
 # Backend MVP požadavky z Canonical UX Ontology v1
 
-Stav: uzavřený (BE MVP baseline naplněn a potvrzen gate evidencí)
+Stav: splneno (BE MVP baseline naplnen a potvrzen gate evidenci)
 Datum: 2026-03-11 (založení), 2026-03-12 (formální uzavření)
 Vlastník: Core BE architektura
 
@@ -22,15 +22,15 @@ Potřebujeme jeden explicitní BE MVP kontrakt, který:
 
 Zdroj ontologie:
 
-- `docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md`
+- `docs/P0-core/contracts/aktivni/core/canonical-ux-ontology-v1CZ.md`
 - použité sekce: Domain truth, Runtime truth, Entity ontology, Interaction ontology.
 
 Sada evidenčních příkazů:
 
 ```bash
-sed -n '1,260p' docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md
-sed -n '260,560p' docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md
-sed -n '560,920p' docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md
+sed -n '1,260p' docs/P0-core/contracts/aktivni/core/canonical-ux-ontology-v1CZ.md
+sed -n '260,560p' docs/P0-core/contracts/aktivni/core/canonical-ux-ontology-v1CZ.md
+sed -n '560,920p' docs/P0-core/contracts/aktivni/core/canonical-ux-ontology-v1CZ.md
 ```
 
 ## 4. Kanonická globální BE MVP pravidla
@@ -425,5 +425,5 @@ Tento soubor definuje pouze backend MVP requirements baseline.
 1. Kontrolní checklist v sekci 7 je plně uzavřený bez otevřených položek.
 2. Evidence v sekci 7.1 pokrývá namespace, doménové uzavření i API regresní body.
 3. Navazující implementační uzavření je vedené v:
-   - `docs/P0-core/contracts/backend-mvp-continuation-v1.md`
-   - `docs/P0-core/contracts/backend-mvp-vykonnostni-gate-v1.md`
+   - `docs/P0-core/contracts/splneno/be/backend-mvp-continuation-v1.md`
+   - `docs/P0-core/contracts/aktivni/be/backend-mvp-vykonnostni-gate-v1.md`

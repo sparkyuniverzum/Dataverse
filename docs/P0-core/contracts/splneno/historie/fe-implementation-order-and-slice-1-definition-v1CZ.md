@@ -1,6 +1,6 @@
 # FE implementacni poradi a definice Slice 1 v1
 
-Stav: nahrazeno resetem 2026-03-12 (historicka stopa puvodniho FE smeru)
+Stav: splneno (historicka stopa puvodniho FE smeru nahrazena resetem 2026-03-12)
 Datum: 2026-03-12
 Vlastnik: Produktove UX + FE architektura + user-agent governance
 
@@ -10,7 +10,7 @@ Tento dokument uz neni aktivnim vykonavacim planem pro FE.
 
 Od 2026-03-12 je aktivni:
 
-- `docs/P0-core/contracts/fe-reset-ramec-v1CZ.md`
+- `docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md`
 
 Duvod:
 
@@ -58,12 +58,12 @@ Bez tohoto dokumentu hrozi, ze FE implementace zacne lokalnim polishem nebo "wow
 Tento dokument je odvozen z:
 
 1. `docs/P0-core/governance/human-agent-alignment-protocol-v1.md`
-2. `docs/P0-core/contracts/ux-ia-navigation-architecture-v1CZ.md`
-3. `docs/P0-core/contracts/ux-journeys-and-visual-language-v1CZ.md`
-4. `docs/P0-core/contracts/ux-fe-component-behavior-contract-v1CZ.md`
-5. `docs/P0-core/contracts/ux-operation-layer-grid-command-v1CZ.md`
-6. `docs/P0-core/contracts/ux-fe-risk-assessment-v1CZ.md`
-7. `docs/P0-core/contracts/ux-onboarding-story-missions-v1CZ.md`
+2. `docs/P0-core/contracts/aktivni/ux/ux-ia-navigation-architecture-v1CZ.md`
+3. `docs/P0-core/contracts/aktivni/ux/ux-journeys-and-visual-language-v1CZ.md`
+4. `docs/P0-core/contracts/aktivni/ux/ux-fe-component-behavior-contract-v1CZ.md`
+5. `docs/P0-core/contracts/aktivni/ux/ux-operation-layer-grid-command-v1CZ.md`
+6. `docs/P0-core/contracts/aktivni/ux/ux-fe-risk-assessment-v1CZ.md`
+7. `docs/P0-core/contracts/aktivni/ux/ux-onboarding-story-missions-v1CZ.md`
 
 Zavazne principy:
 
@@ -253,9 +253,9 @@ Pokud se scope dotkne grid overlay nebo scope badge prezentace, doplnit i:
 
 ## 11. Navazne kontrakty
 
-1. `docs/P0-core/contracts/ux-ia-navigation-architecture-v1CZ.md`
-2. `docs/P0-core/contracts/ux-journeys-and-visual-language-v1CZ.md`
-3. `docs/P0-core/contracts/ux-fe-component-behavior-contract-v1CZ.md`
-4. `docs/P0-core/contracts/ux-operation-layer-grid-command-v1CZ.md`
-5. `docs/P0-core/contracts/ux-fe-risk-assessment-v1CZ.md`
-6. `docs/P0-core/contracts/ux-onboarding-story-missions-v1CZ.md`
+1. `docs/P0-core/contracts/aktivni/ux/ux-ia-navigation-architecture-v1CZ.md`
+2. `docs/P0-core/contracts/aktivni/ux/ux-journeys-and-visual-language-v1CZ.md`
+3. `docs/P0-core/contracts/aktivni/ux/ux-fe-component-behavior-contract-v1CZ.md`
+4. `docs/P0-core/contracts/aktivni/ux/ux-operation-layer-grid-command-v1CZ.md`
+5. `docs/P0-core/contracts/aktivni/ux/ux-fe-risk-assessment-v1CZ.md`
+6. `docs/P0-core/contracts/aktivni/ux/ux-onboarding-story-missions-v1CZ.md`

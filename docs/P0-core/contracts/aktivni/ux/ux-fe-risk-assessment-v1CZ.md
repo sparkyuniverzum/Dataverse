@@ -190,8 +190,8 @@ Povinna kontrola konzistence dokumentace:
 
 ```bash
 cd /mnt/c/Projekty/Dataverse
-rg -n "^(Status|Date|Owner|Scope):" docs/P0-core/contracts/ux-fe-risk-assessment-v1CZ.md
-rg -n "^Vlastnik rizika:|^Test mapping:" docs/P0-core/contracts/ux-fe-risk-assessment-v1CZ.md
+rg -n "^(Status|Date|Owner|Scope):" docs/P0-core/contracts/aktivni/ux/ux-fe-risk-assessment-v1CZ.md
+rg -n "^Vlastnik rizika:|^Test mapping:" docs/P0-core/contracts/aktivni/ux/ux-fe-risk-assessment-v1CZ.md
 ```
 
 Ocekavani:

@@ -1,37 +1,77 @@
 # P0 Core
 
-Účel: restart režim.
+Ucel: restart rezim.
 
-Aktivní reference (CZ-only):
+## Aktivni
 
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-continuation-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-continuation-v1.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-vykonnostni-gate-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-vykonnostni-gate-v1.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-ia-navigation-architecture-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-ia-navigation-architecture-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-journeys-and-visual-language-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-journeys-and-visual-language-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-fe-component-behavior-contract-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-fe-component-behavior-contract-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-onboarding-story-missions-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-onboarding-story-missions-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-operation-layer-grid-command-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-operation-layer-grid-command-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-reset-ramec-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-reset-ramec-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-priprava-audit-archivu-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-priprava-audit-archivu-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-archiv-cleanup-batch-1-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-archiv-cleanup-batch-1-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-a-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-a-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-b-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-b-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-c-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-c-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-d-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-d-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/command-lexicon-cz-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/command-lexicon-cz-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/parser-alias-learning-and-event-preview-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/parser-alias-learning-and-event-preview-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-fe-risk-assessment-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-fe-risk-assessment-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/runtime-package-map-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/runtime-package-map-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/predvyvojovy-gate-souhrn-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/predvyvojovy-gate-souhrn-v1.md)
+Pri bezne praci se maji cist defaultne jen dokumenty v `docs/P0-core/contracts/aktivni/`.
 
-Neaktivní EN zdroje:
+### Core
 
-- EN mirror dokumenty jsou archivované v `docs/P0-core/contracts/archive/en/`.
-- Historická EN ontologie je archivovaná jako `docs/P0-core/contracts/archive/en/canonical-ux-ontology-v1.md`.
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/canonical-ux-ontology-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/canonical-ux-ontology-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/runtime-package-map-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/core/runtime-package-map-v1CZ.md)
 
-Pracovní pravidla:
+### BE
+
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/backend-mvp-vykonnostni-gate-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/backend-mvp-vykonnostni-gate-v1.md)
+
+### UX
+
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-ia-navigation-architecture-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-ia-navigation-architecture-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-journeys-and-visual-language-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-journeys-and-visual-language-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-fe-component-behavior-contract-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-fe-component-behavior-contract-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-fe-risk-assessment-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-fe-risk-assessment-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-onboarding-story-missions-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-onboarding-story-missions-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-operation-layer-grid-command-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/ux/ux-operation-layer-grid-command-v1CZ.md)
+
+### FE
+
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-r1-priprava-audit-archivu-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-r1-priprava-audit-archivu-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/parser-alias-learning-and-event-preview-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/parser-alias-learning-and-event-preview-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md)
+
+## Splneno
+
+Do `docs/P0-core/contracts/splneno/` se chodi jen:
+
+1. kdyz je potreba historicky dukaz,
+2. kdyz se overuje drivejsi rozhodnuti,
+3. nebo kdyz implementacni blok explicitne cituje dokoncenou davku.
+
+### BE
+
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/backend-mvp-continuation-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/backend-mvp-continuation-v1.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/predvyvojovy-gate-souhrn-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/predvyvojovy-gate-souhrn-v1.md)
+
+### FE Reset
+
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-a-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-a-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-b-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-b-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-c-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-c-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-d-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-d-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md)
+
+### Historie
+
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-implementation-order-and-slice-1-definition-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-implementation-order-and-slice-1-definition-v1CZ.md)
+
+### Vyrazeno
+
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/civilization-contract-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/civilization-contract-v1.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/galaxy-workspace-contract-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/galaxy-workspace-contract-v1.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/mineral-contract-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/mineral-contract-v1.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/moon-contract-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/moon-contract-v1.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/planet-builder-mvp-v2.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/planet-builder-mvp-v2.md)
+
+## Neaktivni EN zdroje
+
+- EN mirror dokumenty jsou archivovane v `docs/P0-core/contracts/archive/en/`.
+- Historicka EN ontologie je archivovana jako `docs/P0-core/contracts/archive/en/canonical-ux-ontology-v1.md`.
+
+## Pracovni pravidla
 
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/AGENTS.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/AGENTS.md)

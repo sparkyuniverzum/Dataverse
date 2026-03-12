@@ -18,6 +18,8 @@ Rozsah: `docs/P0-core/contracts/`
 5. Aktivní kontrakty v tomto scope jsou CZ-only; paralelní aktivní EN mirror dokumenty nedrž, pokud to není explicitně schválené.
 6. Technické identifikátory zůstávají anglicky (`code`, API paths, error codes, telemetry keys, DB names).
 7. Historické EN mirror dokumenty patří pouze do archivní cesty `archive/en/` a nesmí být vedené jako aktivní reference.
+8. Pri bezne dokumentacni praci cti defaultne jen `docs/P0-core/contracts/aktivni/`; do `docs/P0-core/contracts/splneno/` chod jen kdyz je potreba dukaz nebo historicke rozhodnuti.
+9. Pokud je dokument uzavreny nebo nahrazeny, patri do vhodne podkategorie pod `docs/P0-core/contracts/splneno/`, ne mezi aktivni kontrakty.
 
 ## Vzor dokumentace
 

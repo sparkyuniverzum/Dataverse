@@ -1,6 +1,6 @@
 # Backend MVP pokračování v1
 
-Stav: uzavřený (BE MVP implementační scope uzavřen)
+Stav: splneno (BE MVP implementacni scope uzavren)
 Datum: 2026-03-11 (založení), 2026-03-12 (formální uzavření)
 Vlastník: Core BE architektura
 
@@ -233,11 +233,11 @@ Po každém bloku:
 
 ## 7.3 Evidence formálního uzavření
 
-- `rg -n "\\[ \\]" docs/P0-core/contracts/backend-mvp-continuation-v1.md` -> prázdný výstup.
-- `rg -n "\\[ \\]" docs/P0-core/contracts/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md` -> prázdný výstup.
+- `rg -n "\\[ \\]" docs/P0-core/contracts/splneno/be/backend-mvp-continuation-v1.md` -> prázdný výstup.
+- `rg -n "\\[ \\]" docs/P0-core/contracts/splneno/be/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md` -> prázdný výstup.
 
 ## 7.4 Navazující výkonnostní gate (MVP)
 
 - [x] 2026-03-12 Definován samostatný MVP výkonový gate dokument pro BE:
-  - `docs/P0-core/contracts/backend-mvp-vykonnostni-gate-v1.md`
+  - `docs/P0-core/contracts/aktivni/be/backend-mvp-vykonnostni-gate-v1.md`
 - [x] 2026-03-12 Výkonový gate je veden jako samostatná aktivní smlouva pro průběžné release/hardening běhy (není blocker historického uzavření implementačního BE MVP scope).

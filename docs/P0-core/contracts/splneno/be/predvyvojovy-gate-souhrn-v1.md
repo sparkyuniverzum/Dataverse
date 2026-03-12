@@ -1,6 +1,6 @@
 # Předvývojový gate souhrn v1
 
-Stav: uzavřený (BE předvývojový gate uzavřen)
+Stav: splneno (BE predvyvojovy gate uzavren)
 Datum: 2026-03-11 (založení), 2026-03-12 (uzavření)
 Vlastník: Core FE/BE architektura + UX governance
 
@@ -37,7 +37,7 @@ Použitá auditní sada:
 
 ```bash
 cd /mnt/c/Projekty/Dataverse
-rg -n "\\[ \\]" docs/P0-core/contracts/backend-mvp-continuation-v1.md docs/P0-core/contracts/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md
+rg -n "\\[ \\]" docs/P0-core/contracts/splneno/be/backend-mvp-continuation-v1.md docs/P0-core/contracts/splneno/be/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md
 ```
 
 Výsledek:

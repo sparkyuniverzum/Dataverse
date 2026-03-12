@@ -172,6 +172,6 @@ Poruseni kterehokoli bodu 1-5 = hard-stop, release blokovan.
 
 ## 9. Navazne kontrakty
 
-1. `docs/P0-core/contracts/command-lexicon-cz-v1CZ.md`
-2. `docs/P0-core/contracts/parser-alias-learning-and-event-preview-v1CZ.md`
-3. `docs/P0-core/contracts/ux-onboarding-story-missions-v1CZ.md`
+1. `docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md`
+2. `docs/P0-core/contracts/aktivni/fe/parser-alias-learning-and-event-preview-v1CZ.md`
+3. `docs/P0-core/contracts/aktivni/ux/ux-onboarding-story-missions-v1CZ.md`

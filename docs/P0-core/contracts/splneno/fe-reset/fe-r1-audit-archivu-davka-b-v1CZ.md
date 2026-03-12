@@ -1,6 +1,6 @@
 # FE-R1 audit archivu: Davka B universe layout a dominantni surface v1
 
-Stav: aktivni (auditni rozhodnuti pro FE reset davku B)
+Stav: splneno (auditni rozhodnuti pro FE reset davku B)
 Datum: 2026-03-12
 Vlastnik: Produktove UX + FE architektura + user-agent governance
 
@@ -35,8 +35,8 @@ Tato davka byla hodnocena proti temto podminkam:
 
 Zdroj:
 
-1. `docs/P0-core/contracts/fe-reset-ramec-v1CZ.md`
-2. `docs/P0-core/contracts/fe-r1-priprava-audit-archivu-v1CZ.md`
+1. `docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md`
+2. `docs/P0-core/contracts/aktivni/fe/fe-r1-priprava-audit-archivu-v1CZ.md`
 3. `docs/P0-core/governance/human-agent-alignment-protocol-v1.md`
 
 ## 4. Verdikty

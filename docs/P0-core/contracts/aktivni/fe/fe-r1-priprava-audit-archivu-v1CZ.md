@@ -87,7 +87,7 @@ Co z puvodniho vstupniho toku skutecne zlepsovalo first impression a co bylo bal
 
 Stav:
 
-1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/fe-r1-audit-archivu-davka-a-v1CZ.md`.
+1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-a-v1CZ.md`.
 
 ### 6.2 Davka B: Universe layout a dominantni surface
 
@@ -103,7 +103,7 @@ Co pomahalo jedne autoritativni primarni akci a co rozbijelo hierarchii?
 
 Stav:
 
-1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/fe-r1-audit-archivu-davka-b-v1CZ.md`.
+1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-b-v1CZ.md`.
 
 ### 6.3 Davka C: Operation a utility vrstvy
 
@@ -119,7 +119,7 @@ Co ma potencial pro budoucnost a co se ma definitivne odstranit?
 
 Stav:
 
-1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/fe-r1-audit-archivu-davka-c-v1CZ.md`.
+1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-c-v1CZ.md`.
 
 ### 6.4 Davka D: Pokrocile workflow a builder vrstvy
 
@@ -134,7 +134,7 @@ Co je inspirace pro pozdejsi faze a co je slepy smer?
 
 Stav:
 
-1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/fe-r1-audit-archivu-davka-d-v1CZ.md`.
+1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-d-v1CZ.md`.
 
 ## 7. Hodnotici kriteria `OK`
 
@@ -170,8 +170,8 @@ Bez teto pripravy se FE-R1 navrh nesmi prezentovat jako schvaleny smer.
 
 Stav:
 
-1. [x] 2026-03-12 Technicky inventory uzavren v dokumentu `docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`.
-2. [x] 2026-03-12 `cleanup batch 1` uzavren v dokumentu `docs/P0-core/contracts/fe-archiv-cleanup-batch-1-v1CZ.md`.
+1. [x] 2026-03-12 Technicky inventory uzavren v dokumentu `docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`.
+2. [x] 2026-03-12 `cleanup batch 1` uzavren v dokumentu `docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md`.
 
 ## 10. Dukazni sada pripravy
 
@@ -187,5 +187,6 @@ Minimalni dukaz teto pripravy:
 Kazdy FE implementacni dokument navazujici na tuto pripravu musi obsahovat:
 
 1. sekci `Pripraveny kod z archivu`,
-2. odkaz na `docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`,
-3. rozhodnuti, ktere archived helpery se v danem bloku opravdu pouziji a ktere zatim ne.
+2. odkaz na `docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`,
+3. odkaz na `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`, pokud blok pracuje s runtime daty,
+4. rozhodnuti, ktere archived helpery se v danem bloku opravdu pouziji a ktere zatim ne.

@@ -141,6 +141,6 @@ Poruseni kterehokoli bodu 1-5 = hard-stop, release blokovan.
 1. Onboarding texty a mise musi pouzivat stejnou slovni zasobu jako `Grid + Command Bar`.
 2. Onboarding nesmi slibovat prikazy, ktere parser backend realne nepodporuje.
 3. Zdroj pravdy pro prikazy a syntax je dokument:
-   - `docs/P0-core/contracts/ux-operation-layer-grid-command-v1CZ.md`
-   - `docs/P0-core/contracts/command-lexicon-cz-v1CZ.md`
-   - `docs/P0-core/contracts/parser-alias-learning-and-event-preview-v1CZ.md`
+   - `docs/P0-core/contracts/aktivni/ux/ux-operation-layer-grid-command-v1CZ.md`
+   - `docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md`
+   - `docs/P0-core/contracts/aktivni/fe/parser-alias-learning-and-event-preview-v1CZ.md`

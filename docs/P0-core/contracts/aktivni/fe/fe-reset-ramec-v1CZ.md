@@ -163,7 +163,7 @@ Aktivni FE test baseline po resetu:
 
 K resetu nově patri i aktivni technicky reuse podklad:
 
-1. `docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`
+1. `docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`
 
 Tento dokument urcuje:
 
@@ -171,6 +171,18 @@ Tento dokument urcuje:
 2. kam se hodi,
 3. kdy se smi vratit,
 4. a jake testy ho maji doprovodit.
+
+## 7.2 Backend pravda a data guard
+
+Pro aktivni FE po resetu plati i zavazny datovy guard:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`
+
+Tento dokument urcuje:
+
+1. jak FE hlida backend pravdu,
+2. jak se overuje normalizace a drift,
+3. jaky pripraveny archived kod se ma vratit pro runtime bloky.
 
 ## 8. Vztah ke starsim dokumentum
 
