@@ -16,6 +16,7 @@ import {
   buildTablesUrl,
 } from "../../lib/dataverseApi";
 import GalaxySelectionHud from "./GalaxySelectionHud.jsx";
+import StarCoreInteriorScreen from "./StarCoreInteriorScreen.jsx";
 import {
   beginGalaxyApproach,
   clearGalaxySelection,
@@ -36,6 +37,14 @@ import {
   resolveStarCorePolicyLockUiFailure,
   resolveStarCorePolicyLockUiSuccess,
 } from "./starCoreInteriorAdapter.js";
+import {
+  beginStarCoreInteriorScreenEntry,
+  beginStarCoreInteriorScreenReturn,
+  closeStarCoreInteriorScreen,
+  createInitialStarCoreInteriorScreenState,
+  resolveStarCoreInteriorScreenEntryComplete,
+  resolveStarCoreInteriorScreenModel,
+} from "./starCoreInteriorScreenModel.js";
 import { adaptStarCoreTruth } from "./starCoreTruthAdapter.js";
 import { resolveStarCoreSpatialLoadingModel, resolveStarCoreSpatialStateModel } from "./starCoreSpatialStateModel.js";
 import UniverseCanvas from "./UniverseCanvas.jsx";
@@ -182,6 +191,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
   const [navigationState, setNavigationState] = useState(createInitialGalaxyNavigationState);
   const [headingDegrees, setHeadingDegrees] = useState(0);
   const [interiorUiState, setInteriorUiState] = useState(createInitialStarCoreInteriorUiState);
+  const [interiorScreenState, setInteriorScreenState] = useState(createInitialStarCoreInteriorScreenState);
   const [reducedMotion, setReducedMotion] = useState(readReducedMotionPreference);
 
   useEffect(() => {
@@ -203,6 +213,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         if (!active) return;
         setFetchState(nextState);
         setInteriorUiState(closeStarCoreInteriorUi());
+        setInteriorScreenState(closeStarCoreInteriorScreen());
       } catch (error) {
         if (!active) return;
         setFetchState({
@@ -240,8 +251,9 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
   useEffect(() => {
     function handleKeyDown(event) {
       if (event.key !== "Escape") return;
-      if (interiorUiState.isOpen) {
-        setInteriorUiState(closeStarCoreInteriorUi());
+      if (interiorScreenState.stage !== "closed") {
+        if (interiorUiState.transientPhase === "policy_lock_transition") return;
+        setInteriorScreenState(beginStarCoreInteriorScreenReturn());
         return;
       }
       setNavigationState((current) => resolveGalaxyEscape(current));
@@ -251,7 +263,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [interiorUiState.isOpen]);
+  }, [interiorScreenState.stage, interiorUiState.transientPhase]);
 
   const model = useMemo(() => {
     if (fetchState.status === "loading") {
@@ -274,6 +286,10 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
   const interiorModel = useMemo(
     () => resolveStarCoreInteriorModel({ interiorTruth: fetchState.interiorTruth, uiState: interiorUiState }),
     [fetchState.interiorTruth, interiorUiState]
+  );
+  const interiorScreenModel = useMemo(
+    () => resolveStarCoreInteriorScreenModel({ screenState: interiorScreenState, reducedMotion }),
+    [interiorScreenState, reducedMotion]
   );
   const selectedConstitution = interiorModel.selectedConstitution;
   const lockTransitionModel = useMemo(() => {
@@ -320,6 +336,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     const timeoutId = window.setTimeout(
       () => {
         setInteriorUiState((current) => resolveStarCoreInteriorEntryComplete(current));
+        setInteriorScreenState((current) => resolveStarCoreInteriorScreenEntryComplete(current));
       },
       reducedMotion ? 40 : 900
     );
@@ -327,11 +344,25 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
   }, [interiorUiState.transientPhase, reducedMotion]);
 
   useEffect(() => {
+    if (interiorScreenState.stage !== "returning") return undefined;
+    const timeoutId = window.setTimeout(
+      () => {
+        setInteriorScreenState(closeStarCoreInteriorScreen());
+        setInteriorUiState(closeStarCoreInteriorUi());
+        setNavigationState((current) => selectGalaxyObject(current, "star-core"));
+      },
+      reducedMotion ? 40 : 280
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [interiorScreenState.stage, reducedMotion]);
+
+  useEffect(() => {
     if (navigationModel.approachTargetId === "star-core") return;
-    if (interiorUiState.isOpen) {
+    if (interiorUiState.isOpen || interiorScreenState.stage !== "closed") {
       setInteriorUiState(closeStarCoreInteriorUi());
+      setInteriorScreenState(closeStarCoreInteriorScreen());
     }
-  }, [interiorUiState.isOpen, navigationModel.approachTargetId]);
+  }, [interiorScreenState.stage, interiorUiState.isOpen, navigationModel.approachTargetId]);
 
   useEffect(() => {
     if (
@@ -442,6 +473,21 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     }
   }
 
+  function handleOpenInterior(objectId) {
+    if (objectId === "star-core" && fetchState.status !== "loading" && fetchState.status !== "data_unavailable") {
+      setNavigationState((current) => beginGalaxyApproach(current, objectId));
+      setInteriorUiState(beginStarCoreInteriorUi());
+      setInteriorScreenState(beginStarCoreInteriorScreenEntry());
+      return;
+    }
+    setNavigationState((current) => beginGalaxyApproach(current, objectId));
+  }
+
+  function handleReturnToSpace() {
+    if (interiorUiState.transientPhase === "policy_lock_transition") return;
+    setInteriorScreenState(beginStarCoreInteriorScreenReturn());
+  }
+
   return (
     <main
       data-testid="workspace-reset-root"
@@ -491,30 +537,22 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         model={model}
         spaceObjects={spaceObjects}
         navigationModel={navigationModel}
-        interiorModel={interiorModel}
-        selectedConstitution={selectedConstitution}
         onSelectObject={(objectId) => setNavigationState((current) => selectGalaxyObject(current, objectId))}
-        onApproachObject={(objectId) => {
-          if (objectId === "star-core" && fetchState.status !== "loading" && fetchState.status !== "data_unavailable") {
-            setNavigationState((current) => beginGalaxyApproach(current, objectId));
-            setInteriorUiState(beginStarCoreInteriorUi());
-            return;
-          }
-          setNavigationState((current) => beginGalaxyApproach(current, objectId));
-        }}
-        onSelectConstitution={handleSelectConstitution}
+        onApproachObject={handleOpenInterior}
         onHeadingChange={setHeadingDegrees}
         onClearFocus={() => setNavigationState(clearGalaxySelection())}
       />
-      <GalaxySelectionHud
-        model={model}
-        navigationModel={navigationModel}
-        radarModel={radarModel}
+      {!interiorScreenModel.isVisible ? (
+        <GalaxySelectionHud model={model} navigationModel={navigationModel} radarModel={radarModel} />
+      ) : null}
+      <StarCoreInteriorScreen
+        screenModel={interiorScreenModel}
         interiorModel={interiorModel}
         selectedConstitution={selectedConstitution}
         lockTransitionModel={lockTransitionModel}
+        onSelectConstitution={handleSelectConstitution}
         onConfirmPolicyLock={handleConfirmPolicyLock}
-        onReturnToSpace={() => setInteriorUiState(closeStarCoreInteriorUi())}
+        onReturnToSpace={handleReturnToSpace}
       />
     </main>
   );

@@ -15,7 +15,7 @@ function createOrbitPoints(radius, y = 0, segments = 80) {
   });
 }
 
-function CameraRig({ controlsRef, navigationModel, movementRef, onHeadingChange, interiorModel }) {
+function CameraRig({ controlsRef, navigationModel, movementRef, onHeadingChange }) {
   const { camera, pointer } = useThree();
   const headingRef = useRef(0);
 
@@ -29,22 +29,8 @@ function CameraRig({ controlsRef, navigationModel, movementRef, onHeadingChange,
       Number(activePosition[1] || 0.4),
       Number(activePosition[2] || 0)
     );
-    const interiorTargetYOffset = interiorModel.isOpen
-      ? interiorModel.phase === "first_orbit_ready"
-        ? 0.82
-        : 1.04
-      : 0;
-    const desiredDistance = interiorModel.isOpen
-      ? interiorModel.phase === "first_orbit_ready"
-        ? 7.4
-        : interiorModel.phase === "policy_lock_transition"
-          ? 8.2
-          : interiorModel.phase === "policy_lock_ready"
-            ? 8.8
-            : interiorModel.phase === "constitution_select"
-              ? 9.1
-              : 9.6
-      : navigationModel.mode === "approach_active"
+    const desiredDistance =
+      navigationModel.mode === "approach_active"
         ? activeObject?.type === "star"
           ? activeObject?.approachDistance || 6.7
           : 5.8
@@ -55,10 +41,10 @@ function CameraRig({ controlsRef, navigationModel, movementRef, onHeadingChange,
           : 14.8;
 
     if (controls) {
-      if (navigationModel.mode !== "space_idle" || interiorModel.isOpen) {
+      if (navigationModel.mode !== "space_idle") {
         const targetWithParallax = new THREE.Vector3(
-          target.x + pointer.x * (interiorModel.isOpen ? 0.04 : 0.18),
-          target.y + interiorTargetYOffset + pointer.y * (interiorModel.isOpen ? 0.035 : 0.12),
+          target.x + pointer.x * 0.18,
+          target.y + pointer.y * 0.12,
           target.z
         );
         controls.target.lerp(targetWithParallax, 1 - Math.exp(-delta * 3.2));
@@ -70,7 +56,7 @@ function CameraRig({ controlsRef, navigationModel, movementRef, onHeadingChange,
       }
 
       const movement = movementRef.current;
-      if (!interiorModel.isOpen && (movement.forward || movement.backward)) {
+      if (movement.forward || movement.backward) {
         const speed = navigationModel.mode === "approach_active" ? 3.8 : 5.4;
         const direction = new THREE.Vector3();
         camera.getWorldDirection(direction);
@@ -187,103 +173,7 @@ function PlanetNode({ item, isSelected, isApproached, onSelectObject, onApproach
   );
 }
 
-function ConstitutionNode({ option, index, selected, onSelectConstitution }) {
-  const radius = 3.3;
-  const theta = (index / 4) * Math.PI * 2 - Math.PI / 2;
-  const position = [Math.cos(theta) * radius, Math.sin(theta) * 1.12 + 0.6, Math.sin(theta) * radius * 0.32];
-  return (
-    <group position={position}>
-      <mesh
-        onClick={(event) => {
-          event.stopPropagation();
-          onSelectConstitution(option.id);
-        }}
-        onPointerOver={(event) => {
-          event.stopPropagation();
-          document.body.style.cursor = "pointer";
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = "auto";
-        }}
-      >
-        <sphereGeometry args={[selected ? 0.46 : 0.34, 26, 26]} />
-        <meshStandardMaterial
-          color={selected ? option.tonePrimary : option.toneSecondary}
-          emissive={option.tonePrimary}
-          emissiveIntensity={selected ? 1.9 : 1.1}
-        />
-      </mesh>
-      <DiegeticLabel position={[0, 0.72, 0]} text={option.title} size={0.16} color="#fff1d6" />
-      <DiegeticLabel position={[0, -0.62, 0]} text={option.effectHint} size={0.1} color="#ffe1b1" />
-    </group>
-  );
-}
-
-function StarCoreInterior({ model, interiorModel, selectedConstitution, onSelectConstitution }) {
-  const interiorGlow = interiorModel.phase === "policy_lock_transition" ? "#fff0ba" : "#aef6ff";
-  const orbitRadius = interiorModel.phase === "first_orbit_ready" ? 4.1 : 3.3;
-  const orbitCue = useMemo(() => createOrbitPoints(orbitRadius, -0.12), [orbitRadius]);
-  const constitutionOptions = Array.isArray(interiorModel.availableConstitutions)
-    ? interiorModel.availableConstitutions
-    : [];
-  const showConstitutions = interiorModel.canSelectConstitution;
-
-  return (
-    <group position={[0, 0.4, 0]}>
-      <mesh scale={1.24}>
-        <sphereGeometry args={[1.28, 48, 48]} />
-        <meshBasicMaterial color={interiorGlow} transparent opacity={0.12} />
-      </mesh>
-      <mesh scale={1.06}>
-        <icosahedronGeometry args={[2.42, 0]} />
-        <meshBasicMaterial
-          color={selectedConstitution?.toneSecondary || "#bff8ff"}
-          transparent
-          opacity={0.24}
-          wireframe
-        />
-      </mesh>
-      <Line
-        points={orbitCue}
-        color={selectedConstitution?.tonePrimary || model.palette.halo}
-        transparent
-        opacity={interiorModel.phase === "first_orbit_ready" ? 0.88 : 0.34}
-        lineWidth={1.5}
-      />
-      {showConstitutions
-        ? constitutionOptions.map((option, index) => (
-            <ConstitutionNode
-              key={option.id}
-              option={option}
-              index={index}
-              selected={selectedConstitution?.id === option.id}
-              onSelectConstitution={onSelectConstitution}
-            />
-          ))
-        : null}
-      <DiegeticLabel
-        position={[0, 2.7, 0]}
-        text={
-          interiorModel.phase === "star_core_interior_entry"
-            ? "Jádro prostoru se otevírá"
-            : interiorModel.explainability.headline || "Jádro prostoru je otevřené"
-        }
-        size={0.22}
-        color="#fff0cf"
-      />
-    </group>
-  );
-}
-
-function ReactorCore({
-  model,
-  navigationModel,
-  interiorModel,
-  selectedConstitution,
-  onSelectObject,
-  onApproachObject,
-  onSelectConstitution,
-}) {
+function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject }) {
   const rootRef = useRef(null);
   const ringPrimaryRef = useRef(null);
   const ringSecondaryRef = useRef(null);
@@ -327,11 +217,10 @@ function ReactorCore({
     const amplitude = visualModel.pulseScale;
     const pulseDamping = approached ? 0.3 : selected ? 0.42 : 0.56;
     const pulse = 1 + Math.sin(t * visualModel.pulseSpeed) * amplitude * pulseDamping;
-    const interiorScale = interiorModel.isOpen ? (interiorModel.phase === "first_orbit_ready" ? 0.92 : 0.78) : 1;
 
     if (rootRef.current) {
       rootRef.current.rotation.y = t * 0.12;
-      rootRef.current.scale.setScalar((pulse + (selected ? 0.014 : 0)) * interiorScale);
+      rootRef.current.scale.setScalar(pulse + (selected ? 0.014 : 0));
     }
     if (cageRef.current) {
       cageRef.current.rotation.x = t * 0.18;
@@ -458,15 +347,6 @@ function ReactorCore({
           color={label.color}
         />
       ))}
-
-      {interiorModel.isOpen ? (
-        <StarCoreInterior
-          model={model}
-          interiorModel={interiorModel}
-          selectedConstitution={selectedConstitution}
-          onSelectConstitution={onSelectConstitution}
-        />
-      ) : null}
     </group>
   );
 }
@@ -475,11 +355,8 @@ export default function UniverseCanvas({
   model,
   spaceObjects = [],
   navigationModel,
-  interiorModel = { phase: "closed", isOpen: false },
-  selectedConstitution = null,
   onSelectObject = () => {},
   onApproachObject = () => {},
-  onSelectConstitution = () => {},
   onHeadingChange = () => {},
   onClearFocus = () => {},
 }) {
@@ -546,9 +423,7 @@ export default function UniverseCanvas({
         style={{ width: "100%", height: "100%" }}
         onPointerMissed={() => {
           document.body.style.cursor = "auto";
-          if (!interiorModel.isOpen) {
-            onClearFocus();
-          }
+          onClearFocus();
         }}
       >
         <color attach="background" args={["#03060d"]} />
@@ -578,16 +453,12 @@ export default function UniverseCanvas({
           navigationModel={adjustedNavigationModel}
           movementRef={movementRef}
           onHeadingChange={onHeadingChange}
-          interiorModel={interiorModel}
         />
         <ReactorCore
           model={model}
           navigationModel={adjustedNavigationModel}
-          interiorModel={interiorModel}
-          selectedConstitution={selectedConstitution}
           onSelectObject={onSelectObject}
           onApproachObject={onApproachObject}
-          onSelectConstitution={onSelectConstitution}
         />
         {spaceObjects
           .filter((item) => item.type === "planet")
