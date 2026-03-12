@@ -1,8 +1,12 @@
 # FE kamera a radar interaction detail v1
 
-Stav: aktivni (detailni priprava pred kodem pro Blok 1)
+Stav: splneno (detailni priprava pouzita pro uzavreny Blok 1)
 Datum: 2026-03-12
 Vlastnik: Produktove UX + FE architektura + user-agent governance
+
+Pouzito v:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
 
 ## 1. Co se zmenilo
 
@@ -232,4 +236,4 @@ Vysledek:
 ## 12. Co zustava otevrene
 
 - [x] 2026-03-12 Navazny implementacni blok `Blok 1` s konkretnimi aktivnimi runtime soubory byl zapsan.
-- [ ] Teprve potom otevrit kod pro kameru, selection, approach a radar baseline.
+- [x] 2026-03-12 Kod pro kameru, selection, approach a radar baseline byl otevren a dokonceny.

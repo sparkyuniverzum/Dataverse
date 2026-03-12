@@ -94,6 +94,10 @@ Pravidlo:
 
 ## 6. Blok 1: Galaxy Space navigation baseline
 
+Stav bloku:
+
+- [x] 2026-03-12 Blok byl implementovan a uzavren jako navigacni baseline.
+
 ### 6.1 Ucel
 
 Zavest hlavni prostor galaxie jako volne navigovatelny workspace.
@@ -128,6 +132,14 @@ Zavest hlavni prostor galaxie jako volne navigovatelny workspace.
 3. Screenshot `hlavni prostor` musi ukazat navigovatelny workspace, ne jen statickou ilustraci.
 4. Musi existovat focused testy pro navigation/selection state.
 5. Bez radar baseline se blok neuzavre.
+
+### 6.6 Evidence uzavreni
+
+- [x] 2026-03-12 Screenshot `space_idle` potvrzen.
+- [x] 2026-03-12 Screenshot `object_selected` potvrzen.
+- [x] 2026-03-12 Screenshot `approach_active` potvrzen.
+- [x] 2026-03-12 `npm --prefix frontend run format:check` probehl ciste.
+- [x] 2026-03-12 Focused testy pro `Blok 1` a `Blok 1a/1b` probehly green.
 
 ## 7. Blok 2: Spatial Star Core exterior
 
@@ -398,3 +410,4 @@ Vysledek:
 - [x] 2026-03-12 Pred prvnim kodovym rezem byl zapsan detailni dokument `fe-kamera-radar-interaction-detail-v1CZ.md`.
 - [x] 2026-03-12 Implementacni dokument pro `Blok 1` byl zapsan.
 - [ ] U kazdeho implementacniho bloku navazat screenshot dukaz a focused testy presne podle teto osy.
+- [x] 2026-03-12 `Blok 1` byl oficialne uzavren; dalsi otevreny blok je `Blok 2`.

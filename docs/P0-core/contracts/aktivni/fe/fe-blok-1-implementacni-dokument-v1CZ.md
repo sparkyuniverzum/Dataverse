@@ -1,8 +1,12 @@
 # FE Blok 1 implementacni dokument v1
 
-Stav: aktivni (vykonavaci priprava pred kodem pro free navigation + selection/approach + radar baseline)
+Stav: splneno (vykonavaci dokument uzavreneho Bloku 1)
 Datum: 2026-03-12
 Vlastnik: FE architektura + Produktove UX + user-agent governance
+
+Nahrazeno dalsim aktivnim krokem:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md` (`Blok 2`)
 
 ## 1. Vztah k ridicim dokumentum
 
@@ -213,4 +217,4 @@ sed -n '1,260p' frontend/src/_inspiration_reset_20260312/components/universe/cam
 
 ## 13. Co zustava otevrene
 
-- [ ] Teprve po implementaci vyhodnotit, jestli je kamera uz dost svobodna a radar dost citelny pro otevreni `Bloku 2`.
+- [x] 2026-03-12 Kamera, selection/approach i radar baseline byly vyhodnoceny jako dostatecne pro otevreni `Bloku 2`.

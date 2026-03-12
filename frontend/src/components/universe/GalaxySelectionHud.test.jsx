@@ -1,7 +1,11 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 
 import GalaxySelectionHud from "./GalaxySelectionHud.jsx";
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("GalaxySelectionHud", () => {
   it("renders free navigation prompt and radar", () => {
@@ -77,6 +81,6 @@ describe("GalaxySelectionHud", () => {
     );
 
     expect(screen.getByText("Přibližuješ se k objektu Srdce hvězdy")).toBeTruthy();
-    expect(screen.getByTestId("galaxy-radar")).toBeTruthy();
+    expect(screen.getAllByTestId("galaxy-radar")).toHaveLength(1);
   });
 });
