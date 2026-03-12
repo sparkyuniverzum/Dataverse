@@ -386,6 +386,17 @@ Tyto soubory jsou:
 2. auditovane v davkach A-D,
 3. nevhodne pro prime vraceni do nove architektury.
 
+Stav:
+
+1. [x] 2026-03-12 `cleanup batch 1` odstranil:
+   - `frontend/src/_inspiration_reset_20260312/components/GalaxyGateScreen.jsx`
+   - `frontend/src/_inspiration_reset_20260312/components/WorkspaceShell.jsx`
+   - `frontend/src/_inspiration_reset_20260312/components/universe/UniverseWorkspace.jsx`
+   - `frontend/src/_inspiration_reset_20260312/components/universe/WorkspaceSidebar.jsx`
+   - `frontend/src/_inspiration_reset_20260312/components/universe/StageZeroSetupPanel.jsx`
+   - `frontend/src/_inspiration_reset_20260312/components/universe/StageZeroSetupPanelContext.js`
+   - `frontend/src/_inspiration_reset_20260312/components/universe/BondBuilderPanel.jsx`
+
 ## 7. Archivni testy jako dukazni sada
 
 Archiv obsahuje rozsahlou testovou banku. Ta se nema vratit do aktivniho test suite mechanicky, ale zustava jako pripraveny dukazni zdroj.
@@ -455,4 +466,4 @@ Vysledek:
 ## 10. Co zustava otevrene
 
 - [ ] Po navrhu `FE-R1` doplnit do konkretni implementacni dokumentace sekci `Pripraveny kod z archivu` s odkazem na relevantni helpery z tohoto dokumentu.
-- [ ] Po schvaleni konkretni implementacni davky provest uklid `NOK` archived surface po schvalenych davkach, ne jednim necitlivym mazanim.
+- [ ] Po schvaleni `cleanup batch 2` odstranit dalsi `NOK` archived surface, ktere nezustaly v `batch 1`.

@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -73,18 +70,38 @@ describe("planetPhysicsParity", () => {
     });
   });
 
-  it("guards UniverseWorkspace against BE->FE planet metric drift regressions", () => {
-    const workspacePath = fileURLToPath(new URL("./UniverseWorkspace.jsx", import.meta.url));
-    const source = readFileSync(workspacePath, "utf-8");
+  it("guards helper behavior against zero-fallback drift regressions", () => {
+    const runtime = {
+      phase: "active",
+      metrics: { stress: 0, corrosion: 0, rows: 0 },
+      visual: {
+        size_factor: 0,
+        pulse_rate: 0,
+        luminosity: 0,
+        corrosion_level: 0,
+        crack_intensity: 0,
+        hue: 0,
+        saturation: 0,
+      },
+    };
+    const authoritative = resolvePlanetAuthoritativePhysics(runtime, {
+      fallbackPhysics: {
+        radiusFactor: 9,
+        pulseFactor: 9,
+        emissiveBoost: 9,
+        corrosionLevel: 9,
+        crackIntensity: 9,
+        hue: 9,
+        saturation: 9,
+      },
+    });
 
-    expect(source).toContain("resolveTableRuntimeLayoutPhysics");
-    expect(source).toContain("resolvePlanetAuthoritativePhysics");
-    expect(source).toContain("resolveMoonParentRuntimePhysics");
-    expect(source).not.toContain("Number(visual.size_factor) ||");
-    expect(source).not.toContain("Number(visual.pulse_rate) ||");
-    expect(source).not.toContain("Number(visual.luminosity) ||");
-    expect(source).not.toContain("Number(visual.corrosion_level) ||");
-    expect(source).not.toContain("Number(visual.hue) ||");
-    expect(source).not.toContain("Number(visual.saturation) ||");
+    expect(authoritative.physics.radiusFactor).toBe(0);
+    expect(authoritative.physics.pulseFactor).toBe(0);
+    expect(authoritative.physics.emissiveBoost).toBe(0);
+    expect(authoritative.physics.corrosionLevel).toBe(0);
+    expect(authoritative.physics.crackIntensity).toBe(0);
+    expect(authoritative.physics.hue).toBe(0);
+    expect(authoritative.physics.saturation).toBe(0);
   });
 });

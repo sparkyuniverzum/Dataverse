@@ -16,6 +16,7 @@ Aktivní reference (CZ-only):
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-reset-ramec-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-reset-ramec-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-priprava-audit-archivu-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-priprava-audit-archivu-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-archiv-cleanup-batch-1-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-archiv-cleanup-batch-1-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-a-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-a-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-b-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-b-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-c-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-c-v1CZ.md)
