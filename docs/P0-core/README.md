@@ -15,6 +15,7 @@ Aktivní reference (CZ-only):
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-operation-layer-grid-command-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-operation-layer-grid-command-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-reset-ramec-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-reset-ramec-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-priprava-audit-archivu-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-priprava-audit-archivu-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-a-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/fe-r1-audit-archivu-davka-a-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/command-lexicon-cz-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/command-lexicon-cz-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/parser-alias-learning-and-event-preview-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/parser-alias-learning-and-event-preview-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-fe-risk-assessment-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-fe-risk-assessment-v1CZ.md)

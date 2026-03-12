@@ -85,6 +85,10 @@ Scope:
 Otazka:
 Co z puvodniho vstupniho toku skutecne zlepsovalo first impression a co bylo balast?
 
+Stav:
+
+1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/fe-r1-audit-archivu-davka-a-v1CZ.md`.
+
 ### 6.2 Davka B: Universe layout a dominantni surface
 
 Scope:
