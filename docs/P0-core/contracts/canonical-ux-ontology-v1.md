@@ -21,8 +21,7 @@ The current project needs one explicit canonical ontology baseline:
 
 1. moon = planet capability module,
 2. civilization = planet table row instance,
-3. `/civilizations*` = canonical runtime CRUD namespace,
-
+3. `/civilizations*` = canonical runtime CRUD namespace
 
 ## 3. Scope of this document
 

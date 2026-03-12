@@ -348,6 +348,178 @@ def test_parser_preview_returns_plan_scope_risk_and_expected_events(auth_client:
     assert isinstance(body.get("next_step_hint"), str) and body["next_step_hint"]
 
 
+def test_parser_aliases_crud_and_preview_resolution(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    target = f"AliasTarget-{uuid.uuid4().hex[:8]}"
+
+    created = client.put(
+        "/parser/aliases",
+        json={
+            "scope_type": "personal",
+            "galaxy_id": galaxy_id,
+            "alias_phrase": "odpal",
+            "canonical_command": "zhasni",
+        },
+    )
+    assert created.status_code == 200, created.text
+    created_body = created.json()
+    alias_id = created_body["alias"]["alias_id"]
+    assert created_body["alias"]["scope_type"] == "personal"
+    assert created_body["alias"]["alias_phrase"] == "odpal"
+    assert created_body["alias"]["canonical_command"] == "zhasni"
+    assert created_body["alias"]["is_active"] is True
+    assert created_body["event_type"] in {"ALIAS_REGISTERED", "ALIAS_UPDATED"}
+
+    listed = client.get("/parser/aliases", params={"galaxy_id": galaxy_id})
+    assert listed.status_code == 200, listed.text
+    listed_items = listed.json().get("aliases") or []
+    assert any(item.get("alias_id") == alias_id for item in listed_items)
+
+    preview = client.post(
+        "/parser/preview",
+        json={"query": f"odpal: {target}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    assert preview_body.get("alias_used") is True
+    assert preview_body.get("alias_phrase") == "odpal"
+    assert preview_body.get("alias_scope_type") == "personal"
+    assert str(preview_body.get("resolved_command") or "").startswith("zhasni")
+    actions = [str(task.get("action") or "").upper() for task in (preview_body.get("tasks") or [])]
+    assert "DELETE" in actions
+
+    patched = client.patch(
+        f"/parser/aliases/{alias_id}",
+        params={"galaxy_id": galaxy_id},
+        json={"canonical_command": "vyber"},
+    )
+    assert patched.status_code == 200, patched.text
+    patched_body = patched.json()
+    assert patched_body["alias"]["canonical_command"] == "vyber"
+    assert patched_body["event_type"] == "ALIAS_UPDATED"
+
+    preview_after_patch = client.post(
+        "/parser/preview",
+        json={"query": f"odpal: {target}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert preview_after_patch.status_code == 200, preview_after_patch.text
+    preview_after_patch_body = preview_after_patch.json()
+    assert str(preview_after_patch_body.get("resolved_command") or "").startswith("vyber")
+    actions_after_patch = [
+        str(task.get("action") or "").upper() for task in (preview_after_patch_body.get("tasks") or [])
+    ]
+    assert "SELECT" in actions_after_patch
+
+    deleted = client.delete(f"/parser/aliases/{alias_id}", params={"galaxy_id": galaxy_id})
+    assert deleted.status_code == 200, deleted.text
+    deleted_body = deleted.json()
+    assert deleted_body["alias"]["is_active"] is False
+    assert deleted_body["event_type"] == "ALIAS_DEPRECATED"
+
+
+def test_parser_aliases_precedence_personal_over_workspace(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    target = f"AliasPriority-{uuid.uuid4().hex[:8]}"
+
+    workspace_alias = client.put(
+        "/parser/aliases",
+        json={
+            "scope_type": "workspace",
+            "galaxy_id": galaxy_id,
+            "alias_phrase": "pulse",
+            "canonical_command": "zhasni",
+        },
+    )
+    assert workspace_alias.status_code == 200, workspace_alias.text
+
+    personal_alias = client.put(
+        "/parser/aliases",
+        json={
+            "scope_type": "personal",
+            "galaxy_id": galaxy_id,
+            "alias_phrase": "pulse",
+            "canonical_command": "vyber",
+        },
+    )
+    assert personal_alias.status_code == 200, personal_alias.text
+
+    preview = client.post(
+        "/parser/preview",
+        json={"query": f"pulse: {target}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body.get("alias_used") is True
+    assert body.get("alias_scope_type") == "personal"
+    assert str(body.get("resolved_command") or "").startswith("vyber")
+    actions = [str(task.get("action") or "").upper() for task in (body.get("tasks") or [])]
+    assert "SELECT" in actions
+
+
+def test_parser_aliases_conflict_guards_return_structured_detail(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+
+    reserved = client.put(
+        "/parser/aliases",
+        json={
+            "scope_type": "personal",
+            "galaxy_id": galaxy_id,
+            "alias_phrase": "civilizace",
+            "canonical_command": "zhasni",
+        },
+    )
+    assert reserved.status_code == 409, reserved.text
+    reserved_detail = reserved.json().get("detail") or {}
+    assert reserved_detail.get("code") == "PARSER_ALIAS_CONFLICT"
+    assert reserved_detail.get("reason") == "RESERVED_TERM"
+
+    ontology_conflict = client.put(
+        "/parser/aliases",
+        json={
+            "scope_type": "personal",
+            "galaxy_id": galaxy_id,
+            "alias_phrase": "mesic",
+            "canonical_command": "vyber",
+        },
+    )
+    assert ontology_conflict.status_code == 409, ontology_conflict.text
+    ontology_detail = ontology_conflict.json().get("detail") or {}
+    assert ontology_detail.get("code") == "PARSER_ALIAS_CONFLICT"
+    assert ontology_detail.get("reason") == "ONTOLOGY_CONFLICT"
+
+    first = client.put(
+        "/parser/aliases",
+        json={
+            "scope_type": "personal",
+            "galaxy_id": galaxy_id,
+            "alias_phrase": "duplikat-a",
+            "canonical_command": "zhasni",
+        },
+    )
+    second = client.put(
+        "/parser/aliases",
+        json={
+            "scope_type": "personal",
+            "galaxy_id": galaxy_id,
+            "alias_phrase": "duplikat-b",
+            "canonical_command": "vyber",
+        },
+    )
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    second_alias_id = second.json()["alias"]["alias_id"]
+
+    duplicate = client.patch(
+        f"/parser/aliases/{second_alias_id}",
+        params={"galaxy_id": galaxy_id},
+        json={"alias_phrase": "duplikat-a"},
+    )
+    assert duplicate.status_code == 409, duplicate.text
+    duplicate_detail = duplicate.json().get("detail") or {}
+    assert duplicate_detail.get("code") == "PARSER_ALIAS_CONFLICT"
+    assert duplicate_detail.get("reason") == "DUPLICATE_ACTIVE_ALIAS"
+
+
 def test_parser_v2_returns_parse_error_for_invalid_syntax(auth_client: tuple[httpx.Client, str]) -> None:
     client, galaxy_id = auth_client
     execute = client.post(

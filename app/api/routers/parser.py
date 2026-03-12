@@ -15,6 +15,13 @@ from app.api.runtime import (
 )
 from app.app_factory import ServiceContainer
 from app.db import get_session
+from app.infrastructure.runtime.parser.aliases import (
+    deactivate_parser_alias,
+    list_parser_aliases_for_galaxy,
+    patch_parser_alias,
+    select_visible_aliases,
+    upsert_parser_alias,
+)
 from app.infrastructure.runtime.parser.command_service import (
     ParseTaskResolution,
     ScopedContext,
@@ -33,6 +40,11 @@ from app.schemas import (
     ParseCommandPreviewScope,
     ParseCommandRequest,
     ParseCommandResponse,
+    ParserAliasesResponse,
+    ParserAliasMutationResponse,
+    ParserAliasPatchRequest,
+    ParserAliasRecord,
+    ParserAliasUpsertRequest,
 )
 
 router = APIRouter(tags=["parser"])
@@ -130,6 +142,105 @@ async def parser_lexicon(
     return ParseCommandLexiconResponse.model_validate(payload)
 
 
+@router.get("/parser/aliases", response_model=ParserAliasesResponse, status_code=status.HTTP_200_OK)
+async def parser_aliases_list(
+    galaxy_id: UUID | None = None,
+    include_inactive: bool = True,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> ParserAliasesResponse:
+    target_galaxy_id = await resolve_galaxy_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=galaxy_id,
+        services=services,
+    )
+    aliases = await list_parser_aliases_for_galaxy(session=session, galaxy_id=target_galaxy_id)
+    visible = select_visible_aliases(aliases, current_user_id=current_user.id, include_inactive=include_inactive)
+    return ParserAliasesResponse(aliases=[ParserAliasRecord.model_validate(item.__dict__) for item in visible])
+
+
+@router.put("/parser/aliases", response_model=ParserAliasMutationResponse, status_code=status.HTTP_200_OK)
+async def parser_aliases_upsert(
+    payload: ParserAliasUpsertRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> ParserAliasMutationResponse:
+    target_galaxy_id = await resolve_galaxy_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=payload.galaxy_id,
+        services=services,
+    )
+    alias, event_type = await upsert_parser_alias(
+        session=session,
+        actor_user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+        scope_type=payload.scope_type,
+        alias_phrase=payload.alias_phrase,
+        canonical_command=payload.canonical_command,
+        event_writer=services.event_store.append_event,
+    )
+    await session.commit()
+    return ParserAliasMutationResponse(alias=ParserAliasRecord.model_validate(alias.__dict__), event_type=event_type)
+
+
+@router.patch("/parser/aliases/{alias_id}", response_model=ParserAliasMutationResponse, status_code=status.HTTP_200_OK)
+async def parser_aliases_patch(
+    alias_id: UUID,
+    payload: ParserAliasPatchRequest,
+    galaxy_id: UUID | None = None,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> ParserAliasMutationResponse:
+    target_galaxy_id = await resolve_galaxy_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=galaxy_id,
+        services=services,
+    )
+    alias, event_type = await patch_parser_alias(
+        session=session,
+        actor_user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+        alias_id=alias_id,
+        alias_phrase=payload.alias_phrase,
+        canonical_command=payload.canonical_command,
+        is_active=payload.is_active,
+        event_writer=services.event_store.append_event,
+    )
+    await session.commit()
+    return ParserAliasMutationResponse(alias=ParserAliasRecord.model_validate(alias.__dict__), event_type=event_type)
+
+
+@router.delete("/parser/aliases/{alias_id}", response_model=ParserAliasMutationResponse, status_code=status.HTTP_200_OK)
+async def parser_aliases_delete(
+    alias_id: UUID,
+    galaxy_id: UUID | None = None,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> ParserAliasMutationResponse:
+    target_galaxy_id = await resolve_galaxy_id_for_user(
+        session=session,
+        user=current_user,
+        galaxy_id=galaxy_id,
+        services=services,
+    )
+    alias, event_type = await deactivate_parser_alias(
+        session=session,
+        actor_user_id=current_user.id,
+        galaxy_id=target_galaxy_id,
+        alias_id=alias_id,
+        event_writer=services.event_store.append_event,
+    )
+    await session.commit()
+    return ParserAliasMutationResponse(alias=ParserAliasRecord.model_validate(alias.__dict__), event_type=event_type)
+
+
 @router.post("/parser/preview", response_model=ParseCommandPreviewResponse, status_code=status.HTTP_200_OK)
 async def parse_preview(
     payload: ParseCommandRequest,
@@ -167,10 +278,15 @@ async def parse_preview(
     risk_flags = _build_risk_flags(normalized_tasks, branch_id=scoped_context.branch_id)
     expected_events = _build_expected_event_preview(normalized_tasks)
     return ParseCommandPreviewResponse(
-        resolved_command=payload.command,
+        resolved_command=resolution.resolved_command,
         parser_version_requested=resolution.parser_version_requested,
         parser_version_effective=resolution.parser_version_effective,
         parser_path=resolution.parser_path,
+        alias_used=resolution.alias_used,
+        alias_id=resolution.alias_id,
+        alias_phrase=resolution.alias_phrase,
+        alias_scope_type=resolution.alias_scope_type,
+        alias_version=resolution.alias_version,
         fallback_used=resolution.fallback_used,
         fallback_policy_mode=resolution.fallback_policy_mode,
         fallback_policy_reason=resolution.fallback_policy_reason,
@@ -246,13 +362,14 @@ async def parse_and_execute(
             )
         return scoped_context.galaxy_id, scoped_context.branch_id
 
-    tasks = await resolve_tasks_for_payload(
+    resolution = await resolve_plan_for_payload(
         payload=payload,
         session=session,
         current_user_id=current_user.id,
         services=services,
         ensure_scope=ensure_scope,
     )
+    tasks = resolution.tasks
 
     return await run_scoped_atomic_idempotent(
         session=session,
@@ -265,6 +382,9 @@ async def parse_and_execute(
         idempotency_key=payload.idempotency_key,
         request_payload={
             "command": payload.command,
+            "resolved_command": resolution.resolved_command,
+            "alias_used": resolution.alias_used,
+            "alias_version": resolution.alias_version,
             "parser_version": payload.parser_version,
         },
         map_execution=lambda execution: execution_to_response(tasks=tasks, execution=execution),

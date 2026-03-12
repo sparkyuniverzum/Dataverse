@@ -10,6 +10,11 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.runtime.observability.logging_helpers import structured_log_extra
+from app.infrastructure.runtime.parser.aliases import (
+    ParserAliasResolution,
+    resolve_command_alias_for_scope,
+    to_runtime_command,
+)
 from app.infrastructure.runtime.parser2 import (
     Parser2SemanticPlanner,
     SnapshotSemanticResolver,
@@ -37,6 +42,12 @@ class ScopedContext:
 class ParseTaskResolution:
     tasks: list[AtomicTask]
     intent_kinds: list[str]
+    resolved_command: str
+    alias_used: bool
+    alias_id: UUID | None
+    alias_phrase: str | None
+    alias_scope_type: str | None
+    alias_version: int | None
     parser_version_requested: str
     parser_version_effective: str
     parser_path: str
@@ -74,6 +85,7 @@ async def resolve_plan_for_payload(
 ) -> ParseTaskResolution:
     fallback_policy_mode = parser_v2_fallback_policy_mode()
     parser_version_explicit = "parser_version" in payload.model_fields_set
+    alias_resolution = ParserAliasResolution(resolved_command=payload.command, alias_used=False)
 
     def _resolve_fallback_permission() -> tuple[bool, str]:
         if payload.parser_version != "v2":
@@ -129,6 +141,16 @@ async def resolve_plan_for_payload(
             ),
         )
 
+    if hasattr(session, "execute"):
+        scoped_galaxy_id, _ = await ensure_scope()
+        alias_resolution = await resolve_command_alias_for_scope(
+            session=session,
+            galaxy_id=scoped_galaxy_id,
+            current_user_id=current_user_id,
+            command=payload.command,
+        )
+    runtime_command = to_runtime_command(alias_resolution.resolved_command)
+
     tasks: list[AtomicTask]
     intent_kinds: list[str] = []
     if payload.parser_version == "v2":
@@ -146,7 +168,7 @@ async def resolve_plan_for_payload(
                 parser=services.parser2_planner.parser,
                 resolver=SnapshotSemanticResolver(active_civilizations),
             )
-            plan_result = semantic_planner.plan_text(payload.command)
+            plan_result = semantic_planner.plan_text(runtime_command)
             if plan_result.errors:
                 v2_error_message = plan_result.errors[0].message
             elif plan_result.envelope is None:
@@ -178,10 +200,16 @@ async def resolve_plan_for_payload(
                 "v2_runtime_failure",
                 detail=f"{type(exc).__name__}: parser2 runtime failed and policy allows v1 fallback",
             )
-            fallback_tasks = _parse_with_v1_or_422(payload.command)
+            fallback_tasks = _parse_with_v1_or_422(runtime_command)
             return ParseTaskResolution(
                 tasks=fallback_tasks,
                 intent_kinds=[],
+                resolved_command=alias_resolution.resolved_command,
+                alias_used=alias_resolution.alias_used,
+                alias_id=alias_resolution.alias_id,
+                alias_phrase=alias_resolution.alias_phrase,
+                alias_scope_type=alias_resolution.alias_scope_type,
+                alias_version=alias_resolution.alias_version,
                 parser_version_requested=payload.parser_version,
                 parser_version_effective="v1",
                 parser_path="v2_fallback_to_v1",
@@ -202,10 +230,16 @@ async def resolve_plan_for_payload(
                     detail=f"Parse error: {v2_error_message} (fallback_policy={fallback_policy_mode})",
                 )
             _log_v2_fallback("v2_plan_or_bridge_error", detail=v2_error_message)
-            fallback_tasks = _parse_with_v1_or_422(payload.command)
+            fallback_tasks = _parse_with_v1_or_422(runtime_command)
             return ParseTaskResolution(
                 tasks=fallback_tasks,
                 intent_kinds=[],
+                resolved_command=alias_resolution.resolved_command,
+                alias_used=alias_resolution.alias_used,
+                alias_id=alias_resolution.alias_id,
+                alias_phrase=alias_resolution.alias_phrase,
+                alias_scope_type=alias_resolution.alias_scope_type,
+                alias_version=alias_resolution.alias_version,
                 parser_version_requested=payload.parser_version,
                 parser_version_effective="v1",
                 parser_path="v2_fallback_to_v1",
@@ -215,10 +249,16 @@ async def resolve_plan_for_payload(
                 fallback_detail=v2_error_message,
             )
     else:
-        v1_tasks = _parse_with_v1_or_422(payload.command)
+        v1_tasks = _parse_with_v1_or_422(runtime_command)
         return ParseTaskResolution(
             tasks=v1_tasks,
             intent_kinds=[],
+            resolved_command=alias_resolution.resolved_command,
+            alias_used=alias_resolution.alias_used,
+            alias_id=alias_resolution.alias_id,
+            alias_phrase=alias_resolution.alias_phrase,
+            alias_scope_type=alias_resolution.alias_scope_type,
+            alias_version=alias_resolution.alias_version,
             parser_version_requested=payload.parser_version,
             parser_version_effective="v1",
             parser_path="v1",
@@ -230,6 +270,12 @@ async def resolve_plan_for_payload(
     return ParseTaskResolution(
         tasks=tasks,
         intent_kinds=intent_kinds,
+        resolved_command=alias_resolution.resolved_command,
+        alias_used=alias_resolution.alias_used,
+        alias_id=alias_resolution.alias_id,
+        alias_phrase=alias_resolution.alias_phrase,
+        alias_scope_type=alias_resolution.alias_scope_type,
+        alias_version=alias_resolution.alias_version,
         parser_version_requested=payload.parser_version,
         parser_version_effective="v2",
         parser_path="v2",

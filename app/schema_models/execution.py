@@ -123,6 +123,78 @@ class ParseCommandLexiconResponse(BaseModel):
     commands: list[ParserLexiconCommand] = Field(default_factory=list)
 
 
+class ParserAliasRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    alias_id: uuid.UUID
+    scope_type: str
+    galaxy_id: uuid.UUID
+    owner_user_id: uuid.UUID | None = None
+    alias_phrase: str
+    canonical_command: str
+    is_active: bool = True
+    created_at: datetime
+    updated_at: datetime
+    version: int = 1
+
+
+class ParserAliasesResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    aliases: list[ParserAliasRecord] = Field(default_factory=list)
+    precedence: list[str] = Field(default_factory=lambda: ["personal", "workspace", "canonical"])
+
+
+class ParserAliasUpsertRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope_type: str = "personal"
+    galaxy_id: uuid.UUID | None = None
+    alias_phrase: str
+    canonical_command: str
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> ParserAliasUpsertRequest:
+        normalized_scope = str(self.scope_type or "").strip().lower()
+        if normalized_scope not in {"personal", "workspace"}:
+            raise ValueError("`scope_type` must be either 'personal' or 'workspace'")
+        self.scope_type = normalized_scope
+        self.alias_phrase = " ".join(str(self.alias_phrase or "").strip().split())
+        self.canonical_command = " ".join(str(self.canonical_command or "").strip().split())
+        if not self.alias_phrase:
+            raise ValueError("`alias_phrase` must not be empty")
+        if not self.canonical_command:
+            raise ValueError("`canonical_command` must not be empty")
+        return self
+
+
+class ParserAliasPatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    alias_phrase: str | None = None
+    canonical_command: str | None = None
+    is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> ParserAliasPatchRequest:
+        self.alias_phrase = (
+            " ".join(str(self.alias_phrase or "").strip().split()) if self.alias_phrase is not None else None
+        )
+        self.canonical_command = (
+            " ".join(str(self.canonical_command or "").strip().split()) if self.canonical_command is not None else None
+        )
+        if self.alias_phrase is None and self.canonical_command is None and self.is_active is None:
+            raise ValueError("Provide at least one field to patch.")
+        return self
+
+
+class ParserAliasMutationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    alias: ParserAliasRecord
+    event_type: str
+
+
 class ParseCommandPreviewScope(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -155,6 +227,11 @@ class ParseCommandPreviewResponse(BaseModel):
     parser_version_requested: str
     parser_version_effective: str
     parser_path: str
+    alias_used: bool = False
+    alias_id: uuid.UUID | None = None
+    alias_phrase: str | None = None
+    alias_scope_type: str | None = None
+    alias_version: int | None = None
     fallback_used: bool = False
     fallback_policy_mode: str
     fallback_policy_reason: str
