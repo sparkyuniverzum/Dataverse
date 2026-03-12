@@ -30,11 +30,14 @@ from app.domains.star_core.commands import (
     plan_apply_profile_lock,
     plan_migrate_physics_profile,
     plan_outbox_run_once,
+    plan_select_interior_constitution,
     run_outbox_once,
+    select_interior_constitution as select_interior_constitution_command,
 )
 from app.domains.star_core.queries import (
     StarCoreQueryError,
     get_domain_metrics as get_domain_metrics_query,
+    get_interior as get_interior_query,
     get_outbox_status_snapshot,
     get_physics_profile as get_physics_profile_query,
     get_planet_physics_runtime as get_planet_physics_runtime_query,
@@ -48,6 +51,8 @@ from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
     StarCoreDomainMetricsResponse,
+    StarCoreInteriorConstitutionSelectRequest,
+    StarCoreInteriorPublic,
     StarCoreOutboxRunOnceRequest,
     StarCoreOutboxRunOnceResponse,
     StarCoreOutboxStatusResponse,
@@ -97,6 +102,83 @@ async def star_core_policy(
     except StarCoreQueryError as exc:
         raise _query_to_http_exception(exc) from exc
     return star_core_policy_to_public(policy)
+
+
+@router.get(
+    "/galaxies/{galaxy_id}/star-core/interior", response_model=StarCoreInteriorPublic, status_code=status.HTTP_200_OK
+)
+async def star_core_interior(
+    galaxy_id: UUID,
+    session: AsyncSession = Depends(get_read_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> StarCoreInteriorPublic:
+    target_galaxy_id, _ = await resolve_galaxy_scope(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=galaxy_id,
+    )
+    try:
+        interior = await get_interior_query(
+            session=session,
+            services=services,
+            user_id=current_user.id,
+            galaxy_id=target_galaxy_id,
+        )
+    except StarCoreQueryError as exc:
+        raise _query_to_http_exception(exc) from exc
+    return StarCoreInteriorPublic.model_validate(interior)
+
+
+@router.post(
+    "/galaxies/{galaxy_id}/star-core/interior/constitution/select",
+    response_model=StarCoreInteriorPublic,
+    status_code=status.HTTP_200_OK,
+)
+async def star_core_interior_constitution_select(
+    galaxy_id: UUID,
+    payload: StarCoreInteriorConstitutionSelectRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> StarCoreInteriorPublic:
+    plan = plan_select_interior_constitution(constitution_id=payload.constitution_id)
+    target_galaxy_id, _ = await resolve_galaxy_scope(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=galaxy_id,
+    )
+
+    async def execute_scoped(target_scope_galaxy_id: UUID, _: UUID | None) -> StarCoreInteriorPublic:
+        try:
+            interior = await select_interior_constitution_command(
+                session=session,
+                services=services,
+                user_id=current_user.id,
+                galaxy_id=target_scope_galaxy_id,
+                constitution_id=str(plan.request_payload["constitution_id"]),
+            )
+        except StarCoreCommandError as exc:
+            raise _command_to_http_exception(exc) from exc
+        return StarCoreInteriorPublic.model_validate(interior)
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=target_galaxy_id,
+        branch_id=None,
+        endpoint_key="POST:/galaxies/{galaxy_id}/star-core/interior/constitution/select",
+        idempotency_key=payload.idempotency_key,
+        request_payload=plan.request_payload,
+        execute=execute_scoped,
+        replay_loader=StarCoreInteriorPublic.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="Star-core constitution select failed",
+        resolved_scope=(target_galaxy_id, None),
+    )
 
 
 @router.post(

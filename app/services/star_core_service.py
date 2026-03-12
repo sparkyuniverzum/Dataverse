@@ -167,8 +167,14 @@ class StarCoreService:
     def _constitution_id_from_policy(cls, policy: Mapping[str, Any] | None) -> str | None:
         if not policy:
             return None
-        profile_key = cls._normalize_profile_key(str(policy.get("profile_key") or "ORIGIN"))
-        physical_profile_key = cls._normalize_physical_profile_key(str(policy.get("physical_profile_key") or "BALANCE"))
+        raw_profile_key = str(policy.get("profile_key") or "").strip().upper()
+        raw_physical_profile_key = str(policy.get("physical_profile_key") or "").strip().upper()
+        if raw_profile_key not in cls._PROFILE_PRESETS:
+            return None
+        if raw_physical_profile_key not in cls._PHYSICAL_PROFILE_COEFFICIENTS:
+            return None
+        profile_key = raw_profile_key
+        physical_profile_key = raw_physical_profile_key
         physical_profile_version = max(1, int(policy.get("physical_profile_version") or 1))
         for item in cls._CONSTITUTION_CATALOG:
             if (

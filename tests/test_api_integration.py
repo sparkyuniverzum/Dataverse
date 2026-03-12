@@ -1939,6 +1939,70 @@ def test_star_core_policy_lock_replays_with_idempotency_key(auth_client: tuple[h
     assert second_body["locked_at"] == first_body["locked_at"]
 
 
+def test_star_core_interior_read_and_select_endpoints_return_canonical_shape(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
+    client, galaxy_id = auth_client
+
+    interior_before = client.get(f"/galaxies/{galaxy_id}/star-core/interior")
+    assert interior_before.status_code == 200, interior_before.text
+    before_body = interior_before.json()
+    assert before_body["galaxy_id"] == galaxy_id
+    assert before_body["interior_phase"] in {
+        "constitution_select",
+        "policy_lock_ready",
+        "first_orbit_ready",
+    }
+    assert isinstance(before_body["available_constitutions"], list)
+    assert before_body["recommended_constitution_id"] == "rovnovaha"
+    assert "next_action" in before_body
+    assert "explainability" in before_body
+    assert "source_truth" in before_body
+
+    select_response = client.post(
+        f"/galaxies/{galaxy_id}/star-core/interior/constitution/select",
+        json={
+            "constitution_id": "straz",
+            "idempotency_key": f"star-core-interior-select-{uuid.uuid4()}",
+        },
+    )
+    assert select_response.status_code == 200, select_response.text
+    select_body = select_response.json()
+    assert select_body["selected_constitution_id"] == "straz"
+    assert select_body["interior_phase"] == "policy_lock_ready"
+    assert select_body["lock_ready"] is True
+    assert select_body["source_truth"]["profile_key"] == "SENTINEL"
+    assert select_body["source_truth"]["physical_profile_key"] == "BALANCE"
+
+    interior_after = client.get(f"/galaxies/{galaxy_id}/star-core/interior")
+    assert interior_after.status_code == 200, interior_after.text
+    after_body = interior_after.json()
+    assert after_body["selected_constitution_id"] == "straz"
+    assert after_body["lock_ready"] is True
+
+
+def test_star_core_interior_constitution_select_replays_with_idempotency_key(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
+    client, galaxy_id = auth_client
+    idempotency_key = f"star-core-interior-select-{uuid.uuid4()}"
+    payload = {
+        "constitution_id": "archiv",
+        "idempotency_key": idempotency_key,
+    }
+
+    first = client.post(f"/galaxies/{galaxy_id}/star-core/interior/constitution/select", json=payload)
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+    assert first_body["selected_constitution_id"] == "archiv"
+
+    second = client.post(f"/galaxies/{galaxy_id}/star-core/interior/constitution/select", json=payload)
+    assert second.status_code == 200, second.text
+    second_body = second.json()
+    assert second_body["selected_constitution_id"] == first_body["selected_constitution_id"]
+    assert second_body["source_truth"] == first_body["source_truth"]
+
+
 def test_star_core_outbox_run_once_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
     client, _galaxy_id = auth_client
     idempotency_key = f"outbox-run-idempotency-{uuid.uuid4()}"

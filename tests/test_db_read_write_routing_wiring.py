@@ -54,6 +54,7 @@ def test_star_core_get_routes_use_read_and_post_routes_keep_write_dependency() -
     router = galaxies_router_package.star_core_router
     get_paths = [
         "/galaxies/{galaxy_id}/star-core/policy",
+        "/galaxies/{galaxy_id}/star-core/interior",
         "/galaxies/{galaxy_id}/star-core/physics/profile",
         "/galaxies/{galaxy_id}/star-core/physics/planets",
         "/galaxies/{galaxy_id}/star-core/runtime",
@@ -61,6 +62,7 @@ def test_star_core_get_routes_use_read_and_post_routes_keep_write_dependency() -
         "/galaxies/{galaxy_id}/star-core/metrics/domains",
     ]
     post_paths = [
+        "/galaxies/{galaxy_id}/star-core/interior/constitution/select",
         "/galaxies/{galaxy_id}/star-core/policy/lock",
         "/galaxies/{galaxy_id}/star-core/physics/profile/migrate",
         "/star-core/outbox/run-once",
