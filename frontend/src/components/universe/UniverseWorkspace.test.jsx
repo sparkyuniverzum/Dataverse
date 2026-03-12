@@ -2,17 +2,17 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./UniverseCanvas.jsx", () => ({
-  default: ({ model, isStarFocused, isCoreEntered, onSelectStar, onEnterCore, onClearFocus }) => (
+  default: ({ model, navigationModel, spaceObjects, onSelectObject, onApproachObject, onClearFocus }) => (
     <div data-testid="universe-canvas">
       <span data-testid="canvas-state">{model.state}</span>
-      <span data-testid="canvas-view-mode">
-        {isCoreEntered ? "core_entry" : isStarFocused ? "star_focus" : "outer_orbit"}
-      </span>
-      <button type="button" onClick={onSelectStar}>
-        focus star
+      <span data-testid="canvas-nav-mode">{navigationModel.mode}</span>
+      <span data-testid="canvas-selected-object">{navigationModel.selectedObjectId || "none"}</span>
+      <span data-testid="canvas-object-count">{spaceObjects.length}</span>
+      <button type="button" onClick={() => onSelectObject("star-core")}>
+        select star
       </button>
-      <button type="button" onClick={onEnterCore}>
-        enter core
+      <button type="button" onClick={() => onApproachObject("star-core")}>
+        approach star
       </button>
       <button type="button" onClick={onClearFocus}>
         clear focus
@@ -39,7 +39,7 @@ describe("UniverseWorkspace", () => {
     expect(screen.getByTestId("workspace-reset-root")).toBeTruthy();
     expect(container.querySelectorAll('span[aria-hidden="true"]').length).toBeGreaterThan(200);
     expect(screen.getByTestId("canvas-state").textContent).toBe("data_unavailable");
-    expect(screen.getByText("Srdce hvězdy nemá potvrzený scope")).toBeTruthy();
+    expect(screen.getByText("Volná navigace galaxií")).toBeTruthy();
   });
 
   it("renders pre-lock state from BE truth", async () => {
@@ -65,15 +65,28 @@ describe("UniverseWorkspace", () => {
           lock_status: "draft",
           coefficients: { a: 0.12, b: 0.4 },
         }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              table_id: "t-1",
+              planet_name: "Planeta A",
+              constellation_name: "Orion",
+              sector: { center: { x: 6, z: -2 }, size: 2 },
+            },
+          ],
+        }),
       });
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 
-    expect(screen.getByText("Synchronizuji pravdu Srdce hvězdy")).toBeTruthy();
     await waitFor(() => {
       expect(screen.getByTestId("canvas-state").textContent).toBe("star_core_unlocked");
     });
-    expect(screen.getByText("Dvojklikem vstoupíš do Srdce hvězdy")).toBeTruthy();
+    expect(screen.getByTestId("canvas-object-count").textContent).toBe("2");
+    expect(screen.getByText("Volná navigace galaxií")).toBeTruthy();
   });
 
   it("renders post-lock ready state from BE truth", async () => {
@@ -99,6 +112,12 @@ describe("UniverseWorkspace", () => {
           lock_status: "locked",
           coefficients: { a: 0.12, b: 0.4, c: 0.9 },
         }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [],
+        }),
       });
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
@@ -106,7 +125,7 @@ describe("UniverseWorkspace", () => {
     await waitFor(() => {
       expect(screen.getByTestId("canvas-state").textContent).toBe("star_core_locked_ready");
     });
-    expect(screen.getByText("Hvězda je uzamčena a pracovní prostor je připraven")).toBeTruthy();
+    expect(screen.getByText("Volná navigace galaxií")).toBeTruthy();
   });
 
   it("falls back to data_unavailable when policy fetch fails", async () => {
@@ -125,6 +144,12 @@ describe("UniverseWorkspace", () => {
           lock_status: "draft",
           coefficients: {},
         }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [],
+        }),
       });
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
@@ -135,7 +160,7 @@ describe("UniverseWorkspace", () => {
     expect(screen.getByText("service unavailable")).toBeTruthy();
   });
 
-  it("switches HUD guidance after entering the star core", async () => {
+  it("switches selection and approach states from canvas actions", async () => {
     fetch
       .mockResolvedValueOnce({
         ok: true,
@@ -158,17 +183,28 @@ describe("UniverseWorkspace", () => {
           lock_status: "draft",
           coefficients: { a: 0.12, b: 0.4 },
         }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [],
+        }),
       });
 
     render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("canvas-view-mode").textContent).toBe("outer_orbit");
+      expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("space_idle");
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "enter core" }));
+    fireEvent.click(screen.getByRole("button", { name: "select star" }));
+    expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("object_selected");
+    expect(screen.getByText("Vybraný objekt: Srdce hvězdy")).toBeTruthy();
 
-    expect(screen.getByTestId("canvas-view-mode").textContent).toBe("core_entry");
-    expect(screen.getByText("Jsi v prahu Srdce hvězdy")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "approach star" }));
+    expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("approach_active");
+
+    fireEvent.click(screen.getByRole("button", { name: "clear focus" }));
+    expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("space_idle");
   });
 });

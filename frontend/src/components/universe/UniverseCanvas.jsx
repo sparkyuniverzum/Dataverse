@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Billboard, Line, Stars, Text } from "@react-three/drei";
+import { Billboard, Line, OrbitControls, Stars, Text } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 function createOrbitPoints(radius, y = 0, segments = 80) {
@@ -11,26 +11,59 @@ function createOrbitPoints(radius, y = 0, segments = 80) {
   });
 }
 
-function CameraRig({ isFocused, isLocked, isCoreEntered }) {
+function CameraRig({ controlsRef, navigationModel, onHeadingChange }) {
   const { camera, pointer } = useThree();
+  const headingRef = useRef(0);
 
   useFrame((state, delta) => {
-    const t = state.clock.elapsedTime;
-    const orbitSpeed = isCoreEntered ? 0.16 : isFocused ? 0.11 : 0.07;
-    const orbitRadius = isCoreEntered ? 0.34 : isFocused ? 0.52 : 0.42;
-    const baseDistance = isCoreEntered ? (isLocked ? 8.2 : 8.6) : isFocused ? (isLocked ? 10.4 : 11.1) : 14.2;
-    const baseHeight = isCoreEntered ? 1.18 : isFocused ? 1.78 : 2.18;
-    const parallaxX = pointer.x * (isCoreEntered ? 0.78 : isFocused ? 0.92 : 0.84);
-    const parallaxY = pointer.y * (isCoreEntered ? 0.18 : 0.28);
+    const controls = controlsRef.current;
+    const selectedObject = navigationModel.selectedObject;
+    const activeObject = navigationModel.approachTarget || selectedObject;
+    const activePosition = activeObject?.position || [0, 0.4, 0];
     const target = new THREE.Vector3(
-      Math.sin(t * orbitSpeed) * orbitRadius + parallaxX,
-      baseHeight + Math.cos(t * orbitSpeed * 0.7) * 0.06 - parallaxY,
-      baseDistance
+      Number(activePosition[0] || 0),
+      Number(activePosition[1] || 0.4),
+      Number(activePosition[2] || 0)
     );
-    const lookTarget = new THREE.Vector3(parallaxX * 0.16, 0.5 - parallaxY * 0.24, 0);
+    const desiredDistance =
+      navigationModel.mode === "approach_active"
+        ? activeObject?.type === "star"
+          ? 7.2
+          : 5.8
+        : navigationModel.mode === "object_selected"
+          ? activeObject?.type === "star"
+            ? 10.5
+            : 8.8
+          : 14.8;
 
-    camera.position.lerp(target, 1 - Math.exp(-delta * (isCoreEntered ? 1.9 : 1.55)));
-    camera.lookAt(lookTarget);
+    if (controls) {
+      if (navigationModel.mode !== "space_idle") {
+        const targetWithParallax = new THREE.Vector3(
+          target.x + pointer.x * 0.18,
+          target.y + pointer.y * 0.12,
+          target.z
+        );
+        controls.target.lerp(targetWithParallax, 1 - Math.exp(-delta * 3.2));
+        const offset = camera.position.clone().sub(controls.target);
+        const currentDistance = offset.length() || desiredDistance;
+        const nextDistance = THREE.MathUtils.lerp(currentDistance, desiredDistance, 1 - Math.exp(-delta * 2.1));
+        offset.setLength(nextDistance);
+        camera.position.copy(controls.target.clone().add(offset));
+      }
+      controls.update();
+      const headingRadians = controls.getAzimuthalAngle();
+      const headingDegrees = THREE.MathUtils.radToDeg(headingRadians);
+      if (Math.abs(headingDegrees - headingRef.current) > 0.5) {
+        headingRef.current = headingDegrees;
+        onHeadingChange(headingDegrees);
+      }
+    } else {
+      camera.position.lerp(
+        new THREE.Vector3(pointer.x * 0.4, 2.2 + pointer.y * 0.18, desiredDistance),
+        1 - Math.exp(-delta * 2)
+      );
+      camera.lookAt(target);
+    }
   });
 
   return null;
@@ -81,24 +114,63 @@ function DiegeticLabel({ position, text, size = 0.24, color = "#dff6ff" }) {
   );
 }
 
-function ReactorCore({ model, isFocused, isCoreEntered, onSelectStar, onEnterCore }) {
+function PlanetNode({ item, isSelected, isApproached, onSelectObject, onApproachObject }) {
+  const glowScale = isApproached ? 1.7 : isSelected ? 1.45 : 1.25;
+
+  return (
+    <group position={item.position}>
+      <mesh
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelectObject(item.id);
+        }}
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          onApproachObject(item.id);
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation();
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = "auto";
+        }}
+      >
+        <sphereGeometry args={[item.size * 0.28, 24, 24]} />
+        <meshStandardMaterial color="#bdefff" emissive="#7fdfff" emissiveIntensity={isSelected ? 1.4 : 0.82} />
+      </mesh>
+      <mesh scale={glowScale}>
+        <sphereGeometry args={[item.size * 0.22, 18, 18]} />
+        <meshBasicMaterial color="#7fe8ff" transparent opacity={isApproached ? 0.16 : 0.08} />
+      </mesh>
+      <DiegeticLabel
+        position={[0, item.size * 0.52 + 0.3, 0]}
+        text={item.label}
+        size={0.18}
+        color={isSelected ? "#f3fdff" : "#d3f6ff"}
+      />
+    </group>
+  );
+}
+
+function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject }) {
   const rootRef = useRef(null);
   const ringPrimaryRef = useRef(null);
   const ringSecondaryRef = useRef(null);
   const cageRef = useRef(null);
+  const selected = navigationModel.selectedObjectId === "star-core";
+  const approached = navigationModel.approachTargetId === "star-core";
   const orbitCue = useMemo(() => createOrbitPoints(4.8, -0.45), []);
-  const commandArc = useMemo(() => createOrbitPoints(2.6, -1.65), []);
-  const entryArc = useMemo(() => createOrbitPoints(2.2, 1.95, 48), []);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     const amplitude = model.visual.pulseAmplitude;
-    const pulseDamping = isCoreEntered ? 0.26 : isFocused ? 0.38 : 0.52;
+    const pulseDamping = approached ? 0.3 : selected ? 0.42 : 0.56;
     const pulse = 1 + Math.sin(t * model.visual.pulseSpeed) * amplitude * pulseDamping;
 
     if (rootRef.current) {
-      rootRef.current.rotation.y = t * (isCoreEntered ? 0.28 : 0.2);
-      rootRef.current.scale.setScalar(pulse + (isFocused ? 0.018 : 0));
+      rootRef.current.rotation.y = t * 0.12;
+      rootRef.current.scale.setScalar(pulse + (selected ? 0.014 : 0));
     }
     if (cageRef.current) {
       cageRef.current.rotation.x = t * 0.18;
@@ -115,8 +187,14 @@ function ReactorCore({ model, isFocused, isCoreEntered, onSelectStar, onEnterCor
   return (
     <group ref={rootRef} position={[0, 0.4, 0]}>
       <mesh
-        onClick={onSelectStar}
-        onDoubleClick={onEnterCore}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelectObject("star-core");
+        }}
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          onApproachObject("star-core");
+        }}
         onPointerOver={(event) => {
           event.stopPropagation();
           document.body.style.cursor = "pointer";
@@ -129,20 +207,20 @@ function ReactorCore({ model, isFocused, isCoreEntered, onSelectStar, onEnterCor
         <meshStandardMaterial
           color={model.palette.primary}
           emissive={model.palette.secondary}
-          emissiveIntensity={isCoreEntered ? 1.9 : 1.55}
+          emissiveIntensity={approached ? 1.72 : selected ? 1.48 : 1.32}
           roughness={0.25}
           metalness={0.1}
         />
       </mesh>
 
-      <mesh scale={isCoreEntered ? 1.22 : 1.3}>
+      <mesh scale={approached ? 1.22 : 1.3}>
         <icosahedronGeometry args={[1.75, 1]} />
         <meshBasicMaterial color={model.palette.halo} transparent opacity={0.28} wireframe />
       </mesh>
 
-      <mesh scale={isCoreEntered ? 1.94 : 1.8}>
+      <mesh scale={approached ? 1.94 : 1.8}>
         <sphereGeometry args={[1.45, 40, 40]} />
-        <meshBasicMaterial color={model.palette.governance} transparent opacity={isCoreEntered ? 0.09 : 0.06} />
+        <meshBasicMaterial color={model.palette.governance} transparent opacity={approached ? 0.09 : 0.06} />
       </mesh>
 
       <group ref={cageRef}>
@@ -170,20 +248,6 @@ function ReactorCore({ model, isFocused, isCoreEntered, onSelectStar, onEnterCor
         </mesh>
       </group>
 
-      {!model.visual.showOrbitCue ? (
-        <>
-          <Line points={entryArc} color={model.palette.governance} transparent opacity={0.3} lineWidth={1.2} />
-          <mesh position={[0, 1.95, 2.2]}>
-            <sphereGeometry args={[0.08, 18, 18]} />
-            <meshBasicMaterial color={model.palette.governance} />
-          </mesh>
-        </>
-      ) : null}
-
-      {model.visual.showCommandBeacon ? (
-        <Line points={commandArc} color={model.palette.secondary} transparent opacity={0.34} lineWidth={1.6} />
-      ) : null}
-
       {model.visual.showOrbitCue ? (
         <>
           <Line points={orbitCue} color={model.palette.halo} transparent opacity={0.56} lineWidth={1.5} />
@@ -209,27 +273,36 @@ function ReactorCore({ model, isFocused, isCoreEntered, onSelectStar, onEnterCor
         text={`${model.ringLabels[2].key}: ${model.ringLabels[2].value}`}
         size={0.22}
       />
-      {!model.visual.showOrbitCue ? (
-        <DiegeticLabel
-          position={[0, 2.45, 2.65]}
-          text={isCoreEntered ? "PRAH SRDCE HVĚZDY" : "DVOJKLIKEM VSTOUPÍŠ DO JÁDRA"}
-          size={0.19}
-          color={model.palette.governance}
-        />
-      ) : null}
+      <DiegeticLabel
+        position={[0, 2.45, 2.65]}
+        text={
+          approached ? "PŘIBLÍŽENÍ KE STŘEDU GALAXIE" : selected ? "HVĚZDA JE VYBRANÁ" : "HVĚZDA JE ORIENTAČNÍ KOTVA"
+        }
+        size={0.19}
+        color={model.palette.governance}
+      />
     </group>
   );
 }
 
 export default function UniverseCanvas({
   model,
-  isStarFocused = false,
-  isCoreEntered = false,
-  onSelectStar = () => {},
-  onEnterCore = () => {},
+  spaceObjects = [],
+  navigationModel,
+  onSelectObject = () => {},
+  onApproachObject = () => {},
+  onHeadingChange = () => {},
   onClearFocus = () => {},
 }) {
   const locked = model.state === "star_core_locked_ready";
+  const controlsRef = useRef(null);
+
+  useEffect(() => {
+    document.body.style.cursor = "auto";
+    return () => {
+      document.body.style.cursor = "auto";
+    };
+  }, []);
 
   return (
     <div data-testid="universe-canvas-shell" style={{ position: "absolute", inset: 0 }}>
@@ -250,16 +323,36 @@ export default function UniverseCanvas({
         <pointLight position={[0, -2.2, -4]} intensity={4} color={model.palette.secondary} />
         <directionalLight position={[6, 10, 8]} intensity={0.8} color="#bfdfff" />
 
+        <OrbitControls
+          ref={controlsRef}
+          enableDamping
+          dampingFactor={0.08}
+          minDistance={5.2}
+          maxDistance={24}
+          maxPolarAngle={Math.PI * 0.47}
+          minPolarAngle={Math.PI * 0.2}
+        />
         <Stars radius={80} depth={36} count={3600} factor={4} saturation={0} fade speed={0.24} />
         <TacticalGrid color={model.palette.halo} intensity={locked ? 0.34 : 0.24} />
-        <CameraRig isFocused={isStarFocused} isLocked={locked} isCoreEntered={isCoreEntered} />
+        <CameraRig controlsRef={controlsRef} navigationModel={navigationModel} onHeadingChange={onHeadingChange} />
         <ReactorCore
           model={model}
-          isFocused={isStarFocused}
-          isCoreEntered={isCoreEntered}
-          onSelectStar={onSelectStar}
-          onEnterCore={onEnterCore}
+          navigationModel={navigationModel}
+          onSelectObject={onSelectObject}
+          onApproachObject={onApproachObject}
         />
+        {spaceObjects
+          .filter((item) => item.type === "planet")
+          .map((item) => (
+            <PlanetNode
+              key={item.id}
+              item={item}
+              isSelected={navigationModel.selectedObjectId === item.id}
+              isApproached={navigationModel.approachTargetId === item.id}
+              onSelectObject={onSelectObject}
+              onApproachObject={onApproachObject}
+            />
+          ))}
 
         <EffectComposer>
           <Bloom mipmapBlur luminanceThreshold={0.15} intensity={locked ? 1.2 : 1.6} />

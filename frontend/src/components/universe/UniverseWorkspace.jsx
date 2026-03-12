@@ -4,10 +4,21 @@ import {
   API_BASE,
   apiErrorFromResponse,
   apiFetch,
+  buildGalaxyPlanetsUrl,
   buildStarCorePhysicsProfileUrl,
   buildStarCorePolicyUrl,
+  buildTablesUrl,
 } from "../../lib/dataverseApi";
-import StarCoreHudOverlay from "./StarCoreHudOverlay.jsx";
+import GalaxySelectionHud from "./GalaxySelectionHud.jsx";
+import {
+  beginGalaxyApproach,
+  clearGalaxySelection,
+  createInitialGalaxyNavigationState,
+  resolveGalaxyEscape,
+  resolveGalaxyNavigationModel,
+  selectGalaxyObject,
+} from "./galaxyNavigationStateModel.js";
+import { buildGalaxySpaceObjects, resolveGalaxyRadarModel } from "./galaxyRadarModel.js";
 import { adaptStarCoreTruth } from "./starCoreTruthAdapter.js";
 import { resolveStarCoreSpatialLoadingModel, resolveStarCoreSpatialStateModel } from "./starCoreSpatialStateModel.js";
 import UniverseCanvas from "./UniverseCanvas.jsx";
@@ -41,6 +52,12 @@ function createLoadingModel(defaultGalaxy, connectivity) {
   });
 }
 
+function readItemsPayload(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === "object" && Array.isArray(payload.items)) return payload.items;
+  return [];
+}
+
 export default function UniverseWorkspace({ defaultGalaxy = null, connectivity = null }) {
   const starLayers = useMemo(
     () => ({
@@ -53,10 +70,11 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
   const [fetchState, setFetchState] = useState({
     status: defaultGalaxy?.id ? "loading" : "data_unavailable",
     truth: null,
+    tableRows: [],
     error: "",
   });
-  const [isStarFocused, setIsStarFocused] = useState(false);
-  const [isCoreEntered, setIsCoreEntered] = useState(false);
+  const [navigationState, setNavigationState] = useState(createInitialGalaxyNavigationState);
+  const [headingDegrees, setHeadingDegrees] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -68,6 +86,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
           setFetchState({
             status: "data_unavailable",
             truth: null,
+            tableRows: [],
             error: "Chybí aktivní galaxie pro načtení Star Core.",
           });
         }
@@ -78,14 +97,16 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         setFetchState((current) => ({
           status: "loading",
           truth: current.truth,
+          tableRows: current.tableRows,
           error: "",
         }));
       }
 
       try {
-        const [policyResponse, physicsResponse] = await Promise.all([
+        const [policyResponse, physicsResponse, tablesResponse] = await Promise.all([
           apiFetch(buildStarCorePolicyUrl(API_BASE, galaxyId)),
           apiFetch(buildStarCorePhysicsProfileUrl(API_BASE, galaxyId)),
+          apiFetch(buildTablesUrl(API_BASE, null, galaxyId, null)),
         ]);
 
         if (!policyResponse.ok) {
@@ -99,6 +120,15 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
           policyResponse.json(),
           physicsResponse.json(),
         ]);
+        let tableRows = [];
+        if (tablesResponse.ok) {
+          tableRows = readItemsPayload(await tablesResponse.json().catch(() => []));
+        } else {
+          const fallbackPlanetsResponse = await apiFetch(buildGalaxyPlanetsUrl(API_BASE, galaxyId));
+          if (fallbackPlanetsResponse.ok) {
+            tableRows = readItemsPayload(await fallbackPlanetsResponse.json().catch(() => []));
+          }
+        }
         const truth = adaptStarCoreTruth({
           galaxy: defaultGalaxy,
           connectivity,
@@ -114,6 +144,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
           setFetchState({
             status: truth.policy.lock_status === "locked" ? "star_core_locked_ready" : "star_core_unlocked",
             truth,
+            tableRows,
             error: "",
           });
         }
@@ -122,6 +153,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         setFetchState({
           status: "data_unavailable",
           truth: null,
+          tableRows: [],
           error: String(error?.message || "Načtení Star Core selhalo."),
         });
       }
@@ -136,8 +168,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
   useEffect(() => {
     function handleKeyDown(event) {
       if (event.key !== "Escape") return;
-      setIsCoreEntered(false);
-      setIsStarFocused(false);
+      setNavigationState((current) => resolveGalaxyEscape(current));
     }
 
     window.addEventListener("keydown", handleKeyDown);
@@ -155,6 +186,46 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     }
     return resolveStarCoreSpatialStateModel(fetchState.truth, { error: fetchState.error });
   }, [connectivity, defaultGalaxy, fetchState.error, fetchState.status, fetchState.truth]);
+
+  const spaceObjects = useMemo(
+    () => buildGalaxySpaceObjects({ starModel: model, tableRows: fetchState.tableRows }),
+    [fetchState.tableRows, model]
+  );
+  const navigationModel = useMemo(
+    () => resolveGalaxyNavigationModel({ navigationState, spaceObjects }),
+    [navigationState, spaceObjects]
+  );
+  const radarModel = useMemo(
+    () =>
+      resolveGalaxyRadarModel({
+        galaxyName: model.galaxyName,
+        spaceObjects,
+        selectedObjectId: navigationModel.selectedObjectId,
+        headingDegrees,
+      }),
+    [headingDegrees, model.galaxyName, navigationModel.selectedObjectId, spaceObjects]
+  );
+
+  useEffect(() => {
+    if (
+      navigationModel.mode !== navigationState.mode ||
+      navigationModel.selectedObjectId !== navigationState.selectedObjectId ||
+      navigationModel.approachTargetId !== navigationState.approachTargetId
+    ) {
+      setNavigationState({
+        mode: navigationModel.mode,
+        selectedObjectId: navigationModel.selectedObjectId,
+        approachTargetId: navigationModel.approachTargetId,
+      });
+    }
+  }, [
+    navigationModel.approachTargetId,
+    navigationModel.mode,
+    navigationModel.selectedObjectId,
+    navigationState.approachTargetId,
+    navigationState.mode,
+    navigationState.selectedObjectId,
+  ]);
 
   return (
     <main
@@ -203,19 +274,14 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
 
       <UniverseCanvas
         model={model}
-        isStarFocused={isStarFocused}
-        isCoreEntered={isCoreEntered}
-        onSelectStar={() => setIsStarFocused(true)}
-        onEnterCore={() => {
-          setIsStarFocused(true);
-          setIsCoreEntered(true);
-        }}
-        onClearFocus={() => {
-          setIsCoreEntered(false);
-          setIsStarFocused(false);
-        }}
+        spaceObjects={spaceObjects}
+        navigationModel={navigationModel}
+        onSelectObject={(objectId) => setNavigationState((current) => selectGalaxyObject(current, objectId))}
+        onApproachObject={(objectId) => setNavigationState((current) => beginGalaxyApproach(current, objectId))}
+        onHeadingChange={setHeadingDegrees}
+        onClearFocus={() => setNavigationState(clearGalaxySelection())}
       />
-      <StarCoreHudOverlay model={model} isStarFocused={isStarFocused} isCoreEntered={isCoreEntered} />
+      <GalaxySelectionHud model={model} navigationModel={navigationModel} radarModel={radarModel} />
     </main>
   );
 }
