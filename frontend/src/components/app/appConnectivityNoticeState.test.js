@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { buildOfflineEntryGuardMessage, resolveAppConnectivityNotice } from "./appConnectivityNoticeState";
+import { buildOfflineEntryGuardMessage, resolveAppConnectivityNotice } from "./appConnectivityNoticeState.js";
 
 describe("appConnectivityNoticeState", () => {
-  it("returns null when app is online", () => {
+  it("builds a czech offline guard message", () => {
+    expect(buildOfflineEntryGuardMessage("Prihlaseni")).toContain("Prihlaseni neni dostupna");
+  });
+
+  it("returns no notice when app is online", () => {
     expect(resolveAppConnectivityNotice(true, "auth_entry")).toBeNull();
   });
 
-  it("builds phase-specific offline notices", () => {
-    expect(resolveAppConnectivityNotice(false, "session_boot")?.message).toContain("bootstrap session");
-    expect(resolveAppConnectivityNotice(false, "auth_entry")?.message).toContain("Prihlaseni a registrace");
-    expect(resolveAppConnectivityNotice(false, "galaxy_gate")?.message).toContain("galaxii");
-  });
-
-  it("builds operator-readable offline entry guard messages", () => {
-    expect(buildOfflineEntryGuardMessage("Prihlaseni")).toContain("Prihlaseni");
-    expect(buildOfflineEntryGuardMessage("Prihlaseni")).toContain("offline");
+  it("returns auth-entry offline notice when app is offline", () => {
+    expect(resolveAppConnectivityNotice(false, "auth_entry")).toMatchObject({
+      tone: "warn",
+      title: "Jsi offline",
+    });
   });
 });

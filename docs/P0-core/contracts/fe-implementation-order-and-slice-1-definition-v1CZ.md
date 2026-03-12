@@ -1,8 +1,28 @@
 # FE implementacni poradi a definice Slice 1 v1
 
-Stav: aktivni (zavazne FE implementacni poradi)
+Stav: nahrazeno resetem 2026-03-12 (historicka stopa puvodniho FE smeru)
 Datum: 2026-03-12
 Vlastnik: Produktove UX + FE architektura + user-agent governance
+
+## 0. Status 2026-03-12
+
+Tento dokument uz neni aktivnim vykonavacim planem pro FE.
+
+Od 2026-03-12 je aktivni:
+
+- `docs/P0-core/contracts/fe-reset-ramec-v1CZ.md`
+
+Duvod:
+
+1. aktivni authenticated FE runtime byl resetovan na minimalisticky zaklad,
+2. puvodni slice poradi predpokladalo pokracovani nad legacy workspace stromem,
+3. tento predpoklad uz po FE resetu neplati.
+
+Tento soubor zustava zachovan pouze jako:
+
+1. historicka stopa puvodniho FE planu,
+2. auditovatelný zapis pred-reset rozhodnuti,
+3. neaktivni reference pro srovnani.
 
 ## 1. Ucel
 

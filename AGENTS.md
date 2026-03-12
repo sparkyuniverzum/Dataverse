@@ -62,6 +62,10 @@ Scope: entire repository.
 4. After every block, agent must provide `Povel pro tebe` with exact copy/paste commands.
 5. Do not claim block completion without an explicit command list for user execution.
 6. For UX-first, refactor, or product-experience work, load and follow `docs/P0-core/governance/human-agent-alignment-protocol-v1.md` before claiming scope, success, or closure.
+7. Po FE resetu je zavazny postup `priprava -> navrh -> implementace`; agent nesmi preskocit pripravu a jit rovnou do kodu.
+8. Pri praci nad FE archivem musi nejdriv probehnout porada nad `frontend/src/_inspiration_reset_20260312/` se zapisem `OK / NOK / proc / co prevzit / co odstranit`.
+9. `NOK` polozky z FE archivu se po schvalene davce odstranuji definitivne z projektu; agent je nesmi nechavat dlouhodobe lezet bez rozhodnuti.
+10. Kazda FE archivni davka musi byt podlozena dukazy odpovidajicimi scope: screenshoty, focused testy a strucne auditni rozhodnuti.
 
 ## Test Cadence (Mandatory)
 
@@ -81,6 +85,6 @@ Scope: entire repository.
 ## Validation Baseline
 
 1. `npm --prefix frontend run format:check`
-2. `npm --prefix frontend run test -- src/components/universe/QuickGridOverlay.civilizations.test.jsx`
-3. `npm --prefix frontend run test:e2e:planet-civilization-mineral-workflow`
+2. `npm --prefix frontend run test -- src/App.test.jsx src/components/app/AppConnectivityNotice.test.jsx src/components/app/appConnectivityNoticeState.test.js src/components/app/WorkspaceShell.test.jsx src/components/universe/UniverseWorkspace.test.jsx`
+3. `npm --prefix frontend run build`
 4. `pytest -q tests/test_api_integration.py` (release/hardening gate)
