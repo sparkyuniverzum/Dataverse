@@ -101,6 +101,10 @@ Scope:
 Otazka:
 Co pomahalo jedne autoritativni primarni akci a co rozbijelo hierarchii?
 
+Stav:
+
+1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/fe-r1-audit-archivu-davka-b-v1CZ.md`.
+
 ### 6.3 Davka C: Operation a utility vrstvy
 
 Scope:
