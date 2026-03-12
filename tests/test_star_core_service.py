@@ -5,6 +5,9 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+import pytest
+from fastapi import HTTPException
+
 from app.services.star_core_service import StarCoreService
 
 
@@ -151,6 +154,46 @@ def test_star_core_interior_read_model_blocks_lock_without_selection() -> None:
     assert payload["selected_constitution_id"] is None
     assert payload["lock_ready"] is False
     assert payload["lock_blockers"] == ["constitution_required"]
+
+
+def test_star_core_validate_policy_lock_selection_detects_mismatch() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        StarCoreService.validate_policy_lock_selection(
+            galaxy_id=uuid.uuid4(),
+            current_policy={
+                "profile_key": "SENTINEL",
+                "law_preset": "integrity_first",
+                "physical_profile_key": "BALANCE",
+                "physical_profile_version": 1,
+                "lock_status": "draft",
+                "policy_version": 2,
+            },
+            requested_profile_key="ORIGIN",
+            requested_physical_profile_key="BALANCE",
+            requested_physical_profile_version=1,
+        )
+
+    detail = exc_info.value.detail
+    assert exc_info.value.status_code == 409
+    assert detail["code"] == "STAR_CORE_LOCK_SELECTION_MISMATCH"
+    assert detail["selected_constitution_id"] == "straz"
+
+
+def test_star_core_validate_policy_lock_selection_accepts_matching_payload() -> None:
+    StarCoreService.validate_policy_lock_selection(
+        galaxy_id=uuid.uuid4(),
+        current_policy={
+            "profile_key": "ARCHIVE",
+            "law_preset": "low_activity",
+            "physical_profile_key": "ARCHIVE",
+            "physical_profile_version": 1,
+            "lock_status": "draft",
+            "policy_version": 2,
+        },
+        requested_profile_key="ARCHIVE",
+        requested_physical_profile_key="ARCHIVE",
+        requested_physical_profile_version=1,
+    )
 
 
 def test_star_core_pulse_derives_visual_hints_from_event_types() -> None:

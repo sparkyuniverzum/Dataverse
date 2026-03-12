@@ -2003,6 +2003,53 @@ def test_star_core_interior_constitution_select_replays_with_idempotency_key(
     assert second_body["source_truth"] == first_body["source_truth"]
 
 
+def test_star_core_policy_lock_rejects_selection_mismatch_and_sets_first_orbit_ready(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
+    client, galaxy_id = auth_client
+
+    select_response = client.post(
+        f"/galaxies/{galaxy_id}/star-core/interior/constitution/select",
+        json={
+            "constitution_id": "straz",
+            "idempotency_key": f"star-core-interior-select-{uuid.uuid4()}",
+        },
+    )
+    assert select_response.status_code == 200, select_response.text
+
+    mismatch_lock = client.post(
+        f"/galaxies/{galaxy_id}/star-core/policy/lock",
+        json={
+            "profile_key": "ORIGIN",
+            "lock_after_apply": True,
+            "physical_profile_key": "BALANCE",
+            "physical_profile_version": 1,
+        },
+    )
+    assert mismatch_lock.status_code == 409, mismatch_lock.text
+    mismatch_body = mismatch_lock.json()
+    assert mismatch_body["detail"]["code"] == "STAR_CORE_LOCK_SELECTION_MISMATCH"
+
+    valid_lock = client.post(
+        f"/galaxies/{galaxy_id}/star-core/policy/lock",
+        json={
+            "profile_key": "SENTINEL",
+            "lock_after_apply": True,
+            "physical_profile_key": "BALANCE",
+            "physical_profile_version": 1,
+        },
+    )
+    assert valid_lock.status_code == 200, valid_lock.text
+    assert valid_lock.json()["lock_status"] == "locked"
+
+    interior_after = client.get(f"/galaxies/{galaxy_id}/star-core/interior")
+    assert interior_after.status_code == 200, interior_after.text
+    after_body = interior_after.json()
+    assert after_body["interior_phase"] == "first_orbit_ready"
+    assert after_body["lock_transition_state"] == "locked"
+    assert after_body["first_orbit_ready"] is True
+
+
 def test_star_core_outbox_run_once_replays_with_idempotency_key(auth_client: tuple[httpx.Client, str]) -> None:
     client, _galaxy_id = auth_client
     idempotency_key = f"outbox-run-idempotency-{uuid.uuid4()}"

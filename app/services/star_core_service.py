@@ -273,6 +273,55 @@ class StarCoreService:
             },
         }
 
+    @classmethod
+    def validate_policy_lock_selection(
+        cls,
+        *,
+        galaxy_id: UUID,
+        current_policy: Mapping[str, Any] | None,
+        requested_profile_key: str,
+        requested_physical_profile_key: str,
+        requested_physical_profile_version: int,
+    ) -> None:
+        if not current_policy:
+            return
+        selected_constitution_id = cls._constitution_id_from_policy(current_policy)
+        if selected_constitution_id is None:
+            return
+
+        current_profile_key = cls._normalize_profile_key(str(current_policy.get("profile_key") or "ORIGIN"))
+        current_physical_profile_key = cls._normalize_physical_profile_key(
+            str(current_policy.get("physical_profile_key") or "BALANCE")
+        )
+        current_physical_profile_version = max(1, int(current_policy.get("physical_profile_version") or 1))
+        normalized_requested_profile_key = cls._normalize_profile_key(requested_profile_key)
+        normalized_requested_physical_profile_key = cls._normalize_physical_profile_key(requested_physical_profile_key)
+        normalized_requested_physical_profile_version = max(1, int(requested_physical_profile_version))
+
+        if (
+            current_profile_key == normalized_requested_profile_key
+            and current_physical_profile_key == normalized_requested_physical_profile_key
+            and current_physical_profile_version == normalized_requested_physical_profile_version
+        ):
+            return
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "STAR_CORE_LOCK_SELECTION_MISMATCH",
+                "message": "Policy lock payload does not match the selected Star Core constitution.",
+                "context": "apply_star_core_profile_lock",
+                "galaxy_id": str(galaxy_id),
+                "selected_constitution_id": selected_constitution_id,
+                "expected_profile_key": current_profile_key,
+                "expected_physical_profile_key": current_physical_profile_key,
+                "expected_physical_profile_version": current_physical_profile_version,
+                "received_profile_key": normalized_requested_profile_key,
+                "received_physical_profile_key": normalized_requested_physical_profile_key,
+                "received_physical_profile_version": normalized_requested_physical_profile_version,
+            },
+        )
+
     @staticmethod
     def _clamp(value: float, min_value: float, max_value: float) -> float:
         return max(min_value, min(max_value, float(value)))
@@ -505,6 +554,14 @@ class StarCoreService:
         normalized_profile_key = self._normalize_profile_key(profile_key)
         normalized_physical_profile_key = self._normalize_physical_profile_key(physical_profile_key)
         normalized_physical_profile_version = max(1, int(physical_profile_version or 1))
+        if not created_new:
+            self.validate_policy_lock_selection(
+                galaxy_id=galaxy_id,
+                current_policy=self._serialize_policy_row(row=row),
+                requested_profile_key=normalized_profile_key,
+                requested_physical_profile_key=normalized_physical_profile_key,
+                requested_physical_profile_version=normalized_physical_profile_version,
+            )
         now = datetime.now(UTC)
         profile_changed = str(row.profile_key or "").upper() != normalized_profile_key
         physical_changed = (
