@@ -29,6 +29,13 @@ from app.infrastructure.runtime.parser.command_service import (
     resolve_tasks_for_payload,
 )
 from app.infrastructure.runtime.parser.lexicon_cz import build_parser_lexicon_payload
+from app.infrastructure.runtime.parser.preview_gate import (
+    build_preview_gate_plan_payload,
+    build_preview_plan_hash,
+    create_preview_gate_token,
+    preview_gate_mode,
+    validate_preview_gate_token,
+)
 from app.models import User
 from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
@@ -136,6 +143,12 @@ def _build_risk_flags(tasks: list[dict[str, Any]], *, branch_id: UUID | None) ->
         scope_sensitive=scope_sensitive,
         requires_confirmation=requires_confirmation,
     )
+
+
+def _is_mutating_plan(tasks: list[dict[str, Any]]) -> bool:
+    actions = {str(task.get("action") or "").strip().upper() for task in tasks}
+    actions.discard("")
+    return any(action in _MUTATING_ACTIONS for action in actions)
 
 
 def _next_step_hint(*, resolution: ParseTaskResolution, risk_flags: ParseCommandPreviewRiskFlags) -> str:
@@ -518,6 +531,26 @@ async def parse_preview(
         ensure_scope=ensure_scope,
     )
     normalized_tasks = _normalize_plan_tasks(resolution.tasks)
+    plan_payload = build_preview_gate_plan_payload(
+        resolved_command=resolution.resolved_command,
+        parser_version_requested=resolution.parser_version_requested,
+        parser_version_effective=resolution.parser_version_effective,
+        parser_path=resolution.parser_path,
+        fallback_used=resolution.fallback_used,
+        fallback_policy_mode=resolution.fallback_policy_mode,
+        fallback_policy_reason=resolution.fallback_policy_reason,
+        alias_version=resolution.alias_version,
+        tasks=normalized_tasks,
+        galaxy_id=scoped_context.galaxy_id,
+        branch_id=scoped_context.branch_id,
+    )
+    preview_plan_hash = build_preview_plan_hash(payload=plan_payload)
+    preview_token, preview_token_expires_at = create_preview_gate_token(
+        user_id=current_user.id,
+        galaxy_id=scoped_context.galaxy_id,
+        branch_id=scoped_context.branch_id,
+        plan_hash=preview_plan_hash,
+    )
     active_civilizations, _ = await services.universe_service.project_state(
         session=session,
         user_id=current_user.id,
@@ -535,6 +568,8 @@ async def parse_preview(
     )
     return ParseCommandPreviewResponse(
         resolved_command=resolution.resolved_command,
+        preview_token=preview_token,
+        preview_token_expires_at=preview_token_expires_at,
         parser_version_requested=resolution.parser_version_requested,
         parser_version_effective=resolution.parser_version_effective,
         parser_path=resolution.parser_path,
@@ -628,6 +663,30 @@ async def parse_and_execute(
         ensure_scope=ensure_scope,
     )
     tasks = resolution.tasks
+    normalized_tasks = _normalize_plan_tasks(tasks)
+    plan_payload = build_preview_gate_plan_payload(
+        resolved_command=resolution.resolved_command,
+        parser_version_requested=resolution.parser_version_requested,
+        parser_version_effective=resolution.parser_version_effective,
+        parser_path=resolution.parser_path,
+        fallback_used=resolution.fallback_used,
+        fallback_policy_mode=resolution.fallback_policy_mode,
+        fallback_policy_reason=resolution.fallback_policy_reason,
+        alias_version=resolution.alias_version,
+        tasks=normalized_tasks,
+        galaxy_id=scoped_context.galaxy_id,
+        branch_id=scoped_context.branch_id,
+    )
+    preview_plan_hash = build_preview_plan_hash(payload=plan_payload)
+    validate_preview_gate_token(
+        token=payload.preview_token,
+        mode=preview_gate_mode(),
+        mutating=_is_mutating_plan(normalized_tasks),
+        expected_plan_hash=preview_plan_hash,
+        expected_user_id=current_user.id,
+        expected_galaxy_id=scoped_context.galaxy_id,
+        expected_branch_id=scoped_context.branch_id,
+    )
 
     return await run_scoped_atomic_idempotent(
         session=session,
@@ -643,6 +702,7 @@ async def parse_and_execute(
             "resolved_command": resolution.resolved_command,
             "alias_used": resolution.alias_used,
             "alias_version": resolution.alias_version,
+            "preview_plan_hash": preview_plan_hash,
             "parser_version": payload.parser_version,
         },
         map_execution=lambda execution: execution_to_response(tasks=tasks, execution=execution),

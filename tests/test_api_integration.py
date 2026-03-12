@@ -55,6 +55,27 @@ def _assert_occ_conflict(response: httpx.Response, *, expected_event_seq: int | 
     return detail
 
 
+def _parser_preview_then_execute(
+    client: httpx.Client,
+    *,
+    payload: dict[str, object],
+) -> tuple[httpx.Response, httpx.Response]:
+    preview_payload = {
+        key: payload[key]
+        for key in ("query", "text", "parser_version", "galaxy_id", "branch_id")
+        if key in payload and payload[key] is not None
+    }
+    preview = client.post("/parser/preview", json=preview_payload)
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    preview_token = str(preview_body.get("preview_token") or "").strip()
+    assert preview_token
+    execute_payload = dict(payload)
+    execute_payload["preview_token"] = preview_token
+    execute = client.post("/parser/execute", json=execute_payload)
+    return preview, execute
+
+
 def _parallel_mutate_with_expected_seq(
     *,
     auth_header: str,
@@ -334,6 +355,8 @@ def test_parser_preview_returns_plan_scope_risk_and_expected_events(auth_client:
     assert response.status_code == 200, response.text
     body = response.json()
     assert body.get("resolved_command") == f"Delete : {label}"
+    assert isinstance(body.get("preview_token"), str) and body["preview_token"]
+    assert isinstance(body.get("preview_token_expires_at"), str) and body["preview_token_expires_at"]
     assert body.get("parser_version_requested") == "v2"
     assert isinstance(body.get("tasks"), list) and body["tasks"]
     actions = [str(task.get("action") or "").upper() for task in body["tasks"]]
@@ -399,6 +422,60 @@ def test_parser_preview_includes_occ_expected_and_current_event_seq_for_known_ta
     )
     assert delete_semantic is not None
     assert any("OCC" in str(line) for line in (delete_semantic.get("because_chain") or []))
+
+
+def test_parser_execute_rejects_invalid_preview_token(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"PreviewGateInvalid-{uuid.uuid4().hex[:8]}"
+    response = client.post(
+        "/parser/execute",
+        json={
+            "query": f"Delete : {label}",
+            "parser_version": "v2",
+            "galaxy_id": galaxy_id,
+            "preview_token": "invalid-token",
+        },
+    )
+    assert response.status_code == 422, response.text
+    detail = response.json().get("detail") or {}
+    assert detail.get("code") == "PARSER_PREVIEW_TOKEN_INVALID"
+
+
+def test_parser_execute_rejects_preview_token_plan_mismatch(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    preview = client.post(
+        "/parser/preview",
+        json={"query": f"Delete : {uuid.uuid4().hex[:8]}", "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert preview.status_code == 200, preview.text
+    preview_token = str(preview.json().get("preview_token") or "").strip()
+    assert preview_token
+
+    execute = client.post(
+        "/parser/execute",
+        json={
+            "query": f"Delete : {uuid.uuid4().hex[:8]}",
+            "parser_version": "v2",
+            "galaxy_id": galaxy_id,
+            "preview_token": preview_token,
+        },
+    )
+    assert execute.status_code == 422, execute.text
+    detail = execute.json().get("detail") or {}
+    assert detail.get("code") == "PARSER_PREVIEW_TOKEN_PLAN_MISMATCH"
+
+
+def test_parser_execute_accepts_valid_preview_token(auth_client: tuple[httpx.Client, str]) -> None:
+    client, galaxy_id = auth_client
+    label = f"PreviewGateValid-{uuid.uuid4().hex[:8]}"
+    preview, execute = _parser_preview_then_execute(
+        client,
+        payload={"query": label, "parser_version": "v2", "galaxy_id": galaxy_id},
+    )
+    assert preview.status_code == 200, preview.text
+    assert execute.status_code == 200, execute.text
+    actions = [str(task.get("action") or "").upper() for task in (execute.json().get("tasks") or [])]
+    assert "INGEST" in actions
 
 
 def test_parser_aliases_crud_and_preview_resolution(auth_client: tuple[httpx.Client, str]) -> None:

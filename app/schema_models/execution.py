@@ -25,6 +25,7 @@ class ParseCommandRequest(BaseModel):
     text: str | None = None
     query: str | None = None
     parser_version: str = "v2"
+    preview_token: str | None = None
     idempotency_key: str | None = None
     galaxy_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
@@ -250,6 +251,8 @@ class ParseCommandPreviewResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     resolved_command: str
+    preview_token: str
+    preview_token_expires_at: datetime
     parser_version_requested: str
     parser_version_effective: str
     parser_path: str

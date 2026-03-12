@@ -87,6 +87,10 @@ Poradi:
 11. `occ_signals`
    - seznam OCC dopadovych signalu na entitach,
    - kazdy signal obsahuje minimalne `action`, `expected_event_seq`, `current_event_seq`, `known`, `because`.
+12. `preview_token`
+    - podpisany token navazany na preview plan hash + scope.
+13. `preview_token_expires_at`
+    - expirace tokenu pro `execute` krok.
 
 ## 3.3 Explainability pravidla
 
@@ -119,9 +123,10 @@ Poradi:
 
 1. `POST /parser/preview`
    - bez zapisu eventu,
-   - vraci data dle sekce 3.2.
+   - vraci data dle sekce 3.2 vcetne `preview_token`.
 2. `POST /parser/execute`
-   - povoleno az po validnim preview.
+   - validuje `preview_token` proti plan hash + scope + user.
+   - pokud je `DATAVERSE_PARSER_PREVIEW_GATE_MODE=enforced`, mutace bez tokenu jsou blokovane (`PARSER_PREVIEW_REQUIRED`).
 
 ## 5. Event sourcing vazba
 
@@ -138,6 +143,7 @@ Poradi:
    - stejny vstup + scope + alias verze = stejny plan.
 2. Explainability:
    - zadna mutace bez preview a because chain.
+   - hard mode: `DATAVERSE_PARSER_PREVIEW_GATE_MODE=enforced`.
 3. Safety:
    - alias nesmi obchazet canonical API pravidla.
 4. Audit:
