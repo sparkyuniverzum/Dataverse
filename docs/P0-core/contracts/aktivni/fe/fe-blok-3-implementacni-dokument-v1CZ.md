@@ -1,8 +1,28 @@
 # FE Blok 3 implementacni dokument v1
 
-Stav: aktivni (posledni priprava pred kodem Bloku 3)
+Stav: aktivni s BE blockerem (FE smer potvrzen, dalsi krok je canonical BE orchestration)
 Datum: 2026-03-12
 Vlastnik: FE architektura + Produktove UX + user-agent governance
+
+## 0. Odchylka a duvod
+
+Pri prvnim runtime otevreni `Bloku 3` se potvrdilo:
+
+1. FE produktovy smer je spravny,
+2. spatial interier `Star Core` a `Constitution Select` jsou relevantni casti zkusenosti,
+3. ale dalsi postup nelze dokoncit jen na FE, protoze dnes chybi canonical BE orchestration vrstva pro interier hvezdy.
+
+FE prototype ukazal spravnou vizi, ale odhalil mezeru v odpovednosti:
+
+1. BE dnes vraci `state truth`,
+2. FE ale pro `Blok 3` potrebuje i `workflow truth`,
+3. a tu dnes backend explicitne nevraci ani neplanuje.
+
+Proto je od ted zavazne:
+
+1. povazovat FE implementaci `Bloku 3` za objevny prototype, ne za canonical finalni smer,
+2. nejdriv zalozit BE orchestration contract,
+3. teprve potom dokoncit runtime FE.
 
 ## 1. Vztah k ridicim dokumentum
 
@@ -150,6 +170,10 @@ Pro Blok 3 je povinna tato pravda:
 5. `GET /galaxies/{galaxy_id}/star-core/domain-metrics`
 6. `POST /galaxies/{galaxy_id}/star-core/policy/lock`
 
+Navic je od ted povinny navazujici BE contract:
+
+1. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-orchestration-zadani-v1CZ.md`
+
 Implementacni pravidla:
 
 1. `law_preset`, `profile_key`, `profile_mode` a `can_edit_core_laws` musi ridit nabidku `Constitution Select`,
@@ -157,6 +181,8 @@ Implementacni pravidla:
 3. `Policy Lock` musi jit pres canonical endpoint, zadny lokalni fake commit,
 4. pri chybe locku musi zustat stav obnovitelny a vysvetleny,
 5. `First Orbit` se zobrazi jen po realnem potvrzeni locku.
+6. FE nesmi byt finalni autorita workflow fazi interieru.
+7. Pokud BE orchestration vrstva neni pripravena, FE muze slouzit jen jako exploracni prototype a blok se nesmi uzavrit.
 
 ## 8. Pripraveny kod z archivu
 
@@ -258,5 +284,8 @@ sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-builder-system-galaxy-space
 
 ## 13. Co zustava otevrene
 
+- [x] 2026-03-12 FE prototype potvrdil, ze `Constitution Select` a `Policy Lock` patri do produktu.
+- [ ] 2026-03-12 Chybi canonical BE orchestration contract pro workflow faze interieru.
+- [ ] 2026-03-12 Dalsi runtime FE postup je blokovan dokumentem `docs/P0-core/contracts/aktivni/be/be-star-core-interior-orchestration-zadani-v1CZ.md`.
 - [ ] Otevrit implementaci `Bloku 3` v runtime.
 - [ ] Po dokonceni `Bloku 3` rozhodnout, jestli je `First Orbit` uz dostatecny vstup pro `Blok 4: Planet topology and orbit baseline`.

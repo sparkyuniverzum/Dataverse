@@ -194,7 +194,9 @@ Udelat z hvezdy centralni governance anchor uvnitr prostoru galaxie, ale ne z ni
 
 Stav bloku:
 
-- [ ] 2026-03-12 Implementacni dokument je pripraven; runtime kod jeste neni otevren.
+- [ ] 2026-03-12 Implementacni dokument je pripraven.
+- [ ] 2026-03-12 FE prototype potvrdil produktovy smer, ale blok je docasne pozastaven kvuli chybejici canonical BE orchestration vrstve.
+- [ ] 2026-03-12 Dalsi runtime postup FE je podminen BE dokumentem `docs/P0-core/contracts/aktivni/be/be-star-core-interior-orchestration-zadani-v1CZ.md`.
 
 ### 8.1 Ucel
 
@@ -229,6 +231,27 @@ Dodelat skutecne governance-first jadro uvnitr hvezdy.
 4. Musi existovat before/after screenshot `pred lock` a `po lock`.
 5. Reduced-motion varianta musi mit stejnou vyznamovou sekvenci.
 6. Aktivni implementace se ma ridit `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`.
+7. FE nesmi byt jediny nositel stavu `constitution_select`, `policy_lock_ready`, `policy_lock_transition` ani `first_orbit_ready`; tyto workflow stavy musi byt nejdriv ukotveny v canonical BE orchestration contractu.
+
+### 8.6 Odchylka vyvoje
+
+Byla potvrzena rizikova odchylka:
+
+1. `Blok 3` neni jen dalsi spatial FE vrstva.
+2. `Blok 3` kombinuje produktovy workflow, canonical `policy/lock` command a operator journey uvnitr `Star Core`.
+3. BE dnes poskytuje `state truth` (`policy`, `physics`, `runtime`, `pulse`, `domain-metrics`) a canonical `POST /star-core/policy/lock`,
+4. ale neposkytuje jeste `workflow truth` pro interier hvezdy:
+   - `star_core_interior_entry`
+   - `constitution_select`
+   - `policy_lock_ready`
+   - `policy_lock_transition`
+   - `first_orbit_ready`
+
+Z toho plyne:
+
+1. FE prototype byl spravny jako objevny krok,
+2. ale dalsi vyvoj `Bloku 3` se docasne presouva do BE,
+3. FE se k nemu vrati az po zalozeni a schvaleni canonical orchestration vrstvy.
 
 ## 9. Blok 4: Planet topology and orbit baseline
 

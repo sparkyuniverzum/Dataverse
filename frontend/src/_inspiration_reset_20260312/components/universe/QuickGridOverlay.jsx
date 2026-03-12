@@ -842,13 +842,11 @@ export default function QuickGridOverlay({
     onCreatePlanet,
     onExtinguishPlanet,
     onSelectTable,
-    planetRowsCount,
     selectedPlanetActionRowsCount,
     selectedPlanetActionTableId,
     planetTargetTableId,
     resolvedPlanetAction,
     rowBatchBusy,
-    selectedTableId,
   ]);
   const planetComposerReason = useMemo(() => {
     if (resolvedPlanetAction === "EXTINGUISH" && !selectedPlanetActionTableId) {

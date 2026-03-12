@@ -1,4 +1,5 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { resolveDragCenter } from "./stageZeroDragCenter";
 
 export function StageZeroDraggablePlanetCard({ disabled = false }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -87,13 +88,4 @@ export function StageZeroDragGhost() {
   );
 }
 
-export function resolveDragCenter(event) {
-  const translated = event?.active?.rect?.current?.translated;
-  const initial = event?.active?.rect?.current?.initial;
-  const rect = translated || initial;
-  if (!rect) return null;
-  return {
-    x: Number(rect.left) + Number(rect.width) / 2,
-    y: Number(rect.top) + Number(rect.height) / 2,
-  };
-}
+export { resolveDragCenter };

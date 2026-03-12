@@ -14,6 +14,7 @@ Pri bezne praci se maji cist defaultne jen dokumenty v `docs/P0-core/contracts/a
 ### BE
 
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/backend-mvp-vykonnostni-gate-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/backend-mvp-vykonnostni-gate-v1.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/be-star-core-interior-orchestration-zadani-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/be-star-core-interior-orchestration-zadani-v1CZ.md)
 
 ### UX
 

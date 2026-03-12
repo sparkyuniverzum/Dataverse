@@ -18,7 +18,6 @@ import {
 } from "./workspace-flow.helpers.mjs";
 
 async function runStep(label, fn, timeoutMs = 35_000) {
-  // eslint-disable-next-line no-console
   console.log(`[e2e-step] ${label}`);
   let timer = null;
   try {
