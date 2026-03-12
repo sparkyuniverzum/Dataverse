@@ -29,6 +29,59 @@ class StarCoreProfileApplyRequest(BaseModel):
     idempotency_key: str | None = None
 
 
+class StarCoreInteriorConstitutionOptionPublic(BaseModel):
+    constitution_id: str = Field(min_length=2, max_length=32)
+    title_cz: str = Field(min_length=1, max_length=80)
+    summary_cz: str = Field(min_length=1, max_length=240)
+    profile_key: str = Field(min_length=2, max_length=32)
+    law_preset: str = Field(min_length=2, max_length=64)
+    physical_profile_key: str = Field(min_length=3, max_length=32)
+    physical_profile_version: int = Field(default=1, ge=1)
+    visual_tone: str = Field(min_length=2, max_length=64)
+    pulse_hint: str = Field(min_length=2, max_length=64)
+    recommended: bool = False
+    lock_allowed: bool = True
+
+
+class StarCoreInteriorNextActionPublic(BaseModel):
+    action_key: str = Field(min_length=2, max_length=64)
+    label_cz: str = Field(min_length=1, max_length=160)
+
+
+class StarCoreInteriorExplainabilityPublic(BaseModel):
+    headline_cz: str = Field(min_length=1, max_length=160)
+    body_cz: str = Field(min_length=1, max_length=400)
+
+
+class StarCoreInteriorSourceTruthPublic(BaseModel):
+    policy_lock_status: str = Field(min_length=2, max_length=32)
+    policy_version: int = Field(default=1, ge=1)
+    profile_key: str = Field(min_length=2, max_length=32)
+    law_preset: str = Field(min_length=2, max_length=64)
+    physical_profile_key: str = Field(min_length=3, max_length=32)
+    physical_profile_version: int = Field(default=1, ge=1)
+
+
+class StarCoreInteriorPublic(BaseModel):
+    galaxy_id: uuid.UUID
+    interior_phase: str = Field(min_length=2, max_length=64)
+    available_constitutions: list[StarCoreInteriorConstitutionOptionPublic] = Field(default_factory=list)
+    selected_constitution_id: str | None = Field(default=None, min_length=2, max_length=32)
+    recommended_constitution_id: str | None = Field(default=None, min_length=2, max_length=32)
+    lock_ready: bool = False
+    lock_blockers: list[str] = Field(default_factory=list)
+    lock_transition_state: str = Field(default="idle", min_length=2, max_length=32)
+    first_orbit_ready: bool = False
+    next_action: StarCoreInteriorNextActionPublic
+    explainability: StarCoreInteriorExplainabilityPublic
+    source_truth: StarCoreInteriorSourceTruthPublic
+
+
+class StarCoreInteriorConstitutionSelectRequest(BaseModel):
+    constitution_id: str = Field(min_length=2, max_length=32)
+    idempotency_key: str | None = None
+
+
 class StarCorePhysicsProfileMigrateRequest(BaseModel):
     from_version: int = Field(ge=1)
     to_version: int = Field(ge=1)

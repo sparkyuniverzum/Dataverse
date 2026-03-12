@@ -75,6 +75,24 @@ def test_star_core_runtime_returns_zero_state_when_no_events() -> None:
     assert result["writes_per_minute"] == 0.0
 
 
+def test_star_core_constitution_catalog_is_canonical_and_complete() -> None:
+    catalog = StarCoreService.list_constitution_catalog()
+
+    assert [item["constitution_id"] for item in catalog] == ["rust", "rovnovaha", "straz", "archiv"]
+
+    balance = StarCoreService.get_constitution_definition("rovnovaha")
+    assert balance is not None
+    assert balance["profile_key"] == "ORIGIN"
+    assert balance["law_preset"] == "balanced"
+    assert balance["physical_profile_key"] == "BALANCE"
+    assert balance["recommended"] is True
+
+    growth = StarCoreService.get_constitution_definition("rust")
+    assert growth is not None
+    assert growth["physical_profile_key"] == "FORGE"
+    assert growth["law_preset"] == "high_throughput"
+
+
 def test_star_core_pulse_derives_visual_hints_from_event_types() -> None:
     now = datetime.now(UTC)
     events = [

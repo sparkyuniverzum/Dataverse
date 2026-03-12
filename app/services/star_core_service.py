@@ -23,6 +23,60 @@ class StarCoreService:
         "SENTINEL": "integrity_first",
         "ARCHIVE": "low_activity",
     }
+    _CONSTITUTION_CATALOG: tuple[dict[str, Any], ...] = (
+        {
+            "constitution_id": "rust",
+            "title_cz": "Růst",
+            "summary_cz": "Rychlejsi expanze a vyssi tok zmen.",
+            "profile_key": "FLUX",
+            "law_preset": "high_throughput",
+            "physical_profile_key": "FORGE",
+            "physical_profile_version": 1,
+            "visual_tone": "growth_amber",
+            "pulse_hint": "surging",
+            "recommended": False,
+            "lock_allowed": True,
+        },
+        {
+            "constitution_id": "rovnovaha",
+            "title_cz": "Rovnováha",
+            "summary_cz": "Stabilni univerzalni rezim pro standardni provoz.",
+            "profile_key": "ORIGIN",
+            "law_preset": "balanced",
+            "physical_profile_key": "BALANCE",
+            "physical_profile_version": 1,
+            "visual_tone": "balanced_blue",
+            "pulse_hint": "steady",
+            "recommended": True,
+            "lock_allowed": True,
+        },
+        {
+            "constitution_id": "straz",
+            "title_cz": "Stráž",
+            "summary_cz": "Vyssi duraz na integritu a ochranu konzistence.",
+            "profile_key": "SENTINEL",
+            "law_preset": "integrity_first",
+            "physical_profile_key": "BALANCE",
+            "physical_profile_version": 1,
+            "visual_tone": "sentinel_cyan",
+            "pulse_hint": "disciplined",
+            "recommended": False,
+            "lock_allowed": True,
+        },
+        {
+            "constitution_id": "archiv",
+            "title_cz": "Archiv",
+            "summary_cz": "Klidny a konzervativni rezim s nizsi aktivitou.",
+            "profile_key": "ARCHIVE",
+            "law_preset": "low_activity",
+            "physical_profile_key": "ARCHIVE",
+            "physical_profile_version": 1,
+            "visual_tone": "archive_amber",
+            "pulse_hint": "quiet",
+            "recommended": False,
+            "lock_allowed": True,
+        },
+    )
     _PHYSICAL_PROFILE_COEFFICIENTS: dict[str, dict[str, float]] = {
         "FORGE": {
             "a": 0.10,
@@ -94,6 +148,18 @@ class StarCoreService:
     def _normalize_physical_profile_key(cls, profile_key: str | None) -> str:
         candidate = str(profile_key or "BALANCE").strip().upper()
         return candidate if candidate in cls._PHYSICAL_PROFILE_COEFFICIENTS else "BALANCE"
+
+    @classmethod
+    def list_constitution_catalog(cls) -> list[dict[str, Any]]:
+        return [dict(item) for item in cls._CONSTITUTION_CATALOG]
+
+    @classmethod
+    def get_constitution_definition(cls, constitution_id: str | None) -> dict[str, Any] | None:
+        candidate = str(constitution_id or "").strip().lower()
+        for item in cls._CONSTITUTION_CATALOG:
+            if str(item.get("constitution_id") or "").strip().lower() == candidate:
+                return dict(item)
+        return None
 
     @staticmethod
     def _clamp(value: float, min_value: float, max_value: float) -> float:
