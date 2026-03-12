@@ -24,6 +24,7 @@ function normalizeOption(option) {
     title: String(source.title_cz || "Ústava"),
     subtitle: String(source.summary_cz || ""),
     effectHint: String(source.summary_cz || ""),
+    pulseHint: String(source.pulse_hint || ""),
     tonePrimary: tone.tonePrimary,
     toneSecondary: tone.toneSecondary,
     recommended: Boolean(source.recommended),

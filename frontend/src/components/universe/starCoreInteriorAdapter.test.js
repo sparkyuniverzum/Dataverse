@@ -20,6 +20,7 @@ describe("starCoreInteriorAdapter", () => {
           constitution_id: "rovnovaha",
           title_cz: "Rovnováha",
           summary_cz: "Stabilní režim.",
+          pulse_hint: "steady",
           visual_tone: "balanced_blue",
           profile_key: "ORIGIN",
           law_preset: "balanced",
@@ -34,6 +35,7 @@ describe("starCoreInteriorAdapter", () => {
     });
     expect(truth.selectedConstitutionId).toBe("rovnovaha");
     expect(truth.availableConstitutions[0].tonePrimary).toBe("#7ee8ff");
+    expect(truth.availableConstitutions[0].pulseHint).toBe("steady");
     expect(truth.explainability.headline).toBe("Hotovo");
   });
 

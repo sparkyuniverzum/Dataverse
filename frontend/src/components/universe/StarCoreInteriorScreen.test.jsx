@@ -24,10 +24,17 @@ function createProps(overrides = {}) {
           id: "rovnovaha",
           title: "Rovnovaha",
           subtitle: "Stabilni rezim",
+          effectHint: "Stabilni univerzalni rezim.",
+          pulseHint: "steady",
           tonePrimary: "#7ee8ff",
+          toneSecondary: "#82ffd4",
           recommended: true,
+          profileKey: "ORIGIN",
+          lawPreset: "balanced",
+          physicalProfileKey: "BALANCE",
         },
       ],
+      recommendedConstitutionId: "rovnovaha",
       explainability: {
         headline: "Vyber ustavu prostoru",
         body: "Kazdy rezim meni dalsi smer rozvoje galaxie.",
@@ -52,8 +59,33 @@ describe("StarCoreInteriorScreen", () => {
     render(<StarCoreInteriorScreen {...props} />);
 
     expect(screen.getByTestId("star-core-interior-screen")).toBeTruthy();
+    expect(screen.getByTestId("constitution-selection-focus")).toBeTruthy();
+    expect(screen.queryAllByText("Puls hvezdy: Steady")).toHaveLength(2);
     fireEvent.click(screen.getByTestId("constitution-option-rovnovaha"));
     expect(props.onSelectConstitution).toHaveBeenCalledWith("rovnovaha");
+  });
+
+  it("renders backend-driven focus detail for selected constitution", () => {
+    const props = createProps({
+      selectedConstitution: {
+        id: "rovnovaha",
+        title: "Rovnovaha",
+        subtitle: "Stabilni rezim",
+        effectHint: "Stabilni univerzalni rezim.",
+        pulseHint: "steady",
+        tonePrimary: "#7ee8ff",
+        toneSecondary: "#82ffd4",
+        recommended: true,
+        profileKey: "ORIGIN",
+        lawPreset: "balanced",
+        physicalProfileKey: "BALANCE",
+      },
+    });
+    render(<StarCoreInteriorScreen {...props} />);
+
+    expect(screen.getByText("AKTIVNI VOLBA")).toBeTruthy();
+    expect(screen.getByText("Law preset: balanced")).toBeTruthy();
+    expect(screen.getByText("Physical profile: BALANCE")).toBeTruthy();
   });
 
   it("routes primary action through policy lock affordance", () => {

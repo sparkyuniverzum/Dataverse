@@ -17,6 +17,32 @@ function frameStyle(screenModel) {
   };
 }
 
+function sentenceCase(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
+}
+
+function toneLabel(option) {
+  if (option.profileKey === "ORIGIN") return "Tonalita: stabilni modry puls";
+  if (option.profileKey === "FLUX") return "Tonalita: teply proud rustu";
+  if (option.profileKey === "SENTINEL") return "Tonalita: chladna strazni aura";
+  if (option.profileKey === "ARCHIVE") return "Tonalita: utlumeny archivni klid";
+  return "Tonalita: backend rizeny rezim";
+}
+
+function densityLabel(option) {
+  if (option.physicalProfileKey === "FORGE") return "Hustota energie: vysoka";
+  if (option.physicalProfileKey === "BALANCE") return "Hustota energie: vyrovnana";
+  if (option.physicalProfileKey === "ARCHIVE") return "Hustota energie: utlumeny rezim";
+  return "Hustota energie: canonical signal";
+}
+
+function pulseLabel(option) {
+  const pulse = sentenceCase(option.pulseHint);
+  return pulse ? `Puls hvezdy: ${pulse}` : "Puls hvezdy: canonical signal";
+}
+
 function actionButtonStyle(primary, disabled) {
   return {
     borderRadius: "999px",
@@ -63,19 +89,31 @@ function resolveCopy(interiorModel, lockTransitionModel) {
   };
 }
 
-function constitutionCardStyle(selected) {
+function constitutionCardStyle(option, selected) {
   return {
     display: "grid",
-    gap: "0.5rem",
-    padding: "1rem",
-    borderRadius: "1rem",
+    gap: "0.65rem",
+    padding: "1.05rem",
+    borderRadius: "1.15rem",
     border: selected ? "1px solid rgba(255, 206, 136, 0.42)" : "1px solid rgba(126, 219, 255, 0.14)",
     background: selected
-      ? "linear-gradient(180deg, rgba(24, 39, 60, 0.94), rgba(17, 26, 39, 0.92))"
+      ? `linear-gradient(180deg, ${option.toneSecondary}22, rgba(18, 28, 43, 0.95))`
       : "linear-gradient(180deg, rgba(11, 20, 35, 0.88), rgba(8, 14, 26, 0.9))",
     color: "#edf7ff",
     textAlign: "left",
     cursor: "pointer",
+    boxShadow: selected ? `0 0 0 1px ${option.tonePrimary}55, inset 0 1px 0 rgba(255,255,255,0.04)` : "none",
+  };
+}
+
+function detailPanelStyle(borderColor, background) {
+  return {
+    display: "grid",
+    gap: "0.6rem",
+    padding: "1rem",
+    borderRadius: "1rem",
+    border: `1px solid ${borderColor}`,
+    background,
   };
 }
 
@@ -96,6 +134,13 @@ export default function StarCoreInteriorScreen({
     : [];
   const canRenderConstitutions = interiorModel.canSelectConstitution && constitutionOptions.length > 0;
   const canReturn = interiorModel.phase !== "policy_lock_transition";
+  const focusedConstitution =
+    selectedConstitution ||
+    constitutionOptions.find((option) => option.id === interiorModel.recommendedConstitutionId) ||
+    constitutionOptions[0] ||
+    null;
+  const showSelectionSurface =
+    interiorModel.phase === "constitution_select" || interiorModel.phase === "policy_lock_ready";
 
   return (
     <section
@@ -165,16 +210,17 @@ export default function StarCoreInteriorScreen({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: canRenderConstitutions ? "minmax(0, 1.45fr) minmax(280px, 0.95fr)" : "1fr",
+            gridTemplateColumns: canRenderConstitutions ? "minmax(0, 1.55fr) minmax(320px, 0.95fr)" : "1fr",
             gap: "1rem",
             alignItems: "start",
           }}
         >
           <section
+            data-testid="constitution-select-surface"
             style={{
               display: "grid",
               gap: "1rem",
-              minHeight: "20rem",
+              minHeight: "24rem",
               padding: "1rem",
               borderRadius: "1.2rem",
               border: "1px solid rgba(126, 219, 255, 0.12)",
@@ -182,32 +228,21 @@ export default function StarCoreInteriorScreen({
                 "radial-gradient(circle at 50% 10%, rgba(255, 182, 79, 0.16), transparent 18%), linear-gradient(180deg, rgba(10, 17, 31, 0.84), rgba(8, 13, 24, 0.94))",
             }}
           >
-            <div
-              style={{
-                display: "grid",
-                placeItems: "center",
-                minHeight: "15rem",
-                borderRadius: "1rem",
-                border: "1px dashed rgba(164, 228, 255, 0.18)",
-                background:
-                  "radial-gradient(circle at 50% 50%, rgba(161, 235, 255, 0.12) 0%, rgba(255, 193, 103, 0.08) 18%, transparent 46%)",
-                color: "#dff6ff",
-                textAlign: "center",
-                padding: "1rem",
-              }}
-            >
-              <div style={{ display: "grid", gap: "0.5rem", maxWidth: "24rem" }}>
-                <strong style={{ fontSize: "1.08rem", color: "#fff3d8" }}>Governance interior shell</strong>
-                <span style={{ color: "rgba(223, 239, 255, 0.76)", lineHeight: 1.5 }}>
-                  Tohle je samostatna pracovni vrstva nad backend `interior` contractem. Neni to dalsi zoom uvnitr
-                  `Galaxy Space`.
-                </span>
-              </div>
+            <div style={{ display: "grid", gap: "0.55rem", maxWidth: "48rem" }}>
+              <span style={{ color: "rgba(164, 231, 255, 0.84)", fontSize: "0.78rem", letterSpacing: "0.12em" }}>
+                CONSTITUTION SELECT
+              </span>
+              <strong style={{ fontSize: "1.1rem", color: "#fff2d7" }}>
+                Vyber rezim, ktery urci puls, tonalitu a hustotu prvniho prostoru
+              </strong>
+              <span style={{ color: "rgba(223, 239, 255, 0.76)", lineHeight: 1.5 }}>
+                Nevybiras formular. Vybiráš, jak se bude Srdce hvězdy chovat v dalsi fazi provozu.
+              </span>
             </div>
 
             {canRenderConstitutions ? (
               <div
-                style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.8rem" }}
+                style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.9rem" }}
               >
                 {constitutionOptions.map((option) => (
                   <button
@@ -215,15 +250,68 @@ export default function StarCoreInteriorScreen({
                     type="button"
                     data-testid={`constitution-option-${option.id}`}
                     onClick={() => onSelectConstitution(option.id)}
-                    style={constitutionCardStyle(selectedConstitution?.id === option.id)}
+                    style={constitutionCardStyle(option, focusedConstitution?.id === option.id)}
                   >
-                    <strong style={{ fontSize: "1rem" }}>{option.title}</strong>
+                    <div
+                      style={{ display: "flex", justifyContent: "space-between", gap: "0.7rem", alignItems: "start" }}
+                    >
+                      <strong style={{ fontSize: "1.02rem" }}>{option.title}</strong>
+                      <span
+                        style={{
+                          color: option.tonePrimary,
+                          fontSize: "0.72rem",
+                          letterSpacing: "0.08em",
+                        }}
+                      >
+                        {focusedConstitution?.id === option.id
+                          ? "AKTIVNI VOLBA"
+                          : option.recommended
+                            ? "DOPORUCENO"
+                            : "REZIM"}
+                      </span>
+                    </div>
                     <span style={{ color: "rgba(224, 239, 255, 0.72)", lineHeight: 1.45 }}>{option.subtitle}</span>
-                    <span style={{ color: option.tonePrimary, fontSize: "0.8rem" }}>
-                      {option.recommended ? "Doporucena volba" : "Dostupny rezim"}
-                    </span>
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "0.35rem",
+                        color: "rgba(215, 236, 255, 0.78)",
+                        fontSize: "0.82rem",
+                      }}
+                    >
+                      <span>{pulseLabel(option)}</span>
+                      <span>{toneLabel(option)}</span>
+                      <span>{densityLabel(option)}</span>
+                    </div>
                   </button>
                 ))}
+              </div>
+            ) : null}
+
+            {showSelectionSurface && focusedConstitution ? (
+              <div
+                data-testid="constitution-selection-focus"
+                style={detailPanelStyle(
+                  `${focusedConstitution.tonePrimary}55`,
+                  `linear-gradient(180deg, ${focusedConstitution.toneSecondary}1a, rgba(10, 17, 31, 0.82))`
+                )}
+              >
+                <span style={{ color: focusedConstitution.tonePrimary, fontSize: "0.78rem", letterSpacing: "0.12em" }}>
+                  {focusedConstitution.id === interiorModel.recommendedConstitutionId
+                    ? "DOPORUCENY FOKUS"
+                    : "AKTIVNI FOKUS"}
+                </span>
+                <strong style={{ fontSize: "1.12rem", color: "#fff2d7" }}>{focusedConstitution.title}</strong>
+                <span style={{ color: "rgba(223, 239, 255, 0.8)", lineHeight: 1.5 }}>
+                  {focusedConstitution.effectHint}
+                </span>
+                <div
+                  style={{ display: "grid", gap: "0.45rem", fontSize: "0.84rem", color: "rgba(214, 235, 255, 0.78)" }}
+                >
+                  <span>{pulseLabel(focusedConstitution)}</span>
+                  <span>{toneLabel(focusedConstitution)}</span>
+                  <span>{densityLabel(focusedConstitution)}</span>
+                </div>
               </div>
             ) : null}
           </section>
@@ -240,12 +328,39 @@ export default function StarCoreInteriorScreen({
             }}
           >
             <span style={{ color: "rgba(164, 231, 255, 0.84)", fontSize: "0.78rem", letterSpacing: "0.12em" }}>
-              RETURN CONTRACT
+              DUSLEDEK VOLBY
             </span>
-            <strong style={{ fontSize: "1rem" }}>Po zavreni se vratis do Galaxy Space</strong>
+            <strong style={{ fontSize: "1rem" }}>
+              {focusedConstitution
+                ? `${focusedConstitution.title} urci dalsi governance smer`
+                : "Po zavreni se vratis do Galaxy Space"}
+            </strong>
             <span style={{ color: "rgba(223, 239, 255, 0.76)", lineHeight: 1.5 }}>
-              Fokus zustane na `Star Core`. FE tady nedrzi vlastni workflow pravdu, jen screen transition.
+              {focusedConstitution
+                ? "Vybrany rezim pripravuje backend truth pro dalsi krok `policy_lock_ready`. Fokus zustava na dusledku, ne na formulari."
+                : "Fokus zustane na `Star Core`. FE tady nedrzi vlastni workflow pravdu, jen screen transition."}
             </span>
+            {focusedConstitution ? (
+              <div
+                style={detailPanelStyle(
+                  "rgba(126, 219, 255, 0.12)",
+                  "linear-gradient(180deg, rgba(12, 20, 37, 0.74), rgba(8, 13, 24, 0.92))"
+                )}
+              >
+                <span style={{ color: "rgba(255, 233, 187, 0.88)", fontSize: "0.78rem", letterSpacing: "0.08em" }}>
+                  CANONICAL SIGNAL
+                </span>
+                <span style={{ color: "rgba(223, 239, 255, 0.76)", lineHeight: 1.45 }}>
+                  {`Profile key: ${focusedConstitution.profileKey || "N/A"}`}
+                </span>
+                <span style={{ color: "rgba(223, 239, 255, 0.76)", lineHeight: 1.45 }}>
+                  {`Law preset: ${focusedConstitution.lawPreset || "N/A"}`}
+                </span>
+                <span style={{ color: "rgba(223, 239, 255, 0.76)", lineHeight: 1.45 }}>
+                  {`Physical profile: ${focusedConstitution.physicalProfileKey || "N/A"}`}
+                </span>
+              </div>
+            ) : null}
             {interiorModel.errorMessage ? (
               <span style={{ color: "#ffc9b8", lineHeight: 1.45 }}>{interiorModel.errorMessage}</span>
             ) : null}
