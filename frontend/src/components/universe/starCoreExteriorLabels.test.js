@@ -19,6 +19,7 @@ describe("starCoreExteriorLabels", () => {
     expect(labels).toHaveLength(4);
     expect(labels[0].text).toBe("GOVERNANCE: LOCKED");
     expect(labels[3].text).toContain("ORIENTAČNÍ KOTVA");
+    expect(labels[0].size).toBeLessThan(0.2);
   });
 
   it("changes descriptor for approach", () => {

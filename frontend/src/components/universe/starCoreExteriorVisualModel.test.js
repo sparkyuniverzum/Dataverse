@@ -11,8 +11,9 @@ describe("starCoreExteriorVisualModel", () => {
       exteriorState: { unlocked: true, approached: false, selected: false },
     });
 
-    expect(visual.governanceRingColor).toBe("#ffbf76");
-    expect(visual.governanceRingOpacity).toBeGreaterThan(0.7);
+    expect(visual.governanceRingColor).toBe("#ffb04f");
+    expect(visual.governanceRingOpacity).toBeGreaterThan(0.85);
+    expect(visual.approachDistance).toBeLessThan(6.6);
   });
 
   it("creates cool locked exterior visuals", () => {

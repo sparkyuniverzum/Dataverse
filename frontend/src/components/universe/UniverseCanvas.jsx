@@ -32,7 +32,7 @@ function CameraRig({ controlsRef, navigationModel, movementRef, onHeadingChange 
     const desiredDistance =
       navigationModel.mode === "approach_active"
         ? activeObject?.type === "star"
-          ? 7.2
+          ? activeObject?.approachDistance || 6.7
           : 5.8
         : navigationModel.mode === "object_selected"
           ? activeObject?.type === "star"
@@ -202,6 +202,16 @@ function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject 
     [visualModel.orbitRadiusSecondary]
   );
 
+  const starObject = useMemo(
+    () => ({
+      id: "star-core",
+      type: "star",
+      approachDistance: visualModel.approachDistance,
+      position: [0, 0.4, 0],
+    }),
+    [visualModel.approachDistance]
+  );
+
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     const amplitude = visualModel.pulseScale;
@@ -233,7 +243,7 @@ function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject 
         }}
         onDoubleClick={(event) => {
           event.stopPropagation();
-          onApproachObject("star-core");
+          onApproachObject(starObject.id);
         }}
         onPointerOver={(event) => {
           event.stopPropagation();
@@ -243,7 +253,7 @@ function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject 
           document.body.style.cursor = "auto";
         }}
       >
-        <sphereGeometry args={[1.55, 48, 48]} />
+        <sphereGeometry args={[1.64, 48, 48]} />
         <meshStandardMaterial
           color={model.palette.primary}
           emissive={model.palette.secondary}
@@ -264,7 +274,7 @@ function ReactorCore({ model, navigationModel, onSelectObject, onApproachObject 
       </mesh>
 
       <mesh scale={approached ? 1.94 : 1.8}>
-        <sphereGeometry args={[1.45, 40, 40]} />
+        <sphereGeometry args={[1.52, 40, 40]} />
         <meshBasicMaterial color={model.palette.governance} transparent opacity={visualModel.domainShellOpacity} />
       </mesh>
 
@@ -358,6 +368,22 @@ export default function UniverseCanvas({
     () => resolveStarCoreExteriorVisualModel({ model, exteriorState }),
     [exteriorState, model]
   );
+  const adjustedNavigationModel = useMemo(() => {
+    const starDistance = exteriorVisualModel.approachDistance;
+    const selectedObject =
+      navigationModel.selectedObject?.id === "star-core"
+        ? { ...navigationModel.selectedObject, approachDistance: starDistance }
+        : navigationModel.selectedObject;
+    const approachTarget =
+      navigationModel.approachTarget?.id === "star-core"
+        ? { ...navigationModel.approachTarget, approachDistance: starDistance }
+        : navigationModel.approachTarget;
+    return {
+      ...navigationModel,
+      selectedObject,
+      approachTarget,
+    };
+  }, [exteriorVisualModel.approachDistance, navigationModel]);
   const controlsRef = useRef(null);
   const movementRef = useRef({ forward: false, backward: false });
 
@@ -424,13 +450,13 @@ export default function UniverseCanvas({
         <TacticalGrid color={model.palette.halo} intensity={exteriorVisualModel.tacticalGridIntensity} />
         <CameraRig
           controlsRef={controlsRef}
-          navigationModel={navigationModel}
+          navigationModel={adjustedNavigationModel}
           movementRef={movementRef}
           onHeadingChange={onHeadingChange}
         />
         <ReactorCore
           model={model}
-          navigationModel={navigationModel}
+          navigationModel={adjustedNavigationModel}
           onSelectObject={onSelectObject}
           onApproachObject={onApproachObject}
         />

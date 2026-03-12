@@ -64,24 +64,25 @@ export function resolveStarCoreExteriorVisualModel({ model = null, exteriorState
 
   if (exteriorState?.unlocked) {
     return {
-      governanceRingColor: "#ffbf76",
-      governanceRingOpacity: 0.82,
-      secondaryRingColor: "#ffdca7",
-      secondaryRingOpacity: 0.48,
-      shellOpacity: 0.17,
-      cageOpacity: 0.4,
-      orbitCueOpacity: 0.16,
+      governanceRingColor: "#ffb04f",
+      governanceRingOpacity: 0.92,
+      secondaryRingColor: "#ffe3b7",
+      secondaryRingOpacity: 0.58,
+      shellOpacity: 0.22,
+      cageOpacity: 0.46,
+      orbitCueOpacity: 0.22,
       tacticalGridIntensity: 0.24,
       labelColor: "#fff0cf",
       descriptorColor: "#ffd398",
       pulseScale: 0.08 + pulseIntensity * 0.04,
       pulseSpeed: 1.14 + runtimeTempo * 0.36,
-      bloomIntensity: 1.42,
-      orbitRadiusPrimary: 3.5,
-      orbitRadiusSecondary: 2.82,
-      starEmissiveIntensity: isApproached ? 1.72 : isSelected ? 1.58 : 1.38,
-      runtimeArcOpacity: 0.28 + runtimeTempo * 0.2,
-      domainShellOpacity: 0.16 + domainDensity * 0.1,
+      bloomIntensity: 1.5,
+      orbitRadiusPrimary: 3.72,
+      orbitRadiusSecondary: 3.04,
+      starEmissiveIntensity: isApproached ? 1.82 : isSelected ? 1.66 : 1.42,
+      runtimeArcOpacity: 0.34 + runtimeTempo * 0.22,
+      domainShellOpacity: 0.2 + domainDensity * 0.12,
+      approachDistance: 6.4,
     };
   }
 
@@ -99,10 +100,11 @@ export function resolveStarCoreExteriorVisualModel({ model = null, exteriorState
     pulseScale: 0.04 + pulseIntensity * 0.025,
     pulseSpeed: 0.84 + runtimeTempo * 0.24,
     bloomIntensity: 1.18 + haloIntensity * 0.26,
-    orbitRadiusPrimary: 3.3,
-    orbitRadiusSecondary: 2.76,
+    orbitRadiusPrimary: 3.36,
+    orbitRadiusSecondary: 2.84,
     starEmissiveIntensity: isApproached ? 1.62 : isSelected ? 1.46 : 1.3,
     runtimeArcOpacity: 0.18 + runtimeTempo * 0.14,
     domainShellOpacity: 0.12 + domainDensity * 0.1,
+    approachDistance: 6.9,
   };
 }
