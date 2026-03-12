@@ -1,8 +1,12 @@
 # FE Blok 2 implementacni dokument v1
 
-Stav: aktivni (posledni priprava pred kodem Bloku 2)
+Stav: splneno (vykonavaci dokument uzavreneho Bloku 2)
 Datum: 2026-03-12
 Vlastnik: FE architektura + Produktove UX + user-agent governance
+
+Nahrazeno dalsim aktivnim krokem:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md` (`Blok 3`)
 
 ## 1. Vztah k ridicim dokumentum
 
@@ -16,7 +20,7 @@ Tento dokument vykonava:
 
 Tento dokument uz neni brainstorming.
 
-Je to posledni priprava pred kodem `Bloku 2`.
+Byl pouzit jako posledni priprava pred kodem `Bloku 2`.
 
 ## 2. Ucel bloku
 
@@ -225,5 +229,5 @@ sed -n '1,260p' frontend/src/_inspiration_reset_20260312/components/universe/law
 
 ## 13. Co zustava otevrene
 
-- [ ] Otevrit implementaci `Bloku 2` v runtime.
-- [ ] Po dokonceni `Bloku 2` rozhodnout, jestli je exterior uz dostatecne pripraveny pro `Blok 3: Star Core interior + Constitution Select + Policy Lock`.
+- [x] 2026-03-12 Implementace `Bloku 2` byla otevrena a dokoncena v runtime.
+- [x] 2026-03-12 Exterior byl vyhodnocen jako dostatecne pripraveny pro otevreni `Bloku 3: Star Core interior + Constitution Select + Policy Lock`.

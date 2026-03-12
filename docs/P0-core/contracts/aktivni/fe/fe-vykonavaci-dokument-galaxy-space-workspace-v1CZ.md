@@ -145,7 +145,7 @@ Zavest hlavni prostor galaxie jako volne navigovatelny workspace.
 
 Stav bloku:
 
-- [ ] 2026-03-12 Implementacni dokument je pripraven; runtime kod jeste neni otevren.
+- [x] 2026-03-12 Blok byl implementovan a uzavren jako `Spatial Star Core exterior`.
 
 ### 7.1 Ucel
 
@@ -179,6 +179,16 @@ Udelat z hvezdy centralni governance anchor uvnitr prostoru galaxie, ale ne z ni
 4. Hvezda nesmi zamknout kameru tak, ze zmizi pocit prostoru galaxie.
 5. Screenshot `Star Core exterior` musi byt produktove presvedcivy i bez vysvetleni.
 6. Aktivni implementace se ma ridit `docs/P0-core/contracts/aktivni/fe/fe-blok-2-implementacni-dokument-v1CZ.md`.
+
+### 7.6 Evidence uzavreni
+
+- [x] 2026-03-12 Screenshot `star_core_exterior_idle` potvrzen.
+- [x] 2026-03-12 Screenshot `star_core_exterior_selected` potvrzen.
+- [x] 2026-03-12 Screenshot `star_core_exterior_approach` potvrzen.
+- [x] 2026-03-12 Screenshot `star_core_exterior_unlocked` potvrzen na realnem flow noveho uzivatele.
+- [x] 2026-03-12 Screenshot `prvni kontakt / prihlaseni registrace` potvrzen jako navazujici vstupni bod flow.
+- [x] 2026-03-12 `npm --prefix frontend run format:check` probehl ciste.
+- [x] 2026-03-12 Focused testy pro `Blok 2` a `Blok 2a` probehly green.
 
 ## 8. Blok 3: Star Core interior + Constitution Select + Policy Lock
 
@@ -415,4 +425,6 @@ Vysledek:
 - [x] 2026-03-12 Pred prvnim kodovym rezem byl zapsan detailni dokument `fe-kamera-radar-interaction-detail-v1CZ.md`.
 - [x] 2026-03-12 Implementacni dokument pro `Blok 1` byl zapsan.
 - [ ] U kazdeho implementacniho bloku navazat screenshot dukaz a focused testy presne podle teto osy.
-- [x] 2026-03-12 `Blok 1` byl oficialne uzavren; dalsi otevreny blok je `Blok 2`.
+- [x] 2026-03-12 `Blok 1` byl oficialne uzavren.
+- [x] 2026-03-12 `Blok 2` byl oficialne uzavren.
+- [ ] Dalsi otevreny blok je `Blok 3`.
