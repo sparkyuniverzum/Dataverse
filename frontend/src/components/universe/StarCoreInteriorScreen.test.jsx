@@ -84,8 +84,8 @@ describe("StarCoreInteriorScreen", () => {
     render(<StarCoreInteriorScreen {...props} />);
 
     expect(screen.getByText("AKTIVNI VOLBA")).toBeTruthy();
-    expect(screen.getByText("Law preset: balanced")).toBeTruthy();
-    expect(screen.getByText("Physical profile: BALANCE")).toBeTruthy();
+    expect(screen.getByText("Rovnovaha urci prvni charakter prostoru")).toBeTruthy();
+    expect(screen.getAllByText("Tonalita: stabilni modry puls").length).toBeGreaterThan(0);
   });
 
   it("routes primary action through policy lock affordance", () => {
@@ -119,5 +119,48 @@ describe("StarCoreInteriorScreen", () => {
 
     fireEvent.click(screen.getByTestId("star-core-return-action"));
     expect(props.onReturnToSpace).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders dedicated first-orbit-ready view without constitution form framing", () => {
+    const props = createProps({
+      interiorModel: {
+        phase: "first_orbit_ready",
+        canSelectConstitution: false,
+        availableConstitutions: [],
+        recommendedConstitutionId: "straz",
+        explainability: {
+          headline: "Politiky jsou uzamceny.",
+          body: "Governance zaklad je potvrzen a prostor muze navazat prvni orbitou.",
+        },
+        errorMessage: "",
+        isFirstOrbitReady: true,
+        isLockPending: false,
+        canConfirmLock: false,
+      },
+      selectedConstitution: {
+        id: "straz",
+        title: "Straz",
+        subtitle: "Strazni rezim",
+        effectHint: "Zpevni governance obal.",
+        pulseHint: "steady",
+        tonePrimary: "#8ae3ff",
+        toneSecondary: "#c8f4ff",
+        recommended: false,
+        profileKey: "SENTINEL",
+        lawPreset: "integrity_first",
+        physicalProfileKey: "BALANCE",
+      },
+      lockTransitionModel: {
+        title: "Politiky jsou uzamceny.",
+        hint: "Governance zaklad je potvrzen.",
+        actionLabel: "Vratit se do prostoru",
+        disabled: false,
+      },
+    });
+    render(<StarCoreInteriorScreen {...props} />);
+
+    expect(screen.getByTestId("first-orbit-ready-surface")).toBeTruthy();
+    expect(screen.queryByTestId("constitution-select-surface")).toBeNull();
+    expect(screen.getByText("POTVRZENA USTAVA")).toBeTruthy();
   });
 });
