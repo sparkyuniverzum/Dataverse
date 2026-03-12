@@ -231,5 +231,5 @@ Vysledek:
 
 ## 12. Co zustava otevrene
 
-- [ ] Zapsat navazny implementacni blok `Blok 1` s konkretnimi aktivnimi runtime soubory.
+- [x] 2026-03-12 Navazny implementacni blok `Blok 1` s konkretnimi aktivnimi runtime soubory byl zapsan.
 - [ ] Teprve potom otevrit kod pro kameru, selection, approach a radar baseline.

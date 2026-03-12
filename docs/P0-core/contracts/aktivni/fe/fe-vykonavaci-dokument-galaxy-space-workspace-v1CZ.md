@@ -396,4 +396,5 @@ Vysledek:
 ## 16. Co zustava otevrene
 
 - [x] 2026-03-12 Pred prvnim kodovym rezem byl zapsan detailni dokument `fe-kamera-radar-interaction-detail-v1CZ.md`.
+- [x] 2026-03-12 Implementacni dokument pro `Blok 1` byl zapsan.
 - [ ] U kazdeho implementacniho bloku navazat screenshot dukaz a focused testy presne podle teto osy.
