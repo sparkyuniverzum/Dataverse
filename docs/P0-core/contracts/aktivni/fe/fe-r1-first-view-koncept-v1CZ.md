@@ -19,6 +19,7 @@ Tento navrh je zavazne hodnocen proti temto podminkam:
 
 Zdroj:
 
+1. `docs/P0-core/contracts/aktivni/fe/fe-vision-v2-spatial-galaxy-entry-v1CZ.md`
 1. `docs/P0-core/contracts/aktivni/core/canonical-ux-ontology-v1CZ.md`
 2. `docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md`
 3. `docs/P0-core/contracts/aktivni/fe/fe-r1-priprava-audit-archivu-v1CZ.md`
@@ -49,6 +50,7 @@ Spatial FE-R1 bude prijatelny pouze pokud doda soucasne:
 2. `user-visible completion`
    - po vstupu do workspace uzivatel vidi, ze se ve stredu prostoru rodi nebo stabilizuje hvezda,
    - governance `UNLOCKED` nebo `LOCKED` je citelna primo na nebo kolem hvezdy,
+   - `Constitution Select` je patrny pred lockem,
    - dalsi krok je patrny bez cteni velke karty.
 3. `documentation completion`
    - navazny implementacni dokument zretelne rusi panel-first smer,
@@ -62,9 +64,10 @@ Spatial FE-R1 bude prijatelny pouze pokud doda soucasne:
 
 1. textova karta potvrzujici backend pravdu,
 2. wow jen v copy nebo jen v glow bez governance smyslu,
-3. navrat utility railu a side panelu,
-4. scena, ktera stale funguje jako pozadi pro 2D panel,
-5. uzavreni bloku bez spatialne citelne hvezdy ve stredu prostoru.
+3. lock bez `Constitution Select`,
+4. navrat utility railu a side panelu,
+5. scena, ktera stale funguje jako pozadi pro 2D panel,
+6. uzavreni bloku bez spatialne citelne hvezdy ve stredu prostoru.
 
 ## 1. Ucel
 
@@ -84,7 +87,9 @@ To znamena:
 1. workspace je scena, ne panelovy desktop,
 2. hvezda je operacni autorita, ne ilustrace,
 3. governance data jsou diegeticka vrstva kolem hvezdy,
-4. prvni operacni rozhodnuti se odehrava ve stredu vesmiru.
+4. prvni operacni rozhodnuti se odehrava ve stredu vesmiru,
+5. plna cinematic sekvence se prehrava jen pri prvnim vstupu,
+6. wow je podrizene `work first`.
 
 ## 3. Prostorove pilire
 
@@ -140,6 +145,13 @@ Musi nejdriv videt:
 2. centralni energeticky fokus,
 3. pocit, ze se neco deje uprostred prostoru.
 
+Plna vision vrstva navic obsahuje `Nexus / Galaxy Selector` a fly-through.
+
+Pro FE-R1 plati:
+
+1. musi zustat kompatibilni s touto budouci sekvenci,
+2. ale nemusi ji celou dorucit v jednom kroku.
+
 ### 4.2 Zrozeni hvezdy
 
 Prvni skutecny wow moment FE-R1:
@@ -170,7 +182,26 @@ Prvni akce:
 2. ne do textove karty,
 3. ne do side panelu.
 
-### 4.4 Policy lock
+### 4.4 Constitution Select
+
+Pred lockem musi uzivatel dostat kratky prostorovy krok vyberu ustavy.
+
+Minimalni sada:
+
+1. `Rust`
+2. `Rovnovaha`
+3. `Straz`
+4. `Archiv`
+
+Tento krok nesmi byt klasicky formular.
+
+Musí byt vysvetlen:
+
+1. pulzem hvezdy,
+2. tonalitou prstence,
+3. kratkou vetou o dusledku rezimu.
+
+### 4.5 Policy lock
 
 Uzamceni politik musi probehnout uvnitr hvezdy nebo na governance prstenci:
 
@@ -178,7 +209,7 @@ Uzamceni politik musi probehnout uvnitr hvezdy nebo na governance prstenci:
 2. lehky HUD potvrdi akci `Potvrdit ustavu a uzamknout politiky`,
 3. potvrzeni spusti fyzickou prostorovou animaci locku.
 
-### 4.5 Stav `po lock`
+### 4.6 Stav `po lock`
 
 Po uspesnem locku musi byt bez vysvetlovani citelne:
 
@@ -192,6 +223,19 @@ Tohle je podstata FE-R1:
 1. governance mela realny vizualni dusledek,
 2. dalsi operacni moznost vznikla z prostorove udalosti.
 
+## 4.7 Pravidlo prvniho prehrani
+
+Plna cinematic sekvence se ma prehrat jen:
+
+1. pri prvnim vstupu do nove galaxie,
+2. pri prvnim onboarding kontaktu.
+
+Po prvnim pruchodu musi byt:
+
+1. defaultne vypnuta,
+2. dalsi vstup ma byt zkraceny a pracovni,
+3. replay ma byt jen na vyzadani.
+
 ## 5. Spatial kompozice
 
 ### 5.1 Co musi byt dominantni
@@ -200,7 +244,8 @@ Dominantni je jen:
 
 1. hvezda,
 2. governance prstenec,
-3. jemny orbitalni nebo diegeticky signal dalsiho kroku.
+3. `Constitution Select`,
+4. jemny orbitalni nebo diegeticky signal dalsiho kroku.
 
 ### 5.2 Co smi byt sekundarni
 
@@ -227,7 +272,8 @@ Wow moment musi vzniknout:
 1. zrozenim nebo stabilizaci hvezdy,
 2. kvalitou prostoru a kamery,
 3. governance prstencem jako soucasti sveta,
-4. viditelnym rozdilem `UNLOCKED` vs `LOCKED`.
+4. `Constitution Select`,
+5. viditelnym rozdilem `UNLOCKED` vs `LOCKED`.
 
 ### 6.2 Prvni operacni hodnota
 
@@ -236,8 +282,9 @@ Prvni operacni hodnota neni text.
 Je to:
 
 1. pochopeni, ze hvezda je autorita,
-2. pochopeni, ze policy lock je gate,
-3. vizualni potvrzeni, ze po locku se otevrel orbitalni dalsi krok.
+2. pochopeni, ze uzivatel urcuje ustavu prostoru,
+3. pochopeni, ze policy lock je gate,
+4. vizualni potvrzeni, ze po locku se otevrel orbitalni dalsi krok.
 
 ## 7. Co je mimo scope FE-R1
 
@@ -268,7 +315,8 @@ V tomto bloku se maji skutecne pouzit:
 2. `starContract.js`,
 3. `lawResolver.js`,
 4. `planetPhysicsParity.js`,
-5. podle potreby `cameraPilotMath.js`.
+5. podle potreby `cameraPilotMath.js`,
+6. podle potreby spatialni cast `previewAccessibility.js`.
 
 V tomto bloku se zatim nemaji pouzit:
 
@@ -352,7 +400,8 @@ Pro FE-R1 to konkretne znamena:
 2. screenshot `pred lock`,
 3. screenshot `po lock`,
 4. explicitni seznam okamzite viditelnych spatialnich rozdilu,
-5. audit, zda hvezda opravdu nese prvni akci.
+5. audit, zda hvezda opravdu nese prvni akci,
+6. audit, zda `Constitution Select` neni redukovany na textovy formular.
 
 ## 12. Evidence navrhu
 
