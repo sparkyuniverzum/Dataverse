@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -121,6 +122,7 @@ class StarCoreService:
             "p0": 0.16,
         },
     }
+    _RECOMMENDED_CONSTITUTION_ID = "rovnovaha"
 
     def __init__(
         self,
@@ -160,6 +162,110 @@ class StarCoreService:
             if str(item.get("constitution_id") or "").strip().lower() == candidate:
                 return dict(item)
         return None
+
+    @classmethod
+    def _constitution_id_from_policy(cls, policy: Mapping[str, Any] | None) -> str | None:
+        if not policy:
+            return None
+        profile_key = cls._normalize_profile_key(str(policy.get("profile_key") or "ORIGIN"))
+        physical_profile_key = cls._normalize_physical_profile_key(str(policy.get("physical_profile_key") or "BALANCE"))
+        physical_profile_version = max(1, int(policy.get("physical_profile_version") or 1))
+        for item in cls._CONSTITUTION_CATALOG:
+            if (
+                item["profile_key"] == profile_key
+                and item["physical_profile_key"] == physical_profile_key
+                and int(item["physical_profile_version"]) == physical_profile_version
+            ):
+                return str(item["constitution_id"])
+        return None
+
+    @classmethod
+    def build_interior_read_model(
+        cls,
+        *,
+        galaxy_id: UUID,
+        policy: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        source_truth = dict(policy or {})
+        selected_constitution_id = cls._constitution_id_from_policy(source_truth)
+        recommended_constitution_id = cls._RECOMMENDED_CONSTITUTION_ID
+        lock_status = str(source_truth.get("lock_status") or "draft").strip().lower() or "draft"
+        source_profile_key = cls._normalize_profile_key(str(source_truth.get("profile_key") or "ORIGIN"))
+        source_law_preset = str(source_truth.get("law_preset") or cls._law_preset_for_profile(source_profile_key))
+        source_physical_profile_key = cls._normalize_physical_profile_key(
+            str(source_truth.get("physical_profile_key") or "BALANCE")
+        )
+        source_physical_profile_version = max(1, int(source_truth.get("physical_profile_version") or 1))
+        first_orbit_ready = lock_status == "locked"
+
+        if first_orbit_ready:
+            interior_phase = "first_orbit_ready"
+            lock_ready = False
+            lock_blockers: list[str] = []
+            lock_transition_state = "locked"
+            next_action = {
+                "action_key": "review_first_orbit",
+                "label_cz": "Prvni obezna draha je pripravena",
+            }
+            explainability = {
+                "headline_cz": "Politiky jsou uzamceny.",
+                "body_cz": "Governance zaklad je potvrzen a prostor muze navazat prvni orbitou.",
+            }
+        elif selected_constitution_id is not None:
+            interior_phase = "policy_lock_ready"
+            lock_ready = True
+            lock_blockers = []
+            lock_transition_state = "idle"
+            next_action = {
+                "action_key": "confirm_policy_lock",
+                "label_cz": "Potvrdit ustavu a uzamknout politiky",
+            }
+            explainability = {
+                "headline_cz": "Ustava je pripravena k uzamceni.",
+                "body_cz": "Vyber ustavy je potvrzen. Dalsi krok je canonical policy lock.",
+            }
+        else:
+            interior_phase = "constitution_select"
+            lock_ready = False
+            lock_blockers = ["constitution_required"]
+            lock_transition_state = "idle"
+            next_action = {
+                "action_key": "select_constitution",
+                "label_cz": "Vyber ustavu vesmiru",
+            }
+            explainability = {
+                "headline_cz": "Nejdriv vyber ustavu.",
+                "body_cz": "Dokud neni potvrzen rezim vesmiru, policy lock neni pripraven.",
+            }
+
+        available_constitutions = []
+        for item in cls._CONSTITUTION_CATALOG:
+            option = dict(item)
+            option["recommended"] = option["constitution_id"] == recommended_constitution_id
+            option["lock_allowed"] = lock_status != "locked"
+            available_constitutions.append(option)
+
+        return {
+            "galaxy_id": galaxy_id,
+            "interior_phase": interior_phase,
+            "available_constitutions": available_constitutions,
+            "selected_constitution_id": selected_constitution_id,
+            "recommended_constitution_id": recommended_constitution_id,
+            "lock_ready": lock_ready,
+            "lock_blockers": lock_blockers,
+            "lock_transition_state": lock_transition_state,
+            "first_orbit_ready": first_orbit_ready,
+            "next_action": next_action,
+            "explainability": explainability,
+            "source_truth": {
+                "policy_lock_status": lock_status,
+                "policy_version": max(1, int(source_truth.get("policy_version") or 1)),
+                "profile_key": source_profile_key,
+                "law_preset": source_law_preset,
+                "physical_profile_key": source_physical_profile_key,
+                "physical_profile_version": source_physical_profile_version,
+            },
+        }
 
     @staticmethod
     def _clamp(value: float, min_value: float, max_value: float) -> float:
@@ -247,6 +353,104 @@ class StarCoreService:
             )
         ).scalar_one_or_none()
         return self._serialize_policy_row(row=row)
+
+    async def get_interior(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+    ) -> dict[str, Any]:
+        policy = await self.get_policy(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+        )
+        return self.build_interior_read_model(galaxy_id=galaxy_id, policy=policy)
+
+    async def select_interior_constitution(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+        constitution_id: str,
+    ) -> dict[str, Any]:
+        definition = self.get_constitution_definition(constitution_id)
+        if definition is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "STAR_CORE_CONSTITUTION_INVALID",
+                    "message": "Selected Star Core constitution is not valid.",
+                    "context": "select_star_core_constitution",
+                    "galaxy_id": str(galaxy_id),
+                    "constitution_id": str(constitution_id),
+                },
+            )
+
+        created_new = False
+        row = (
+            await session.execute(
+                select(StarCorePolicyRM)
+                .where(
+                    StarCorePolicyRM.user_id == user_id,
+                    StarCorePolicyRM.galaxy_id == galaxy_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            created_new = True
+            row = StarCorePolicyRM(user_id=user_id, galaxy_id=galaxy_id)
+            session.add(row)
+            await session.flush()
+
+        current_lock_status = str(row.lock_status or "draft").strip().lower() or "draft"
+        if current_lock_status == "locked":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "STAR_CORE_POLICY_ALREADY_LOCKED",
+                    "message": "Star Core policy is already locked.",
+                    "context": "select_star_core_constitution",
+                    "galaxy_id": str(galaxy_id),
+                    "lock_status": "locked",
+                },
+            )
+
+        next_profile_key = self._normalize_profile_key(str(definition["profile_key"]))
+        next_law_preset = str(definition["law_preset"])
+        next_physical_profile_key = self._normalize_physical_profile_key(str(definition["physical_profile_key"]))
+        next_physical_profile_version = max(1, int(definition["physical_profile_version"]))
+        changed = (
+            str(row.profile_key or "").upper() != next_profile_key
+            or str(row.law_preset or "") != next_law_preset
+            or str(getattr(row, "physical_profile_key", "BALANCE") or "").upper() != next_physical_profile_key
+            or max(1, int(getattr(row, "physical_profile_version", 1) or 1)) != next_physical_profile_version
+        )
+
+        row.profile_key = next_profile_key
+        row.law_preset = next_law_preset
+        row.physical_profile_key = next_physical_profile_key
+        row.physical_profile_version = next_physical_profile_version
+        row.lock_status = "draft"
+        row.locked_at = None
+        row.locked_by = None
+        row.updated_at = datetime.now(UTC)
+
+        if created_new:
+            row.policy_version = 1
+        elif changed:
+            row.policy_version = max(1, int(row.policy_version or 1)) + 1
+        elif not row.policy_version:
+            row.policy_version = 1
+
+        await session.flush()
+        return self.build_interior_read_model(
+            galaxy_id=galaxy_id,
+            policy=self._serialize_policy_row(row=row),
+        )
 
     async def apply_profile_and_lock(
         self,

@@ -41,6 +41,26 @@ async def get_policy(
         raise mapped from exc
 
 
+async def get_interior(
+    *,
+    session: AsyncSession,
+    services: Any,
+    user_id: UUID,
+    galaxy_id: UUID,
+) -> dict[str, Any]:
+    try:
+        return await services.star_core_service.get_interior(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+        )
+    except Exception as exc:
+        mapped = _map_service_exception(exc)
+        if mapped is None:
+            raise
+        raise mapped from exc
+
+
 async def get_physics_profile(
     *,
     session: AsyncSession,
@@ -168,6 +188,7 @@ def get_outbox_status_snapshot(*, services: Any) -> Any:
 __all__ = [
     "StarCoreQueryError",
     "get_domain_metrics",
+    "get_interior",
     "get_outbox_status_snapshot",
     "get_physics_profile",
     "get_planet_physics_runtime",

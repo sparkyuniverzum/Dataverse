@@ -44,6 +44,14 @@ def plan_apply_profile_lock(
     )
 
 
+def plan_select_interior_constitution(*, constitution_id: str) -> StarCoreCommandPlan:
+    return StarCoreCommandPlan(
+        request_payload={
+            "constitution_id": str(constitution_id).strip().lower(),
+        }
+    )
+
+
 def plan_migrate_physics_profile(
     *,
     from_version: int,
@@ -90,6 +98,28 @@ async def apply_profile_and_lock(
             physical_profile_key=physical_profile_key,
             physical_profile_version=physical_profile_version,
             lock_after_apply=lock_after_apply,
+        )
+    except Exception as exc:
+        mapped = _map_service_exception(exc)
+        if mapped is None:
+            raise
+        raise mapped from exc
+
+
+async def select_interior_constitution(
+    *,
+    session: AsyncSession,
+    services: Any,
+    user_id: UUID,
+    galaxy_id: UUID,
+    constitution_id: str,
+) -> dict[str, Any]:
+    try:
+        return await services.star_core_service.select_interior_constitution(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+            constitution_id=constitution_id,
         )
     except Exception as exc:
         mapped = _map_service_exception(exc)
@@ -158,5 +188,7 @@ __all__ = [
     "plan_apply_profile_lock",
     "plan_migrate_physics_profile",
     "plan_outbox_run_once",
+    "plan_select_interior_constitution",
     "run_outbox_once",
+    "select_interior_constitution",
 ]

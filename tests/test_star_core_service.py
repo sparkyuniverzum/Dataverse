@@ -93,6 +93,66 @@ def test_star_core_constitution_catalog_is_canonical_and_complete() -> None:
     assert growth["law_preset"] == "high_throughput"
 
 
+def test_star_core_interior_read_model_requires_constitution_before_lock() -> None:
+    galaxy_id = uuid.uuid4()
+    payload = StarCoreService.build_interior_read_model(
+        galaxy_id=galaxy_id,
+        policy={
+            "profile_key": "ORIGIN",
+            "law_preset": "balanced",
+            "physical_profile_key": "BALANCE",
+            "physical_profile_version": 1,
+            "lock_status": "draft",
+            "policy_version": 1,
+        },
+    )
+
+    assert payload["galaxy_id"] == galaxy_id
+    assert payload["interior_phase"] == "policy_lock_ready"
+    assert payload["selected_constitution_id"] == "rovnovaha"
+    assert payload["recommended_constitution_id"] == "rovnovaha"
+    assert payload["lock_ready"] is True
+    assert payload["lock_blockers"] == []
+
+
+def test_star_core_interior_read_model_reports_first_orbit_ready_after_lock() -> None:
+    payload = StarCoreService.build_interior_read_model(
+        galaxy_id=uuid.uuid4(),
+        policy={
+            "profile_key": "ARCHIVE",
+            "law_preset": "low_activity",
+            "physical_profile_key": "ARCHIVE",
+            "physical_profile_version": 1,
+            "lock_status": "locked",
+            "policy_version": 3,
+        },
+    )
+
+    assert payload["interior_phase"] == "first_orbit_ready"
+    assert payload["lock_transition_state"] == "locked"
+    assert payload["first_orbit_ready"] is True
+    assert payload["selected_constitution_id"] == "archiv"
+
+
+def test_star_core_interior_read_model_blocks_lock_without_selection() -> None:
+    payload = StarCoreService.build_interior_read_model(
+        galaxy_id=uuid.uuid4(),
+        policy={
+            "profile_key": "UNKNOWN",
+            "law_preset": "balanced",
+            "physical_profile_key": "UNKNOWN",
+            "physical_profile_version": 1,
+            "lock_status": "draft",
+            "policy_version": 1,
+        },
+    )
+
+    assert payload["interior_phase"] == "constitution_select"
+    assert payload["selected_constitution_id"] is None
+    assert payload["lock_ready"] is False
+    assert payload["lock_blockers"] == ["constitution_required"]
+
+
 def test_star_core_pulse_derives_visual_hints_from_event_types() -> None:
     now = datetime.now(UTC)
     events = [
