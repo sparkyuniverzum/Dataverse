@@ -1,6 +1,6 @@
-# FE-R1 implementacni dokument v1
+# FE-R1 implementacni dokument v2
 
-Stav: aktivni (vykonavaci priprava pred implementaci FE-R1)
+Stav: aktivni (vykonavaci priprava pred implementaci spatial FE-R1)
 Datum: 2026-03-12
 Vlastnik: FE architektura + Produktove UX + user-agent governance
 
@@ -15,15 +15,15 @@ Tento dokument vykonava:
 
 Tento dokument uz neni brainstorming.
 
-Je to posledni priprava pred kodem.
+Je to posledni priprava pred kodem spatial FE-R1.
 
 ## 1. Ucel bloku
 
 Zavest prvni skutecny user-visible workspace po loginu:
 
-1. s jednou dominantni first-view surface,
-2. s `Star Core first` logikou,
-3. s explicitnim prechodem `pred lock -> po lock`,
+1. s centralni hvezdou jako aktivnim operacnim jadrem,
+2. s governance `UNLOCKED -> LOCKED` prstencem primo kolem hvezdy,
+3. s diegetickym nebo lehkym holografickym HUD misto velke karty,
 4. bez navratu stareho shell balastu.
 
 ## 2. Presny scope FE-R1
@@ -32,164 +32,184 @@ Zavest prvni skutecny user-visible workspace po loginu:
 
 Implementovat:
 
-1. centralni `Star Core` reprezentaci ve scene,
-2. dominantni first-view governance shell,
-3. copy:
-   - `Nejdřív nastav zákony hvězdy`
-4. tri stavove radky:
-   - `Policy status`
-   - `Law preset`
-   - `Lock status`
-5. primarni CTA:
-   - `Otevřít Srdce hvězdy`
-6. sekundarni vysvetlujici akci:
-   - `Proč je to první krok`
+1. centralni spatial `Star Core` objekt ve scene,
+2. governance prstenec kolem rovniku hvezdy,
+3. diegeticke texty:
+   - `GOVERNANCE: UNLOCKED`
+   - `PHYSICS_PROFILE: ...`
+   - `PULSE: STABILIZING`
+4. lehky command affordance:
+   - `Potvrdit ustavu a uzamknout politiky`
+5. kamera nebo framing, ktery potvrdi, ze hvezda je stred prostoru.
 
-### 2.2 Stav B: `po lock`
+### 2.2 Stav B: `lock in progress`
 
 Implementovat:
 
-1. stejnou dominantni centralni surface, ale v `ready` variante,
-2. copy:
-   - `Hvězda je uzamčena. Můžeš založit první planetu`
-3. stav `LOCKED/POLICY_READY`,
-4. primarni CTA:
-   - `Založit první planetu`
+1. kratkou lock sekvenci nebo alespon jeji jasne pripraveny stav,
+2. fyzicke „zaklapnuti“ governance prstence,
+3. prechod barev:
+   - varovna zluta/oranzova -> stabilni chladna modra,
+4. zmenu signalizace `UNLOCKED -> LOCKED`.
 
-### 2.3 Minimalni utility signal
+### 2.3 Stav C: `po lock`
+
+Implementovat:
+
+1. stabilizovanou hvezdu v `policy_ready` variante,
+2. diegeticke texty:
+   - `GOVERNANCE: LOCKED`
+   - `STATUS: POLICY_READY`
+3. prvni orbitalni stopu nebo drahu pro dalsi krok,
+4. jemny CTA signal:
+   - `Zalozit prvni planetu`
+
+## 3. Minimalni HUD
 
 Implementovat jen:
 
-1. jemny `scope badge`,
-2. jemny `mode badge`,
-3. jemny `connectivity` signal.
+1. jemny globalni status v rohu skla,
+2. pripadne maly scope/sync signal,
+3. kratky command affordance pri locku.
 
 Pravidlo:
 
-1. nesmi vzniknout sidebar,
-2. nesmi vzniknout utility panel,
-3. nesmi vzniknout druhy center panel.
+1. nesmi vzniknout velka centralni karta,
+2. nesmi vzniknout sidebar,
+3. nesmi vzniknout utility panel,
+4. HUD nesmi vizualne prevalcovat stred hvezdy.
 
-## 3. Mimo scope
+## 4. Mimo scope
 
 V tomto bloku je zakazane implementovat:
 
-1. grid,
-2. command bar jako plny operation workflow,
-3. parser preview,
-4. branch rail,
-5. onboarding mise,
-6. capability UI,
-7. recovery drawers,
-8. plny `Star Core` dashboard,
-9. runtime stream orchestrace z `FE-R2+`.
+1. grid jako plny pracovni mod,
+2. parser preview,
+3. branch rail,
+4. onboarding mise,
+5. capability UI,
+6. recovery drawers,
+7. plny `Star Core` dashboard,
+8. runtime stream orchestrace z `FE-R2+`,
+9. builder workflow kolem planety.
 
-## 4. Aktivni soubory pro FE-R1
+## 5. Aktivni soubory pro FE-R1
 
 Ocekavane aktivni zmeny se maji soustredit jen sem:
 
 1. `frontend/src/components/universe/UniverseWorkspace.jsx`
-2. nove male helpery/modely v `frontend/src/components/universe/`
+2. nove male scene/helper moduly v `frontend/src/components/universe/`
 3. odpovidajici focused testy v `frontend/src/components/universe/`
 
 Preferovane nove soubory:
 
-1. `starCoreFirstViewModel.js`
-2. `starCoreFirstViewModel.test.js`
-3. `starCoreFirstViewSurface.jsx`
-4. `starCoreFirstViewSurface.test.jsx`
-5. pripadny maly `starCoreTruthAdapter.js`, pokud se ukaze potreba oddelit backend truth mapping
+1. `UniverseCanvas.jsx`
+2. `starCoreSpatialStateModel.js`
+3. `starCoreSpatialStateModel.test.js`
+4. `starCoreGovernanceRing.jsx`
+5. `starCoreGovernanceRing.test.jsx`
+6. `starCoreIgnitionScene.jsx`
+7. `starCoreTruthAdapter.js`
+8. podle potreby `starCoreHudOverlay.jsx`
 
 Pravidlo:
 
 1. nerozsirovat zbytecne `UniverseWorkspace.jsx`,
-2. stavovy model oddelit od renderu,
-3. backend truth mapping oddelit od copy/render logiky.
+2. spatial state model oddelit od renderu,
+3. backend truth mapping oddelit od scene a kamery,
+4. scene logika nesmi byt zakopana v jednom monolitu.
 
-## 5. Stavovy model
+## 6. Stavovy model
 
-FE-R1 ma explicitne rozlisovat:
+Spatial FE-R1 ma explicitne rozlisovat:
 
 1. `loading`
 2. `data_unavailable`
 3. `star_core_unlocked`
-4. `star_core_locked_ready`
+4. `policy_lock_transition`
+5. `star_core_locked_ready`
 
 Minimalni rozhodovaci pravidla:
 
-1. kdyz nejsou data pripraveny, UI nesmi lhát; musi rict, ze data jeste nejsou k dispozici,
-2. kdyz je `lock_status != locked`, prvni akce je vzdy `Otevřít Srdce hvězdy`,
-3. kdyz je `lock_status == locked`, prvni akce je `Založit první planetu`,
-4. v jednom stavu nesmi byt dve primarni CTA.
+1. kdyz nejsou data pripraveny, scena nesmi lhat; muze zustat ve `stabilizing` nebo `unavailable` rezimu,
+2. kdyz je `lock_status != locked`, governance prstenec musi cist `UNLOCKED`,
+3. kdyz je `lock_status == locked`, governance prstenec musi cist `LOCKED` a `POLICY_READY`,
+4. dalsi planetarni krok se nesmi objevit pred lockem,
+5. v jednom stavu nesmi byt dve konkurencni primarni akce.
 
-## 6. Pripraveny kod z archivu
+## 7. Pripraveny kod z archivu
 
 Pro tento blok je pripraveny kod:
 
-1. `frontend/src/_inspiration_reset_20260312/components/universe/starContract.js`
-2. `frontend/src/_inspiration_reset_20260312/components/universe/lawResolver.js`
-3. `frontend/src/_inspiration_reset_20260312/components/universe/planetPhysicsParity.js`
-4. `frontend/src/_inspiration_reset_20260312/components/universe/workspaceStateContract.js`
-5. `frontend/src/_inspiration_reset_20260312/components/universe/surfaceLayoutTokens.js`
+1. `frontend/src/_inspiration_reset_20260312/components/universe/UniverseCanvas.jsx`
+2. `frontend/src/_inspiration_reset_20260312/components/universe/starContract.js`
+3. `frontend/src/_inspiration_reset_20260312/components/universe/lawResolver.js`
+4. `frontend/src/_inspiration_reset_20260312/components/universe/planetPhysicsParity.js`
+5. `frontend/src/_inspiration_reset_20260312/components/universe/cameraPilotMath.js`
 6. `frontend/src/_inspiration_reset_20260312/components/universe/surfaceVisualTokens.js`
 7. `frontend/src/_inspiration_reset_20260312/components/universe/previewAccessibility.js`
 
 V tomto bloku se skutecne maji vratit:
 
-1. `starContract.js`
-2. `lawResolver.js`
-3. `planetPhysicsParity.js`
-4. podle potreby `workspaceStateContract.js`
+1. `UniverseCanvas.jsx` nebo jeho spatial jadro,
+2. `starContract.js`
+3. `lawResolver.js`
+4. `planetPhysicsParity.js`
+5. podle potreby `cameraPilotMath.js`
 
 V tomto bloku se zatim nemaji vratit:
 
-1. `useUniverseRuntimeSync.js`
-2. `runtimeProjectionPatch.js`
-3. `runtimeNormalizationSignal.js`
-4. `commandBarContract.js`
-5. `useMoonCrudController.js`
+1. `WorkspaceSidebar.jsx`
+2. `WorkspaceShell.jsx`
+3. `useUniverseRuntimeSync.js`
+4. `runtimeProjectionPatch.js`
+5. `runtimeNormalizationSignal.js`
+6. `commandBarContract.js`
+7. `useMoonCrudController.js`
 
-## 7. Vazba na backend pravdu
+## 8. Vazba na backend pravdu
 
-FE-R1 se povinne ridi:
+Spatial FE-R1 se povinne ridi:
 
 1. `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`
 
 Implementacni pravidla:
 
-1. `Star Core` payload nesmi jit primo do renderu bez normalizeru,
-2. `lock_status`, `law_preset`, `profile_mode`, `policy_version`, `locked_at` musi byt cteny pres `starContract.js`,
-3. fyzikalni nebo vizualni odvozeni hvezdy/planet se nesmi delat ad-hoc fallbackem mimo helper,
-4. pokud payload chybi nebo je rozbity, FE ukaze `data_unavailable`, ne optimistic guess.
+1. `Star Core` payload nesmi jit primo do scene bez normalizeru,
+2. `lock_status`, `law_preset`, `profile_mode`, `policy_version`, `locked_at` a fyzikalni profil musi byt cteny pres `starContract.js`,
+3. spatialni derivace hvezdy, governance prstence a orbitalniho dalsiho kroku se nesmi delat ad-hoc fallbackem mimo helper,
+4. pokud payload chybi nebo je rozbity, FE ukaze `stabilizing/unavailable`, ne optimistic `LOCKED`.
 
-## 8. Konkretni implementacni kroky
+## 9. Konkretni implementacni kroky
 
 Poradi implementace:
 
-1. vytvorit `starCoreFirstViewModel` jako cisty state resolver,
+1. vytvorit `starCoreSpatialStateModel` jako cisty state resolver,
 2. napojit ho na normalizovany `Star Core` truth input,
-3. vytvorit jednu centralni render surface,
-4. pridat subtilni utility signal mimo dominantni kartu,
-5. pridat `pred lock` a `po lock` screenshot-ready stavy,
-6. pridat focused testy,
-7. az potom vyhodnotit screenshoty.
+3. vratit spatialni `UniverseCanvas` jadro,
+4. vytvorit governance prstenec s diegetickymi stavy,
+5. pridat lehky HUD signal pouze jako doplnkovou vrstvu,
+6. pridat `pred lock` a `po lock` screenshot-ready stavy,
+7. pridat focused testy,
+8. az potom vyhodnotit screenshoty.
 
-## 9. Focused gate
+## 10. Focused gate
 
-### 9.1 Focused testy
+### 10.1 Focused testy
 
 Minimalni pozadovane focused testy:
 
-1. `starCoreFirstViewModel.test.js`
+1. `starCoreSpatialStateModel.test.js`
 2. focused test pro normalizaci `Star Core` truth adapteru
-3. focused render test centralni surface pro `pred lock`
-4. focused render test centralni surface pro `po lock`
+3. focused render test spatialni `pred lock` scény
+4. focused render test spatialni `po lock` scény
+5. pokud se vrati `UniverseCanvas` jadro, tak i focused test jeho governance-first framingu
 
 Pokud se vrati archived helper:
 
 1. ma se vratit i odpovidajici focused test nebo jeho nova aktivni obdoba
 
-### 9.2 Screenshot gate
+### 10.2 Screenshot gate
 
 Povinne screenshoty:
 
@@ -198,42 +218,37 @@ Povinne screenshoty:
 
 Na obou musi byt bez vysvetlovani videt:
 
-1. jedna dominantni surface,
-2. stav workspace,
-3. jedna primarni akce.
+1. hvezda jako centralni operacni jadro,
+2. governance stav primo na nebo kolem hvezdy,
+3. prostorovy rozdil mezi `UNLOCKED` a `LOCKED`,
+4. dalsi krok vznikajici z prostoru, ne z panelu.
 
-## 10. Completion pravidla
+## 11. Completion pravidla
 
-### 10.1 Technical completion
+### 11.1 Technical completion
 
-1. model + surface + truth mapping jsou oddelene,
-2. aktivni runtime nepouziva zadny sidebar ani utility rail,
-3. `pred lock` a `po lock` jsou deterministicke stavy.
+1. model + scene + truth mapping jsou oddelene,
+2. aktivni runtime nepouziva centralni textovou kartu jako hlavni FE-R1 surface,
+3. `pred lock` a `po lock` jsou deterministicke spatialni stavy.
 
-### 10.2 User-visible completion
+### 11.2 User-visible completion
 
-1. prvni pohled po loginu ma jasny governance-first smysl,
-2. po locku je zretelne videt, ze se otevrel dalsi krok,
-3. FE-R1 je skutecny produktovy posun, ne jen architektonicky refaktor.
+1. prvni pohled po loginu ma governance-first smysl primo ve scene,
+2. hvezda vizualne nese prvni akci,
+3. po locku je zretelne videt, ze se otevrel orbitalni dalsi krok,
+4. FE-R1 je skutecny produktovy posun, ne jen textovy panel nad pozadim.
 
-### 10.3 Documentation completion
+### 11.3 Documentation completion
 
-1. tento dokument zustava zdrojem pravdy pro implementacni scope,
-2. navazny implementacni blok odkazuje na tento dokument a na `fe-r1-first-view-koncept-v1CZ.md`.
+1. tento dokument zustava zdrojem pravdy pro spatial implementacni scope,
+2. navazny implementacni blok odkazuje na tento dokument a na `fe-r1-first-view-koncept-v1CZ.md`,
+3. panel-first smer je timto dokumentem explicitne vyrazen.
 
-### 10.4 Gate completion
+### 11.4 Gate completion
 
 1. focused testy green,
 2. screenshot `pred lock` a `po lock`,
-3. explicitni hodnoceni, zda je first impression dost silny.
-
-## 11. Co se nepocita jako uspech
-
-1. druha karta se stejnym sdelenim,
-2. fake data bez backend truth guardu,
-3. visual polish bez jasneho CTA,
-4. wow bez governance smyslu,
-5. zavreni bloku bez screenshotu.
+3. explicitni hodnoceni, zda hvezda opravdu nese prvni akci a wow moment.
 
 ## 12. Evidence
 
@@ -241,12 +256,12 @@ Minimalni dukaz teto pripravy:
 
 ```bash
 cd /mnt/c/Projekty/Dataverse
-sed -n '1,340p' docs/P0-core/contracts/aktivni/fe/fe-r1-first-view-koncept-v1CZ.md
+sed -n '1,360p' docs/P0-core/contracts/aktivni/fe/fe-r1-first-view-koncept-v1CZ.md
 sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md
 sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md
 ```
 
 ## 13. Co zustava otevrene
 
-- [ ] Po schvaleni tohoto dokumentu prejit do kodu.
+- [ ] Po schvaleni tohoto dokumentu prejit do spatial implementace.
 - [ ] Po implementaci dodat focused testy a screenshoty.

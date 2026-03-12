@@ -248,6 +248,10 @@ export function buildBranchesUrl(apiBase, galaxyId = null) {
   return url.toString();
 }
 
+export function buildGalaxiesUrl(apiBase) {
+  return `${apiBase}/galaxies`;
+}
+
 export function buildPresetsCatalogUrl(apiBase, galaxyId = null) {
   const url = new URL(`${apiBase}/presets/catalog`);
   if (galaxyId) {

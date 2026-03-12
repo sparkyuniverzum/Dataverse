@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-import { API_BASE, configureApiAuth } from "../lib/dataverseApi";
+import { API_BASE, buildGalaxiesUrl, configureApiAuth } from "../lib/dataverseApi";
 import { normalizeGalaxyPublic } from "../lib/workspaceScopeContract";
 import {
   AUTH_SESSION_STATUS,
@@ -91,6 +91,21 @@ export function AuthProvider({ children }) {
       return { status: AUTH_SESSION_STATUS.OK, user: await response.json() };
     } catch (error) {
       return { status: classifyAuthRuntimeError(error), user: null };
+    }
+  }, []);
+
+  const fetchDefaultGalaxy = useCallback(async (token) => {
+    if (!token) return null;
+    try {
+      const response = await fetch(buildGalaxiesUrl(API_BASE), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return null;
+      const payload = await response.json();
+      const galaxies = Array.isArray(payload) ? payload.map((item) => normalizeGalaxyPublic(item)).filter(Boolean) : [];
+      return galaxies[0] || null;
+    } catch {
+      return null;
     }
   }, []);
 
@@ -230,6 +245,9 @@ export function AuthProvider({ children }) {
           }
         } else {
           setUser(nextUser);
+          const nextDefaultGalaxy = await fetchDefaultGalaxy(accessTokenRef.current);
+          if (!alive) return;
+          setDefaultGalaxy(nextDefaultGalaxy);
         }
       } catch {
         if (!alive) return;
@@ -241,7 +259,7 @@ export function AuthProvider({ children }) {
     return () => {
       alive = false;
     };
-  }, [clearSession, fetchCurrentUser, refreshSession]);
+  }, [clearSession, fetchCurrentUser, fetchDefaultGalaxy, refreshSession]);
 
   const completeAuth = useCallback(
     (body, fallbackTokenError) => {
