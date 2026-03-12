@@ -24,6 +24,7 @@ from app.schema_models.execution import (  # noqa: F401
     ParseCommandPreviewResponse,
     ParseCommandPreviewRiskFlags,
     ParseCommandPreviewScope,
+    ParseCommandPreviewSemanticEffectExpected,
     ParseCommandRequest,
     ParseCommandResponse,
     ParserAliasesResponse,

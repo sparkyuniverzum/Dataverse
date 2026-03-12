@@ -233,6 +233,19 @@ class ParseCommandPreviewOccSignal(BaseModel):
     because: str
 
 
+class ParseCommandPreviewSemanticEffectExpected(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task_index: int
+    action: str
+    code: str
+    event_types: list[str] = Field(default_factory=list)
+    mutating: bool = True
+    destructive: bool = False
+    scope_sensitive: bool = False
+    because_chain: list[str] = Field(default_factory=list)
+
+
 class ParseCommandPreviewResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -253,6 +266,7 @@ class ParseCommandPreviewResponse(BaseModel):
     tasks: list[TaskSchema] = Field(default_factory=list)
     expected_events: list[ParseCommandPreviewExpectedEvent] = Field(default_factory=list)
     occ_signals: list[ParseCommandPreviewOccSignal] = Field(default_factory=list)
+    semantic_effects_expected: list[ParseCommandPreviewSemanticEffectExpected] = Field(default_factory=list)
     risk_flags: ParseCommandPreviewRiskFlags
     scope: ParseCommandPreviewScope
     next_step_hint: str

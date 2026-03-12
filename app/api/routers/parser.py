@@ -39,6 +39,7 @@ from app.schemas import (
     ParseCommandPreviewResponse,
     ParseCommandPreviewRiskFlags,
     ParseCommandPreviewScope,
+    ParseCommandPreviewSemanticEffectExpected,
     ParseCommandRequest,
     ParseCommandResponse,
     ParserAliasesResponse,
@@ -71,6 +72,16 @@ _EXPECTED_EVENT_TYPES_BY_ACTION: dict[str, list[str]] = {
     "SET_FORMULA": ["METADATA_UPDATED"],
     "ADD_GUARDIAN": ["METADATA_UPDATED"],
     "SELECT": [],
+}
+_SEMANTIC_CODE_BY_ACTION: dict[str, str] = {
+    "INGEST": "PREVIEW_CIVILIZATION_UPSERT",
+    "UPDATE_CIVILIZATION": "PREVIEW_CIVILIZATION_UPDATE",
+    "LINK": "PREVIEW_BOND_MUTATION",
+    "DELETE": "PREVIEW_CIVILIZATION_EXTINGUISH",
+    "EXTINGUISH": "PREVIEW_CIVILIZATION_EXTINGUISH",
+    "SET_FORMULA": "PREVIEW_FORMULA_UPDATE",
+    "ADD_GUARDIAN": "PREVIEW_GUARDIAN_UPDATE",
+    "SELECT": "PREVIEW_SELECT",
 }
 
 
@@ -312,6 +323,60 @@ def _build_occ_signals(
     return items
 
 
+def _build_semantic_effects_expected(
+    *,
+    tasks: list[dict[str, Any]],
+    occ_signals: list[ParseCommandPreviewOccSignal],
+    branch_id: UUID | None,
+) -> list[ParseCommandPreviewSemanticEffectExpected]:
+    items: list[ParseCommandPreviewSemanticEffectExpected] = []
+    for index, task in enumerate(tasks):
+        action = str(task.get("action") or "").strip().upper()
+        if action not in _MUTATING_ACTIONS:
+            continue
+
+        destructive = action in _DESTRUCTIVE_ACTIONS
+        scope_sensitive = True
+        because_chain = [
+            f"Akce `{action}` mutuje runtime stav a zapisuje eventy do timeline.",
+            "Mutace probehne az v `/parser/execute`; `/parser/preview` je read-only plan.",
+        ]
+        if destructive:
+            because_chain.append(
+                "Akce je destruktivni (soft-delete lifecycle) a vyzaduje explicitni operator potvrzeni."
+            )
+
+        related_occ = [signal for signal in occ_signals if signal.action.upper() == action]
+        if related_occ:
+            if any(signal.known for signal in related_occ):
+                because_chain.append(
+                    "OCC target je znamy; `current_event_seq` byl odhadnut z aktualniho snapshotu scope."
+                )
+            if any(not signal.known for signal in related_occ):
+                because_chain.append("Cast OCC targetu neni jednoznacna; execute muze vratit OCC/target conflict.")
+        else:
+            because_chain.append("OCC signal nelze predem odhadnout pro tento typ mutace.")
+
+        if branch_id is None:
+            because_chain.append("Scope je `main` timeline.")
+        else:
+            because_chain.append(f"Scope je branch `{branch_id}`.")
+
+        items.append(
+            ParseCommandPreviewSemanticEffectExpected(
+                task_index=index,
+                action=action,
+                code=_SEMANTIC_CODE_BY_ACTION.get(action, "PREVIEW_MUTATION"),
+                event_types=list(_EXPECTED_EVENT_TYPES_BY_ACTION.get(action, [])),
+                mutating=True,
+                destructive=destructive,
+                scope_sensitive=scope_sensitive,
+                because_chain=because_chain,
+            )
+        )
+    return items
+
+
 @router.get("/parser/lexicon", response_model=ParseCommandLexiconResponse, status_code=status.HTTP_200_OK)
 async def parser_lexicon(
     _current_user: User = Depends(get_current_user),
@@ -463,6 +528,11 @@ async def parse_preview(
     occ_signals = _build_occ_signals(normalized_tasks, civilizations=active_civilizations)
     risk_flags = _build_risk_flags(normalized_tasks, branch_id=scoped_context.branch_id)
     expected_events = _build_expected_event_preview(normalized_tasks)
+    semantic_effects_expected = _build_semantic_effects_expected(
+        tasks=normalized_tasks,
+        occ_signals=occ_signals,
+        branch_id=scoped_context.branch_id,
+    )
     return ParseCommandPreviewResponse(
         resolved_command=resolution.resolved_command,
         parser_version_requested=resolution.parser_version_requested,
@@ -481,6 +551,7 @@ async def parse_preview(
         tasks=normalized_tasks,
         expected_events=expected_events,
         occ_signals=occ_signals,
+        semantic_effects_expected=semantic_effects_expected,
         risk_flags=risk_flags,
         scope=ParseCommandPreviewScope(galaxy_id=scoped_context.galaxy_id, branch_id=scoped_context.branch_id),
         next_step_hint=_next_step_hint(resolution=resolution, risk_flags=risk_flags),

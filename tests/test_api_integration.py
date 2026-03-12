@@ -347,6 +347,16 @@ def test_parser_preview_returns_plan_scope_risk_and_expected_events(auth_client:
     assert any("CIVILIZATION_SOFT_DELETED" in (item.get("event_types") or []) for item in expected_events)
     occ_signals = body.get("occ_signals") or []
     assert any(str(item.get("action") or "").upper() == "DELETE" for item in occ_signals)
+    semantic_effects_expected = body.get("semantic_effects_expected") or []
+    delete_semantic = next(
+        (item for item in semantic_effects_expected if str(item.get("action") or "").upper() == "DELETE"),
+        None,
+    )
+    assert delete_semantic is not None
+    because_chain = delete_semantic.get("because_chain") or []
+    assert len(because_chain) >= 2
+    assert delete_semantic.get("mutating") is True
+    assert delete_semantic.get("destructive") is True
     assert isinstance(body.get("next_step_hint"), str) and body["next_step_hint"]
 
 
@@ -382,6 +392,13 @@ def test_parser_preview_includes_occ_expected_and_current_event_seq_for_known_ta
     assert delete_occ.get("entity_id") == civilization_id
     assert int(delete_occ.get("current_event_seq") or 0) >= 1
     assert int(delete_occ.get("expected_event_seq") or 0) == int(delete_occ.get("current_event_seq") or 0)
+    semantic_effects_expected = preview_body.get("semantic_effects_expected") or []
+    delete_semantic = next(
+        (item for item in semantic_effects_expected if str(item.get("action") or "").upper() == "DELETE"),
+        None,
+    )
+    assert delete_semantic is not None
+    assert any("OCC" in str(line) for line in (delete_semantic.get("because_chain") or []))
 
 
 def test_parser_aliases_crud_and_preview_resolution(auth_client: tuple[httpx.Client, str]) -> None:

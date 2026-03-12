@@ -78,6 +78,9 @@ Poradi:
 5. `atomic_tasks`
 6. `expected_events` (predikovane event typy)
 7. `semantic_effects_expected` (code + because)
+   - po polozkach mutacniho planu (`task_index`, `action`, `code`, `event_types`),
+   - povinne `because_chain` (lidske vysvetleni proc se mutace stane),
+   - pro nemutacni akce je tento blok volitelny.
 8. `scope` (`galaxy_id`, `branch_id`)
 9. `risk_flags` (destructive, multi-step, scope-sensitive)
 10. `next_step_hint`
@@ -88,6 +91,7 @@ Poradi:
 ## 3.3 Explainability pravidla
 
 1. Kazda mutace musi mit lidske "proc" vysvetleni.
+   - vysvetleni je reprezentovane jako `because_chain` navazane na konkretni mutacni task.
 2. OCC riziko musi ukazat:
    - `expected_event_seq`,
    - `current_event_seq` (pokud je zname).
