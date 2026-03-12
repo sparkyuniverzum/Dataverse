@@ -1,7 +1,7 @@
 # Backend MVP požadavky z Canonical UX Ontology v1
 
-Stav: aktivní (základní extrakční baseline backend MVP)
-Datum: 2026-03-11
+Stav: uzavřený (BE MVP baseline naplněn a potvrzen gate evidencí)
+Datum: 2026-03-11 (založení), 2026-03-12 (formální uzavření)
 Vlastník: Core BE architektura
 
 ## 1. Co se změnilo
@@ -419,3 +419,11 @@ API integration evidence (ověřeno uživatelem v tomto cyklu):
 3. FE komponentové behavior detaily.
 
 Tento soubor definuje pouze backend MVP requirements baseline.
+
+## 9. Formální uzavření
+
+1. Kontrolní checklist v sekci 7 je plně uzavřený bez otevřených položek.
+2. Evidence v sekci 7.1 pokrývá namespace, doménové uzavření i API regresní body.
+3. Navazující implementační uzavření je vedené v:
+   - `docs/P0-core/contracts/backend-mvp-continuation-v1.md`
+   - `docs/P0-core/contracts/backend-mvp-vykonnostni-gate-v1.md`

@@ -6,6 +6,7 @@ Aktivní reference (CZ-only):
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/canonical-ux-ontology-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-continuation-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-continuation-v1.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-vykonnostni-gate-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/backend-mvp-vykonnostni-gate-v1.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-ia-navigation-architecture-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-ia-navigation-architecture-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-journeys-and-visual-language-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-journeys-and-visual-language-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-fe-component-behavior-contract-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/ux-fe-component-behavior-contract-v1CZ.md)
