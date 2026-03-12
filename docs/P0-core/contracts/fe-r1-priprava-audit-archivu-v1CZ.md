@@ -132,6 +132,10 @@ Scope:
 Otazka:
 Co je inspirace pro pozdejsi faze a co je slepy smer?
 
+Stav:
+
+1. [x] 2026-03-12 Audit uzavren v dokumentu `docs/P0-core/contracts/fe-r1-audit-archivu-davka-d-v1CZ.md`.
+
 ## 7. Hodnotici kriteria `OK`
 
 Polozka muze dostat `OK` pouze pokud:
