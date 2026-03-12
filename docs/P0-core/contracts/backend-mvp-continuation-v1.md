@@ -193,7 +193,19 @@ Evidence:
 
 - [x] 2026-03-11 `rg -n "MOON_UPSERTED|MOON_UPDATED|MOON_RECLASSIFIED|MOON_EXTINGUISHED" app tests -g"*.py"` -> prázdný výstup.
 - [x] 2026-03-11 `PYTHONPATH=. pytest -q tests/test_task_executor_service_stage2.py -rs` -> `17 passed`.
-- [x] 2026-03-11 `if python -m py_compile app/services/task_executor/families/ingest_update.py app/services/task_executor/families/extinguish.py app/services/task_executor/handlers/ingest_update.py app/services/task_executor/handlers/extinguish.py app/services/task_executor/service.py app/services/auto_semantics_service.py tests/test_task_executor_service_stage2.py; then echo OK; else echo NOK; fi` -> `OK`.
+- [x] 2026-03-11 `if python -m py_compile app/services/task_executor/families/ingest_update.py app/services/task_executor/families/extinguish.py app/services/task_executor/service.py app/services/auto_semantics_service.py tests/test_task_executor_service_stage2.py; then echo OK; else echo NOK; fi` -> `OK`.
+
+## 5.5 P1-4 Task-executor dead branch removal
+
+- [x] 2026-03-11 Odstraněna mrtvá `handlers` větev v `app/services/task_executor/handlers/*`.
+- [x] 2026-03-11 Odstraněna odpovídající core proxy větev `app/core/task_executor/handlers/*`.
+- [x] 2026-03-11 Přidán guard test proti návratu legacy handler modulů.
+
+Evidence:
+
+- [x] 2026-03-11 `rg -n "task_executor\\.handlers|core\\.task_executor\\.handlers|IntentCommandHandler|IngestUpdateHandler|ExtinguishHandler|FormulaGuardianSelectHandler|LinkMutationHandler" app tests -g"*.py"` -> bez runtime referencí, pouze historické self-reexporty před odstraněním.
+- [x] 2026-03-11 `PYTHONPATH=. pytest -q tests/test_domain_professional_setup.py::test_task_executor_legacy_handler_branch_removed tests/test_task_executor_service_stage2.py -rs` -> green.
+- [x] 2026-03-11 `if python -m py_compile tests/test_domain_professional_setup.py app/services/task_executor/service.py app/services/task_executor/families/ingest_update.py app/services/task_executor/families/extinguish.py; then echo OK; else echo NOK; fi` -> `OK`.
 
 ## 6. Pravidlo průběžné kontroly
 

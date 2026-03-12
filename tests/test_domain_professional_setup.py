@@ -719,6 +719,26 @@ def test_runtime_cross_cutting_utilities_use_infrastructure_paths() -> None:
             ), f"Legacy runtime import `{token}` remains in {python_path.relative_to(repo_root)}"
 
 
+def test_task_executor_legacy_handler_branch_removed() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    removed_handler_modules = (
+        repo_root / "app/services/task_executor/handlers/__init__.py",
+        repo_root / "app/services/task_executor/handlers/extinguish.py",
+        repo_root / "app/services/task_executor/handlers/formula_guardian_select.py",
+        repo_root / "app/services/task_executor/handlers/ingest_update.py",
+        repo_root / "app/services/task_executor/handlers/intent_command.py",
+        repo_root / "app/services/task_executor/handlers/link_mutation.py",
+        repo_root / "app/core/task_executor/handlers/__init__.py",
+        repo_root / "app/core/task_executor/handlers/extinguish.py",
+        repo_root / "app/core/task_executor/handlers/formula_guardian_select.py",
+        repo_root / "app/core/task_executor/handlers/ingest_update.py",
+        repo_root / "app/core/task_executor/handlers/intent_command.py",
+        repo_root / "app/core/task_executor/handlers/link_mutation.py",
+    )
+    for path in removed_handler_modules:
+        assert not path.exists(), f"Legacy task-executor handler module still exists: {path.relative_to(repo_root)}"
+
+
 def test_core_facades_use_explicit_module_proxies_without_path_hacks() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     parser2_init = (repo_root / "app/core/parser2/__init__.py").read_text(encoding="utf-8")
