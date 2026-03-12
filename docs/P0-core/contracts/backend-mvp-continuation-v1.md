@@ -1,7 +1,7 @@
 # Backend MVP pokračování v1
 
-Stav: aktivní (oficiální plán pokračování BE)
-Datum: 2026-03-11
+Stav: uzavřený (BE MVP implementační scope uzavřen)
+Datum: 2026-03-11 (založení), 2026-03-12 (formální uzavření)
 Vlastník: Core BE architektura
 
 ## 1. Co se změnilo
@@ -214,3 +214,24 @@ Po každém bloku:
 1. aktualizovat checklist (open -> closed),
 2. doplnit command evidence,
 3. nezavírat blok bez evidence gate.
+
+## 7. Formální uzavření BE MVP
+
+## 7.1 Co je hotovo
+
+1. Kanonická ontologie backend runtime je sjednocená (`civilization = row`, `moon = capability`) v API, doménách i executor/runtime vrstvách.
+2. Idempotency + OCC policy je sjednocená na mutačních write cestách podle kontraktového scope.
+3. Parser fallback governance, branch lifecycle closure a terminologický cleanup (`asteroid*` removal) jsou uzavřené.
+4. Dead-code cleanup v task executoru je dokončený včetně guard testů proti návratu legacy handler větve.
+5. Kontraktové checklisty v tomto plánu jsou uzavřené a podložené command evidencí.
+
+## 7.2 Co je mimo scope
+
+1. FE UX/IA/navigation redesign a visual language.
+2. Kompletní FE komponentové behavior detaily a UX journey skripty.
+3. Produktová „user-visible completion“ pro experience vrstvu (to je samostatná FE/UX fáze).
+
+## 7.3 Evidence formálního uzavření
+
+- `rg -n "\\[ \\]" docs/P0-core/contracts/backend-mvp-continuation-v1.md` -> prázdný výstup.
+- `rg -n "\\[ \\]" docs/P0-core/contracts/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md` -> prázdný výstup.
