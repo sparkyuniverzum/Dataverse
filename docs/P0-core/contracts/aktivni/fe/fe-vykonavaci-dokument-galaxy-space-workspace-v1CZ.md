@@ -395,5 +395,5 @@ Vysledek:
 
 ## 16. Co zustava otevrene
 
-- [ ] Rozhodnout, zda prvni kodovy rez bude `Blok 1`, nebo jestli jeste pred nim vznikne jemny dokument `kamera/radar interaction detail`.
+- [x] 2026-03-12 Pred prvnim kodovym rezem byl zapsan detailni dokument `fe-kamera-radar-interaction-detail-v1CZ.md`.
 - [ ] U kazdeho implementacniho bloku navazat screenshot dukaz a focused testy presne podle teto osy.

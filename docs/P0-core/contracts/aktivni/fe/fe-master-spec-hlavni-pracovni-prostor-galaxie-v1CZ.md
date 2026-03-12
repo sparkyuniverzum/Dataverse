@@ -323,6 +323,7 @@ Tento master spec se zavazne opira o:
 1. `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`
 2. navaznou `BE -> FE` projekcni mapu pro workspace.
 3. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
+4. `docs/P0-core/contracts/aktivni/fe/fe-kamera-radar-interaction-detail-v1CZ.md`
 
 Pravidlo:
 
