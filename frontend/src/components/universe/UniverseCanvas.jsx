@@ -345,7 +345,7 @@ export default function UniverseCanvas({
   return (
     <div data-testid="universe-canvas-shell" style={{ position: "absolute", inset: 0 }}>
       <Canvas
-        camera={{ position: [0, 2.5, 11.8], fov: 38, near: 0.1, far: 200 }}
+        camera={{ position: [0, 3.1, 16.2], fov: 38, near: 0.1, far: 200 }}
         gl={{ antialias: true }}
         style={{ width: "100%", height: "100%" }}
         onPointerMissed={() => {
@@ -365,7 +365,7 @@ export default function UniverseCanvas({
           ref={controlsRef}
           enableDamping
           dampingFactor={0.08}
-          minDistance={4.8}
+          minDistance={5.4}
           maxDistance={24}
           maxPolarAngle={Math.PI * 0.47}
           minPolarAngle={Math.PI * 0.2}

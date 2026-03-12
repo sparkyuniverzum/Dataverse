@@ -28,7 +28,6 @@ describe("GalaxySelectionHud", () => {
     expect(screen.getByTestId("galaxy-selection-hud")).toBeTruthy();
     expect(screen.getByText("Volná navigace galaxií")).toBeTruthy();
     expect(screen.getByTestId("galaxy-radar")).toBeTruthy();
-    expect(screen.getByText("Radar ukazuje směr pohledu, hvězdu a aktuální výběr.")).toBeTruthy();
   });
 
   it("renders selected object focus", () => {
@@ -78,6 +77,6 @@ describe("GalaxySelectionHud", () => {
     );
 
     expect(screen.getByText("Přibližuješ se k objektu Srdce hvězdy")).toBeTruthy();
-    expect(screen.getByText("Radar drží přiblížení na stejný objekt jako kamera.")).toBeTruthy();
+    expect(screen.getByTestId("galaxy-radar")).toBeTruthy();
   });
 });

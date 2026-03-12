@@ -96,59 +96,36 @@ export default function GalaxySelectionHud({ model, navigationModel, radarModel 
           right: "1rem",
           bottom: "1rem",
           zIndex: 3,
-          width: "min(18rem, calc(100vw - 2rem))",
-          display: "grid",
-          gap: "0.55rem",
-          padding: "0.85rem 0.92rem",
-          borderRadius: "1.1rem",
-          border: "1px solid rgba(126, 217, 255, 0.12)",
-          background: "linear-gradient(180deg, rgba(3, 9, 20, 0.56) 0%, rgba(3, 7, 16, 0.42) 100%)",
-          color: "#f2f8ff",
-          backdropFilter: "blur(10px)",
+          width: "7.4rem",
+          height: "7.4rem",
+          padding: "0.32rem",
+          borderRadius: "999px",
+          background: "rgba(3, 9, 20, 0.18)",
+          backdropFilter: "blur(6px)",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "center" }}>
-          <div style={{ fontSize: "0.75rem", letterSpacing: "0.12em", opacity: 0.62, textTransform: "uppercase" }}>
-            Radar galaxie
-          </div>
-          <div style={{ fontSize: "0.74rem", color: "rgba(212, 233, 255, 0.72)" }}>{radarModel.galaxyName}</div>
-        </div>
         <svg
           viewBox="0 0 100 100"
           role="img"
           aria-label="Radarové pole galaxie"
-          style={{ width: "100%", aspectRatio: "1 / 1" }}
+          style={{ width: "100%", height: "100%" }}
         >
-          <circle cx="50" cy="50" r="42" fill="rgba(5, 13, 28, 0.72)" stroke="rgba(107, 214, 255, 0.24)" />
-          <circle cx="50" cy="50" r="28" fill="none" stroke="rgba(107, 214, 255, 0.14)" />
-          <line x1="50" y1="8" x2="50" y2="92" stroke="rgba(107, 214, 255, 0.08)" />
-          <line x1="8" y1="50" x2="92" y2="50" stroke="rgba(107, 214, 255, 0.08)" />
+          <circle cx="50" cy="50" r="42" fill="rgba(5, 13, 28, 0.28)" stroke="rgba(107, 214, 255, 0.22)" />
+          <circle cx="50" cy="50" r="4.8" fill="#ffd894" opacity="0.95" />
           <g transform={headingToArrow(radarModel.headingDegrees)}>
-            <polygon points="50,14 46,25 54,25" fill="#8fe8ff" opacity="0.9" />
+            <polygon points="50,12 45,26 55,26" fill="#8fe8ff" opacity="0.95" />
           </g>
           {radarModel.markers.map((marker) => (
             <circle
               key={marker.id}
               cx={marker.x}
               cy={marker.y}
-              r={marker.type === "star" ? 4.8 : marker.selected ? 4.2 : 3.1}
+              r={marker.type === "star" ? 0 : marker.selected ? 4 : 2.7}
               fill={marker.type === "star" ? "#ffd894" : marker.selected ? "#8fe8ff" : "#c7f4ff"}
               opacity={marker.selected ? 1 : 0.82}
             />
           ))}
         </svg>
-        <div style={{ display: "grid", gap: "0.22rem" }}>
-          <strong style={{ fontSize: "0.9rem" }}>
-            {navigationModel.selectedObject
-              ? `Cíl radaru: ${navigationModel.selectedObject.label}`
-              : "Hlavní prostor je volný"}
-          </strong>
-          <span style={{ color: "rgba(220, 237, 255, 0.72)", fontSize: "0.82rem", lineHeight: 1.35 }}>
-            {navigationModel.mode === "approach_active"
-              ? "Radar drží přiblížení na stejný objekt jako kamera."
-              : "Radar ukazuje směr pohledu, hvězdu a aktuální výběr."}
-          </span>
-        </div>
       </section>
     </>
   );
