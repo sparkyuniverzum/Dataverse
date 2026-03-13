@@ -300,6 +300,7 @@ function renderTelemetryMarkers(visualModel) {
 }
 
 function renderRitualChamber({
+  screenModel,
   interiorModel,
   visualModel,
   constitutionOptions,
@@ -309,8 +310,10 @@ function renderRitualChamber({
   onReturnToSpace,
   lockTransitionModel,
 }) {
+  const isEntryDive = Boolean(screenModel?.isEntering);
   const isPolicyLockPhase = interiorModel.phase === "policy_lock_ready" || interiorModel.isLockPending;
-  const lockDisabled = Boolean(lockTransitionModel?.disabled) || interiorModel.phase === "policy_lock_transition";
+  const lockDisabled =
+    Boolean(lockTransitionModel?.disabled) || interiorModel.phase === "policy_lock_transition" || isEntryDive;
   const governanceSignal = interiorModel.governanceSignal || {};
   const primaryActionProps = buildActionProps({
     onPress: interiorModel.isFirstOrbitReady ? onReturnToSpace : onConfirmPolicyLock,
@@ -318,7 +321,7 @@ function renderRitualChamber({
   });
   const returnActionProps = buildActionProps({
     onPress: onReturnToSpace,
-    disabled: interiorModel.phase === "policy_lock_transition",
+    disabled: interiorModel.phase === "policy_lock_transition" || isEntryDive,
   });
 
   return (
@@ -407,6 +410,30 @@ function renderRitualChamber({
         </span>
       ) : null}
 
+      {isEntryDive ? (
+        <div
+          data-testid="star-core-entry-dive-overlay"
+          style={{
+            position: "absolute",
+            top: "21%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "grid",
+            gap: "0.38rem",
+            justifyItems: "center",
+            zIndex: 26,
+            pointerEvents: "none",
+          }}
+        >
+          <span style={{ color: visualModel.theme.toneSecondary, fontSize: "0.58rem", letterSpacing: "0.16em" }}>
+            PRUNIK DO JADRA
+          </span>
+          <span style={{ color: "rgba(218, 236, 252, 0.76)", fontSize: "0.72rem", letterSpacing: "0.08em" }}>
+            Stabilizuji orientaci v srdci hvezdy
+          </span>
+        </div>
+      ) : null}
+
       <div
         data-testid="ritual-chamber-core"
         style={{
@@ -418,7 +445,7 @@ function renderRitualChamber({
         }}
       >
         <div style={{ position: "absolute", inset: 0, borderRadius: "50%", overflow: "hidden" }}>
-          <StarCoreInteriorScene3d visualModel={visualModel} />
+          <StarCoreInteriorScene3d visualModel={visualModel} screenModel={screenModel} />
         </div>
 
         {renderTelemetryMarkers(visualModel)}
@@ -439,7 +466,7 @@ function renderRitualChamber({
           />
         ) : null}
 
-        {visualModel.showSelectionOrbit
+        {visualModel.showSelectionOrbit && !isEntryDive
           ? constitutionOptions.map((option, index) =>
               renderConstitutionNode(
                 option,
@@ -493,7 +520,7 @@ function renderRitualChamber({
           </div>
         </div>
 
-        {isPolicyLockPhase && lockTransitionModel?.actionLabel ? (
+        {isPolicyLockPhase && lockTransitionModel?.actionLabel && !isEntryDive ? (
           <div
             data-testid="star-core-primary-action"
             {...primaryActionProps}
@@ -524,7 +551,7 @@ function renderRitualChamber({
           </div>
         ) : null}
 
-        {visualModel.showFirstOrbit ? (
+        {visualModel.showFirstOrbit && !isEntryDive ? (
           <div
             data-testid="star-core-primary-action"
             {...primaryActionProps}
@@ -585,8 +612,8 @@ function renderRitualChamber({
             fontSize: "0.55rem",
             letterSpacing: "0.08em",
             textAlign: "center",
-            cursor: interiorModel.phase === "policy_lock_transition" ? "default" : "pointer",
-            opacity: interiorModel.phase === "policy_lock_transition" ? 0.56 : 1,
+            cursor: interiorModel.phase === "policy_lock_transition" || isEntryDive ? "default" : "pointer",
+            opacity: interiorModel.phase === "policy_lock_transition" || isEntryDive ? 0.56 : 1,
             lineHeight: 1.2,
           }}
         >
@@ -648,6 +675,7 @@ export default function StarCoreInteriorScreen({
       }}
     >
       {renderRitualChamber({
+        screenModel,
         interiorModel,
         visualModel,
         constitutionOptions,

@@ -91,6 +91,24 @@ describe("StarCoreInteriorScreen", () => {
     expect(props.onSelectConstitution).toHaveBeenCalledWith("rovnovaha");
   });
 
+  it("shows short entry dive and delays constitution interaction during entering stage", () => {
+    const props = createProps({
+      screenModel: {
+        stage: "entering",
+        isVisible: true,
+        isEntering: true,
+        isActive: false,
+        isReturning: false,
+        transitionDurationMs: 760,
+      },
+    });
+    render(<StarCoreInteriorScreen {...props} />);
+
+    expect(screen.getByTestId("star-core-entry-dive-overlay")).toBeTruthy();
+    expect(screen.queryByTestId("constitution-option-rovnovaha")).toBeNull();
+    expect(screen.getByTestId("star-core-return-action").getAttribute("aria-disabled")).toBe("true");
+  });
+
   it("renders backend-driven focus detail for selected constitution", () => {
     const props = createProps({
       selectedConstitution: {

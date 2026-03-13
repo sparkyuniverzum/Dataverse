@@ -16,7 +16,9 @@ describe("starCoreInteriorScreenModel", () => {
 
   it("moves from entering to active", () => {
     const entering = beginStarCoreInteriorScreenEntry();
-    expect(resolveStarCoreInteriorScreenModel({ screenState: entering }).isEntering).toBe(true);
+    const enteringModel = resolveStarCoreInteriorScreenModel({ screenState: entering });
+    expect(enteringModel.isEntering).toBe(true);
+    expect(enteringModel.transitionDurationMs).toBe(760);
 
     const active = resolveStarCoreInteriorScreenEntryComplete(entering);
     const model = resolveStarCoreInteriorScreenModel({ screenState: active });

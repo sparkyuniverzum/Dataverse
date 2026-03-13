@@ -45,6 +45,9 @@ import {
   createInitialStarCoreInteriorScreenState,
   resolveStarCoreInteriorScreenEntryComplete,
   resolveStarCoreInteriorScreenModel,
+  STAR_CORE_INTERIOR_ENTRY_DURATION_MS,
+  STAR_CORE_INTERIOR_REDUCED_MOTION_DURATION_MS,
+  STAR_CORE_INTERIOR_RETURN_DURATION_MS,
 } from "./starCoreInteriorScreenModel.js";
 import { adaptStarCoreTruth } from "./starCoreTruthAdapter.js";
 import { resolveStarCoreSpatialLoadingModel, resolveStarCoreSpatialStateModel } from "./starCoreSpatialStateModel.js";
@@ -344,26 +347,26 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
 
   useEffect(() => {
     if (interiorUiState.transientPhase !== "star_core_interior_entry") return undefined;
-    const timeoutId = window.setTimeout(
-      () => {
-        setInteriorUiState((current) => resolveStarCoreInteriorEntryComplete(current));
-        setInteriorScreenState((current) => resolveStarCoreInteriorScreenEntryComplete(current));
-      },
-      reducedMotion ? 40 : 900
-    );
+    const entryDurationMs = reducedMotion
+      ? STAR_CORE_INTERIOR_REDUCED_MOTION_DURATION_MS
+      : STAR_CORE_INTERIOR_ENTRY_DURATION_MS;
+    const timeoutId = window.setTimeout(() => {
+      setInteriorUiState((current) => resolveStarCoreInteriorEntryComplete(current));
+      setInteriorScreenState((current) => resolveStarCoreInteriorScreenEntryComplete(current));
+    }, entryDurationMs);
     return () => window.clearTimeout(timeoutId);
   }, [interiorUiState.transientPhase, reducedMotion]);
 
   useEffect(() => {
     if (interiorScreenState.stage !== "returning") return undefined;
-    const timeoutId = window.setTimeout(
-      () => {
-        setInteriorScreenState(closeStarCoreInteriorScreen());
-        setInteriorUiState(closeStarCoreInteriorUi());
-        setNavigationState((current) => selectGalaxyObject(current, "star-core"));
-      },
-      reducedMotion ? 40 : 280
-    );
+    const returnDurationMs = reducedMotion
+      ? STAR_CORE_INTERIOR_REDUCED_MOTION_DURATION_MS
+      : STAR_CORE_INTERIOR_RETURN_DURATION_MS;
+    const timeoutId = window.setTimeout(() => {
+      setInteriorScreenState(closeStarCoreInteriorScreen());
+      setInteriorUiState(closeStarCoreInteriorUi());
+      setNavigationState((current) => selectGalaxyObject(current, "star-core"));
+    }, returnDurationMs);
     return () => window.clearTimeout(timeoutId);
   }, [interiorScreenState.stage, reducedMotion]);
 
