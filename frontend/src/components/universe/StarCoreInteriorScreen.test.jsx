@@ -76,19 +76,18 @@ function createProps(overrides = {}) {
 }
 
 describe("StarCoreInteriorScreen", () => {
-  it("renders standalone interior screen and constitution actions", () => {
+  it("renders standalone interior screen as clean foundation scene", () => {
     const props = createProps();
     render(<StarCoreInteriorScreen {...props} />);
 
     expect(screen.getByTestId("star-core-interior-screen")).toBeTruthy();
-    expect(screen.getByTestId("constitution-selection-focus")).toBeTruthy();
     expect(screen.getByTestId("ritual-chamber-core")).toBeTruthy();
-    expect(screen.getByTestId("ritual-live-telemetry")).toBeTruthy();
-    expect(screen.getAllByTestId("ritual-domain-segment").length).toBeGreaterThan(0);
-    expect(screen.getAllByTestId("ritual-pulse-beacon").length).toBeGreaterThan(0);
-    expect(screen.getByText(/Puls hvezdy: Steady/)).toBeTruthy();
-    fireEvent.click(screen.getByTestId("constitution-option-rovnovaha"));
-    expect(props.onSelectConstitution).toHaveBeenCalledWith("rovnovaha");
+    expect(screen.getByTestId("star-core-return-action")).toBeTruthy();
+    expect(screen.queryByTestId("constitution-selection-focus")).toBeNull();
+    expect(screen.queryByTestId("ritual-live-telemetry")).toBeNull();
+    expect(screen.queryByTestId("constitution-option-rovnovaha")).toBeNull();
+    expect(screen.queryAllByTestId("ritual-domain-segment")).toHaveLength(0);
+    expect(screen.queryAllByTestId("ritual-pulse-beacon")).toHaveLength(0);
   });
 
   it("shows short entry dive and delays constitution interaction during entering stage", () => {
@@ -109,7 +108,7 @@ describe("StarCoreInteriorScreen", () => {
     expect(screen.getByTestId("star-core-return-action").getAttribute("aria-disabled")).toBe("true");
   });
 
-  it("renders backend-driven focus detail for selected constitution", () => {
+  it("keeps foundation scene free of focus detail and telemetry chrome", () => {
     const props = createProps({
       selectedConstitution: {
         id: "rovnovaha",
@@ -127,9 +126,9 @@ describe("StarCoreInteriorScreen", () => {
     });
     render(<StarCoreInteriorScreen {...props} />);
 
-    expect(screen.getByText("AKTIVNI PROUD")).toBeTruthy();
-    expect(screen.getByText("Udrzi prvni prostor citelny, stabilni a pripraveny na navazani.")).toBeTruthy();
-    expect(screen.getByText(/Tonalita: stabilni modry puls/)).toBeTruthy();
+    expect(screen.queryByText("AKTIVNI PROUD")).toBeNull();
+    expect(screen.queryByText("Udrzi prvni prostor citelny, stabilni a pripraveny na navazani.")).toBeNull();
+    expect(screen.queryByText(/Tonalita: stabilni modry puls/)).toBeNull();
   });
 
   it("routes primary action through policy lock affordance", () => {
@@ -171,7 +170,7 @@ describe("StarCoreInteriorScreen", () => {
 
     fireEvent.click(screen.getByTestId("star-core-primary-action"));
     expect(props.onConfirmPolicyLock).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("ritual-lock-ring")).toBeTruthy();
+    expect(screen.queryByTestId("ritual-lock-ring")).toBeNull();
   });
 
   it("uses explicit return action", () => {
@@ -231,9 +230,8 @@ describe("StarCoreInteriorScreen", () => {
     });
     render(<StarCoreInteriorScreen {...props} />);
 
-    expect(screen.getByTestId("first-orbit-ready-surface")).toBeTruthy();
-    expect(screen.getByTestId("first-orbit-ring")).toBeTruthy();
-    expect(screen.getAllByTestId("ritual-planet-node").length).toBeGreaterThan(0);
-    expect(screen.getByText("POTVRZENA USTAVA")).toBeTruthy();
+    expect(screen.queryByTestId("first-orbit-ready-surface")).toBeNull();
+    expect(screen.queryByTestId("first-orbit-ring")).toBeNull();
+    expect(screen.queryAllByTestId("ritual-planet-node")).toHaveLength(0);
   });
 });

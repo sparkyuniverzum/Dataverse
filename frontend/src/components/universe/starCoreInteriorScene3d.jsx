@@ -179,10 +179,10 @@ function BridgeBeam({ start, end, color, opacity = 0.2, thickness = 0.045 }) {
 
 function buildGovernanceClamps() {
   return [
-    { key: "clamp-top", angleDeg: -90, mountRadiusX: 0.45, mountRadiusY: 0.45, y: 0.12, inwardOffset: [0, -1, 0] },
-    { key: "clamp-right", angleDeg: 0, mountRadiusX: 0.45, mountRadiusY: 0.45, y: 0.12, inwardOffset: [-1, 0, 0] },
-    { key: "clamp-bottom", angleDeg: 90, mountRadiusX: 0.45, mountRadiusY: 0.45, y: 0.12, inwardOffset: [0, 1, 0] },
-    { key: "clamp-left", angleDeg: 180, mountRadiusX: 0.45, mountRadiusY: 0.45, y: 0.12, inwardOffset: [1, 0, 0] },
+    { key: "clamp-top", axis: "vertical", sign: 1 },
+    { key: "clamp-right", axis: "horizontal", sign: 1 },
+    { key: "clamp-bottom", axis: "vertical", sign: -1 },
+    { key: "clamp-left", axis: "horizontal", sign: -1 },
   ];
 }
 
@@ -191,6 +191,7 @@ function RitualChamberScene({
   entryDiveActive = false,
   entryDurationMs = 760,
   astrolabeRotation = 0,
+  foundationOnly = false,
   onSelectConstitution = () => {},
 }) {
   const rootRef = useRef(null);
@@ -476,259 +477,316 @@ function RitualChamberScene({
           </mesh>
         ))}
 
-        <mesh position={[0, 5.45, -1.1]} rotation={[0, 0, Math.PI / 4]} scale={[0.54, 0.84, 0.54]}>
-          <octahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial
-            color={toneSecondary}
-            emissive={toneSecondary}
-            emissiveIntensity={0.22}
-            roughness={0.2}
-            metalness={0.14}
-            transparent
-            opacity={0.48}
-          />
-        </mesh>
+        {!foundationOnly ? (
+          <>
+            <mesh position={[0, 5.45, -1.1]} rotation={[0, 0, Math.PI / 4]} scale={[0.42, 0.72, 0.42]}>
+              <octahedronGeometry args={[1, 0]} />
+              <meshStandardMaterial
+                color={toneSecondary}
+                emissive={toneSecondary}
+                emissiveIntensity={0.14}
+                roughness={0.2}
+                metalness={0.14}
+                transparent
+                opacity={0.28}
+              />
+            </mesh>
 
-        <mesh position={[0, 3.65, -1.2]} scale={[0.22, 3.1, 0.22]}>
-          <cylinderGeometry args={[0.45, 0.18, 1, 10]} />
-          <meshBasicMaterial color={toneSecondary} transparent opacity={0.11 + visualModel.pulseStrength * 0.05} />
-        </mesh>
+            <mesh position={[0, 3.65, -1.2]} scale={[0.12, 2.3, 0.12]}>
+              <cylinderGeometry args={[0.45, 0.18, 1, 10]} />
+              <meshBasicMaterial color={toneSecondary} transparent opacity={0.05 + visualModel.pulseStrength * 0.03} />
+            </mesh>
 
-        <mesh position={[0, -5.35, -0.1]} scale={[2.4, 0.12, 1.8]}>
-          <cylinderGeometry args={[1, 1.2, 1, 8]} />
-          <meshStandardMaterial
-            color={tonePrimary}
-            emissive={tonePrimary}
-            emissiveIntensity={0.05}
-            roughness={0.42}
-            metalness={0.14}
-            transparent
-            opacity={0.3}
-          />
-        </mesh>
+            <mesh position={[0, -5.35, -0.1]} scale={[2.4, 0.12, 1.8]}>
+              <cylinderGeometry args={[1, 1.2, 1, 8]} />
+              <meshStandardMaterial
+                color={tonePrimary}
+                emissive={tonePrimary}
+                emissiveIntensity={0.05}
+                roughness={0.42}
+                metalness={0.14}
+                transparent
+                opacity={0.3}
+              />
+            </mesh>
 
-        <mesh position={[0, -3.95, -0.4]} scale={[0.38, 2.2, 0.38]}>
-          <octahedronGeometry args={[0.9, 0]} />
-          <meshStandardMaterial
-            color={tonePrimary}
-            emissive={toneSecondary}
-            emissiveIntensity={0.12}
-            roughness={0.22}
-            metalness={0.14}
-            transparent
-            opacity={0.22}
-          />
-        </mesh>
+            <mesh position={[0, -3.95, -0.4]} scale={[0.22, 1.55, 0.22]}>
+              <octahedronGeometry args={[0.9, 0]} />
+              <meshStandardMaterial
+                color={tonePrimary}
+                emissive={toneSecondary}
+                emissiveIntensity={0.08}
+                roughness={0.22}
+                metalness={0.14}
+                transparent
+                opacity={0.14}
+              />
+            </mesh>
 
-        <group>
-          <mesh ref={coreShellRef} position={[0, 0.15, -0.15]} scale={CORE_SHELL_BASE_SCALE.toArray()}>
-            <octahedronGeometry args={[1.1, 1]} />
-            <meshStandardMaterial
-              color={tonePrimary}
-              emissive={toneSecondary}
-              emissiveIntensity={0.24 + visualModel.pulseStrength * 0.16}
-              roughness={0.3}
-              metalness={0.12}
-              transparent
-              opacity={0.52}
-            />
-          </mesh>
-          <mesh ref={coreInnerRef} position={[0, 0.15, -0.15]} scale={CORE_INNER_BASE_SCALE.toArray()}>
-            <icosahedronGeometry args={[1, 3]} />
-            <meshStandardMaterial
-              color={toneAccent}
-              emissive={toneAccent}
-              emissiveIntensity={0.42 + visualModel.runtimeTempo * 0.2}
-              roughness={0.16}
-              metalness={0.08}
-              transparent
-              opacity={0.56}
-            />
-          </mesh>
-          <mesh position={[0, 0.15, -0.15]} scale={CORE_HALO_BASE_SCALE.toArray()}>
-            <sphereGeometry args={[0.6, 24, 24]} />
-            <meshBasicMaterial color={toneSecondary} transparent opacity={0.025 + visualModel.pulseStrength * 0.03} />
-          </mesh>
-        </group>
-
-        {visualModel.astrolabeRings.map((ring, index) => (
-          <group
-            key={ring.key}
-            ref={(instance) => {
-              astrolabeRefs.current[index] = instance;
-            }}
-            position={[0, 0.08, -0.45]}
-            rotation={ring.tilt}
-          >
-            <SegmentedRing
-              radius={ring.radius}
-              tube={ring.tube}
-              color={index === 0 ? toneAccent : tonePrimary}
-              opacity={ring.opacity * 0.72}
-              rotation={[0, 0, 0]}
-              segmentCount={index === 0 ? 8 : 6}
-              gapRatio={index === 0 ? 0.22 : 0.18}
-            />
-          </group>
-        ))}
-
-        {governanceClamps.map((clamp) => {
-          const theta = (clamp.angleDeg * Math.PI) / 180;
-          const radialX = 4.75 - visualModel.governanceLockStrength * 0.7;
-          const radialY = 3.72 - visualModel.governanceLockStrength * 0.48;
-          const position = polarVector(clamp.angleDeg, radialX, radialY, clamp.y);
-          const clampDepth = 1.18 + visualModel.governanceLockStrength * 0.82;
-          return (
-            <group key={clamp.key} position={position.toArray()} rotation={[0, theta - Math.PI / 2, 0]}>
-              <mesh position={[0, 0, -clampDepth * 0.4]} scale={[0.12, 0.12, clampDepth]}>
-                <boxGeometry args={[1, 1, 1]} />
+            <group>
+              <mesh ref={coreShellRef} position={[0, 0.15, -0.15]} scale={CORE_SHELL_BASE_SCALE.toArray()}>
+                <octahedronGeometry args={[1.1, 1]} />
                 <meshStandardMaterial
                   color={tonePrimary}
                   emissive={toneSecondary}
-                  emissiveIntensity={0.08}
-                  roughness={0.24}
-                  metalness={0.24}
+                  emissiveIntensity={0.24 + visualModel.pulseStrength * 0.16}
+                  roughness={0.3}
+                  metalness={0.12}
                   transparent
-                  opacity={0.34}
+                  opacity={0.52}
                 />
               </mesh>
-              <mesh
-                position={[0, 0, -clampDepth * 0.94]}
-                rotation={[Math.PI / 4, 0, Math.PI / 4]}
-                scale={[0.22, 0.22, 0.22]}
-              >
-                <boxGeometry args={[1, 1, 1]} />
+              <mesh ref={coreInnerRef} position={[0, 0.15, -0.15]} scale={CORE_INNER_BASE_SCALE.toArray()}>
+                <icosahedronGeometry args={[1, 3]} />
                 <meshStandardMaterial
                   color={toneAccent}
                   emissive={toneAccent}
-                  emissiveIntensity={0.18 + visualModel.governanceLockStrength * 0.18}
+                  emissiveIntensity={0.42 + visualModel.runtimeTempo * 0.2}
                   roughness={0.16}
-                  metalness={0.28}
+                  metalness={0.08}
                   transparent
-                  opacity={0.58}
+                  opacity={0.56}
+                />
+              </mesh>
+              <mesh position={[0, 0.15, -0.15]} scale={CORE_HALO_BASE_SCALE.toArray()}>
+                <sphereGeometry args={[0.6, 24, 24]} />
+                <meshBasicMaterial
+                  color={toneSecondary}
+                  transparent
+                  opacity={0.025 + visualModel.pulseStrength * 0.03}
                 />
               </mesh>
             </group>
-          );
-        })}
 
-        {visualModel.showLockRing
-          ? Array.from({ length: 4 }, (_, index) => {
-              const angleDeg = index * 90 + 45;
-              const position = polarVector(angleDeg, 4.35, 4.35, 0.12);
+            {visualModel.astrolabeRings.map((ring, index) => (
+              <group
+                key={ring.key}
+                ref={(instance) => {
+                  astrolabeRefs.current[index] = instance;
+                }}
+                position={[0, 0.08, -0.45]}
+                rotation={ring.tilt}
+              >
+                <SegmentedRing
+                  radius={ring.radius}
+                  tube={ring.tube}
+                  color={index === 0 ? toneAccent : tonePrimary}
+                  opacity={
+                    visualModel.showFirstOrbit
+                      ? index === 0
+                        ? ring.opacity * 0.98
+                        : index === 1
+                          ? ring.opacity * 0.22
+                          : 0
+                      : index === 0
+                        ? ring.opacity * 0.86
+                        : ring.opacity * 0.46
+                  }
+                  rotation={[0, 0, 0]}
+                  segmentCount={
+                    visualModel.showFirstOrbit ? (index === 0 ? 4 : 4) : index === 0 ? 4 : index === 1 ? 5 : 6
+                  }
+                  gapRatio={
+                    visualModel.showFirstOrbit
+                      ? index === 0
+                        ? 0.42
+                        : 0.34
+                      : index === 0
+                        ? 0.34
+                        : index === 1
+                          ? 0.26
+                          : 0.22
+                  }
+                />
+              </group>
+            ))}
+
+            {governanceClamps.map((clamp) => {
+              const isHorizontal = clamp.axis === "horizontal";
+              const travel = visualModel.governanceLockStrength;
+              const length = isHorizontal ? 2.15 + travel * 1.35 : 2.35 + travel * 1.4;
+              const position = isHorizontal
+                ? [clamp.sign * (3.58 - travel * 1.15), 0.12, -0.12]
+                : [0, clamp.sign * (2.62 - travel * 0.84), -0.12];
+              const armScale = isHorizontal ? [length, 0.22, 0.24] : [0.24, length, 0.24];
+              const headPosition = isHorizontal
+                ? [-clamp.sign * length * 0.52, 0, 0]
+                : [0, -clamp.sign * length * 0.52, 0];
+              const mountPosition = isHorizontal
+                ? [clamp.sign * length * 0.56, 0, 0]
+                : [0, clamp.sign * length * 0.56, 0];
               return (
-                <group
-                  key={`lock-node-${index}`}
-                  ref={(instance) => {
-                    lockNodesRef.current[index] = instance;
-                  }}
-                  position={position}
-                >
-                  <mesh rotation={[Math.PI / 4, 0, Math.PI / 4]}>
-                    <boxGeometry args={[0.22, 0.22, 0.22]} />
+                <group key={clamp.key} position={position}>
+                  <mesh scale={armScale}>
+                    <boxGeometry args={[1, 1, 1]} />
+                    <meshStandardMaterial
+                      color={tonePrimary}
+                      emissive={toneSecondary}
+                      emissiveIntensity={0.16}
+                      roughness={0.24}
+                      metalness={0.24}
+                      transparent
+                      opacity={0.62}
+                    />
+                  </mesh>
+                  <mesh position={headPosition} rotation={[Math.PI / 4, 0, Math.PI / 4]} scale={[0.46, 0.46, 0.46]}>
+                    <boxGeometry args={[1, 1, 1]} />
                     <meshStandardMaterial
                       color={toneAccent}
                       emissive={toneAccent}
-                      emissiveIntensity={0.28}
-                      roughness={0.18}
-                      metalness={0.26}
+                      emissiveIntensity={0.34 + visualModel.governanceLockStrength * 0.28}
+                      roughness={0.16}
+                      metalness={0.28}
+                      transparent
+                      opacity={0.86}
+                    />
+                  </mesh>
+                  <mesh position={mountPosition} scale={isHorizontal ? [0.44, 0.22, 0.24] : [0.24, 0.44, 0.24]}>
+                    <boxGeometry args={[1, 1, 1]} />
+                    <meshStandardMaterial
+                      color={tonePrimary}
+                      emissive={toneSecondary}
+                      emissiveIntensity={0.14}
+                      roughness={0.22}
+                      metalness={0.2}
+                      transparent
+                      opacity={0.54}
                     />
                   </mesh>
                 </group>
               );
-            })
-          : null}
+            })}
 
-        {visualModel.showFirstOrbit ? (
-          <SegmentedRing
-            radius={5.85}
-            tube={0.028}
-            color={toneSecondary}
-            opacity={0.34}
-            rotation={[1.22, 0.18, 0.08]}
-            segmentCount={7}
-            gapRatio={0.2}
-          />
-        ) : null}
+            {visualModel.showLockRing
+              ? Array.from({ length: 4 }, (_, index) => {
+                  const angleDeg = index * 90 + 45;
+                  const position = polarVector(angleDeg, 4.35, 4.35, 0.12);
+                  return (
+                    <group
+                      key={`lock-node-${index}`}
+                      ref={(instance) => {
+                        lockNodesRef.current[index] = instance;
+                      }}
+                      position={position}
+                    >
+                      <mesh rotation={[Math.PI / 4, 0, Math.PI / 4]}>
+                        <boxGeometry args={[0.22, 0.22, 0.22]} />
+                        <meshStandardMaterial
+                          color={toneAccent}
+                          emissive={toneAccent}
+                          emissiveIntensity={0.28}
+                          roughness={0.18}
+                          metalness={0.26}
+                        />
+                      </mesh>
+                    </group>
+                  );
+                })
+              : null}
 
-        <group ref={pulseCloudRef}>
-          {pulseCloud.map((particle) => (
-            <mesh key={particle.key} position={[0, particle.y, 0]}>
-              <sphereGeometry args={[particle.size, 8, 8]} />
-              <meshBasicMaterial color={tonePrimary} transparent opacity={visualModel.eventHaloOpacity} />
-            </mesh>
-          ))}
-        </group>
-
-        {visualModel.constitutionGlyphs.map((glyph) => {
-          const position = polarVector(glyph.angleDeg, 3.6, 2.9, 0.08);
-          const anchor = polarVector(glyph.angleDeg, 2.42, 1.98, 0.08);
-          const glyphColor = glyph.selected ? glyph.toneSecondary : glyph.tonePrimary;
-          return (
-            <group key={glyph.id}>
-              <BridgeBeam
-                start={anchor.toArray()}
-                end={position.toArray()}
-                color={glyph.selected ? glyph.toneSecondary : glyph.tonePrimary}
-                opacity={glyph.selected ? 0.32 : 0.16}
-                thickness={glyph.selected ? 0.06 : 0.04}
+            {visualModel.showFirstOrbit ? (
+              <SegmentedRing
+                radius={4.35}
+                tube={0.018}
+                color={toneSecondary}
+                opacity={0.14}
+                rotation={[1.22, 0.18, 0.08]}
+                segmentCount={5}
+                gapRatio={0.34}
               />
-              <mesh position={anchor.toArray()} scale={[0.14, 0.14, 0.14]}>
-                <octahedronGeometry args={[1, 0]} />
-                <meshStandardMaterial
-                  color={glyphColor}
-                  emissive={glyphColor}
-                  emissiveIntensity={glyph.selected ? 0.28 : 0.12}
-                  roughness={0.18}
-                  metalness={0.22}
-                  transparent
-                  opacity={glyph.selected ? 0.72 : 0.34}
-                />
-              </mesh>
-              <mesh
-                position={position.toArray()}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  onSelectConstitution(glyph.id);
-                }}
-                scale={glyph.selected ? 1.26 : 1}
-              >
-                <octahedronGeometry args={[0.16, 0]} />
-                <meshStandardMaterial
-                  color={glyphColor}
-                  emissive={glyphColor}
-                  emissiveIntensity={glyph.selected ? 0.52 : 0.2}
-                  roughness={0.16}
-                  metalness={0.18}
-                  transparent
-                  opacity={glyph.selected ? 0.7 : 0.42}
-                />
-              </mesh>
+            ) : null}
+
+            <group ref={pulseCloudRef}>
+              {pulseCloud.map((particle) => (
+                <mesh key={particle.key} position={[0, particle.y, 0]}>
+                  <sphereGeometry args={[particle.size, 8, 8]} />
+                  <meshBasicMaterial color={tonePrimary} transparent opacity={visualModel.eventHaloOpacity} />
+                </mesh>
+              ))}
             </group>
-          );
-        })}
 
-        {telemetryColumns.map((column, index) => (
-          <group key={column.key} position={column.position} rotation={column.rotation}>
-            <mesh
-              ref={(instance) => {
-                telemetryRefs.current[index] = instance;
-              }}
-              scale={[column.scaleX, 1.1 + column.intensity * 1.8, column.scaleZ]}
-            >
-              <boxGeometry args={[1, 1, 1]} />
-              <meshBasicMaterial
-                color={index < 3 ? toneAccent : tonePrimary}
-                transparent
-                opacity={0.1 + column.intensity * 0.14}
-              />
-            </mesh>
-            <mesh position={[0, 0.7, 0]} scale={[column.scaleX * 2.2, 0.08, column.scaleZ * 2.2]}>
-              <boxGeometry args={[1, 1, 1]} />
-              <meshBasicMaterial color={toneSecondary} transparent opacity={0.12 + column.intensity * 0.12} />
-            </mesh>
-          </group>
-        ))}
+            {visualModel.constitutionGlyphs
+              .filter((glyph) => !visualModel.showFirstOrbit || glyph.selected)
+              .map((glyph) => {
+                const position = visualModel.showFirstOrbit
+                  ? new THREE.Vector3(0, 0.15, 0.18)
+                  : polarVector(glyph.angleDeg, 2.65, 2.1, 0.08);
+                const anchor = visualModel.showFirstOrbit
+                  ? new THREE.Vector3(0, 0.15, -0.22)
+                  : polarVector(glyph.angleDeg, 1.92, 1.54, 0.08);
+                const glyphColor = glyph.selected ? glyph.toneSecondary : glyph.tonePrimary;
+                return (
+                  <group key={glyph.id}>
+                    {!visualModel.showFirstOrbit ? (
+                      <BridgeBeam
+                        start={anchor.toArray()}
+                        end={position.toArray()}
+                        color={glyph.selected ? glyph.toneSecondary : glyph.tonePrimary}
+                        opacity={glyph.selected ? 0.48 : 0.26}
+                        thickness={glyph.selected ? 0.12 : 0.08}
+                      />
+                    ) : null}
+                    <mesh
+                      position={anchor.toArray()}
+                      scale={visualModel.showFirstOrbit ? [0.3, 0.3, 0.3] : [0.24, 0.24, 0.24]}
+                    >
+                      <octahedronGeometry args={[1, 0]} />
+                      <meshStandardMaterial
+                        color={glyphColor}
+                        emissive={glyphColor}
+                        emissiveIntensity={glyph.selected ? 0.52 : 0.18}
+                        roughness={0.18}
+                        metalness={0.22}
+                        transparent
+                        opacity={glyph.selected ? 0.9 : 0.46}
+                      />
+                    </mesh>
+                    <mesh
+                      position={position.toArray()}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        onSelectConstitution(glyph.id);
+                      }}
+                      scale={visualModel.showFirstOrbit ? 1.72 : glyph.selected ? 1.44 : 1.14}
+                    >
+                      <octahedronGeometry args={[visualModel.showFirstOrbit ? 0.28 : 0.22, 0]} />
+                      <meshStandardMaterial
+                        color={glyphColor}
+                        emissive={glyphColor}
+                        emissiveIntensity={visualModel.showFirstOrbit ? 0.92 : glyph.selected ? 0.7 : 0.28}
+                        roughness={0.16}
+                        metalness={0.18}
+                        transparent
+                        opacity={visualModel.showFirstOrbit ? 0.96 : glyph.selected ? 0.88 : 0.56}
+                      />
+                    </mesh>
+                  </group>
+                );
+              })}
+
+            {telemetryColumns.map((column, index) => (
+              <group key={column.key} position={column.position} rotation={column.rotation}>
+                <mesh
+                  ref={(instance) => {
+                    telemetryRefs.current[index] = instance;
+                  }}
+                  scale={[column.scaleX, 1.1 + column.intensity * 1.8, column.scaleZ]}
+                >
+                  <boxGeometry args={[1, 1, 1]} />
+                  <meshBasicMaterial
+                    color={index < 3 ? toneAccent : tonePrimary}
+                    transparent
+                    opacity={0.1 + column.intensity * 0.14}
+                  />
+                </mesh>
+                <mesh position={[0, 0.7, 0]} scale={[column.scaleX * 2.2, 0.08, column.scaleZ * 2.2]}>
+                  <boxGeometry args={[1, 1, 1]} />
+                  <meshBasicMaterial color={toneSecondary} transparent opacity={0.12 + column.intensity * 0.12} />
+                </mesh>
+              </group>
+            ))}
+          </>
+        ) : null}
       </group>
     </>
   );
@@ -738,6 +796,7 @@ export default function StarCoreInteriorScene3d({
   visualModel,
   screenModel = null,
   astrolabeRotation = 0,
+  foundationOnly = false,
   onSelectConstitution = () => {},
 }) {
   const canUseWebGL = typeof window !== "undefined" && typeof window.WebGLRenderingContext !== "undefined";
@@ -755,6 +814,7 @@ export default function StarCoreInteriorScene3d({
         entryDiveActive={entryDiveActive}
         entryDurationMs={entryDurationMs}
         astrolabeRotation={astrolabeRotation}
+        foundationOnly={foundationOnly}
         onSelectConstitution={onSelectConstitution}
       />
     </Canvas>

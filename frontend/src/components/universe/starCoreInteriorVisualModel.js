@@ -273,7 +273,7 @@ function buildAstrolabeRings(telemetryProjection, governanceLockStrength) {
     {
       key: "governance",
       radius: 2.64 - governanceLockStrength * 0.22,
-      tube: 0.05 + governanceLockStrength * 0.01,
+      tube: 0.07 + governanceLockStrength * 0.02,
       speed: 0.18 + telemetryProjection.runtimeTempo * 0.18,
       opacity: 0.2 + telemetryProjection.domainDensity * 0.18 + governanceLockStrength * 0.12,
       tilt: [1.04, 0.2, 0.08],
@@ -288,10 +288,10 @@ function buildAstrolabeRings(telemetryProjection, governanceLockStrength) {
     },
     {
       key: "planetary",
-      radius: 3.86,
-      tube: 0.032,
+      radius: 3.58,
+      tube: 0.024,
       speed: 0.16 + telemetryProjection.planetActivity * 0.24,
-      opacity: 0.12 + telemetryProjection.planetActivity * 0.2,
+      opacity: 0.06 + telemetryProjection.planetActivity * 0.08,
       tilt: [1.54, 0.16, -0.12],
     },
   ];

@@ -302,6 +302,7 @@ export default function StarCoreInteriorScreen({
     selectedConstitution: focusedConstitution,
     screenModel,
   });
+  const foundationOnly = true;
   const isEntryDive = Boolean(screenModel.isEntering);
   const isPolicyLockPhase = interiorModel.phase === "policy_lock_ready" || interiorModel.isLockPending;
   const lockDisabled =
@@ -362,35 +363,38 @@ export default function StarCoreInteriorScreen({
           visualModel={visualModel}
           screenModel={screenModel}
           astrolabeRotation={astrolabeRotation}
+          foundationOnly={foundationOnly}
           onSelectConstitution={onSelectConstitution}
         />
       </div>
 
-      <div
-        data-testid="constitution-selection-focus"
-        style={{
-          position: "absolute",
-          top: "7.3%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          display: "grid",
-          gap: "0.34rem",
-          justifyItems: "center",
-          textAlign: "center",
-          zIndex: 22,
-          pointerEvents: "none",
-        }}
-      >
-        <span style={{ color: visualModel.theme.tonePrimary, fontSize: "0.62rem", letterSpacing: "0.16em" }}>
-          {visualModel.phaseCopy.eyebrow}
-        </span>
-        <strong style={{ color: "#f2faff", fontSize: "2rem", lineHeight: 1.03 }}>
-          {focusedConstitution ? focusedConstitution.title : visualModel.phaseCopy.title}
-        </strong>
-        <span style={{ color: "rgba(220, 238, 252, 0.72)", fontSize: "0.84rem", maxWidth: "43rem" }}>
-          {focusedConstitution ? constitutionEffectLine(focusedConstitution) : visualModel.phaseCopy.body}
-        </span>
-      </div>
+      {!foundationOnly ? (
+        <div
+          data-testid="constitution-selection-focus"
+          style={{
+            position: "absolute",
+            top: "7.3%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "grid",
+            gap: "0.34rem",
+            justifyItems: "center",
+            textAlign: "center",
+            zIndex: 22,
+            pointerEvents: "none",
+          }}
+        >
+          <span style={{ color: visualModel.theme.tonePrimary, fontSize: "0.62rem", letterSpacing: "0.16em" }}>
+            {visualModel.phaseCopy.eyebrow}
+          </span>
+          <strong style={{ color: "#f2faff", fontSize: "2rem", lineHeight: 1.03 }}>
+            {focusedConstitution ? focusedConstitution.title : visualModel.phaseCopy.title}
+          </strong>
+          <span style={{ color: "rgba(220, 238, 252, 0.72)", fontSize: "0.84rem", maxWidth: "43rem" }}>
+            {focusedConstitution ? constitutionEffectLine(focusedConstitution) : visualModel.phaseCopy.body}
+          </span>
+        </div>
+      ) : null}
 
       {isEntryDive ? (
         <div
@@ -416,7 +420,7 @@ export default function StarCoreInteriorScreen({
         </div>
       ) : null}
 
-      {visualModel.showFirstOrbit ? (
+      {!foundationOnly && visualModel.showFirstOrbit ? (
         <span
           data-testid="first-orbit-ready-surface"
           style={{
@@ -436,29 +440,31 @@ export default function StarCoreInteriorScreen({
         </span>
       ) : null}
 
-      <div
-        data-testid="astrolabe-gesture-layer"
-        aria-hidden="true"
-        onPointerDown={handleGestureStart}
-        onPointerMove={handleGestureMove}
-        onPointerUp={handleGestureEnd}
-        onPointerCancel={handleGestureEnd}
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "51%",
-          transform: "translate(-50%, -50%)",
-          width: "34rem",
-          height: "22rem",
-          borderRadius: "50%",
-          border: "none",
-          opacity: gestureActive ? 0.06 : 0,
-          zIndex: 15,
-          cursor: gestureActive ? "grab" : "default",
-        }}
-      />
+      {!foundationOnly ? (
+        <div
+          data-testid="astrolabe-gesture-layer"
+          aria-hidden="true"
+          onPointerDown={handleGestureStart}
+          onPointerMove={handleGestureMove}
+          onPointerUp={handleGestureEnd}
+          onPointerCancel={handleGestureEnd}
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "51%",
+            transform: "translate(-50%, -50%)",
+            width: "34rem",
+            height: "22rem",
+            borderRadius: "50%",
+            border: "none",
+            opacity: gestureActive ? 0.06 : 0,
+            zIndex: 15,
+            cursor: gestureActive ? "grab" : "default",
+          }}
+        />
+      ) : null}
 
-      {visualModel.showFirstOrbit ? (
+      {!foundationOnly && visualModel.showFirstOrbit ? (
         <div
           data-testid="first-orbit-ring"
           aria-hidden="true"
@@ -479,7 +485,7 @@ export default function StarCoreInteriorScreen({
         />
       ) : null}
 
-      {visualModel.showLockRing ? (
+      {!foundationOnly && visualModel.showLockRing ? (
         <div
           data-testid="ritual-lock-ring"
           aria-hidden="true"
@@ -500,15 +506,17 @@ export default function StarCoreInteriorScreen({
         />
       ) : null}
 
-      {renderConstitutionNodes({
-        visualModel,
-        constitutionOptions,
-        focusedConstitution,
-        onSelectConstitution,
-        disabled: isEntryDive,
-      })}
+      {!foundationOnly
+        ? renderConstitutionNodes({
+            visualModel,
+            constitutionOptions,
+            focusedConstitution,
+            onSelectConstitution,
+            disabled: isEntryDive,
+          })
+        : null}
 
-      {renderTelemetryMarkers(visualModel)}
+      {!foundationOnly ? renderTelemetryMarkers(visualModel) : null}
 
       {isPolicyLockPhase && lockTransitionModel?.actionLabel && !isEntryDive ? (
         <div
@@ -550,7 +558,7 @@ export default function StarCoreInteriorScreen({
           top: "1.7rem",
           zIndex: 25,
           display: "grid",
-          gap: "0.5rem",
+          gap: foundationOnly ? "0" : "0.5rem",
           justifyItems: "end",
         }}
       >
@@ -583,54 +591,60 @@ export default function StarCoreInteriorScreen({
           <br />
           JADRO
         </div>
-        <span style={{ color: "rgba(204, 224, 240, 0.7)", fontSize: "0.56rem", letterSpacing: "0.12em" }}>
-          GOV {String(interiorModel.governanceSignal?.lockStatus || "draft").toUpperCase()} / V
-          {formatCount(interiorModel.governanceSignal?.policyVersion)}
-        </span>
+        {!foundationOnly ? (
+          <span style={{ color: "rgba(204, 224, 240, 0.7)", fontSize: "0.56rem", letterSpacing: "0.12em" }}>
+            GOV {String(interiorModel.governanceSignal?.lockStatus || "draft").toUpperCase()} / V
+            {formatCount(interiorModel.governanceSignal?.policyVersion)}
+          </span>
+        ) : null}
       </div>
 
-      <div
-        style={{
-          position: "absolute",
-          left: "1.7rem",
-          top: "1.9rem",
-          display: "grid",
-          gap: "0.26rem",
-          color: "rgba(218, 237, 252, 0.72)",
-          fontSize: "0.58rem",
-          letterSpacing: "0.1em",
-          zIndex: 22,
-          pointerEvents: "none",
-        }}
-      >
-        <span>{visualModel.hudCoreStatus}</span>
-        <span>{visualModel.hudPolicyStatus}</span>
-        <span>{pulseLabel(focusedConstitution)}</span>
-        <span>
-          {toneLabel(focusedConstitution)} / {densityLabel(focusedConstitution)}
-        </span>
-      </div>
+      {!foundationOnly ? (
+        <div
+          style={{
+            position: "absolute",
+            left: "1.7rem",
+            top: "1.9rem",
+            display: "grid",
+            gap: "0.26rem",
+            color: "rgba(218, 237, 252, 0.72)",
+            fontSize: "0.58rem",
+            letterSpacing: "0.1em",
+            zIndex: 22,
+            pointerEvents: "none",
+          }}
+        >
+          <span>{visualModel.hudCoreStatus}</span>
+          <span>{visualModel.hudPolicyStatus}</span>
+          <span>{pulseLabel(focusedConstitution)}</span>
+          <span>
+            {toneLabel(focusedConstitution)} / {densityLabel(focusedConstitution)}
+          </span>
+        </div>
+      ) : null}
 
-      {renderMetricRunes(visualModel)}
+      {!foundationOnly ? renderMetricRunes(visualModel) : null}
 
-      <footer
-        style={{
-          position: "absolute",
-          bottom: "1.2rem",
-          left: "1.8rem",
-          right: "1.8rem",
-          display: "flex",
-          justifyContent: "space-between",
-          color: "rgba(188, 214, 233, 0.42)",
-          fontSize: "0.64rem",
-          letterSpacing: "0.1em",
-          pointerEvents: "none",
-          zIndex: 20,
-        }}
-      >
-        <span>{`SCREEN STATE: ${screenModel.stage.toUpperCase()}`}</span>
-        <span>{`CANONICAL PHASE: ${interiorModel.phase.toUpperCase()}`}</span>
-      </footer>
+      {!foundationOnly ? (
+        <footer
+          style={{
+            position: "absolute",
+            bottom: "1.2rem",
+            left: "1.8rem",
+            right: "1.8rem",
+            display: "flex",
+            justifyContent: "space-between",
+            color: "rgba(188, 214, 233, 0.42)",
+            fontSize: "0.64rem",
+            letterSpacing: "0.1em",
+            pointerEvents: "none",
+            zIndex: 20,
+          }}
+        >
+          <span>{`SCREEN STATE: ${screenModel.stage.toUpperCase()}`}</span>
+          <span>{`CANONICAL PHASE: ${interiorModel.phase.toUpperCase()}`}</span>
+        </footer>
+      ) : null}
     </section>
   );
 }
