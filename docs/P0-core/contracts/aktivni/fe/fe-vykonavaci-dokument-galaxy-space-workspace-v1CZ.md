@@ -469,3 +469,4 @@ Vysledek:
 - [x] 2026-03-12 `Blok 1` byl oficialne uzavren.
 - [x] 2026-03-12 `Blok 2` byl oficialne uzavren.
 - [ ] Dalsi otevreny blok je `Blok 3`.
+- [x] 2026-03-13 Kvuli docasnemu externimu pozastaveni `Star Core interior` byl pripraven oficialni dokument `docs/P0-core/contracts/aktivni/fe/fe-blok-4-implementacni-dokument-v1CZ.md` jako kontrolovana navazujici vyjimka pro dalsi runtime praci.
