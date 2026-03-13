@@ -6,6 +6,9 @@ const CAMERA_ENTRY_START = new THREE.Vector3(0, 2.4, 20.5);
 const CAMERA_CORE_POSITION = new THREE.Vector3(0, 0.7, 10.8);
 const LOOK_ENTRY_START = new THREE.Vector3(0, 0.8, -1.2);
 const LOOK_CORE = new THREE.Vector3(0, 0.2, 0);
+const CORE_SHELL_BASE_SCALE = new THREE.Vector3(0.72, 1.88, 0.72);
+const CORE_INNER_BASE_SCALE = new THREE.Vector3(0.18, 2.28, 0.18);
+const CORE_HALO_BASE_SCALE = new THREE.Vector3(0.64, 2.56, 0.64);
 
 function toThreeColor(value, fallback = "#7ee8ff") {
   const candidate = String(value || "").trim();
@@ -56,6 +59,8 @@ function buildFrameBeams() {
     { key: "bottom-a", position: [0, -4.85, -1.9], rotation: [0, 0, 0], scale: [7.6, 0.2, 0.2] },
     { key: "support-left", position: [-3.1, 2.45, -2.8], rotation: [0, 0, 0.9], scale: [2.9, 0.1, 0.1] },
     { key: "support-right", position: [3.1, 2.45, -2.8], rotation: [0, 0, -0.9], scale: [2.9, 0.1, 0.1] },
+    { key: "base-left", position: [-3.2, -2.9, -2.1], rotation: [0, 0, -0.88], scale: [2.5, 0.1, 0.1] },
+    { key: "base-right", position: [3.2, -2.9, -2.1], rotation: [0, 0, 0.88], scale: [2.5, 0.1, 0.1] },
   ];
 }
 
@@ -88,6 +93,15 @@ function buildWallFacets() {
     { key: "facet-mid-right", position: [5.4, 0.3, -2.5], rotation: [0, -0.16, -0.08], scale: [0.54, 2.7, 0.16] },
     { key: "facet-bottom-left", position: [-4.8, -3.2, -2.9], rotation: [0, 0.18, -0.22], scale: [0.64, 1.7, 0.18] },
     { key: "facet-bottom-right", position: [4.8, -3.2, -2.9], rotation: [0, -0.18, 0.22], scale: [0.64, 1.7, 0.18] },
+  ];
+}
+
+function buildInnerSpines() {
+  return [
+    { key: "spine-left", position: [-2.65, 0.15, -1.9], scale: [0.08, 5.8, 0.1] },
+    { key: "spine-right", position: [2.65, 0.15, -1.9], scale: [0.08, 5.8, 0.1] },
+    { key: "spine-left-inner", position: [-1.65, 0.15, -1.2], scale: [0.05, 4.2, 0.08] },
+    { key: "spine-right-inner", position: [1.65, 0.15, -1.2], scale: [0.05, 4.2, 0.08] },
   ];
 }
 
@@ -162,6 +176,7 @@ function RitualChamberScene({
   const backdropLattice = useMemo(() => buildBackdropLattice(), []);
   const portalFrames = useMemo(() => buildPortalFrames(), []);
   const wallFacets = useMemo(() => buildWallFacets(), []);
+  const innerSpines = useMemo(() => buildInnerSpines(), []);
   const pulseCloud = useMemo(() => buildPulseCloud(visualModel.eventSwarmCount), [visualModel.eventSwarmCount]);
   const telemetryColumns = useMemo(() => buildTelemetryColumns(visualModel.metricStreams), [visualModel.metricStreams]);
 
@@ -216,11 +231,20 @@ function RitualChamberScene({
       coreShellRef.current.rotation.y += delta * (0.18 + visualModel.pulseStrength * 0.26);
       coreShellRef.current.rotation.z += delta * 0.06;
       const scale = 1 + Math.sin(elapsed * visualModel.chamberPulseSpeed) * (0.028 + visualModel.pulseStrength * 0.05);
-      coreShellRef.current.scale.setScalar(scale);
+      coreShellRef.current.scale.set(
+        CORE_SHELL_BASE_SCALE.x * scale,
+        CORE_SHELL_BASE_SCALE.y * scale,
+        CORE_SHELL_BASE_SCALE.z * scale
+      );
     }
     if (coreInnerRef.current) {
       coreInnerRef.current.rotation.y -= delta * (0.3 + visualModel.runtimeTempo * 0.35);
-      coreInnerRef.current.scale.setScalar(0.9 + Math.sin(elapsed * visualModel.chamberPulseSpeed * 1.3) * 0.05);
+      const scale = 0.92 + Math.sin(elapsed * visualModel.chamberPulseSpeed * 1.3) * 0.05;
+      coreInnerRef.current.scale.set(
+        CORE_INNER_BASE_SCALE.x * scale,
+        CORE_INNER_BASE_SCALE.y * scale,
+        CORE_INNER_BASE_SCALE.z * scale
+      );
     }
 
     astrolabeRefs.current.forEach((ringRef, index) => {
@@ -307,17 +331,17 @@ function RitualChamberScene({
           </mesh>
         ))}
 
-        {Array.from({ length: 7 }, (_, index) => {
-          const offset = -4.8 + index * 1.6;
+        {Array.from({ length: 5 }, (_, index) => {
+          const offset = -3.6 + index * 1.8;
           return (
             <group key={`grid-${index}`}>
               <mesh position={[offset, 0, -8.6]}>
                 <boxGeometry args={[0.02, 14, 0.02]} />
-                <meshBasicMaterial color={tonePrimary} transparent opacity={0.025} />
+                <meshBasicMaterial color={tonePrimary} transparent opacity={0.018} />
               </mesh>
               <mesh position={[0, offset * 0.7, -8.6]}>
                 <boxGeometry args={[18, 0.02, 0.02]} />
-                <meshBasicMaterial color={tonePrimary} transparent opacity={0.025} />
+                <meshBasicMaterial color={tonePrimary} transparent opacity={0.018} />
               </mesh>
             </group>
           );
@@ -349,6 +373,21 @@ function RitualChamberScene({
               metalness={0.18}
               transparent
               opacity={0.18}
+            />
+          </mesh>
+        ))}
+
+        {innerSpines.map((spine) => (
+          <mesh key={spine.key} position={spine.position} scale={spine.scale}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshStandardMaterial
+              color={tonePrimary}
+              emissive={toneSecondary}
+              emissiveIntensity={0.08}
+              roughness={0.22}
+              metalness={0.18}
+              transparent
+              opacity={0.26}
             />
           </mesh>
         ))}
@@ -409,6 +448,11 @@ function RitualChamberScene({
           />
         </mesh>
 
+        <mesh position={[0, 3.65, -1.2]} scale={[0.22, 3.1, 0.22]}>
+          <cylinderGeometry args={[0.45, 0.18, 1, 10]} />
+          <meshBasicMaterial color={toneSecondary} transparent opacity={0.11 + visualModel.pulseStrength * 0.05} />
+        </mesh>
+
         <mesh position={[0, -5.35, -0.1]} scale={[2.4, 0.12, 1.8]}>
           <cylinderGeometry args={[1, 1.2, 1, 8]} />
           <meshStandardMaterial
@@ -422,8 +466,21 @@ function RitualChamberScene({
           />
         </mesh>
 
+        <mesh position={[0, -3.95, -0.4]} scale={[0.38, 2.2, 0.38]}>
+          <octahedronGeometry args={[0.9, 0]} />
+          <meshStandardMaterial
+            color={tonePrimary}
+            emissive={toneSecondary}
+            emissiveIntensity={0.12}
+            roughness={0.22}
+            metalness={0.14}
+            transparent
+            opacity={0.22}
+          />
+        </mesh>
+
         <group>
-          <mesh ref={coreShellRef} position={[0, 0.15, -0.15]} scale={[0.78, 1.54, 0.78]}>
+          <mesh ref={coreShellRef} position={[0, 0.15, -0.15]} scale={CORE_SHELL_BASE_SCALE.toArray()}>
             <octahedronGeometry args={[1.1, 1]} />
             <meshStandardMaterial
               color={tonePrimary}
@@ -435,7 +492,7 @@ function RitualChamberScene({
               opacity={0.52}
             />
           </mesh>
-          <mesh ref={coreInnerRef} position={[0, 0.15, -0.15]} scale={[0.24, 1.82, 0.24]}>
+          <mesh ref={coreInnerRef} position={[0, 0.15, -0.15]} scale={CORE_INNER_BASE_SCALE.toArray()}>
             <icosahedronGeometry args={[1, 3]} />
             <meshStandardMaterial
               color={toneAccent}
@@ -447,7 +504,7 @@ function RitualChamberScene({
               opacity={0.56}
             />
           </mesh>
-          <mesh position={[0, 0.15, -0.15]} scale={[0.74, 2.15, 0.74]}>
+          <mesh position={[0, 0.15, -0.15]} scale={CORE_HALO_BASE_SCALE.toArray()}>
             <sphereGeometry args={[0.6, 24, 24]} />
             <meshBasicMaterial color={toneSecondary} transparent opacity={0.025 + visualModel.pulseStrength * 0.03} />
           </mesh>
@@ -459,13 +516,14 @@ function RitualChamberScene({
             ref={(instance) => {
               astrolabeRefs.current[index] = instance;
             }}
+            position={[0, 0.08, -0.45]}
             rotation={ring.tilt}
           >
             <SegmentedRing
               radius={ring.radius}
               tube={ring.tube}
               color={index === 0 ? toneAccent : tonePrimary}
-              opacity={ring.opacity}
+              opacity={ring.opacity * 0.72}
               rotation={[0, 0, 0]}
               segmentCount={index === 0 ? 8 : 6}
               gapRatio={index === 0 ? 0.22 : 0.18}
