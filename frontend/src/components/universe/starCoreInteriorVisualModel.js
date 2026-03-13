@@ -10,26 +10,43 @@ function clamp(value, min, max) {
 
 function withAlpha(hex, alpha) {
   const normalized = normalizeHexTone(hex, "#7ee8ff");
-  const safeAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
+  const safeAlpha = clamp(Number(alpha) || 0, 0, 1);
   const suffix = Math.round(safeAlpha * 255)
     .toString(16)
     .padStart(2, "0");
   return `${normalized}${suffix}`;
 }
 
+function formatCount(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "0";
+  return Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 }).format(Math.max(0, Math.floor(numeric)));
+}
+
+function formatRate(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "0.0";
+  return numeric.toFixed(1);
+}
+
+function formatPercent(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "0";
+  return String(Math.round(clamp(numeric, 0, 1) * 100));
+}
+
 function defaultTheme() {
   return {
-    tonePrimary: "#7ee8ff",
-    toneSecondary: "#82ffd4",
-    chamberGlow: "rgba(126, 232, 255, 0.18)",
-    chamberBeam: "rgba(255, 196, 116, 0.16)",
-    orbitStroke: "rgba(126, 232, 255, 0.74)",
-    ringStroke: "rgba(126, 232, 255, 0.42)",
-    orbitFill: "rgba(126, 232, 255, 0.14)",
-    coreGradient:
-      "radial-gradient(circle at 50% 38%, rgba(130, 255, 212, 0.95), rgba(126, 232, 255, 0.54) 34%, rgba(5, 10, 20, 0.18) 70%)",
+    tonePrimary: "#9bdcff",
+    toneSecondary: "#d7f3ff",
+    toneAccent: "#f1d38c",
+    chamberGlow: "rgba(155, 220, 255, 0.18)",
+    chamberBeam: "rgba(241, 211, 140, 0.16)",
+    orbitStroke: "rgba(155, 220, 255, 0.68)",
+    ringStroke: "rgba(155, 220, 255, 0.38)",
+    orbitFill: "rgba(215, 243, 255, 0.1)",
     shellGradient:
-      "radial-gradient(circle at 50% 14%, rgba(255, 188, 107, 0.18), transparent 22%), linear-gradient(180deg, rgba(5, 12, 24, 0.98) 0%, rgba(4, 9, 19, 0.97) 58%, rgba(4, 8, 17, 0.99) 100%)",
+      "radial-gradient(circle at 50% 18%, rgba(215, 243, 255, 0.1), transparent 22%), radial-gradient(circle at 50% 45%, rgba(155, 220, 255, 0.14), rgba(4, 10, 24, 0.82) 34%, rgba(1, 6, 16, 0.98) 100%)",
   };
 }
 
@@ -39,24 +56,21 @@ function resolveThemeFromConstitution(constitution) {
   return {
     tonePrimary,
     toneSecondary,
-    chamberGlow: withAlpha(tonePrimary, 0.18),
-    chamberBeam: withAlpha(toneSecondary, 0.2),
+    toneAccent: withAlpha(toneSecondary, 0.84).slice(0, 7),
+    chamberGlow: withAlpha(tonePrimary, 0.2),
+    chamberBeam: withAlpha(toneSecondary, 0.22),
     orbitStroke: withAlpha(tonePrimary, 0.72),
     ringStroke: withAlpha(tonePrimary, 0.38),
     orbitFill: withAlpha(toneSecondary, 0.12),
-    coreGradient: `radial-gradient(circle at 50% 38%, ${withAlpha(
-      toneSecondary,
-      0.95
-    )}, ${withAlpha(tonePrimary, 0.54)} 34%, rgba(5, 10, 20, 0.18) 70%)`,
-    shellGradient: `radial-gradient(circle at 50% 14%, ${withAlpha(
+    shellGradient: `radial-gradient(circle at 50% 45%, ${withAlpha(
       toneSecondary,
       0.18
-    )}, transparent 22%), linear-gradient(180deg, rgba(5, 12, 24, 0.98) 0%, rgba(4, 9, 19, 0.97) 58%, rgba(4, 8, 17, 0.99) 100%)`,
+    )}, rgba(4, 10, 24, 0.82) 34%, rgba(1, 6, 16, 0.98) 100%)`,
   };
 }
 
 function createDomainSegments(items = []) {
-  const domains = Array.isArray(items) ? items.slice(0, 6) : [];
+  const domains = Array.isArray(items) ? items.slice(0, 8) : [];
   const count = domains.length || 1;
   return domains.map((item, index) => ({
     key: String(item.domainName || `domain-${index}`),
@@ -71,13 +85,13 @@ function createPulseBeacons(eventTypes = []) {
     ? eventTypes
         .map((item) => String(item || "").trim())
         .filter(Boolean)
-        .slice(0, 5)
+        .slice(0, 10)
     : [];
   const count = safeTypes.length || 1;
   return safeTypes.map((eventType, index) => ({
     key: `${eventType}-${index}`,
     label: eventType.replaceAll("_", " ").toUpperCase(),
-    angleDeg: (360 / count) * index - 80,
+    angleDeg: (360 / count) * index - 90,
   }));
 }
 
@@ -91,15 +105,28 @@ function createPlanetaryNodes(phaseCounts = []) {
           count: Math.max(0, Math.floor(Number(item?.count) || 0)),
         }))
         .filter((item) => item.count > 0)
-        .slice(0, 6)
+        .slice(0, 8)
     : [];
   const count = safePhases.length || 1;
   return safePhases.map((item, index) => ({
     key: item.phase,
     label: item.phase,
     count: item.count,
-    angleDeg: (360 / count) * index + 110,
-    size: clamp(0.54 + item.count * 0.08, 0.54, 0.92),
+    angleDeg: (360 / count) * index + 120,
+    size: clamp(0.34 + item.count * 0.06, 0.34, 0.72),
+  }));
+}
+
+function createConstitutionGlyphs(options = [], selectedId = "") {
+  const safeOptions = Array.isArray(options) ? options : [];
+  const count = safeOptions.length || 1;
+  return safeOptions.map((option, index) => ({
+    id: option.id,
+    title: option.title,
+    selected: option.id === selectedId,
+    angleDeg: (360 / count) * index - 90,
+    tonePrimary: normalizeHexTone(option.tonePrimary, "#7ee8ff"),
+    toneSecondary: normalizeHexTone(option.toneSecondary, "#82ffd4"),
   }));
 }
 
@@ -109,14 +136,13 @@ function resolveTelemetryProjection(telemetry) {
   const domains = telemetry?.domains || {};
   const planetPhysics = telemetry?.planetPhysics || {};
   const eventsCount = Math.max(0, Number(runtime.eventsCount) || 0);
-
   const runtimeTempo = clamp((Number(runtime.writesPerMinute) || 0) / 120, 0, 1);
   const pulseStrength = clamp(
-    (Number(pulse.peakIntensity) || 0) * 0.62 + ((Number(pulse.sampledCount) || 0) / 64) * 0.38,
+    (Number(pulse.peakIntensity) || 0) * 0.65 + ((Number(pulse.sampledCount) || 0) / 96) * 0.35,
     0,
     1
   );
-  const domainDensity = clamp(((domains.items && domains.items.length) || 0) / 8, 0, 1);
+  const domainDensity = clamp(((domains.items && domains.items.length) || 0) / 10, 0, 1);
   const planetActivity = clamp(
     (Number(planetPhysics.activeCount) || 0) / Math.max(1, Number(planetPhysics.itemCount) || 0),
     0,
@@ -127,9 +153,9 @@ function resolveTelemetryProjection(telemetry) {
     0,
     1
   );
-  const eventHaloCount = Math.max(4, Math.min(24, Math.round(eventsCount / 6) || 4));
-  const eventHaloOpacity = clamp(0.12 + runtimeTempo * 0.36 + pulseStrength * 0.26, 0.12, 0.78);
-  const chamberDepth = clamp(0.24 + domainDensity * 0.48 + pulseStrength * 0.18, 0.24, 0.9);
+  const eventHaloCount = Math.max(8, Math.min(64, Math.round(eventsCount / 2) || 8));
+  const eventHaloOpacity = clamp(0.16 + runtimeTempo * 0.3 + pulseStrength * 0.22, 0.16, 0.82);
+  const chamberDepth = clamp(0.25 + domainDensity * 0.46 + pulseStrength * 0.2, 0.25, 0.92);
 
   return {
     eventsCount,
@@ -147,40 +173,121 @@ function resolveTelemetryProjection(telemetry) {
   };
 }
 
+function buildMetricStreams({ telemetryProjection, telemetry }) {
+  const runtime = telemetry?.runtime || {};
+  const domains = telemetry?.domains || {};
+  const planetPhysics = telemetry?.planetPhysics || {};
+  const pulse = telemetry?.pulse || {};
+
+  return [
+    {
+      key: "tok",
+      label: "Tok",
+      value: `${formatRate(runtime.writesPerMinute)}/min`,
+      intensity: telemetryProjection.runtimeTempo,
+      angleDeg: -110,
+    },
+    {
+      key: "udalosti",
+      label: "Udalosti",
+      value: formatCount(telemetryProjection.eventsCount),
+      intensity: telemetryProjection.eventHaloOpacity,
+      angleDeg: -45,
+    },
+    {
+      key: "domeny",
+      label: "Domeny",
+      value: formatCount(domains.items?.length || 0),
+      intensity: telemetryProjection.domainDensity,
+      angleDeg: 22,
+    },
+    {
+      key: "planety",
+      label: "Planety",
+      value: formatCount(planetPhysics.itemCount),
+      intensity: telemetryProjection.planetActivity,
+      angleDeg: 158,
+    },
+    {
+      key: "aktivita",
+      label: "Aktivita",
+      value: `${formatPercent(telemetryProjection.planetActivity)}%`,
+      intensity: telemetryProjection.pulseStrength,
+      angleDeg: 212,
+    },
+    {
+      key: "seq",
+      label: "Event seq",
+      value: formatCount(pulse.lastEventSeq),
+      intensity: telemetryProjection.chamberDepth,
+      angleDeg: 258,
+    },
+  ];
+}
+
 function resolveStageCopy(phase, explainability) {
   if (phase === "star_core_interior_entry") {
     return {
-      eyebrow: "STAR CORE INTERIOR",
-      title: "Srdce hvezdy se otevira",
-      body: "Komora se sklada kolem jadra a stahuje pozornost do jedineho governance ohniska.",
+      eyebrow: "THE DIVE",
+      title: "Prunik do srdce hvezdy",
+      body: "Vrstvy plazmy se rozpadaji a kamera prechazi do klidneho governance prostoru.",
     };
   }
   if (phase === "policy_lock_transition") {
     return {
-      eyebrow: "POLICY LOCK",
-      title: explainability?.headline || "Prstenec se uzamyka",
-      body: explainability?.body || "Governance vrstva se sevira a stabilizuje dalsi smer prostoru.",
+      eyebrow: "GOVERNANCE ASTROLABE",
+      title: explainability?.headline || "Astrolab se uzamyka",
+      body: explainability?.body || "Prstence zapadaji do finalni polohy a potvrzuji policy lock.",
     };
   }
   if (phase === "first_orbit_ready") {
     return {
       eyebrow: "FIRST ORBIT READY",
-      title: explainability?.headline || "Politiky jsou uzamceny.",
-      body: explainability?.body || "Prvni draha je potvrzena jako dalsi fyzicky krok prostoru.",
+      title: explainability?.headline || "Prvni orbita je potvrzena",
+      body: explainability?.body || "Jadro je stabilni, pripraveno predat rizeni zpet do prostoru.",
     };
   }
   if (phase === "policy_lock_ready") {
     return {
-      eyebrow: "POLICY LOCK",
-      title: explainability?.headline || "Zvoleny rezim je pripraven",
-      body: explainability?.body || "Jadro se zklidnilo. Zbyva jediny krok: fyzicky uzamknout governance prstenec.",
+      eyebrow: "GOVERNANCE ASTROLABE",
+      title: explainability?.headline || "Prstence cekaji na uzamceni",
+      body: explainability?.body || "Natoc astrolab a potvrd fyzicke uzamceni politik.",
     };
   }
   return {
-    eyebrow: "CONSTITUTION SELECT",
-    title: explainability?.headline || "Vyber rezim jadra",
-    body: explainability?.body || "Kazdy proud meni tonalitu, puls a hustotu prvni vrstvy prostoru.",
+    eyebrow: "CORE ALIGNMENT",
+    title: explainability?.headline || "Nastav fyziku jadra",
+    body: explainability?.body || "Kazda ustava okamzite meni puls, hustotu a rytmus celeho prostoru.",
   };
+}
+
+function buildAstrolabeRings(telemetryProjection) {
+  return [
+    {
+      key: "governance",
+      radius: 2.55,
+      tube: 0.05,
+      speed: 0.18 + telemetryProjection.runtimeTempo * 0.18,
+      opacity: 0.2 + telemetryProjection.domainDensity * 0.18,
+      tilt: [1.04, 0.2, 0.08],
+    },
+    {
+      key: "runtime",
+      radius: 3.18,
+      tube: 0.04,
+      speed: -0.22 - telemetryProjection.pulseStrength * 0.26,
+      opacity: 0.16 + telemetryProjection.runtimeTempo * 0.22,
+      tilt: [1.34, -0.22, 0.18],
+    },
+    {
+      key: "planetary",
+      radius: 3.82,
+      tube: 0.035,
+      speed: 0.16 + telemetryProjection.planetActivity * 0.24,
+      opacity: 0.12 + telemetryProjection.planetActivity * 0.2,
+      tilt: [1.54, 0.16, -0.12],
+    },
+  ];
 }
 
 export function resolveStarCoreInteriorVisualModel({
@@ -189,30 +296,32 @@ export function resolveStarCoreInteriorVisualModel({
   screenModel = null,
 } = {}) {
   const phase = String(interiorModel?.phase || "constitution_select").trim() || "constitution_select";
+  const telemetry = interiorModel?.telemetry || {};
+  const telemetryProjection = resolveTelemetryProjection(telemetry);
   const theme = selectedConstitution ? resolveThemeFromConstitution(selectedConstitution) : defaultTheme();
   const phaseCopy = resolveStageCopy(phase, interiorModel?.explainability || {});
-  const orbitalCount = Array.isArray(interiorModel?.availableConstitutions)
-    ? interiorModel.availableConstitutions.length
-    : 0;
-  const telemetryProjection = resolveTelemetryProjection(interiorModel?.telemetry || {});
   const lockScaleBase = phase === "policy_lock_transition" ? 0.92 : phase === "first_orbit_ready" ? 0.88 : 1;
   const lockRingScale = clamp(lockScaleBase - telemetryProjection.criticalLoad * 0.05, 0.82, 1.06);
   const chamberOpacityBase = screenModel?.isEntering || screenModel?.isReturning ? 0.78 : 1;
   const chamberOpacity = clamp(chamberOpacityBase + telemetryProjection.runtimeTempo * 0.06, 0.78, 1);
-  const chamberPulseSpeed = 0.7 + telemetryProjection.runtimeTempo * 1.8 + telemetryProjection.pulseStrength * 0.6;
-  const chamberPulseScale = 1 + telemetryProjection.pulseStrength * 0.12;
+  const chamberPulseSpeed = 0.75 + telemetryProjection.runtimeTempo * 1.6 + telemetryProjection.pulseStrength * 0.7;
+  const chamberPulseScale = 1 + telemetryProjection.pulseStrength * 0.14;
   const shellGlowOpacity = clamp(
-    0.28 + telemetryProjection.chamberDepth * 0.44 - telemetryProjection.criticalLoad * 0.15,
+    0.24 + telemetryProjection.chamberDepth * 0.42 - telemetryProjection.criticalLoad * 0.14,
     0.2,
     0.78
   );
+  const constitutionOptions = Array.isArray(interiorModel?.availableConstitutions)
+    ? interiorModel.availableConstitutions
+    : [];
 
   return {
     phase,
     phaseCopy,
     theme,
-    orbitalCount,
+    orbitalCount: constitutionOptions.length,
     showSelectionOrbit: phase === "constitution_select" || phase === "policy_lock_ready",
+    showConstitutionField: phase === "constitution_select" || phase === "policy_lock_ready",
     showLockRing: phase === "policy_lock_ready" || phase === "policy_lock_transition" || phase === "first_orbit_ready",
     showFirstOrbit: phase === "first_orbit_ready",
     lockRingScale,
@@ -222,12 +331,23 @@ export function resolveStarCoreInteriorVisualModel({
     shellGlowOpacity,
     stageLabel:
       phase === "policy_lock_ready"
-        ? "Ritual lock"
+        ? "Governance astrolabe"
         : phase === "policy_lock_transition"
           ? "Lock transition"
           : phase === "first_orbit_ready"
             ? "First orbit"
-            : "Constitution field",
+            : "Core alignment",
+    hudCoreStatus: telemetryProjection.criticalLoad >= 0.45 ? "CORE STATUS: ELEVATED" : "CORE STATUS: NOMINAL",
+    hudPolicyStatus:
+      phase === "first_orbit_ready" || String(interiorModel?.governanceSignal?.lockStatus || "") === "locked"
+        ? "POLICY: LOCKED"
+        : phase === "policy_lock_transition"
+          ? "POLICY: LOCKING"
+          : "POLICY: DRAFT",
+    astrolabeRings: buildAstrolabeRings(telemetryProjection),
+    constitutionGlyphs: createConstitutionGlyphs(constitutionOptions, selectedConstitution?.id || ""),
+    metricStreams: buildMetricStreams({ telemetryProjection, telemetry }),
+    eventSwarmCount: telemetryProjection.eventHaloCount,
     ...telemetryProjection,
   };
 }
