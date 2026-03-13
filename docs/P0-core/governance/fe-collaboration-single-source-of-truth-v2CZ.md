@@ -56,6 +56,7 @@ Implementace nesmi zacit, dokud neni v priprave explicitne napsano:
 2. co je mimo scope,
 3. co je dukaz dokonceni,
 4. co se za dokonceni nepocita.
+5. pred kazdou implementacni casti agent automaticky znovu nacte tento dokument a potvrdi to ve vystupu pripravy.
 
 ## 5. Role a odpovednost
 
@@ -64,7 +65,8 @@ Implementace nesmi zacit, dokud neni v priprave explicitne napsano:
 1. analyza kodu a dokumentace,
 2. navrh a implementace bez workaround zkratek,
 3. lokalni focused kontroly,
-4. predani `Povel pro tebe` jen pro realne nutne prikazy.
+4. predani `Povel pro tebe` jen pro realne nutne prikazy,
+5. ke kazdemu handoff vystupu dodat navrh `git titulek` (jedna kratka, vecna commit headline).
 
 ### 5.2 Uzivatel
 

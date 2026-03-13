@@ -8,6 +8,7 @@ import {
   buildStarCoreDomainMetricsUrl,
   buildStarCoreInteriorConstitutionSelectUrl,
   buildStarCoreInteriorUrl,
+  buildStarCorePlanetPhysicsUrl,
   buildStarCorePhysicsProfileUrl,
   buildStarCorePolicyLockUrl,
   buildStarCorePolicyUrl,
@@ -127,7 +128,7 @@ async function loadWorkspaceTruth({ defaultGalaxy = null, connectivity = null })
     physicsResponse.json(),
     interiorResponse.json(),
   ]);
-  const [runtimePayload, pulsePayload, domainMetricsPayload] = await Promise.all([
+  const [runtimePayload, pulsePayload, domainMetricsPayload, planetPhysicsPayload] = await Promise.all([
     apiFetch(buildStarCoreRuntimeUrl(API_BASE, galaxyId))
       .then(async (response) => (response.ok ? response.json() : null))
       .catch(() => null),
@@ -135,6 +136,9 @@ async function loadWorkspaceTruth({ defaultGalaxy = null, connectivity = null })
       .then(async (response) => (response.ok ? response.json() : null))
       .catch(() => null),
     apiFetch(buildStarCoreDomainMetricsUrl(API_BASE, galaxyId))
+      .then(async (response) => (response.ok ? response.json() : null))
+      .catch(() => null),
+    apiFetch(buildStarCorePlanetPhysicsUrl(API_BASE, galaxyId))
       .then(async (response) => (response.ok ? response.json() : null))
       .catch(() => null),
   ]);
@@ -166,7 +170,14 @@ async function loadWorkspaceTruth({ defaultGalaxy = null, connectivity = null })
   return {
     status: truth.policy.lock_status === "locked" ? "star_core_locked_ready" : "star_core_unlocked",
     truth,
-    interiorTruth: adaptStarCoreInteriorTruth(interiorPayload),
+    interiorTruth: adaptStarCoreInteriorTruth(interiorPayload, {
+      runtimePayload,
+      pulsePayload,
+      domainMetricsPayload,
+      planetPhysicsPayload,
+      policyPayload,
+      physicsProfilePayload,
+    }),
     tableRows,
     error: "",
   };
@@ -455,7 +466,11 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
       const interiorPayload = await response.json();
       setFetchState((current) => ({
         ...current,
-        interiorTruth: adaptStarCoreInteriorTruth(interiorPayload),
+        interiorTruth: adaptStarCoreInteriorTruth(interiorPayload, {
+          fallbackTelemetry: current.interiorTruth?.telemetry,
+          policyPayload: current.truth?.policy,
+          physicsProfilePayload: current.truth?.physicsProfile,
+        }),
       }));
       setInteriorUiState((current) => ({
         ...current,

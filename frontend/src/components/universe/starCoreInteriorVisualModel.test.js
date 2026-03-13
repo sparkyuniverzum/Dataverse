@@ -68,4 +68,39 @@ describe("starCoreInteriorVisualModel", () => {
     expect(enteringModel.chamberOpacity).toBe(0.78);
     expect(returningModel.chamberOpacity).toBe(0.78);
   });
+
+  it("projects backend telemetry into live ritual signals", () => {
+    const model = resolveStarCoreInteriorVisualModel({
+      interiorModel: {
+        phase: "policy_lock_ready",
+        explainability: {},
+        telemetry: {
+          runtime: { writesPerMinute: 48 },
+          pulse: { sampledCount: 5, peakIntensity: 0.72, eventTypes: ["table_update", "policy_lock"] },
+          domains: {
+            items: [
+              { domainName: "governance", status: "stable", activityIntensity: 0.5 },
+              { domainName: "physics", status: "degraded", activityIntensity: 0.71 },
+            ],
+          },
+          planetPhysics: {
+            itemCount: 5,
+            activeCount: 3,
+            criticalCount: 1,
+            phaseCounts: [{ phase: "ACTIVE", count: 3 }],
+          },
+        },
+      },
+      selectedConstitution: null,
+      screenModel: { isEntering: false, isReturning: false },
+    });
+
+    expect(model.runtimeTempo).toBeGreaterThan(0);
+    expect(model.pulseStrength).toBeGreaterThan(0.4);
+    expect(model.domainSegments).toHaveLength(2);
+    expect(model.pulseBeacons).toHaveLength(2);
+    expect(model.planetaryNodes).toHaveLength(1);
+    expect(model.eventHaloCount).toBeGreaterThanOrEqual(4);
+    expect(model.shellGlowOpacity).toBeGreaterThan(0.2);
+  });
 });

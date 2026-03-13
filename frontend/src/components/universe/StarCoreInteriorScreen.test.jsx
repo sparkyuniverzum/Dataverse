@@ -3,6 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import StarCoreInteriorScreen from "./StarCoreInteriorScreen.jsx";
 
+vi.mock("./starCoreInteriorScene3d.jsx", () => ({
+  default: () => <div data-testid="ritual-3d-scene-mock" />,
+}));
+
 afterEach(() => {
   cleanup();
 });
@@ -39,6 +43,24 @@ function createProps(overrides = {}) {
         headline: "Vyber ustavu prostoru",
         body: "Kazdy rezim meni dalsi smer rozvoje galaxie.",
       },
+      governanceSignal: {
+        lockStatus: "draft",
+        policyVersion: 1,
+        profileMode: "auto",
+      },
+      telemetry: {
+        runtime: { writesPerMinute: 21.8, eventsCount: 14 },
+        pulse: { lastEventSeq: 91, eventTypes: ["table_update"], sampledCount: 4, peakIntensity: 0.62 },
+        domains: {
+          items: [{ domainName: "governance", status: "stable", activityIntensity: 0.4 }],
+        },
+        planetPhysics: {
+          itemCount: 3,
+          activeCount: 2,
+          criticalCount: 0,
+          phaseCounts: [{ phase: "ACTIVE", count: 2 }],
+        },
+      },
       errorMessage: "",
       isFirstOrbitReady: false,
       isLockPending: false,
@@ -61,7 +83,10 @@ describe("StarCoreInteriorScreen", () => {
     expect(screen.getByTestId("star-core-interior-screen")).toBeTruthy();
     expect(screen.getByTestId("constitution-selection-focus")).toBeTruthy();
     expect(screen.getByTestId("ritual-chamber-core")).toBeTruthy();
-    expect(screen.queryAllByText("Puls hvezdy: Steady")).toHaveLength(1);
+    expect(screen.getByTestId("ritual-live-telemetry")).toBeTruthy();
+    expect(screen.getAllByTestId("ritual-domain-segment").length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId("ritual-pulse-beacon").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Puls hvezdy: Steady/)).toBeTruthy();
     fireEvent.click(screen.getByTestId("constitution-option-rovnovaha"));
     expect(props.onSelectConstitution).toHaveBeenCalledWith("rovnovaha");
   });
@@ -84,9 +109,9 @@ describe("StarCoreInteriorScreen", () => {
     });
     render(<StarCoreInteriorScreen {...props} />);
 
-    expect(screen.getByText("AKTIVNI VOLBA")).toBeTruthy();
+    expect(screen.getByText("AKTIVNI PROUD")).toBeTruthy();
     expect(screen.getByText("Udrzi prvni prostor citelny, stabilni a pripraveny na navazani.")).toBeTruthy();
-    expect(screen.getAllByText("Tonalita: stabilni modry puls").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Tonalita: stabilni modry puls/)).toBeTruthy();
   });
 
   it("routes primary action through policy lock affordance", () => {
@@ -96,6 +121,22 @@ describe("StarCoreInteriorScreen", () => {
         canSelectConstitution: false,
         availableConstitutions: [],
         explainability: { headline: "Ustava je pripravena", body: "Mužeš pokračovat." },
+        governanceSignal: {
+          lockStatus: "draft",
+          policyVersion: 1,
+          profileMode: "auto",
+        },
+        telemetry: {
+          runtime: { writesPerMinute: 21.8, eventsCount: 14 },
+          pulse: { lastEventSeq: 91, eventTypes: ["table_update"], sampledCount: 4, peakIntensity: 0.62 },
+          domains: { items: [{ domainName: "governance", status: "stable", activityIntensity: 0.4 }] },
+          planetPhysics: {
+            itemCount: 2,
+            activeCount: 2,
+            criticalCount: 0,
+            phaseCounts: [{ phase: "ACTIVE", count: 2 }],
+          },
+        },
         errorMessage: "",
         isFirstOrbitReady: false,
         isLockPending: false,
@@ -134,6 +175,17 @@ describe("StarCoreInteriorScreen", () => {
           headline: "Politiky jsou uzamceny.",
           body: "Governance zaklad je potvrzen a prostor muze navazat prvni orbitou.",
         },
+        governanceSignal: {
+          lockStatus: "locked",
+          policyVersion: 2,
+          profileMode: "locked",
+        },
+        telemetry: {
+          runtime: { writesPerMinute: 9.2, eventsCount: 20 },
+          pulse: { lastEventSeq: 120, eventTypes: ["policy_lock"], sampledCount: 1, peakIntensity: 0.32 },
+          domains: { items: [{ domainName: "governance", status: "stable", activityIntensity: 0.2 }] },
+          planetPhysics: { itemCount: 4, activeCount: 1, criticalCount: 0, phaseCounts: [{ phase: "CALM", count: 3 }] },
+        },
         errorMessage: "",
         isFirstOrbitReady: true,
         isLockPending: false,
@@ -163,6 +215,7 @@ describe("StarCoreInteriorScreen", () => {
 
     expect(screen.getByTestId("first-orbit-ready-surface")).toBeTruthy();
     expect(screen.getByTestId("first-orbit-ring")).toBeTruthy();
+    expect(screen.getAllByTestId("ritual-planet-node").length).toBeGreaterThan(0);
     expect(screen.getByText("POTVRZENA USTAVA")).toBeTruthy();
   });
 });

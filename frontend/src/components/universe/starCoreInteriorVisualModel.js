@@ -4,6 +4,10 @@ function normalizeHexTone(value, fallback) {
   return fallback;
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function withAlpha(hex, alpha) {
   const normalized = normalizeHexTone(hex, "#7ee8ff");
   const safeAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
@@ -48,6 +52,98 @@ function resolveThemeFromConstitution(constitution) {
       toneSecondary,
       0.18
     )}, transparent 22%), linear-gradient(180deg, rgba(5, 12, 24, 0.98) 0%, rgba(4, 9, 19, 0.97) 58%, rgba(4, 8, 17, 0.99) 100%)`,
+  };
+}
+
+function createDomainSegments(items = []) {
+  const domains = Array.isArray(items) ? items.slice(0, 6) : [];
+  const count = domains.length || 1;
+  return domains.map((item, index) => ({
+    key: String(item.domainName || `domain-${index}`),
+    angleDeg: (360 / count) * index - 90,
+    status: String(item.status || "stable").toLowerCase(),
+    intensity: clamp(Number(item.activityIntensity) || 0, 0, 1),
+  }));
+}
+
+function createPulseBeacons(eventTypes = []) {
+  const safeTypes = Array.isArray(eventTypes)
+    ? eventTypes
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .slice(0, 5)
+    : [];
+  const count = safeTypes.length || 1;
+  return safeTypes.map((eventType, index) => ({
+    key: `${eventType}-${index}`,
+    label: eventType.replaceAll("_", " ").toUpperCase(),
+    angleDeg: (360 / count) * index - 80,
+  }));
+}
+
+function createPlanetaryNodes(phaseCounts = []) {
+  const safePhases = Array.isArray(phaseCounts)
+    ? phaseCounts
+        .map((item) => ({
+          phase: String(item?.phase || "CALM")
+            .trim()
+            .toUpperCase(),
+          count: Math.max(0, Math.floor(Number(item?.count) || 0)),
+        }))
+        .filter((item) => item.count > 0)
+        .slice(0, 6)
+    : [];
+  const count = safePhases.length || 1;
+  return safePhases.map((item, index) => ({
+    key: item.phase,
+    label: item.phase,
+    count: item.count,
+    angleDeg: (360 / count) * index + 110,
+    size: clamp(0.54 + item.count * 0.08, 0.54, 0.92),
+  }));
+}
+
+function resolveTelemetryProjection(telemetry) {
+  const runtime = telemetry?.runtime || {};
+  const pulse = telemetry?.pulse || {};
+  const domains = telemetry?.domains || {};
+  const planetPhysics = telemetry?.planetPhysics || {};
+  const eventsCount = Math.max(0, Number(runtime.eventsCount) || 0);
+
+  const runtimeTempo = clamp((Number(runtime.writesPerMinute) || 0) / 120, 0, 1);
+  const pulseStrength = clamp(
+    (Number(pulse.peakIntensity) || 0) * 0.62 + ((Number(pulse.sampledCount) || 0) / 64) * 0.38,
+    0,
+    1
+  );
+  const domainDensity = clamp(((domains.items && domains.items.length) || 0) / 8, 0, 1);
+  const planetActivity = clamp(
+    (Number(planetPhysics.activeCount) || 0) / Math.max(1, Number(planetPhysics.itemCount) || 0),
+    0,
+    1
+  );
+  const criticalLoad = clamp(
+    (Number(planetPhysics.criticalCount) || 0) / Math.max(1, Number(planetPhysics.itemCount) || 0),
+    0,
+    1
+  );
+  const eventHaloCount = Math.max(4, Math.min(24, Math.round(eventsCount / 6) || 4));
+  const eventHaloOpacity = clamp(0.12 + runtimeTempo * 0.36 + pulseStrength * 0.26, 0.12, 0.78);
+  const chamberDepth = clamp(0.24 + domainDensity * 0.48 + pulseStrength * 0.18, 0.24, 0.9);
+
+  return {
+    eventsCount,
+    runtimeTempo,
+    pulseStrength,
+    domainDensity,
+    planetActivity,
+    criticalLoad,
+    eventHaloCount,
+    eventHaloOpacity,
+    chamberDepth,
+    domainSegments: createDomainSegments(domains.items),
+    pulseBeacons: createPulseBeacons(pulse.eventTypes),
+    planetaryNodes: createPlanetaryNodes(planetPhysics.phaseCounts),
   };
 }
 
@@ -98,6 +194,18 @@ export function resolveStarCoreInteriorVisualModel({
   const orbitalCount = Array.isArray(interiorModel?.availableConstitutions)
     ? interiorModel.availableConstitutions.length
     : 0;
+  const telemetryProjection = resolveTelemetryProjection(interiorModel?.telemetry || {});
+  const lockScaleBase = phase === "policy_lock_transition" ? 0.92 : phase === "first_orbit_ready" ? 0.88 : 1;
+  const lockRingScale = clamp(lockScaleBase - telemetryProjection.criticalLoad * 0.05, 0.82, 1.06);
+  const chamberOpacityBase = screenModel?.isEntering || screenModel?.isReturning ? 0.78 : 1;
+  const chamberOpacity = clamp(chamberOpacityBase + telemetryProjection.runtimeTempo * 0.06, 0.78, 1);
+  const chamberPulseSpeed = 0.7 + telemetryProjection.runtimeTempo * 1.8 + telemetryProjection.pulseStrength * 0.6;
+  const chamberPulseScale = 1 + telemetryProjection.pulseStrength * 0.12;
+  const shellGlowOpacity = clamp(
+    0.28 + telemetryProjection.chamberDepth * 0.44 - telemetryProjection.criticalLoad * 0.15,
+    0.2,
+    0.78
+  );
 
   return {
     phase,
@@ -107,8 +215,11 @@ export function resolveStarCoreInteriorVisualModel({
     showSelectionOrbit: phase === "constitution_select" || phase === "policy_lock_ready",
     showLockRing: phase === "policy_lock_ready" || phase === "policy_lock_transition" || phase === "first_orbit_ready",
     showFirstOrbit: phase === "first_orbit_ready",
-    lockRingScale: phase === "policy_lock_transition" ? 0.92 : phase === "first_orbit_ready" ? 0.88 : 1,
-    chamberOpacity: screenModel?.isEntering || screenModel?.isReturning ? 0.78 : 1,
+    lockRingScale,
+    chamberOpacity,
+    chamberPulseSpeed,
+    chamberPulseScale,
+    shellGlowOpacity,
     stageLabel:
       phase === "policy_lock_ready"
         ? "Ritual lock"
@@ -117,5 +228,6 @@ export function resolveStarCoreInteriorVisualModel({
           : phase === "first_orbit_ready"
             ? "First orbit"
             : "Constitution field",
+    ...telemetryProjection,
   };
 }
