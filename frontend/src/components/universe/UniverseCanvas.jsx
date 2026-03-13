@@ -4,6 +4,8 @@ import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
+import { resolvePlanetTopologyLabels } from "./planetTopologyLabels.js";
+import { resolvePlanetTopologyState } from "./planetTopologyStateModel.js";
 import { resolveStarCoreExteriorLabels } from "./starCoreExteriorLabels.js";
 import { resolveStarCoreExteriorState } from "./starCoreExteriorStateModel.js";
 import { resolveStarCoreExteriorVisualModel } from "./starCoreExteriorVisualModel.js";
@@ -134,8 +136,34 @@ function DiegeticLabel({ position, text, size = 0.24, color = "#dff6ff" }) {
   );
 }
 
-function PlanetNode({ item, isSelected, isApproached, onSelectObject, onApproachObject }) {
-  const glowScale = isApproached ? 1.7 : isSelected ? 1.45 : 1.25;
+function PlanetNode({ item, navigationModel, onSelectObject, onApproachObject }) {
+  const shellRef = useRef(null);
+  const ringRef = useRef(null);
+  const hazeRef = useRef(null);
+  const state = useMemo(
+    () => resolvePlanetTopologyState({ navigationModel, objectId: item.id }),
+    [item.id, navigationModel]
+  );
+  const labels = useMemo(() => resolvePlanetTopologyLabels(item, state), [item, state]);
+  const glowScale = state.approached ? 1.86 : state.selected ? 1.54 : 1.32;
+  const shellScale = state.approached ? 1.08 : state.selected ? 1.02 : 1;
+
+  useFrame((frameState) => {
+    const t = frameState.clock.elapsedTime;
+    const pulse = 1 + Math.sin(t * (0.65 + item.pulseSpeed * 0.4)) * (0.02 + item.emissiveBoost * 0.05);
+    if (shellRef.current) {
+      shellRef.current.scale.setScalar(shellScale * pulse);
+      shellRef.current.rotation.y = t * 0.18;
+      shellRef.current.rotation.z = Math.sin(t * 0.34) * 0.08;
+    }
+    if (ringRef.current) {
+      ringRef.current.rotation.z = t * (0.18 + item.pulseSpeed * 0.08);
+      ringRef.current.rotation.x = item.orbitMode === "stable" ? Math.PI / 2.2 : Math.PI / 2.6;
+    }
+    if (hazeRef.current) {
+      hazeRef.current.scale.setScalar(glowScale + Math.sin(t * 0.48) * 0.04);
+    }
+  });
 
   return (
     <group position={item.position}>
@@ -156,19 +184,79 @@ function PlanetNode({ item, isSelected, isApproached, onSelectObject, onApproach
           document.body.style.cursor = "auto";
         }}
       >
-        <sphereGeometry args={[item.size * 0.28, 24, 24]} />
-        <meshStandardMaterial color="#bdefff" emissive="#7fdfff" emissiveIntensity={isSelected ? 1.4 : 0.82} />
+        <sphereGeometry args={[item.size * 0.28, 28, 28]} />
+        <meshStandardMaterial
+          color={item.palette.primary}
+          emissive={item.palette.accent}
+          emissiveIntensity={0.48 + item.emissiveBoost * 0.8 + (state.selected ? 0.18 : 0)}
+          roughness={0.22 + item.corrosionLevel * 0.16}
+          metalness={0.12}
+        />
       </mesh>
-      <mesh scale={glowScale}>
+
+      <group ref={shellRef}>
+        <mesh scale={[1.12, 0.92, 1.12]}>
+          <icosahedronGeometry args={[item.size * 0.34, 1]} />
+          <meshBasicMaterial
+            color={item.palette.accent}
+            transparent
+            opacity={0.08 + item.emissiveBoost * 0.12}
+            wireframe
+          />
+        </mesh>
+      </group>
+
+      <group ref={ringRef}>
+        <mesh>
+          <torusGeometry args={[item.orbitRadius * 0.22, item.size * 0.014, 16, 96]} />
+          <meshBasicMaterial
+            color={state.approached ? item.palette.alert : item.palette.accent}
+            transparent
+            opacity={0.16 + item.alertPressure * 0.16 + (state.selected ? 0.08 : 0)}
+          />
+        </mesh>
+      </group>
+
+      <mesh ref={hazeRef} scale={glowScale}>
         <sphereGeometry args={[item.size * 0.22, 18, 18]} />
-        <meshBasicMaterial color="#7fe8ff" transparent opacity={isApproached ? 0.16 : 0.08} />
+        <meshBasicMaterial
+          color={state.approached ? item.palette.alert : item.palette.accent}
+          transparent
+          opacity={state.approached ? 0.22 : state.selected ? 0.14 : 0.08}
+        />
       </mesh>
+
+      {item.corrosionLevel > 0.12 ? (
+        <mesh rotation={[Math.PI / 2.6, 0.22, 0]} scale={[1.12, 1, 1]}>
+          <torusGeometry
+            args={[item.size * 0.16, item.size * 0.01, 8, 48, Math.PI * (0.7 + item.crackIntensity * 0.6)]}
+          />
+          <meshBasicMaterial color={item.palette.alert} transparent opacity={0.22 + item.corrosionLevel * 0.18} />
+        </mesh>
+      ) : null}
+
       <DiegeticLabel
         position={[0, item.size * 0.52 + 0.3, 0]}
-        text={item.label}
-        size={0.18}
-        color={isSelected ? "#f3fdff" : "#d3f6ff"}
+        text={labels.title}
+        size={state.selected ? 0.2 : 0.18}
+        color={state.selected ? "#f3fdff" : "#d3f6ff"}
       />
+      {labels.subtitle ? (
+        <DiegeticLabel
+          position={[0, item.size * 0.52 + 0.02, 0]}
+          text={labels.subtitle}
+          size={0.11}
+          color="rgba(206, 236, 255, 0.78)"
+        />
+      ) : null}
+      {(state.selected || state.approached) && labels.detail ? (
+        <DiegeticLabel
+          position={[0, -item.size * 0.38 - 0.24, 0]}
+          text={labels.detail}
+          size={0.1}
+          color={state.approached ? "#ffd7a3" : "#cdefff"}
+        />
+      ) : null}
     </group>
   );
 }
@@ -466,8 +554,7 @@ export default function UniverseCanvas({
             <PlanetNode
               key={item.id}
               item={item}
-              isSelected={navigationModel.selectedObjectId === item.id}
-              isApproached={navigationModel.approachTargetId === item.id}
+              navigationModel={navigationModel}
               onSelectObject={onSelectObject}
               onApproachObject={onApproachObject}
             />

@@ -182,6 +182,7 @@ async function loadWorkspaceTruth({ defaultGalaxy = null, connectivity = null })
       physicsProfilePayload,
     }),
     tableRows,
+    planetPhysicsPayload,
     error: "",
   };
 }
@@ -200,6 +201,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     truth: null,
     interiorTruth: null,
     tableRows: [],
+    planetPhysicsPayload: null,
     error: "",
   });
   const [navigationState, setNavigationState] = useState(createInitialGalaxyNavigationState);
@@ -218,6 +220,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
           truth: current.truth,
           interiorTruth: current.interiorTruth,
           tableRows: current.tableRows,
+          planetPhysicsPayload: current.planetPhysicsPayload,
           error: "",
         }));
       }
@@ -235,6 +238,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
           truth: null,
           interiorTruth: null,
           tableRows: [],
+          planetPhysicsPayload: null,
           error: String(error?.message || "Načtení Star Core selhalo."),
         });
       }
@@ -290,8 +294,13 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
   }, [connectivity, defaultGalaxy, fetchState.error, fetchState.status, fetchState.truth]);
 
   const spaceObjects = useMemo(
-    () => buildGalaxySpaceObjects({ starModel: model, tableRows: fetchState.tableRows }),
-    [fetchState.tableRows, model]
+    () =>
+      buildGalaxySpaceObjects({
+        starModel: model,
+        tableRows: fetchState.tableRows,
+        planetPhysicsPayload: fetchState.planetPhysicsPayload,
+      }),
+    [fetchState.planetPhysicsPayload, fetchState.tableRows, model]
   );
   const navigationModel = useMemo(
     () => resolveGalaxyNavigationModel({ navigationState, spaceObjects }),

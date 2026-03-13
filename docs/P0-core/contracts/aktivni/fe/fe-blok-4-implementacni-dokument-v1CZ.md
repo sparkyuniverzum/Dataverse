@@ -165,6 +165,12 @@ V tomto bloku se skutecne maji vratit nebo rozumne zrecyklovat:
 2. `runtimeProjectionPatch.js`
 3. `runtimeDeltaSync.js`
 
+Prvni runtime rez tohoto bloku ma realne vratit:
+
+1. logiku parity z `planetPhysicsParity.js` do aktivniho helperu `planetTopologyVisualModel.js`,
+2. bez primeho navratu obsolete `asteroid*` patchingu z `runtimeProjectionPatch.js`,
+3. bez primeho navratu `runtimeDeltaSync.js` v tomto prvnim vizualnim rezu.
+
 V tomto bloku se zatim nemaji vracet:
 
 1. `QuickGridOverlay.jsx`
