@@ -1,15 +1,14 @@
 import { Canvas, useFrame } from "@react-three/fiber";
+import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
+
+import StarCoreReactorCore3d from "./starCoreReactorCore3d.jsx";
 
 const CAMERA_ENTRY_START = new THREE.Vector3(0, 2.4, 20.5);
 const CAMERA_CORE_POSITION = new THREE.Vector3(0, 0.7, 10.8);
 const LOOK_ENTRY_START = new THREE.Vector3(0, 0.8, -1.2);
 const LOOK_CORE = new THREE.Vector3(0, 0.2, 0);
-const CORE_SHELL_BASE_SCALE = new THREE.Vector3(0.72, 1.88, 0.72);
-const CORE_INNER_BASE_SCALE = new THREE.Vector3(0.18, 2.28, 0.18);
-const CORE_HALO_BASE_SCALE = new THREE.Vector3(0.64, 2.56, 0.64);
-
 function toThreeColor(value, fallback = "#7ee8ff") {
   const candidate = String(value || "").trim();
   const color = new THREE.Color();
@@ -196,8 +195,6 @@ function RitualChamberScene({
   onSelectConstitution = () => {},
 }) {
   const rootRef = useRef(null);
-  const coreShellRef = useRef(null);
-  const coreInnerRef = useRef(null);
   const astrolabeRefs = useRef([]);
   const lockNodesRef = useRef([]);
   const pulseCloudRef = useRef(null);
@@ -264,26 +261,6 @@ function RitualChamberScene({
     if (rootRef.current) {
       rootRef.current.rotation.y = Math.sin(elapsed * 0.18) * 0.05 + astrolabeRotation * 0.08;
       rootRef.current.rotation.x = Math.sin(elapsed * 0.12) * 0.012;
-    }
-
-    if (coreShellRef.current) {
-      coreShellRef.current.rotation.y += delta * (0.18 + visualModel.pulseStrength * 0.26);
-      coreShellRef.current.rotation.z += delta * 0.06;
-      const scale = 1 + Math.sin(elapsed * visualModel.chamberPulseSpeed) * (0.028 + visualModel.pulseStrength * 0.05);
-      coreShellRef.current.scale.set(
-        CORE_SHELL_BASE_SCALE.x * scale,
-        CORE_SHELL_BASE_SCALE.y * scale,
-        CORE_SHELL_BASE_SCALE.z * scale
-      );
-    }
-    if (coreInnerRef.current) {
-      coreInnerRef.current.rotation.y -= delta * (0.3 + visualModel.runtimeTempo * 0.35);
-      const scale = 0.92 + Math.sin(elapsed * visualModel.chamberPulseSpeed * 1.3) * 0.05;
-      coreInnerRef.current.scale.set(
-        CORE_INNER_BASE_SCALE.x * scale,
-        CORE_INNER_BASE_SCALE.y * scale,
-        CORE_INNER_BASE_SCALE.z * scale
-      );
     }
 
     astrolabeRefs.current.forEach((ringRef, index) => {
@@ -479,93 +456,14 @@ function RitualChamberScene({
         ))}
 
         {showReactorCore ? (
-          <group>
-            <mesh position={[0, 0.15, -0.22]} scale={[0.26, 3.05, 0.26]}>
-              <cylinderGeometry args={[0.38, 0.1, 1, 12]} />
-              <meshBasicMaterial color={toneSecondary} transparent opacity={0.1 + visualModel.pulseStrength * 0.05} />
-            </mesh>
-
-            <mesh position={[0, 0.15, -0.24]} scale={[1.56, 1.56, 1.56]}>
-              <octahedronGeometry args={[1.02, 2]} />
-              <meshStandardMaterial
-                color={tonePrimary}
-                emissive={toneSecondary}
-                emissiveIntensity={0.34 + visualModel.pulseStrength * 0.22}
-                roughness={0.26}
-                metalness={0.1}
-                transparent
-                opacity={0.3}
-              />
-            </mesh>
-
-            <mesh ref={coreShellRef} position={[0, 0.15, -0.18]} scale={CORE_SHELL_BASE_SCALE.toArray()}>
-              <octahedronGeometry args={[1.18, 2]} />
-              <meshStandardMaterial
-                color={tonePrimary}
-                emissive={toneSecondary}
-                emissiveIntensity={0.52 + visualModel.pulseStrength * 0.34}
-                roughness={0.2}
-                metalness={0.08}
-                transparent
-                opacity={0.78}
-              />
-            </mesh>
-
-            <mesh position={[0, 0.15, -0.18]} scale={[0.54, 1.92, 0.54]}>
-              <octahedronGeometry args={[0.92, 0]} />
-              <meshStandardMaterial
-                color={toneSecondary}
-                emissive={toneSecondary}
-                emissiveIntensity={0.44 + visualModel.runtimeTempo * 0.22}
-                roughness={0.16}
-                metalness={0.06}
-                transparent
-                opacity={0.44}
-              />
-            </mesh>
-
-            <mesh ref={coreInnerRef} position={[0, 0.15, -0.16]} scale={CORE_INNER_BASE_SCALE.toArray()}>
-              <icosahedronGeometry args={[1, 3]} />
-              <meshStandardMaterial
-                color={toneAccent}
-                emissive={toneAccent}
-                emissiveIntensity={0.8 + visualModel.runtimeTempo * 0.32}
-                roughness={0.12}
-                metalness={0.06}
-                transparent
-                opacity={0.84}
-              />
-            </mesh>
-
-            <mesh position={[0, 0.15, -0.16]} scale={CORE_HALO_BASE_SCALE.toArray()}>
-              <sphereGeometry args={[0.6, 24, 24]} />
-              <meshBasicMaterial color={toneSecondary} transparent opacity={0.08 + visualModel.pulseStrength * 0.06} />
-            </mesh>
-
-            <mesh position={[0, 0.15, -0.14]} scale={[1.24, 2.74, 1.24]}>
-              <sphereGeometry args={[0.6, 24, 24]} />
-              <meshBasicMaterial color={tonePrimary} transparent opacity={0.028 + visualModel.pulseStrength * 0.024} />
-            </mesh>
-
-            {Array.from({ length: 6 }, (_, index) => {
-              const angle = (Math.PI * 2 * index) / 6;
-              const radius = 1.05 + (index % 2) * 0.12;
-              return (
-                <mesh
-                  key={`core-spark-${index}`}
-                  position={[
-                    Math.cos(angle) * radius,
-                    ((index % 3) - 1) * 0.36,
-                    -0.14 + Math.sin(angle) * radius * 0.12,
-                  ]}
-                  scale={[0.08, 0.08, 0.08]}
-                >
-                  <sphereGeometry args={[1, 8, 8]} />
-                  <meshBasicMaterial color={index % 2 === 0 ? toneSecondary : toneAccent} transparent opacity={0.42} />
-                </mesh>
-              );
-            })}
-          </group>
+          <StarCoreReactorCore3d
+            tonePrimary={tonePrimary}
+            toneSecondary={toneSecondary}
+            toneAccent={toneAccent}
+            pulseStrength={visualModel.pulseStrength}
+            runtimeTempo={visualModel.runtimeTempo}
+            chamberPulseSpeed={visualModel.chamberPulseSpeed}
+          />
         ) : null}
 
         {!foundationOnly ? (
@@ -875,6 +773,11 @@ export default function StarCoreInteriorScene3d({
         showReactorCore={showReactorCore}
         onSelectConstitution={onSelectConstitution}
       />
+      {showReactorCore ? (
+        <EffectComposer>
+          <Bloom mipmapBlur luminanceThreshold={0.14} luminanceSmoothing={0.28} intensity={0.5} />
+        </EffectComposer>
+      ) : null}
     </Canvas>
   );
 }
