@@ -12,6 +12,34 @@ function phaseLabel(value) {
 }
 
 export function resolvePlanetTopologyLabels(item, state) {
+  if (item?.type === "planet-slot") {
+    const base = {
+      title: String(item?.label || "Orbit slot"),
+      subtitle: String(item?.subtitle || ""),
+      detail:
+        item?.slotState === "ready" ? "Slot pripraveny pro prvni planetu" : "Nejdřív uzamkni politiky Srdce hvezdy",
+    };
+    if (state?.approached) {
+      return {
+        ...base,
+        detail:
+          item?.slotState === "ready"
+            ? "Priblizeni k pripravenemu slotu / ceká na budoucí create flow"
+            : "Priblizeni k latentnimu slotu / zatim bez planety",
+      };
+    }
+    if (state?.selected) {
+      return {
+        ...base,
+        detail:
+          item?.slotState === "ready"
+            ? "Vybrany slot / pripraven pro dalsi osidleni"
+            : "Vybrany slot / governance zatim nepovoluje vznik planety",
+      };
+    }
+    return base;
+  }
+
   const base = {
     title: String(item?.label || "Planeta"),
     subtitle: String(item?.subtitle || ""),

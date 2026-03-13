@@ -1,4 +1,5 @@
 import { buildGalaxyPlanetObjects } from "./planetTopologyVisualModel.js";
+import { buildEmptyGalaxyOrbitSlots } from "./planetTopologySlotModel.js";
 
 function normalizeText(value, fallback = "") {
   const text = String(value || "").trim();
@@ -22,8 +23,9 @@ export function buildGalaxySpaceObjects({ starModel, tableRows = [], planetPhysi
   };
 
   const planets = buildGalaxyPlanetObjects({ tableRows, planetPhysicsPayload });
+  const slots = planets.length > 0 ? [] : buildEmptyGalaxyOrbitSlots({ starModel });
 
-  return [starObject, ...planets];
+  return [starObject, ...planets, ...slots];
 }
 
 function resolveRadarPoint(position, span) {

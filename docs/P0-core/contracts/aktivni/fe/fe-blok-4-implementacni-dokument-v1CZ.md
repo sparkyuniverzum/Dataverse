@@ -49,6 +49,13 @@ Dodat prvni skutecnou planetarni topologii uvnitr hlavniho pracovního prostoru 
 4. udrzet `Star Core` jako governance kotvu, ale ne jediny nosic cele sceny,
 5. pripravit vizualni a interaction baseline pro dalsi `grid` a builder vrstvu.
 
+Trust-repair pravidlo:
+
+1. kdyz backend vrati prazdne `tableRows`, `Blok 4` nesmi selhat do prazdne sceny,
+2. v takovem pripade FE vykresli `orbit sloty` nebo `latentni planetarni mista`,
+3. tyto sloty nejsou planety a nesmi se tak tvarit,
+4. jakmile existuji realne planety z backendu, sloty ustupuji realnym objektum.
+
 ## 3. Presny scope Bloku 4
 
 ### 3.1 Stav A: `planet_topology_idle`
@@ -59,6 +66,11 @@ Implementovat:
 2. vazbu na `sector.center` a `sector.size`,
 3. citelne rozlozeni v galaxii bez shluknuti do jednoho bodu,
 4. lehkou, ale realnou orientaci pres `constellation` nebo obdobny prostorovy vzor.
+
+Pravidlo:
+
+1. kdyz nejsou planety, scéna ukaze `empty planetary topology`,
+2. kdyz planety existuji, scena ukaze `active planetary topology`.
 
 ### 3.2 Stav B: `planet_topology_selected`
 
@@ -210,9 +222,9 @@ Minimalni pozadovane focused testy:
 
 Povinne screenshoty:
 
-1. `vice planet v prostoru`
-2. `vybrana planeta`
-3. `approach na planetu`
+1. `prazdna galaxie se sloty` nebo `vice planet v prostoru`
+2. `vybrany orbit slot` nebo `vybrana planeta`
+3. `approach na slot` nebo `approach na planetu`
 4. pokud bude dostupna vizualni degradace nebo ruzne fyzikalni profily, i porovnani alespon dvou odlisnych planet
 
 ### 10.3 Prisnejsi nez MVP
@@ -220,8 +232,8 @@ Povinne screenshoty:
 Blok se nesmi uzavrit, pokud:
 
 1. planety pusobi stale jen jako nahodne svetelne body,
-2. vyber planety je citelny jen pres text nebo externi kartu,
-3. vice planet neukazuje skutecnou topologii prostoru,
+2. vyber planety nebo slotu je citelny jen pres text nebo externi kartu,
+3. vice planet nebo slotu neukazuje skutecnou topologii prostoru,
 4. visual stavy nemaji vazbu na backend truth,
 5. vysledek je jen “vic objektu ve scene”, ale ne pracovni topologie.
 

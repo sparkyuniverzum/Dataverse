@@ -184,26 +184,46 @@ function PlanetNode({ item, navigationModel, onSelectObject, onApproachObject })
           document.body.style.cursor = "auto";
         }}
       >
-        <sphereGeometry args={[item.size * 0.28, 28, 28]} />
-        <meshStandardMaterial
-          color={item.palette.primary}
-          emissive={item.palette.accent}
-          emissiveIntensity={0.48 + item.emissiveBoost * 0.8 + (state.selected ? 0.18 : 0)}
-          roughness={0.22 + item.corrosionLevel * 0.16}
-          metalness={0.12}
-        />
+        {item.type === "planet-slot" ? (
+          <>
+            <torusGeometry args={[item.size * 0.42, item.size * 0.045, 16, 84]} />
+            <meshBasicMaterial
+              color={state.approached ? item.palette.alert : item.palette.accent}
+              transparent
+              opacity={state.approached ? 0.42 : state.selected ? 0.3 : 0.22}
+            />
+          </>
+        ) : (
+          <>
+            <sphereGeometry args={[item.size * 0.28, 28, 28]} />
+            <meshStandardMaterial
+              color={item.palette.primary}
+              emissive={item.palette.accent}
+              emissiveIntensity={0.48 + item.emissiveBoost * 0.8 + (state.selected ? 0.18 : 0)}
+              roughness={0.22 + item.corrosionLevel * 0.16}
+              metalness={0.12}
+            />
+          </>
+        )}
       </mesh>
 
       <group ref={shellRef}>
-        <mesh scale={[1.12, 0.92, 1.12]}>
-          <icosahedronGeometry args={[item.size * 0.34, 1]} />
-          <meshBasicMaterial
-            color={item.palette.accent}
-            transparent
-            opacity={0.08 + item.emissiveBoost * 0.12}
-            wireframe
-          />
-        </mesh>
+        {item.type === "planet-slot" ? (
+          <mesh scale={[1.3, 0.18, 1.3]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[item.size * 0.76, item.size * 0.02, 12, 64]} />
+            <meshBasicMaterial color={item.palette.accent} transparent opacity={0.16 + item.emissiveBoost * 0.12} />
+          </mesh>
+        ) : (
+          <mesh scale={[1.12, 0.92, 1.12]}>
+            <icosahedronGeometry args={[item.size * 0.34, 1]} />
+            <meshBasicMaterial
+              color={item.palette.accent}
+              transparent
+              opacity={0.08 + item.emissiveBoost * 0.12}
+              wireframe
+            />
+          </mesh>
+        )}
       </group>
 
       <group ref={ringRef}>
@@ -218,7 +238,7 @@ function PlanetNode({ item, navigationModel, onSelectObject, onApproachObject })
       </group>
 
       <mesh ref={hazeRef} scale={glowScale}>
-        <sphereGeometry args={[item.size * 0.22, 18, 18]} />
+        <sphereGeometry args={[item.type === "planet-slot" ? item.size * 0.12 : item.size * 0.22, 18, 18]} />
         <meshBasicMaterial
           color={state.approached ? item.palette.alert : item.palette.accent}
           transparent
@@ -226,7 +246,7 @@ function PlanetNode({ item, navigationModel, onSelectObject, onApproachObject })
         />
       </mesh>
 
-      {item.corrosionLevel > 0.12 ? (
+      {item.type !== "planet-slot" && item.corrosionLevel > 0.12 ? (
         <mesh rotation={[Math.PI / 2.6, 0.22, 0]} scale={[1.12, 1, 1]}>
           <torusGeometry
             args={[item.size * 0.16, item.size * 0.01, 8, 48, Math.PI * (0.7 + item.crackIntensity * 0.6)]}
@@ -549,7 +569,7 @@ export default function UniverseCanvas({
           onApproachObject={onApproachObject}
         />
         {spaceObjects
-          .filter((item) => item.type === "planet")
+          .filter((item) => item.type === "planet" || item.type === "planet-slot")
           .map((item) => (
             <PlanetNode
               key={item.id}
