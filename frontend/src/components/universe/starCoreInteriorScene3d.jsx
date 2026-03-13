@@ -150,6 +150,42 @@ function SegmentedRing({ radius, tube, color, opacity, rotation, segmentCount = 
   );
 }
 
+function BridgeBeam({ start, end, color, opacity = 0.2, thickness = 0.045 }) {
+  const startVector = useMemo(() => new THREE.Vector3(...start), [start]);
+  const endVector = useMemo(() => new THREE.Vector3(...end), [end]);
+  const direction = useMemo(() => endVector.clone().sub(startVector), [endVector, startVector]);
+  const length = direction.length();
+  const midpoint = useMemo(() => startVector.clone().add(endVector).multiplyScalar(0.5), [endVector, startVector]);
+  const quaternion = useMemo(() => {
+    const axis = new THREE.Vector3(0, 1, 0);
+    return new THREE.Quaternion().setFromUnitVectors(axis, direction.clone().normalize());
+  }, [direction]);
+
+  return (
+    <mesh position={midpoint.toArray()} quaternion={quaternion}>
+      <boxGeometry args={[thickness, Math.max(0.001, length), thickness]} />
+      <meshStandardMaterial
+        color={color}
+        emissive={color}
+        emissiveIntensity={0.08}
+        roughness={0.24}
+        metalness={0.22}
+        transparent
+        opacity={opacity}
+      />
+    </mesh>
+  );
+}
+
+function buildGovernanceClamps() {
+  return [
+    { key: "clamp-top", angleDeg: -90, mountRadiusX: 0.45, mountRadiusY: 0.45, y: 0.12, inwardOffset: [0, -1, 0] },
+    { key: "clamp-right", angleDeg: 0, mountRadiusX: 0.45, mountRadiusY: 0.45, y: 0.12, inwardOffset: [-1, 0, 0] },
+    { key: "clamp-bottom", angleDeg: 90, mountRadiusX: 0.45, mountRadiusY: 0.45, y: 0.12, inwardOffset: [0, 1, 0] },
+    { key: "clamp-left", angleDeg: 180, mountRadiusX: 0.45, mountRadiusY: 0.45, y: 0.12, inwardOffset: [1, 0, 0] },
+  ];
+}
+
 function RitualChamberScene({
   visualModel,
   entryDiveActive = false,
@@ -177,6 +213,7 @@ function RitualChamberScene({
   const portalFrames = useMemo(() => buildPortalFrames(), []);
   const wallFacets = useMemo(() => buildWallFacets(), []);
   const innerSpines = useMemo(() => buildInnerSpines(), []);
+  const governanceClamps = useMemo(() => buildGovernanceClamps(), []);
   const pulseCloud = useMemo(() => buildPulseCloud(visualModel.eventSwarmCount), [visualModel.eventSwarmCount]);
   const telemetryColumns = useMemo(() => buildTelemetryColumns(visualModel.metricStreams), [visualModel.metricStreams]);
 
@@ -253,12 +290,16 @@ function RitualChamberScene({
       if (!ring) return;
       ringRef.rotation.z += delta * ring.speed;
       ringRef.rotation.y = ring.tilt[1] + astrolabeRotation * 0.55;
+      ringRef.position.z = -0.45 - visualModel.governanceLockStrength * 0.08;
     });
 
     lockNodesRef.current.forEach((nodeRef, index) => {
       if (!nodeRef) return;
       nodeRef.rotation.y += delta * (0.3 + index * 0.05);
-      nodeRef.position.y = 0.2 + Math.sin(elapsed * 0.9 + index) * 0.08;
+      nodeRef.position.y =
+        0.12 +
+        Math.sin(elapsed * 0.9 + index) * (0.08 - visualModel.governanceLockStrength * 0.03) -
+        visualModel.governanceLockStrength * 0.12;
     });
 
     if (pulseCloudRef.current) {
@@ -531,6 +572,46 @@ function RitualChamberScene({
           </group>
         ))}
 
+        {governanceClamps.map((clamp) => {
+          const theta = (clamp.angleDeg * Math.PI) / 180;
+          const radialX = 4.75 - visualModel.governanceLockStrength * 0.7;
+          const radialY = 3.72 - visualModel.governanceLockStrength * 0.48;
+          const position = polarVector(clamp.angleDeg, radialX, radialY, clamp.y);
+          const clampDepth = 1.18 + visualModel.governanceLockStrength * 0.82;
+          return (
+            <group key={clamp.key} position={position.toArray()} rotation={[0, theta - Math.PI / 2, 0]}>
+              <mesh position={[0, 0, -clampDepth * 0.4]} scale={[0.12, 0.12, clampDepth]}>
+                <boxGeometry args={[1, 1, 1]} />
+                <meshStandardMaterial
+                  color={tonePrimary}
+                  emissive={toneSecondary}
+                  emissiveIntensity={0.08}
+                  roughness={0.24}
+                  metalness={0.24}
+                  transparent
+                  opacity={0.34}
+                />
+              </mesh>
+              <mesh
+                position={[0, 0, -clampDepth * 0.94]}
+                rotation={[Math.PI / 4, 0, Math.PI / 4]}
+                scale={[0.22, 0.22, 0.22]}
+              >
+                <boxGeometry args={[1, 1, 1]} />
+                <meshStandardMaterial
+                  color={toneAccent}
+                  emissive={toneAccent}
+                  emissiveIntensity={0.18 + visualModel.governanceLockStrength * 0.18}
+                  roughness={0.16}
+                  metalness={0.28}
+                  transparent
+                  opacity={0.58}
+                />
+              </mesh>
+            </group>
+          );
+        })}
+
         {visualModel.showLockRing
           ? Array.from({ length: 4 }, (_, index) => {
               const angleDeg = index * 90 + 45;
@@ -581,28 +662,49 @@ function RitualChamberScene({
 
         {visualModel.constitutionGlyphs.map((glyph) => {
           const position = polarVector(glyph.angleDeg, 3.6, 2.9, 0.08);
+          const anchor = polarVector(glyph.angleDeg, 2.42, 1.98, 0.08);
           const glyphColor = glyph.selected ? glyph.toneSecondary : glyph.tonePrimary;
           return (
-            <mesh
-              key={glyph.id}
-              position={position}
-              onPointerDown={(event) => {
-                event.stopPropagation();
-                onSelectConstitution(glyph.id);
-              }}
-              scale={glyph.selected ? 1.26 : 1}
-            >
-              <octahedronGeometry args={[0.16, 0]} />
-              <meshStandardMaterial
-                color={glyphColor}
-                emissive={glyphColor}
-                emissiveIntensity={glyph.selected ? 0.52 : 0.2}
-                roughness={0.16}
-                metalness={0.18}
-                transparent
-                opacity={glyph.selected ? 0.7 : 0.42}
+            <group key={glyph.id}>
+              <BridgeBeam
+                start={anchor.toArray()}
+                end={position.toArray()}
+                color={glyph.selected ? glyph.toneSecondary : glyph.tonePrimary}
+                opacity={glyph.selected ? 0.32 : 0.16}
+                thickness={glyph.selected ? 0.06 : 0.04}
               />
-            </mesh>
+              <mesh position={anchor.toArray()} scale={[0.14, 0.14, 0.14]}>
+                <octahedronGeometry args={[1, 0]} />
+                <meshStandardMaterial
+                  color={glyphColor}
+                  emissive={glyphColor}
+                  emissiveIntensity={glyph.selected ? 0.28 : 0.12}
+                  roughness={0.18}
+                  metalness={0.22}
+                  transparent
+                  opacity={glyph.selected ? 0.72 : 0.34}
+                />
+              </mesh>
+              <mesh
+                position={position.toArray()}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  onSelectConstitution(glyph.id);
+                }}
+                scale={glyph.selected ? 1.26 : 1}
+              >
+                <octahedronGeometry args={[0.16, 0]} />
+                <meshStandardMaterial
+                  color={glyphColor}
+                  emissive={glyphColor}
+                  emissiveIntensity={glyph.selected ? 0.52 : 0.2}
+                  roughness={0.16}
+                  metalness={0.18}
+                  transparent
+                  opacity={glyph.selected ? 0.7 : 0.42}
+                />
+              </mesh>
+            </group>
           );
         })}
 

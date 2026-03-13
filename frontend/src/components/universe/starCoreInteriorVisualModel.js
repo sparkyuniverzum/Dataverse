@@ -261,28 +261,35 @@ function resolveStageCopy(phase, explainability) {
   };
 }
 
-function buildAstrolabeRings(telemetryProjection) {
+function resolveGovernanceLockStrength(phase) {
+  if (phase === "policy_lock_transition") return 0.92;
+  if (phase === "first_orbit_ready") return 0.82;
+  if (phase === "policy_lock_ready") return 0.58;
+  return 0.22;
+}
+
+function buildAstrolabeRings(telemetryProjection, governanceLockStrength) {
   return [
     {
       key: "governance",
-      radius: 2.55,
-      tube: 0.05,
+      radius: 2.64 - governanceLockStrength * 0.22,
+      tube: 0.05 + governanceLockStrength * 0.01,
       speed: 0.18 + telemetryProjection.runtimeTempo * 0.18,
-      opacity: 0.2 + telemetryProjection.domainDensity * 0.18,
+      opacity: 0.2 + telemetryProjection.domainDensity * 0.18 + governanceLockStrength * 0.12,
       tilt: [1.04, 0.2, 0.08],
     },
     {
       key: "runtime",
-      radius: 3.18,
+      radius: 3.24 - governanceLockStrength * 0.12,
       tube: 0.04,
       speed: -0.22 - telemetryProjection.pulseStrength * 0.26,
-      opacity: 0.16 + telemetryProjection.runtimeTempo * 0.22,
+      opacity: 0.16 + telemetryProjection.runtimeTempo * 0.22 + governanceLockStrength * 0.08,
       tilt: [1.34, -0.22, 0.18],
     },
     {
       key: "planetary",
-      radius: 3.82,
-      tube: 0.035,
+      radius: 3.86,
+      tube: 0.032,
       speed: 0.16 + telemetryProjection.planetActivity * 0.24,
       opacity: 0.12 + telemetryProjection.planetActivity * 0.2,
       tilt: [1.54, 0.16, -0.12],
@@ -300,6 +307,7 @@ export function resolveStarCoreInteriorVisualModel({
   const telemetryProjection = resolveTelemetryProjection(telemetry);
   const theme = selectedConstitution ? resolveThemeFromConstitution(selectedConstitution) : defaultTheme();
   const phaseCopy = resolveStageCopy(phase, interiorModel?.explainability || {});
+  const governanceLockStrength = resolveGovernanceLockStrength(phase);
   const lockScaleBase = phase === "policy_lock_transition" ? 0.92 : phase === "first_orbit_ready" ? 0.88 : 1;
   const lockRingScale = clamp(lockScaleBase - telemetryProjection.criticalLoad * 0.05, 0.82, 1.06);
   const chamberOpacityBase = screenModel?.isEntering || screenModel?.isReturning ? 0.78 : 1;
@@ -324,6 +332,7 @@ export function resolveStarCoreInteriorVisualModel({
     showConstitutionField: phase === "constitution_select" || phase === "policy_lock_ready",
     showLockRing: phase === "policy_lock_ready" || phase === "policy_lock_transition" || phase === "first_orbit_ready",
     showFirstOrbit: phase === "first_orbit_ready",
+    governanceLockStrength,
     lockRingScale,
     chamberOpacity,
     chamberPulseSpeed,
@@ -344,7 +353,7 @@ export function resolveStarCoreInteriorVisualModel({
         : phase === "policy_lock_transition"
           ? "POLICY: LOCKING"
           : "POLICY: DRAFT",
-    astrolabeRings: buildAstrolabeRings(telemetryProjection),
+    astrolabeRings: buildAstrolabeRings(telemetryProjection, governanceLockStrength),
     constitutionGlyphs: createConstitutionGlyphs(constitutionOptions, selectedConstitution?.id || ""),
     metricStreams: buildMetricStreams({ telemetryProjection, telemetry }),
     eventSwarmCount: telemetryProjection.eventHaloCount,
