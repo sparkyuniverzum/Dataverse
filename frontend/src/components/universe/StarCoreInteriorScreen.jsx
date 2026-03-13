@@ -303,6 +303,7 @@ export default function StarCoreInteriorScreen({
     screenModel,
   });
   const foundationOnly = true;
+  const showReactorCore = true;
   const isEntryDive = Boolean(screenModel.isEntering);
   const isPolicyLockPhase = interiorModel.phase === "policy_lock_ready" || interiorModel.isLockPending;
   const lockDisabled =
@@ -364,6 +365,7 @@ export default function StarCoreInteriorScreen({
           screenModel={screenModel}
           astrolabeRotation={astrolabeRotation}
           foundationOnly={foundationOnly}
+          showReactorCore={showReactorCore}
           onSelectConstitution={onSelectConstitution}
         />
       </div>
