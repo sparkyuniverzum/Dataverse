@@ -86,13 +86,13 @@ Nestaci splnit jen cast.
 
 Poradi je linearni:
 
-1. `Blok 1` -> `Blok 2` -> `Blok 3` -> `Blok 4` -> `Blok 5` -> `Blok 6` -> `Blok 7` -> `Blok 8`
+1. `Blok 1` -> `Blok 2` -> `Blok 3`
 
 Pravidlo:
 
 1. dalsi blok se otvira az po zavreni gate predchoziho bloku,
 2. vyjimka vyzaduje explicitni schvaleni uzivatele,
-3. onboarding `Blok 8` je zamerne az na konci, ne na zacatku.
+3. vsechny drive zapsane FE bloky za `Blokem 3` jsou vyradene a nejsou aktivni source of truth.
 
 ## 6. Blok 1: Galaxy Space navigation baseline
 
@@ -180,7 +180,7 @@ Udelat z hvezdy centralni governance anchor uvnitr prostoru galaxie, ale ne z ni
 3. `LOCKED` a `UNLOCKED` se musi lisit prostorove, ne jen copy.
 4. Hvezda nesmi zamknout kameru tak, ze zmizi pocit prostoru galaxie.
 5. Screenshot `Star Core exterior` musi byt produktove presvedcivy i bez vysvetleni.
-6. Aktivni implementace se ma ridit `docs/P0-core/contracts/aktivni/fe/fe-blok-2-implementacni-dokument-v1CZ.md`.
+6. Historicky dukaz implementace je ulozen v `docs/P0-core/contracts/splneno/fe/fe-blok-2-implementacni-dokument-v1CZ.md`.
 
 ### 7.6 Evidence uzavreni
 
@@ -239,7 +239,7 @@ Dodelat skutecne governance-first jadro uvnitr hvezdy jako samostatnou interior 
 6. Aktivni implementace se ma ridit `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`.
 7. FE nesmi byt jediny nositel stavu `constitution_select`, `policy_lock_ready`, `policy_lock_transition` ani `first_orbit_ready`; tyto workflow stavy musi byt nejdriv ukotveny v canonical BE orchestration contractu.
 8. `Star Core interior` nesmi zustat jen jako dalsi zoom uvnitr `Galaxy Space`; musi to byt samostatna pracovni obrazovka.
-9. User-visible interier se ma ridit `docs/P0-core/contracts/aktivni/fe/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md`.
+9. dalsi FE prace se ma ridit pouze aktivnim dokumentem `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`.
 
 ### 8.6 Odchylka vyvoje
 
@@ -264,178 +264,9 @@ Z toho plyne:
 5. nasledny prototyp potvrdil dalsi architektonicke rozhodnuti:
    `Star Core interior` uz nesmi byt drzen jako hloubeji zanořena vrstva uvnitr stejne `Galaxy Space` sceny,
 6. dalsi FE implementace `Bloku 3` musi byt postavena jako samostatna `interior screen`,
-7. dalsi user-visible implementace `Bloku 3` se ma ridit oficialni mapou `Blok 3b Ritual Chamber`.
+7. vsechny drive zapsane FE dokumenty za zacatkem `Bloku 3` jsou vyradene a nesmi se pouzit jako aktivni vykonavaci smer.
 
-## 9. Blok 4: Planet topology and orbit baseline
-
-### 9.1 Ucel
-
-Promitnout planety a jejich radialni logiku do hlavniho prostoru galaxie.
-
-### 9.2 Scope
-
-1. planety nebo jejich orbit sloty,
-2. `constellation` seskupeni,
-3. zakladni vazba na `sector.center`, `sector.size`, `sector.mode`,
-4. diegeticke planet labely,
-5. vizualni fyzika planety z BE.
-
-### 9.3 Mimo scope
-
-1. detailni row editace,
-2. capability detail,
-3. bond builder,
-4. onboarding.
-
-### 9.4 Pripraveny kod z archivu
-
-1. `planetPhysicsParity.js`
-2. `runtimeProjectionPatch.js`
-3. `runtimeDeltaSync.js`
-
-### 9.5 Prisny gate
-
-1. Planety nesmi byt jen nahodne dekorativni body.
-2. Velikost, svit, puls a degradace musi odpovidat BE polim.
-3. Vyber planety musi byt citelny bez otevirani vedlejsiho panelu.
-4. Screenshot `vice planet v prostoru` musi potvrdit skutecnou topologii, ne jeden hero objekt.
-5. Bez validni vazby na `GET /universe/tables` a `planet-physics-runtime` blok neni uzavren.
-
-## 10. Blok 5: Command bar baseline
-
-### 10.1 Ucel
-
-Zavest `command bar` jako rychly, naucitelny a bezpecny operation vstup.
-
-### 10.2 Scope
-
-1. `Ctrl/Cmd+K`,
-2. `Guided`, `Slash`, `Intent text`,
-3. `Plan preview`,
-4. scope lock,
-5. explainability parseru.
-
-### 10.3 Mimo scope
-
-1. plny grid,
-2. builder shell,
-3. onboarding command tutorial.
-
-### 10.4 Pripraveny kod z archivu
-
-1. `commandBarContract.js`
-2. `useCommandBarController.js`
-3. `builderParserCommand.js`
-
-### 10.5 Prisny gate
-
-1. Zadny mutacni command nesmi jit bez `Plan preview`.
-2. FE command syntax nesmi slibovat nic mimo realnou parser schopnost.
-3. Scope, ambiguity a riziko musi byt vysvetleny pred commitem.
-4. Command bar nesmi vizualne zabit hlavni prostor.
-5. Musi existovat focused testy pro preview, scope a execute flow.
-
-## 11. Blok 6: Grid baseline
-
-### 11.1 Ucel
-
-Zavest `grid` jako canonical presny editor reality pro planetu a `civilization`.
-
-### 11.2 Scope
-
-1. otevreni gridu z planet contextu,
-2. grid/canvas sync,
-3. row editace,
-4. zakladni schema lane,
-5. write feedback a convergence signal.
-
-### 11.3 Mimo scope
-
-1. plny visual builder shell,
-2. capability builder,
-3. pokrocile recovery drawers.
-
-### 11.4 Pripraveny kod z archivu
-
-1. `QuickGridOverlay.jsx`
-2. `gridCanvasTruthContract.js`
-3. `selectionContextContract.js`
-
-### 11.5 Prisny gate
-
-1. Grid musi byt rychlejsi nebo stejne rychly jako baseline edit flow.
-2. Grid musi byt canonical editor pro `/civilizations*`.
-3. Otevreni gridu nesmi rozbit selection a orientation v prostoru.
-4. Musi byt jasne, kdy je fokus `grid_planet`, `grid_civilization`, `canvas_planet`, `canvas_civilization`.
-5. Bez focused testu pro `grid/canvas truth` a write feedback se blok neuzavre.
-
-## 12. Blok 7: Builder baseline
-
-### 12.1 Ucel
-
-Spojit prostor, `command bar` a `grid` do jednoho builder systemu nad canonical write surface.
-
-### 12.2 Scope
-
-1. vytvoreni planety,
-2. navazny schema/contract setup,
-3. preview pred commitem,
-4. konvergence `scene + grid + runtime`,
-5. recoverable error stav.
-
-### 12.3 Mimo scope
-
-1. onboarding,
-2. plny tutorial,
-3. branch-specific workflow variance.
-
-### 12.4 Pripraveny kod z archivu
-
-1. `planetBuilderFlow.js`
-2. `planetBuilderUiState.js`
-3. `visualBuilderStateMachine.js`
-4. `builderParserCommand.js`
-
-### 12.5 Prisny gate
-
-1. Builder nesmi zavest paralelni mutacni cestu mimo `/planets*`, `/civilizations*`, `/bonds*`.
-2. Preview a commit musi mit jednu stavovou osu.
-3. Po commitu musi byt potvrzena konvergence prostoru i gridu.
-4. Recoverable error musi vratit uzivatele do posledniho validniho kroku.
-5. Bez screenshotu `pred preview`, `preview`, `po commit konvergenci` blok neni uzavren.
-
-## 13. Blok 8: Onboarding / cinematic wrapper
-
-### 13.1 Ucel
-
-Zabalit hotovy workspace do uvodni vision vrstvy bez rozbiti `work first`.
-
-### 13.2 Scope
-
-1. `Nexus / Galaxy Selector`,
-2. fly-through,
-3. prvni cinematic vstup,
-4. replay volitelny,
-5. defaultne vypnout po prvnim pruchodu.
-
-### 13.3 Mimo scope
-
-1. redefinice hlavniho workspace,
-2. znovuotevirani builder logiky.
-
-### 13.4 Pripraveny kod z archivu
-
-1. pouze inspirace z archivni scene logiky; zadny stary shell se nevraci automaticky.
-
-### 13.5 Prisny gate
-
-1. Onboarding nesmi maskovat slaby workspace.
-2. Musi jit vypnout a zustat vypnuty po prvnim pruchodu.
-3. Replay musi byt explicitni volba.
-4. Reduced-motion varianta je povinna.
-5. Bez hotovych bloku 1-7 se blok 8 neotvira.
-
-## 14. Co se nepocita jako uzavreni bloku
+## 9. Co se nepocita jako uzavreni bloku
 
 1. helper nebo contract bez viditelneho dopadu,
 2. screenshot jedineho hezkeho stavu bez realne interakce,
@@ -444,7 +275,7 @@ Zabalit hotovy workspace do uvodni vision vrstvy bez rozbiti `work first`.
 5. builder bez potvrzene konvergence,
 6. onboarding, ktery nahrazuje chybejici produktovy zaklad.
 
-## 15. Evidence
+## 10. Evidence
 
 Minimalni dukaz:
 
@@ -461,12 +292,12 @@ Vysledek:
 - [x] 2026-03-12 Byla sjednocena aktivni FE pravda pro workspace, builder, command bar a grid.
 - [x] 2026-03-12 Byl zaveden zavazny poradi bloků a tvrde gate pro kazdy blok.
 
-## 16. Co zustava otevrene
+## 11. Co zustava otevrene
 
-- [x] 2026-03-12 Pred prvnim kodovym rezem byl zapsan detailni dokument `fe-kamera-radar-interaction-detail-v1CZ.md`.
+- [x] 2026-03-12 Pred prvnim kodovym rezem byl zapsan detailni dokument `docs/P0-core/contracts/splneno/fe/fe-kamera-radar-interaction-detail-v1CZ.md`.
 - [x] 2026-03-12 Implementacni dokument pro `Blok 1` byl zapsan.
 - [ ] U kazdeho implementacniho bloku navazat screenshot dukaz a focused testy presne podle teto osy.
 - [x] 2026-03-12 `Blok 1` byl oficialne uzavren.
 - [x] 2026-03-12 `Blok 2` byl oficialne uzavren.
 - [ ] Dalsi otevreny blok je `Blok 3`.
-- [x] 2026-03-13 Kvuli docasnemu externimu pozastaveni `Star Core interior` byl pripraven oficialni dokument `docs/P0-core/contracts/aktivni/fe/fe-blok-4-implementacni-dokument-v1CZ.md` jako kontrolovana navazujici vyjimka pro dalsi runtime praci.
+- [x] 2026-03-13 Aktivni FE dokumentace byla vracena na zacatek `Bloku 3`; vsechny navazne FE dokumenty za timto bodem byly vyradeny jako chybny smer.

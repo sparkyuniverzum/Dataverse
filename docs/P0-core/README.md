@@ -23,7 +23,6 @@ Pro pravidla FE spoluprace je jediny kanonicky governance zdroj:
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/backend-mvp-vykonnostni-gate-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/backend-mvp-vykonnostni-gate-v1.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/be-star-core-interior-orchestration-zadani-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/be-star-core-interior-orchestration-zadani-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/be-star-core-interior-endpoint-contract-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/be-star-core-interior-endpoint-contract-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md)
 
 ### UX
 
@@ -41,11 +40,8 @@ Pro pravidla FE spoluprace je jediny kanonicky governance zdroj:
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-vision-v2-spatial-galaxy-entry-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-vision-v2-spatial-galaxy-entry-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-builder-system-galaxy-space-workspace-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-builder-system-galaxy-space-workspace-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-2-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-2-implementacni-dokument-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-3-return-packet-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-3-return-packet-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-reset-ramec-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/command-lexicon-cz-v1CZ.md)
@@ -65,6 +61,7 @@ Do `docs/P0-core/contracts/splneno/` se chodi jen:
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/backend-mvp-requirements-from-canonical-ux-ontology-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/backend-mvp-continuation-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/backend-mvp-continuation-v1.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/predvyvojovy-gate-souhrn-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/predvyvojovy-gate-souhrn-v1.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/be-star-core-interior-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/be-star-core-interior-implementacni-dokument-v1CZ.md)
 
 ### FE Reset
 
@@ -74,14 +71,19 @@ Do `docs/P0-core/contracts/splneno/` se chodi jen:
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-d-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-d-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-priprava-audit-archivu-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-priprava-audit-archivu-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-kamera-radar-interaction-detail-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-kamera-radar-interaction-detail-v1CZ.md)
-- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-1-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/fe/fe-blok-1-implementacni-dokument-v1CZ.md)
+
+### FE
+
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe/fe-kamera-radar-interaction-detail-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe/fe-kamera-radar-interaction-detail-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe/fe-blok-1-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe/fe-blok-1-implementacni-dokument-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe/fe-blok-2-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe/fe-blok-2-implementacni-dokument-v1CZ.md)
 
 ### Historie
 
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-implementation-order-and-slice-1-definition-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-implementation-order-and-slice-1-definition-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-r1-first-view-koncept-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-r1-first-view-koncept-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-r1-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-r1-implementacni-dokument-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-runtime-a-dokumentacni-mapa-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/historie/fe-runtime-a-dokumentacni-mapa-v1CZ.md)
 
 ### Vyrazeno
 
@@ -90,6 +92,11 @@ Do `docs/P0-core/contracts/splneno/` se chodi jen:
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/mineral-contract-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/mineral-contract-v1.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/moon-contract-v1.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/moon-contract-v1.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/planet-builder-mvp-v2.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/planet-builder-mvp-v2.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/fe-blok-3a-star-core-interior-screen-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/fe-blok-3a-star-core-interior-screen-implementacni-dokument-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/fe-blok-4-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/fe-blok-4-implementacni-dokument-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/fe-star-core-interior-ritual-chamber-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/fe-star-core-interior-ritual-chamber-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/modelace_interieru.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/vyrazeno/modelace_interieru.md)
 
 ## Neaktivni EN zdroje
 

@@ -28,12 +28,11 @@ FE:
 
 1. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
 2. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
-3. `docs/P0-core/contracts/aktivni/fe/fe-blok-3a-star-core-interior-screen-implementacni-dokument-v1CZ.md`
 
 BE:
 
 1. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-endpoint-contract-v1CZ.md`
-2. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
+2. `docs/P0-core/contracts/splneno/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
 
 ## 5. Runtime soubory
 
@@ -59,14 +58,13 @@ FE musi pouzit:
 1. FE nesmi znovu vymyslet lokalni workflow truth, pokud ji umi vratit backend.
 2. `constitution_select`, `policy_lock_ready`, `policy_lock_transition`, `first_orbit_ready` se musi cist z `interior` contractu.
 3. `Star Core interior` nesmi zustat jen dalsi zoom uvnitr stejneho `Galaxy Space` canvasu.
-4. `Blok 3a` musi nejdriv oddelit `StarCoreInteriorScreen` shell, transition a return contract od `UniverseCanvas`.
-5. Screenshoty musi pokryt:
+4. Screenshoty musi pokryt:
    - `star_core_interior_entry`
    - `constitution_select`
    - `policy_lock_ready`
    - `policy_lock_transition`
    - `first_orbit_ready`
-6. Focused testy musi pokryt adapter, interior screen state a lock recoverability.
+5. Focused testy musi pokryt adapter, interior screen state a lock recoverability.
 
 ## 8. Otevrene riziko
 

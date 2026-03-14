@@ -113,7 +113,7 @@ Vyrazeno:
 Zdroj pravdy:
 
 1. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-endpoint-contract-v1CZ.md`
-2. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
+2. `docs/P0-core/contracts/splneno/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
 3. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
 
 ### D-006 Interiery nejsou dalsi zoom ve stejnem prostoru

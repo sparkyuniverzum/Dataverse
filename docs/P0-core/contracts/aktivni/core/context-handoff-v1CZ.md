@@ -29,31 +29,32 @@ Pouziti:
 
 ### 2.2 Co je otevrene
 
-1. FE redesign `Bloku 3` na samostatnou `Star Core interior screen`.
-2. Dalsi FE bloky `Blok 4` az `Blok 8`.
-3. Samostatny pozdejsi produktovy bod `logout / navrat do selectoru galaxií`.
+1. FE navrat na zacatek `Bloku 3`.
+2. Samostatny pozdejsi produktovy bod `logout / navrat do selectoru galaxii`.
 
 ### 2.3 Co je blocker
 
 1. Zadny canonical BE blocker pro `Blok 3` uz nezustava.
-2. Otevreny blocker je architektonicky/UX: interior nesmi zustat jen dalsi zoom ve stejnem `Galaxy Space` canvasu.
-3. Dalsi prace na `Bloku 3` musi cist workflow truth z backendu a zaroven oddelit `Galaxy Space` a `Star Core interior` do dvou ruznych pracovnich obrazovek.
+2. Aktivni FE dokumentace byla vracena na zacatek `Bloku 3`; vsechny navazne FE dokumenty za timto bodem jsou vyradene a nejsou source of truth.
+3. Dalsi prace se ma ridit pouze aktivnim `Blokem 3`, ne pozdejsimi odbockami.
 
 ### 2.4 Co je aktivni pravda
 
 FE:
 
-1. `docs/P0-core/contracts/aktivni/fe/fe-master-spec-hlavni-pracovni-prostor-galaxie-v1CZ.md`
-2. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
-3. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
-4. `docs/P0-core/contracts/aktivni/fe/fe-builder-system-galaxy-space-workspace-v1CZ.md`
-5. `docs/P0-core/contracts/aktivni/fe/fe-be-fe-projekcni-mapa-hlavni-pracovni-prostor-v1CZ.md`
+1. `docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md`
+2. `docs/P0-core/contracts/aktivni/fe/fe-master-spec-hlavni-pracovni-prostor-galaxie-v1CZ.md`
+3. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
+4. `docs/P0-core/contracts/aktivni/fe/fe-be-fe-projekcni-mapa-hlavni-pracovni-prostor-v1CZ.md`
+5. `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`
+6. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
+7. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-return-packet-v1CZ.md`
 
 BE:
 
 1. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-orchestration-zadani-v1CZ.md`
 2. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-endpoint-contract-v1CZ.md`
-3. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
+3. `docs/P0-core/contracts/splneno/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
 
 ## 3. Co ignorovat bez explicitni potreby
 
@@ -63,6 +64,6 @@ BE:
 
 ## 4. Dalsi spravny krok
 
-1. Otevrit `packet` pro redesign `Bloku 3`.
-2. Implementovat FE `Blok 3` uz pouze nad `GET /star-core/interior` a navazujicimi canonical endpointy.
-3. Postavit `Star Core interior` jako samostatnou screen surface.
+1. Otevrit FE praci znovu na zacatku `Bloku 3`.
+2. Cist a upravovat jen aktivni dokument `fe-blok-3-implementacni-dokument-v1CZ.md`.
+3. Pozdejsi FE dokumenty za zacatkem `Bloku 3` brat jen jako vyrazenou historii, ne jako aktivni smer.

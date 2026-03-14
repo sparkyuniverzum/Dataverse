@@ -1,6 +1,6 @@
 # FE Blok 3 implementacni dokument v1
 
-Stav: aktivni (redesign na samostatnou `Star Core interior screen`)
+Stav: aktivni (navrat na zacatek `Bloku 3`)
 Datum: 2026-03-12
 Vlastnik: FE architektura + Produktove UX + user-agent governance
 
@@ -35,16 +35,13 @@ Tento dokument vykonava:
 5. `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`
 6. `docs/P0-core/contracts/aktivni/fe/fe-builder-system-galaxy-space-workspace-v1CZ.md`
 7. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-endpoint-contract-v1CZ.md`
-8. `docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
-9. `docs/P0-core/contracts/aktivni/fe/fe-blok-3a-star-core-interior-screen-implementacni-dokument-v1CZ.md`
-10. `docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md`
-11. `docs/P0-core/contracts/aktivni/fe/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md`
+8. `docs/P0-core/contracts/splneno/be/be-star-core-interior-implementacni-dokument-v1CZ.md`
 
 Provadeci pravidlo:
 
-1. samostatny implementacni krok `shell + transition + return contract` je rozpadnut do `Bloku 3a`,
-2. dokud neni `Blok 3a` implementacne zavreny, nesmi se `Blok 3` tvarit jako finalni interior runtime,
-3. user-visible obsah a vizualni kompozice interieru se maji ridit oficialni mapou `Blok 3b Ritual Chamber`.
+1. aktivni source of truth pro dalsi FE praci je znovu jen tento dokument,
+2. vsechny navazne FE dokumenty za zacatkem `Bloku 3` byly vyradene jako chybny smer,
+3. dalsi FE navrh nebo implementace se musi znovu otevrit odsud, ne z pozdejsich odboceni.
 
 ## 2. Ucel bloku
 
@@ -112,7 +109,7 @@ Implementovat:
 
 1. po locku vznik prvni obezne drahy,
 2. signal dalsiho kroku,
-3. navazani na budouci `Blok 4`,
+3. signal dalsiho kroku bez otevreni dalsiho FE bloku,
 4. bez otevreni builderu nebo gridu v tomhle bloku,
 5. interior screen se po potvrzeni uzavira a operator je vracen zpet do `Galaxy Space`.
 
@@ -205,8 +202,6 @@ Pro tento blok je pripraveny kod:
 3. `previewAccessibility.js`
 4. `starCoreTruthAdapter.js`
 5. `planetPhysicsParity.js`
-6. vizualni smer `Ritual Chamber` z `docs/P0-core/contracts/aktivni/fe/fe-star-core-interior-ritual-chamber-v1CZ.md`
-
 V tomto bloku se skutecne maji vratit nebo dale pouzit:
 
 1. `starContract.js`
@@ -274,4 +269,4 @@ Blok 3 se nesmi uzavrit, pokud plati aspon jeden z bodu:
 2. `Galaxy Space` a interior screen se stale perou o pozornost,
 3. `Constitution Select` stale pusobi jako overlay nad vnejsi scenou,
 4. operator nema cit, ze skutecne vstoupil do jine pracovni vrstvy,
-5. user-visible vrstva se neřidi `docs/P0-core/contracts/aktivni/fe/fe-blok-3b-ritual-chamber-implementacni-mapa-v1CZ.md`.
+5. user-visible vrstva se opira o vyrazeny nebo neaktivni FE dokument mimo tento blok.

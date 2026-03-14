@@ -12,6 +12,7 @@ Vlastnik: FE architektura + Produktove UX + user-agent governance
 2. `Star Core interior` je ale docasne pozastaven kvuli externi priprave authored hero objektu,
 3. FE vyvoj se proto nesmi zablokovat na jednom visual hero assetu,
 4. dalsi produktove smysluplny a backend-ready rez je `Planet topology and orbit baseline`.
+5. Od 2026-03-13 plati zavazne zuzeni: `Blok 4` = jen planetarni topologie a nic vic.
 
 Pravidlo:
 
@@ -19,6 +20,7 @@ Pravidlo:
 2. toto je kontrolovana vyjimka v poradi bloků,
 3. po dodani externiho interieroveho assetu se `Blok 3` vrati do aktivni implementace,
 4. `Blok 4` mezitim rozsiruje hlavni `Galaxy Space Workspace` o skutecnou planetarni pracovni topologii.
+5. zadny `grid`, `command bar`, builder ani dalsi operation vrstva se timto blokem neotevira.
 
 ## 1. Vztah k ridicim dokumentum
 
@@ -47,7 +49,7 @@ Dodat prvni skutecnou planetarni topologii uvnitr hlavniho pracovního prostoru 
 2. navazat jejich pozici, velikost a stav na realna data,
 3. udelat z planety citelny pracovni objekt, ne dekorativni bod,
 4. udrzet `Star Core` jako governance kotvu, ale ne jediny nosic cele sceny,
-5. pripravit vizualni a interaction baseline pro dalsi `grid` a builder vrstvu.
+5. dorucit jen topologii, selection a approach bez otevreni dalsich user-visible vrstev.
 
 Trust-repair pravidlo:
 
@@ -101,6 +103,7 @@ V tomto bloku je zakazane implementovat:
 5. capability / `moon` detail,
 6. bond builder,
 7. onboarding cinematic.
+8. jakoukoliv dalsi user-visible operation vrstvu nad ramec topologie.
 
 ## 5. Aktivni soubory pro Blok 4
 

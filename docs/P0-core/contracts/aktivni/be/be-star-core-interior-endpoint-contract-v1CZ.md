@@ -364,7 +364,7 @@ Tento dokument vykonava:
 
 Na tento dokument primo navazuje:
 
-1. [be-star-core-interior-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/aktivni/be/be-star-core-interior-implementacni-dokument-v1CZ.md)
+1. [be-star-core-interior-implementacni-dokument-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/be/be-star-core-interior-implementacni-dokument-v1CZ.md)
 
 Tento dokument je primy blocker/dependency pro:
 

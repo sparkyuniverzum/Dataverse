@@ -13,7 +13,7 @@ Nahrazeno dalsim aktivnim krokem:
 Tento dokument vykonava:
 
 1. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
-2. `docs/P0-core/contracts/aktivni/fe/fe-kamera-radar-interaction-detail-v1CZ.md`
+2. `docs/P0-core/contracts/splneno/fe/fe-kamera-radar-interaction-detail-v1CZ.md`
 3. `docs/P0-core/contracts/aktivni/fe/fe-master-spec-hlavni-pracovni-prostor-galaxie-v1CZ.md`
 4. `docs/P0-core/contracts/aktivni/fe/fe-be-fe-projekcni-mapa-hlavni-pracovni-prostor-v1CZ.md`
 5. `docs/P0-core/contracts/aktivni/fe/fe-be-pravda-a-data-guard-v1CZ.md`
@@ -209,7 +209,7 @@ Minimalni dukaz:
 ```bash
 cd /mnt/c/Projekty/Dataverse
 sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md
-sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-kamera-radar-interaction-detail-v1CZ.md
+sed -n '1,260p' docs/P0-core/contracts/splneno/fe/fe-kamera-radar-interaction-detail-v1CZ.md
 sed -n '1,260p' docs/P0-core/contracts/aktivni/fe/fe-master-spec-hlavni-pracovni-prostor-galaxie-v1CZ.md
 sed -n '1,260p' frontend/src/_inspiration_reset_20260312/components/universe/UniverseCanvas.jsx
 sed -n '1,260p' frontend/src/_inspiration_reset_20260312/components/universe/cameraPilotMath.js
