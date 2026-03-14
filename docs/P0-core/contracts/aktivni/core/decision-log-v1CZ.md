@@ -157,6 +157,29 @@ Zdroj pravdy:
 1. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
 2. `docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md`
 
+### D-008 R3F Lab je povolena oddelena vyjimka z FE stop stavu
+
+Datum: 2026-03-14
+Stav: aktivni
+
+Rozhodnuti:
+
+1. obecny FE stop stav zustava v platnosti pro produktovy FE runtime a navazujici interierove bloky,
+2. `R3F Lab` je povolen jako oddelena dev-only vyjimka,
+3. tato vyjimka je povolena proto, ze `R3F Lab` je povazovan za klicovy enablement bod pro dalsi realizaci projektu,
+4. `R3F Lab` se vede oddelene od produktoveho FE vyvoje a nesmi byt vykladan jako znovuotevreni `Bloku 3`,
+5. povoleny rozsah teto vyjimky je omezen na internI harness, preset contract, diagnostiku a navazne R3F experimenty podle aktivnich lab dokumentu.
+
+Vyrazeno:
+
+1. predstava, ze povoleni `R3F Lab` automaticky zveda stop stav pro ostatni FE bloky.
+
+Zdroj pravdy:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-r3f-lab-v1CZ.md`
+2. `docs/P0-core/contracts/aktivni/fe/fe-r3f-lab-implementacni-dokument-v1CZ.md`
+3. `docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md`
+
 ## 3. Pravidlo pouziti
 
 1. Pri beznem navrhu a implementaci se tento log cte pred navratem ke starsim diskusim.

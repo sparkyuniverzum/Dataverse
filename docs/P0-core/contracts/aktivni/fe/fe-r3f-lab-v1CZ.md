@@ -1,6 +1,6 @@
 # FE R3F Lab v1
 
-Stav: aktivni priprava + navrh (bez implementace)
+Stav: aktivni priprava + navrh (povolena oddelena cesta mimo obecny FE stop stav)
 Datum: 2026-03-14
 Vlastnik: FE architektura + UX governance + user-agent governance
 
@@ -10,6 +10,7 @@ Vlastnik: FE architektura + UX governance + user-agent governance
 - [x] 2026-03-14 Byl urcen minimalni scope `v1`, red lines, architektura a file plan.
 - [x] 2026-03-14 Byla zapsana reuse mapa pro pripravene archivni helpery souvisejici s R3F harness vrstvou.
 - [x] 2026-03-14 Bylo explicitne potvrzeno, ze tento dokument neni povoleni k implementaci a respektuje aktivni pozastaveni FE vyvoje.
+- [x] 2026-03-14 Byla zapsana explicitni vyjimka, ze `R3F Lab` je povolena oddelena dev-only cesta mimo obecny FE stop stav.
 
 ## 2. Proc to vzniklo
 
@@ -34,10 +35,11 @@ Tato cast je zavazna priprava pro pripadne budouci znovuotevreni.
 ### 3.1 Zavazne podminky
 
 1. `R3F Lab` je interni dev-only nastroj, ne nova produktova surface.
-2. `R3F Lab` nesmi obchazet aktivni FE stop stav z `D-007`; bez noveho rozhodnuti se neimplementuje.
+2. `R3F Lab` je explicitne povolena oddelena vyjimka z obecneho FE stop stavu podle `D-008`.
 3. `R3F Lab` musi byt `config-driven`; nesmi serializovat raw `three.js` objekty ani React refy.
 4. Produkcni scene komponenty nesmi dostat primou zavislost na debug GUI knihovne.
 5. `R3F Lab` nesmi vytvaret druhy zdroj pravdy pro `Galaxy Space` nebo `Star Core`.
+6. Tato vyjimka neotvira `Blok 3` ani zadny jiny produktovy FE blok.
 
 ### 3.2 Mimo scope
 

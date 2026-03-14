@@ -17,7 +17,8 @@ Do odvolani je povoleno jen:
 
 1. audit stavu,
 2. evidence blockeru,
-3. priprava podminek pro eventualni obnoveni.
+3. priprava podminek pro eventualni obnoveni,
+4. oddelena vyjimka `R3F Lab`, pokud je explicitne vedena pres vlastni aktivni dokumenty a neni vykladana jako obnoveni `Bloku 3`.
 
 Do odvolani je zakazano:
 
