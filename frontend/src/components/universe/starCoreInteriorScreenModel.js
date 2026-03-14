@@ -1,5 +1,6 @@
 export const STAR_CORE_INTERIOR_REDUCED_MOTION_DURATION_MS = 40;
 export const STAR_CORE_INTERIOR_ENTRY_DURATION_MS = 760;
+export const STAR_CORE_INTERIOR_LOCK_TRANSITION_DURATION_MS = 420;
 export const STAR_CORE_INTERIOR_RETURN_DURATION_MS = 280;
 
 export function createInitialStarCoreInteriorScreenState() {

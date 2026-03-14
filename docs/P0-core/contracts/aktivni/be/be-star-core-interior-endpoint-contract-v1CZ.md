@@ -43,7 +43,19 @@ Ucel:
 2. read model pro FE `Blok 3`,
 3. bez nutnosti, aby FE skladal workflow z `policy + physics + runtime`.
 
-### 3.2 Constitution command
+### 3.2 Interior entry command
+
+Zavest novy explicitni command endpoint:
+
+1. `POST /galaxies/{galaxy_id}/star-core/interior/entry/start`
+
+Ucel:
+
+1. canonical potvrzeni vstupu do interieru,
+2. server-side zapis zacatku `star_core_interior_entry`,
+3. navrat aktualniho interior read modelu bez FE odvozovani vstupni faze.
+
+### 3.3 Constitution command
 
 Zavest novy explicitni command endpoint:
 
@@ -56,7 +68,7 @@ Ucel:
 3. priprava `policy_lock_ready`,
 4. explainability proc je nebo neni lock povoleny.
 
-### 3.3 Policy lock command
+### 3.4 Policy lock command
 
 Zachovat canonical command:
 
@@ -148,7 +160,8 @@ Canonical hodnoty:
 Zakaz:
 
 1. FE nesmi zavest dalsi finalni workflow faze bez BE kontraktu,
-2. FE nesmi sam odvozovat `policy_lock_ready`.
+2. FE nesmi sam odvozovat `policy_lock_ready`,
+3. FE nesmi spoustet `star_core_interior_entry` bez canonical BE commandu.
 
 ### 4.4 Povoleny `lock_transition_state`
 
@@ -162,9 +175,14 @@ Canonical hodnoty:
 Semantika:
 
 1. `idle` = lock jeste nebezi,
-2. `request_accepted` = command byl prijat, ale jeste neni canonical `locked`,
+2. `request_accepted` = rezervovana hodnota pro budouci asynchronni potvrzeni,
 3. `locked` = policy truth je potvrzena jako `locked`,
-4. `failed` = lock neprosel a FE musi dostat explainability.
+4. `failed` = rezervovana hodnota pro budouci explicitni failure branch s explainability.
+
+Poznamka k aktualni runtime implementaci:
+
+1. dnes jsou realne vracene hodnoty `idle` a `locked`,
+2. `request_accepted` a `failed` zustavaji soucasti kontraktu, ale runtime je zatim neposila.
 
 ## 5. Constitution catalog
 
@@ -278,12 +296,35 @@ Zakaz:
 
 Response endpointu `policy/lock` muze zustat `StarCorePolicyPublic`, ale BE musi po uspesnem commandu zaroven zajistit, ze:
 
-1. `GET /star-core/interior` vrati `lock_transition_state = "locked"`,
-2. `interior_phase = "first_orbit_ready"`,
-3. `first_orbit_ready = true`,
-4. `next_action` ukazuje dalsi prostorovy krok.
+1. bezprostredni `GET /star-core/interior` vrati kratke canonical prechodove okno `interior_phase = "policy_lock_transition"`,
+2. v tomto okne vrati `lock_transition_state = "locked"`,
+3. po dobehnuti prechodoveho okna vrati `interior_phase = "first_orbit_ready"`,
+4. `first_orbit_ready = true` zustava canonical potvrzenim, ze governance lock uz konvergoval,
+5. `next_action` ukazuje dalsi prostorovy krok.
 
-## 8. Stavove prechody
+## 8. Interior entry command napojeni
+
+### 8.1 Request
+
+`POST /galaxies/{galaxy_id}/star-core/interior/entry/start`
+
+```json
+{
+  "idempotency_key": "uuid-or-client-key"
+}
+```
+
+### 8.2 Response a navaznost
+
+Response endpointu vraci stejny interior read model jako `GET /star-core/interior`.
+
+Minimalni povinnost:
+
+1. `interior_phase = "star_core_interior_entry"` po dobu kratkeho canonical okna od `interior_entry_started_at`,
+2. `next_action` a `explainability` musi vysvetlit, ze vstup se prave stabilizuje,
+3. po dobehnuti okna se `GET /star-core/interior` sam vrati do `constitution_select`, pokud jeste neexistuje locked stav.
+
+## 9. Stavove prechody
 
 Canonical workflow:
 
@@ -306,57 +347,68 @@ Zakaz:
 1. `first_orbit_ready` nesmi vzniknout jen z FE optimismu,
 2. `policy_lock_transition` nesmi byt jen lokalni animacni domnenka bez BE potvrzeni.
 
-## 9. Presne implementacni kroky na BE
+## 10. Presne implementacni kroky na BE
 
-### 9.1 Krok A: schema a public model
+### 10.1 Krok A: schema a public model
 
 1. doplnit nove Pydantic schema pro interior read model,
-2. doplnit schema pro constitution select command,
+2. doplnit schema pro `interior/entry/start` a `constitution/select` command,
 3. sjednotit naming do `app/schema_models/star_core.py`.
 
-### 9.2 Krok B: constitution catalog
+### 10.2 Krok B: constitution catalog
 
 1. zavest canonical server-side katalog 4 ustav,
 2. drzet mapovani `constitution_id -> profile/policy/physics`,
 3. pridat explainability metadata pro FE.
 
-### 9.3 Krok C: read query
+### 10.3 Krok C: read query
 
 1. implementovat query `get_star_core_interior(...)`,
 2. skladat ji nad existujici `policy`, `physics`, `runtime`, `pulse`, `domain metrics`,
-3. vracet `interior_phase`, `lock_ready`, `lock_blockers`, `next_action`.
+3. vracet `interior_phase`, `lock_ready`, `lock_blockers`, `next_action`,
+4. odvozovat `star_core_interior_entry` z nedavneho `interior_entry_started_at`,
+5. odvozovat `policy_lock_transition` z nedavneho `locked_at`.
 
-### 9.4 Krok D: select command
+### 10.4 Krok D: entry command
+
+1. implementovat `start_interior_entry(...)`,
+2. zapisovat `interior_entry_started_at` do canonical `StarCorePolicyRM`,
+3. podporit `idempotency_key`,
+4. vratit aktualni interior read model.
+
+### 10.5 Krok E: select command
 
 1. implementovat `select_star_core_constitution(...)`,
 2. validovat vyber,
 3. vratit aktualizovany interior read model,
 4. podporit `idempotency_key`.
 
-### 9.5 Krok E: lock orchestration
+### 10.6 Krok F: lock orchestration
 
 1. napojit `policy/lock` na selected constitution,
 2. po successful locku prepocitat interior read model,
-3. vratit `first_orbit_ready`.
+3. vratit nejdriv kratke canonical okno `policy_lock_transition`,
+4. nasledne vratit `first_orbit_ready`.
 
-### 9.6 Krok F: error a explainability
+### 10.7 Krok G: error a explainability
 
 1. zavedeni canonical `code`,
 2. operator-readable `message`,
 3. `explainability` pro FE bez domysleni.
 
-## 10. Hard gate
+## 11. Hard gate
 
 Tento BE blok se nesmi oznacit za uzavreny, pokud:
 
 1. neexistuje `GET /galaxies/{galaxy_id}/star-core/interior`,
-2. neexistuje explicitni `constitution/select` command,
-3. FE stale musi skladat `policy_lock_ready` sam,
-4. `selected_constitution_id` neni canonical server-side pravda,
-5. neni jasne odliseno `request_accepted` vs `locked`,
-6. `first_orbit_ready` nevznika z BE potvrzeni.
+2. neexistuje explicitni `interior/entry/start` command,
+3. neexistuje explicitni `constitution/select` command,
+4. FE stale musi skladat `policy_lock_ready` sam,
+5. `selected_constitution_id` neni canonical server-side pravda,
+6. neni jasne odliseno `idle` vs `locked` v aktualni runtime implementaci,
+7. `first_orbit_ready` nevznika z BE potvrzeni.
 
-## 11. Evidence a navaznost
+## 12. Evidence a navaznost
 
 Tento dokument vykonava:
 

@@ -118,7 +118,29 @@ def test_star_core_interior_read_model_requires_constitution_before_lock() -> No
     assert payload["lock_blockers"] == []
 
 
-def test_star_core_interior_read_model_reports_first_orbit_ready_after_lock() -> None:
+def test_star_core_interior_read_model_reports_entry_phase_when_recent_start_exists() -> None:
+    now = datetime.now(UTC)
+    payload = StarCoreService.build_interior_read_model(
+        galaxy_id=uuid.uuid4(),
+        policy={
+            "profile_key": "UNKNOWN",
+            "law_preset": "balanced",
+            "physical_profile_key": "UNKNOWN",
+            "physical_profile_version": 1,
+            "lock_status": "draft",
+            "policy_version": 1,
+            "interior_entry_started_at": now - timedelta(milliseconds=120),
+        },
+        now=now,
+    )
+
+    assert payload["interior_phase"] == "star_core_interior_entry"
+    assert payload["lock_ready"] is False
+    assert payload["next_action"]["action_key"] == "stabilize_core_entry"
+
+
+def test_star_core_interior_read_model_reports_lock_transition_soon_after_lock() -> None:
+    now = datetime.now(UTC)
     payload = StarCoreService.build_interior_read_model(
         galaxy_id=uuid.uuid4(),
         policy={
@@ -128,7 +150,30 @@ def test_star_core_interior_read_model_reports_first_orbit_ready_after_lock() ->
             "physical_profile_version": 1,
             "lock_status": "locked",
             "policy_version": 3,
+            "locked_at": now - timedelta(milliseconds=120),
         },
+        now=now,
+    )
+
+    assert payload["interior_phase"] == "policy_lock_transition"
+    assert payload["lock_transition_state"] == "locked"
+    assert payload["first_orbit_ready"] is True
+
+
+def test_star_core_interior_read_model_reports_first_orbit_ready_after_lock() -> None:
+    now = datetime.now(UTC)
+    payload = StarCoreService.build_interior_read_model(
+        galaxy_id=uuid.uuid4(),
+        policy={
+            "profile_key": "ARCHIVE",
+            "law_preset": "low_activity",
+            "physical_profile_key": "ARCHIVE",
+            "physical_profile_version": 1,
+            "lock_status": "locked",
+            "policy_version": 3,
+            "locked_at": now - timedelta(seconds=2),
+        },
+        now=now,
     )
 
     assert payload["interior_phase"] == "first_orbit_ready"

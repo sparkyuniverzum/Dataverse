@@ -52,6 +52,14 @@ def plan_select_interior_constitution(*, constitution_id: str) -> StarCoreComman
     )
 
 
+def plan_start_interior_entry() -> StarCoreCommandPlan:
+    return StarCoreCommandPlan(
+        request_payload={
+            "action": "start_interior_entry",
+        }
+    )
+
+
 def plan_migrate_physics_profile(
     *,
     from_version: int,
@@ -128,6 +136,26 @@ async def select_interior_constitution(
         raise mapped from exc
 
 
+async def start_interior_entry(
+    *,
+    session: AsyncSession,
+    services: Any,
+    user_id: UUID,
+    galaxy_id: UUID,
+) -> dict[str, Any]:
+    try:
+        return await services.star_core_service.start_interior_entry(
+            session=session,
+            user_id=user_id,
+            galaxy_id=galaxy_id,
+        )
+    except Exception as exc:
+        mapped = _map_service_exception(exc)
+        if mapped is None:
+            raise
+        raise mapped from exc
+
+
 async def migrate_physics_profile(
     *,
     session: AsyncSession,
@@ -189,6 +217,8 @@ __all__ = [
     "plan_migrate_physics_profile",
     "plan_outbox_run_once",
     "plan_select_interior_constitution",
+    "plan_start_interior_entry",
     "run_outbox_once",
     "select_interior_constitution",
+    "start_interior_entry",
 ]

@@ -77,6 +77,10 @@ class StarCoreInteriorPublic(BaseModel):
     source_truth: StarCoreInteriorSourceTruthPublic
 
 
+class StarCoreInteriorEntryStartRequest(BaseModel):
+    idempotency_key: str | None = None
+
+
 class StarCoreInteriorConstitutionSelectRequest(BaseModel):
     constitution_id: str = Field(min_length=2, max_length=32)
     idempotency_key: str | None = None

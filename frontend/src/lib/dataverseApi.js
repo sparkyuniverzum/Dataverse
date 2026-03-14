@@ -585,6 +585,10 @@ export function buildStarCoreInteriorUrl(apiBase, galaxyId) {
   return `${apiBase}/galaxies/${galaxyId}/star-core/interior`;
 }
 
+export function buildStarCoreInteriorEntryStartUrl(apiBase, galaxyId) {
+  return `${apiBase}/galaxies/${galaxyId}/star-core/interior/entry/start`;
+}
+
 export function buildStarCoreInteriorConstitutionSelectUrl(apiBase, galaxyId) {
   return `${apiBase}/galaxies/${galaxyId}/star-core/interior/constitution/select`;
 }

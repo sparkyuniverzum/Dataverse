@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -18,6 +18,8 @@ from app.services.universe_service import UniverseService
 
 
 class StarCoreService:
+    _INTERIOR_ENTRY_PHASE_WINDOW = timedelta(milliseconds=650)
+    _POLICY_LOCK_TRANSITION_WINDOW = timedelta(milliseconds=360)
     _PROFILE_PRESETS: dict[str, str] = {
         "ORIGIN": "balanced",
         "FLUX": "high_throughput",
@@ -191,8 +193,10 @@ class StarCoreService:
         *,
         galaxy_id: UUID,
         policy: Mapping[str, Any] | None,
+        now: datetime | None = None,
     ) -> dict[str, Any]:
         source_truth = dict(policy or {})
+        resolved_now = now if isinstance(now, datetime) else datetime.now(UTC)
         selected_constitution_id = cls._constitution_id_from_policy(source_truth)
         recommended_constitution_id = cls._RECOMMENDED_CONSTITUTION_ID
         lock_status = str(source_truth.get("lock_status") or "draft").strip().lower() or "draft"
@@ -203,11 +207,49 @@ class StarCoreService:
         )
         source_physical_profile_version = max(1, int(source_truth.get("physical_profile_version") or 1))
         first_orbit_ready = lock_status == "locked"
+        interior_entry_started_at = cls._coerce_datetime(source_truth.get("interior_entry_started_at"))
+        locked_at = cls._coerce_datetime(source_truth.get("locked_at"))
+        entry_phase_active = cls._is_recent_transition(
+            started_at=interior_entry_started_at,
+            now=resolved_now,
+            window=cls._INTERIOR_ENTRY_PHASE_WINDOW,
+        )
+        lock_transition_active = first_orbit_ready and cls._is_recent_transition(
+            started_at=locked_at,
+            now=resolved_now,
+            window=cls._POLICY_LOCK_TRANSITION_WINDOW,
+        )
 
-        if first_orbit_ready:
-            interior_phase = "first_orbit_ready"
+        if entry_phase_active:
+            interior_phase = "star_core_interior_entry"
             lock_ready = False
             lock_blockers: list[str] = []
+            lock_transition_state = "idle"
+            next_action = {
+                "action_key": "stabilize_core_entry",
+                "label_cz": "Stabilizuji vstup do Srdce hvězdy",
+            }
+            explainability = {
+                "headline_cz": "Vstup do Srdce hvězdy se stabilizuje.",
+                "body_cz": "Přechod do governance komory právě ustaluje vrstvy plazmy a orientaci operátora.",
+            }
+        elif lock_transition_active:
+            interior_phase = "policy_lock_transition"
+            lock_ready = False
+            lock_blockers = []
+            lock_transition_state = "locked"
+            next_action = {
+                "action_key": "stabilize_first_orbit",
+                "label_cz": "Dokončuji přechod k první orbitě",
+            }
+            explainability = {
+                "headline_cz": "Politiky se fyzicky uzamykají.",
+                "body_cz": "Governance prstenec dosedá do finální polohy a připravuje první orbitu.",
+            }
+        elif first_orbit_ready:
+            interior_phase = "first_orbit_ready"
+            lock_ready = False
+            lock_blockers = []
             lock_transition_state = "locked"
             next_action = {
                 "action_key": "review_first_orbit",
@@ -364,6 +406,7 @@ class StarCoreService:
                 "branch_scope_supported": True,
                 "lock_status": "draft",
                 "policy_version": 1,
+                "interior_entry_started_at": None,
                 "locked_at": None,
                 "can_edit_core_laws": True,
             }
@@ -388,9 +431,32 @@ class StarCoreService:
             "branch_scope_supported": bool(row.branch_scope_supported),
             "lock_status": lock_status,
             "policy_version": max(1, int(row.policy_version or 1)),
+            "interior_entry_started_at": getattr(row, "interior_entry_started_at", None),
             "locked_at": row.locked_at,
             "can_edit_core_laws": lock_status != "locked",
         }
+
+    @staticmethod
+    def _coerce_datetime(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+        if isinstance(value, str):
+            normalized = value.strip()
+            if not normalized:
+                return None
+            try:
+                parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+            return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+        return None
+
+    @staticmethod
+    def _is_recent_transition(*, started_at: datetime | None, now: datetime, window: timedelta) -> bool:
+        if started_at is None:
+            return False
+        age = now - started_at
+        return timedelta(0) <= age <= window
 
     async def get_policy(
         self,
@@ -422,6 +488,38 @@ class StarCoreService:
             galaxy_id=galaxy_id,
         )
         return self.build_interior_read_model(galaxy_id=galaxy_id, policy=policy)
+
+    async def start_interior_entry(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        galaxy_id: UUID,
+    ) -> dict[str, Any]:
+        row = (
+            await session.execute(
+                select(StarCorePolicyRM)
+                .where(
+                    StarCorePolicyRM.user_id == user_id,
+                    StarCorePolicyRM.galaxy_id == galaxy_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            row = StarCorePolicyRM(user_id=user_id, galaxy_id=galaxy_id)
+            session.add(row)
+            await session.flush()
+
+        now = datetime.now(UTC)
+        row.interior_entry_started_at = now
+        row.updated_at = now
+        await session.flush()
+        return self.build_interior_read_model(
+            galaxy_id=galaxy_id,
+            policy=self._serialize_policy_row(row=row),
+            now=now,
+        )
 
     async def select_interior_constitution(
         self,

@@ -177,21 +177,24 @@ Minimalni rozhodovaci pravidla:
 Pro Blok 3 je povinna tato pravda:
 
 1. `GET /galaxies/{galaxy_id}/star-core/interior`
-2. `POST /galaxies/{galaxy_id}/star-core/interior/constitution/select`
-3. `POST /galaxies/{galaxy_id}/star-core/policy/lock`
-4. `GET /galaxies/{galaxy_id}/star-core/policy`
-5. `GET /galaxies/{galaxy_id}/star-core/physics/profile`
+2. `POST /galaxies/{galaxy_id}/star-core/interior/entry/start`
+3. `POST /galaxies/{galaxy_id}/star-core/interior/constitution/select`
+4. `POST /galaxies/{galaxy_id}/star-core/policy/lock`
+5. `GET /galaxies/{galaxy_id}/star-core/policy`
+6. `GET /galaxies/{galaxy_id}/star-core/physics/profile`
 
 Implementacni pravidla:
 
 1. `law_preset`, `profile_key`, `profile_mode` a `can_edit_core_laws` musi ridit nabidku `Constitution Select`,
-2. FE nesmi pred lockem kreslit `LOCKED`,
-3. `Policy Lock` musi jit pres canonical endpoint, zadny lokalni fake commit,
-4. pri chybe locku musi zustat stav obnovitelny a vysvetleny,
-5. `First Orbit` se zobrazi jen po realnem potvrzeni locku,
-6. FE nesmi byt finalni autorita workflow fazi interieru,
-7. interior screen muze mit jen tenkou lokalni UI vrstvu (`isOpen`, `transition`, recoverable error), ne canonical workflow pravdu,
-8. `Galaxy Space` a `Star Core interior` musi byt renderove i mentalne oddelene.
+2. FE nesmi otevrit `star_core_interior_entry` bez uspesneho `POST /star-core/interior/entry/start`,
+3. FE nesmi pred lockem kreslit `LOCKED`,
+4. `Policy Lock` musi jit pres canonical endpoint, zadny lokalni fake commit,
+5. pri chybe locku musi zustat stav obnovitelny a vysvetleny,
+6. `First Orbit` se zobrazi jen po realnem potvrzeni locku,
+7. FE nesmi byt finalni autorita workflow fazi interieru,
+8. interior screen muze mit jen tenkou lokalni UI vrstvu (`isOpen`, `transition`, recoverable error), ne canonical workflow pravdu,
+9. lokalni transient smi slouzit jen pro kratke screen-stage mezikroky a musi se po dobehnuti vratit k nove nactene BE pravde,
+10. `Galaxy Space` a `Star Core interior` musi byt renderove i mentalne oddelene.
 
 ## 8. Pripraveny kod z archivu
 

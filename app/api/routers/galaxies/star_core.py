@@ -31,8 +31,10 @@ from app.domains.star_core.commands import (
     plan_migrate_physics_profile,
     plan_outbox_run_once,
     plan_select_interior_constitution,
+    plan_start_interior_entry,
     run_outbox_once,
     select_interior_constitution as select_interior_constitution_command,
+    start_interior_entry as start_interior_entry_command,
 )
 from app.domains.star_core.queries import (
     StarCoreQueryError,
@@ -52,6 +54,7 @@ from app.modules.auth.dependencies import get_current_user
 from app.schemas import (
     StarCoreDomainMetricsResponse,
     StarCoreInteriorConstitutionSelectRequest,
+    StarCoreInteriorEntryStartRequest,
     StarCoreInteriorPublic,
     StarCoreOutboxRunOnceRequest,
     StarCoreOutboxRunOnceResponse,
@@ -129,6 +132,55 @@ async def star_core_interior(
     except StarCoreQueryError as exc:
         raise _query_to_http_exception(exc) from exc
     return StarCoreInteriorPublic.model_validate(interior)
+
+
+@router.post(
+    "/galaxies/{galaxy_id}/star-core/interior/entry/start",
+    response_model=StarCoreInteriorPublic,
+    status_code=status.HTTP_200_OK,
+)
+async def star_core_interior_entry_start(
+    galaxy_id: UUID,
+    payload: StarCoreInteriorEntryStartRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    services: ServiceContainer = Depends(get_service_container),
+) -> StarCoreInteriorPublic:
+    plan = plan_start_interior_entry()
+    target_galaxy_id, _ = await resolve_galaxy_scope(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=galaxy_id,
+    )
+
+    async def execute_scoped(target_scope_galaxy_id: UUID, _: UUID | None) -> StarCoreInteriorPublic:
+        try:
+            interior = await start_interior_entry_command(
+                session=session,
+                services=services,
+                user_id=current_user.id,
+                galaxy_id=target_scope_galaxy_id,
+            )
+        except StarCoreCommandError as exc:
+            raise _command_to_http_exception(exc) from exc
+        return StarCoreInteriorPublic.model_validate(interior)
+
+    return await run_scoped_idempotent(
+        session=session,
+        current_user=current_user,
+        services=services,
+        galaxy_id=target_galaxy_id,
+        branch_id=None,
+        endpoint_key="POST:/galaxies/{galaxy_id}/star-core/interior/entry/start",
+        idempotency_key=payload.idempotency_key,
+        request_payload=plan.request_payload,
+        execute=execute_scoped,
+        replay_loader=StarCoreInteriorPublic.model_validate,
+        response_dumper=lambda response: response.model_dump(mode="json"),
+        empty_response_detail="Star-core interior entry start failed",
+        resolved_scope=(target_galaxy_id, None),
+    )
 
 
 @router.post(

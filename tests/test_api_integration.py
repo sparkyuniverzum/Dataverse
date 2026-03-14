@@ -1981,6 +1981,21 @@ def test_star_core_interior_read_and_select_endpoints_return_canonical_shape(
     assert after_body["lock_ready"] is True
 
 
+def test_star_core_interior_entry_start_returns_entry_phase(
+    auth_client: tuple[httpx.Client, str],
+) -> None:
+    client, galaxy_id = auth_client
+
+    entry_start = client.post(
+        f"/galaxies/{galaxy_id}/star-core/interior/entry/start",
+        json={"idempotency_key": f"star-core-entry-start-{uuid.uuid4()}"},
+    )
+    assert entry_start.status_code == 200, entry_start.text
+    entry_body = entry_start.json()
+    assert entry_body["interior_phase"] == "star_core_interior_entry"
+    assert entry_body["next_action"]["action_key"] == "stabilize_core_entry"
+
+
 def test_star_core_interior_constitution_select_replays_with_idempotency_key(
     auth_client: tuple[httpx.Client, str],
 ) -> None:
@@ -2045,7 +2060,7 @@ def test_star_core_policy_lock_rejects_selection_mismatch_and_sets_first_orbit_r
     interior_after = client.get(f"/galaxies/{galaxy_id}/star-core/interior")
     assert interior_after.status_code == 200, interior_after.text
     after_body = interior_after.json()
-    assert after_body["interior_phase"] == "first_orbit_ready"
+    assert after_body["interior_phase"] == "policy_lock_transition"
     assert after_body["lock_transition_state"] == "locked"
     assert after_body["first_orbit_ready"] is True
 

@@ -66,6 +66,9 @@ class StarCorePolicyRM(Base):
     )
     lock_status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'draft'"))
     policy_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+    interior_entry_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     locked_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

@@ -72,6 +72,41 @@ function mockWorkspaceFetch({
     if (url.includes("/star-core/policy/lock")) {
       return createJsonResponse({ ok: true });
     }
+    if (url.includes("/star-core/interior/entry/start")) {
+      return createJsonResponse({
+        interior_phase: "star_core_interior_entry",
+        selected_constitution_id: null,
+        available_constitutions: [
+          {
+            constitution_id: "rovnovaha",
+            title_cz: "Rovnováha",
+            summary_cz: "Stabilní režim",
+            visual_tone: "balanced_blue",
+            profile_key: "ORIGIN",
+            law_preset: "balanced",
+            physical_profile_key: "BALANCE",
+            physical_profile_version: 1,
+            recommended: true,
+            lock_allowed: true,
+          },
+        ],
+        lock_ready: false,
+        lock_blockers: [],
+        lock_transition_state: "idle",
+        first_orbit_ready: false,
+        next_action: { action_key: "stabilize_core_entry", label_cz: "Stabilizuji vstup do Srdce hvězdy" },
+        explainability: {
+          headline_cz: "Vstup do Srdce hvězdy se stabilizuje.",
+          body_cz: "Přechod do governance komory právě ustaluje vrstvy plazmy.",
+        },
+        source_truth: {
+          profile_key: "ORIGIN",
+          law_preset: "balanced",
+          physical_profile_key: "BALANCE",
+          physical_profile_version: 1,
+        },
+      });
+    }
     if (url.includes("/star-core/interior/constitution/select")) {
       return createJsonResponse(
         interior || {
@@ -254,6 +289,7 @@ describe("UniverseWorkspace", () => {
     await waitFor(() => {
       expect(screen.getByTestId("star-core-interior-screen")).toBeTruthy();
       expect(screen.getByTestId("screen-stage").textContent).toBe("entering");
+      expect(screen.getByTestId("screen-phase").textContent).toBe("star_core_interior_entry");
     });
     await waitFor(() => {
       expect(screen.getByTestId("screen-stage").textContent).toBe("active");
@@ -273,6 +309,7 @@ describe("UniverseWorkspace", () => {
 
   it("locks via canonical endpoint from interior screen", async () => {
     let lockSeen = false;
+    let lockedInteriorReads = 0;
 
     fetch.mockImplementation(async (input, init) => {
       const url = String(input || "");
@@ -282,6 +319,41 @@ describe("UniverseWorkspace", () => {
         expect(payload.profile_key).toBe("ORIGIN");
         expect(payload.physical_profile_key).toBe("BALANCE");
         return createJsonResponse({ ok: true });
+      }
+      if (url.includes("/star-core/interior/entry/start")) {
+        return createJsonResponse({
+          interior_phase: "star_core_interior_entry",
+          selected_constitution_id: null,
+          available_constitutions: [
+            {
+              constitution_id: "rovnovaha",
+              title_cz: "Rovnováha",
+              summary_cz: "Stabilní režim",
+              visual_tone: "balanced_blue",
+              profile_key: "ORIGIN",
+              law_preset: "balanced",
+              physical_profile_key: "BALANCE",
+              physical_profile_version: 1,
+              recommended: true,
+              lock_allowed: true,
+            },
+          ],
+          lock_ready: false,
+          lock_blockers: [],
+          lock_transition_state: "idle",
+          first_orbit_ready: false,
+          next_action: { action_key: "stabilize_core_entry", label_cz: "Stabilizuji vstup do Srdce hvězdy" },
+          explainability: {
+            headline_cz: "Vstup do Srdce hvězdy se stabilizuje.",
+            body_cz: "Přechod do governance komory právě ustaluje vrstvy plazmy.",
+          },
+          source_truth: {
+            profile_key: "ORIGIN",
+            law_preset: "balanced",
+            physical_profile_key: "BALANCE",
+            physical_profile_version: 1,
+          },
+        });
       }
       if (url.includes("/star-core/interior/constitution/select")) {
         return createJsonResponse({
@@ -318,23 +390,47 @@ describe("UniverseWorkspace", () => {
       if (url.includes("/star-core/interior")) {
         return createJsonResponse(
           lockSeen
-            ? {
-                interior_phase: "first_orbit_ready",
-                selected_constitution_id: "rovnovaha",
-                available_constitutions: [],
-                lock_ready: false,
-                lock_blockers: [],
-                lock_transition_state: "locked",
-                first_orbit_ready: true,
-                next_action: { action_key: "review_first_orbit", label_cz: "První oběžná dráha je připravena" },
-                explainability: { headline_cz: "Politiky jsou uzamčeny.", body_cz: "Governance základ je potvrzen." },
-                source_truth: {
-                  profile_key: "ORIGIN",
-                  law_preset: "balanced",
-                  physical_profile_key: "BALANCE",
-                  physical_profile_version: 1,
-                },
-              }
+            ? (lockedInteriorReads += 1) === 1
+              ? {
+                  interior_phase: "policy_lock_transition",
+                  selected_constitution_id: "rovnovaha",
+                  available_constitutions: [],
+                  lock_ready: false,
+                  lock_blockers: [],
+                  lock_transition_state: "locked",
+                  first_orbit_ready: true,
+                  next_action: { action_key: "stabilize_first_orbit", label_cz: "Dokončuji přechod k první orbitě" },
+                  explainability: {
+                    headline_cz: "Politiky se fyzicky uzamykají.",
+                    body_cz: "Governance prstenec dosedá do finální polohy.",
+                  },
+                  source_truth: {
+                    profile_key: "ORIGIN",
+                    law_preset: "balanced",
+                    physical_profile_key: "BALANCE",
+                    physical_profile_version: 1,
+                  },
+                }
+              : {
+                  interior_phase: "first_orbit_ready",
+                  selected_constitution_id: "rovnovaha",
+                  available_constitutions: [],
+                  lock_ready: false,
+                  lock_blockers: [],
+                  lock_transition_state: "locked",
+                  first_orbit_ready: true,
+                  next_action: { action_key: "review_first_orbit", label_cz: "První oběžná dráha je připravena" },
+                  explainability: {
+                    headline_cz: "Politiky jsou uzamčeny.",
+                    body_cz: "Governance základ je potvrzen.",
+                  },
+                  source_truth: {
+                    profile_key: "ORIGIN",
+                    law_preset: "balanced",
+                    physical_profile_key: "BALANCE",
+                    physical_profile_version: 1,
+                  },
+                }
             : {
                 interior_phase: "constitution_select",
                 selected_constitution_id: null,

@@ -6,6 +6,7 @@ import {
   apiFetch,
   buildGalaxyPlanetsUrl,
   buildStarCoreDomainMetricsUrl,
+  buildStarCoreInteriorEntryStartUrl,
   buildStarCoreInteriorConstitutionSelectUrl,
   buildStarCoreInteriorUrl,
   buildStarCorePlanetPhysicsUrl,
@@ -46,6 +47,7 @@ import {
   resolveStarCoreInteriorScreenEntryComplete,
   resolveStarCoreInteriorScreenModel,
   STAR_CORE_INTERIOR_ENTRY_DURATION_MS,
+  STAR_CORE_INTERIOR_LOCK_TRANSITION_DURATION_MS,
   STAR_CORE_INTERIOR_REDUCED_MOTION_DURATION_MS,
   STAR_CORE_INTERIOR_RETURN_DURATION_MS,
 } from "./starCoreInteriorScreenModel.js";
@@ -95,6 +97,13 @@ function readReducedMotionPreference() {
   } catch {
     return false;
   }
+}
+
+function createIdempotencyKey(prefix) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${prefix}-${Date.now()}`;
 }
 
 async function loadWorkspaceTruth({ defaultGalaxy = null, connectivity = null }) {
@@ -359,12 +368,65 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     const entryDurationMs = reducedMotion
       ? STAR_CORE_INTERIOR_REDUCED_MOTION_DURATION_MS
       : STAR_CORE_INTERIOR_ENTRY_DURATION_MS;
+    let active = true;
     const timeoutId = window.setTimeout(() => {
-      setInteriorUiState((current) => resolveStarCoreInteriorEntryComplete(current));
-      setInteriorScreenState((current) => resolveStarCoreInteriorScreenEntryComplete(current));
+      void (async () => {
+        try {
+          const nextState = await loadWorkspaceTruth({ defaultGalaxy, connectivity });
+          if (!active) return;
+          setFetchState(nextState);
+        } catch (error) {
+          if (!active) return;
+          setFetchState((current) => ({
+            ...current,
+            error: String(error?.message || "Nepodařilo se obnovit interiér Srdce hvězdy po vstupu."),
+          }));
+        }
+        if (!active) return;
+        setInteriorUiState((current) => resolveStarCoreInteriorEntryComplete(current));
+        setInteriorScreenState((current) => resolveStarCoreInteriorScreenEntryComplete(current));
+      })();
     }, entryDurationMs);
-    return () => window.clearTimeout(timeoutId);
-  }, [interiorUiState.transientPhase, reducedMotion]);
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [connectivity, defaultGalaxy, interiorUiState.transientPhase, reducedMotion]);
+
+  useEffect(() => {
+    if (fetchState.interiorTruth?.interiorPhase !== "policy_lock_transition" || interiorUiState.isLockPending) {
+      return undefined;
+    }
+    const transitionDurationMs = reducedMotion
+      ? STAR_CORE_INTERIOR_REDUCED_MOTION_DURATION_MS
+      : STAR_CORE_INTERIOR_LOCK_TRANSITION_DURATION_MS;
+    let active = true;
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const nextState = await loadWorkspaceTruth({ defaultGalaxy, connectivity });
+          if (!active) return;
+          setFetchState(nextState);
+        } catch (error) {
+          if (!active) return;
+          setFetchState((current) => ({
+            ...current,
+            error: String(error?.message || "Nepodařilo se obnovit stav po lock transition."),
+          }));
+        }
+      })();
+    }, transitionDurationMs);
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    connectivity,
+    defaultGalaxy,
+    fetchState.interiorTruth?.interiorPhase,
+    interiorUiState.isLockPending,
+    reducedMotion,
+  ]);
 
   useEffect(() => {
     if (interiorScreenState.stage !== "returning") return undefined;
@@ -431,10 +493,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         },
         body: JSON.stringify({
           ...payload,
-          idempotency_key:
-            typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-              ? crypto.randomUUID()
-              : `star-core-lock-${Date.now()}`,
+          idempotency_key: createIdempotencyKey("star-core-lock"),
         }),
       });
       if (!response.ok) {
@@ -466,10 +525,7 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
         },
         body: JSON.stringify({
           constitution_id: normalizedConstitutionId,
-          idempotency_key:
-            typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-              ? crypto.randomUUID()
-              : `star-core-select-${Date.now()}`,
+          idempotency_key: createIdempotencyKey("star-core-select"),
         }),
       });
       if (!response.ok) {
@@ -500,11 +556,42 @@ export default function UniverseWorkspace({ defaultGalaxy = null, connectivity =
     }
   }
 
-  function handleOpenInterior(objectId) {
+  async function handleOpenInterior(objectId) {
     if (objectId === "star-core" && fetchState.status !== "loading" && fetchState.status !== "data_unavailable") {
       setNavigationState((current) => beginGalaxyApproach(current, objectId));
-      setInteriorUiState(beginStarCoreInteriorUi());
-      setInteriorScreenState(beginStarCoreInteriorScreenEntry());
+      const galaxyId = String(defaultGalaxy?.id || "").trim();
+      if (!galaxyId) return;
+      try {
+        const response = await apiFetch(buildStarCoreInteriorEntryStartUrl(API_BASE, galaxyId), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            idempotency_key: createIdempotencyKey("star-core-entry"),
+          }),
+        });
+        if (!response.ok) {
+          throw await apiErrorFromResponse(response, "Nepodařilo se otevřít vstup do Srdce hvězdy.");
+        }
+        const interiorPayload = await response.json();
+        setFetchState((current) => ({
+          ...current,
+          interiorTruth: adaptStarCoreInteriorTruth(interiorPayload, {
+            fallbackTelemetry: current.interiorTruth?.telemetry,
+            policyPayload: current.truth?.policy,
+            physicsProfilePayload: current.truth?.physicsProfile,
+          }),
+          error: "",
+        }));
+        setInteriorUiState(beginStarCoreInteriorUi());
+        setInteriorScreenState(beginStarCoreInteriorScreenEntry());
+      } catch (error) {
+        setFetchState((current) => ({
+          ...current,
+          error: String(error?.message || "Otevření interiéru Srdce hvězdy selhalo."),
+        }));
+      }
       return;
     }
     setNavigationState((current) => beginGalaxyApproach(current, objectId));
