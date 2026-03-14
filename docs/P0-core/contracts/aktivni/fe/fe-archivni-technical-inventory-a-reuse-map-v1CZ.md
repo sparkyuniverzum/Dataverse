@@ -379,6 +379,8 @@ Nasledujici soubory nejsou `pripraveny kod` pro navrat do aktivni cesty:
 5. `frontend/src/_inspiration_reset_20260312/components/universe/StageZeroSetupPanel.jsx`
 6. `frontend/src/_inspiration_reset_20260312/components/universe/BondBuilderPanel.jsx`
 7. `frontend/src/_inspiration_reset_20260312/components/universe/StarHeartDashboard.jsx` jako puvodni plna dashboard surface
+8. `frontend/src/_inspiration_reset_20260312/components/universe/PlanetBuilderWizardHarnessPanel.jsx`
+9. `frontend/src/_inspiration_reset_20260312/components/PlanetBuilderSmokeScreen.jsx`
 
 Tyto soubory jsou:
 
@@ -396,6 +398,10 @@ Stav:
    - `frontend/src/_inspiration_reset_20260312/components/universe/StageZeroSetupPanel.jsx`
    - `frontend/src/_inspiration_reset_20260312/components/universe/StageZeroSetupPanelContext.js`
    - `frontend/src/_inspiration_reset_20260312/components/universe/BondBuilderPanel.jsx`
+2. [x] 2026-03-14 `cleanup batch 2` odstranil:
+   - `frontend/src/_inspiration_reset_20260312/components/PlanetBuilderSmokeScreen.jsx`
+   - `frontend/src/_inspiration_reset_20260312/components/universe/PlanetBuilderWizardHarnessPanel.jsx`
+   - `frontend/src/_inspiration_reset_20260312/components/universe/planetBuilderWizardPanel.component.test.jsx`
 
 ## 7. Archivni testy jako dukazni sada
 
@@ -466,4 +472,4 @@ Vysledek:
 ## 10. Co zustava otevrene
 
 - [ ] Po navrhu `FE-R1` doplnit do konkretni implementacni dokumentace sekci `Pripraveny kod z archivu` s odkazem na relevantni helpery z tohoto dokumentu.
-- [ ] Po schvaleni `cleanup batch 2` odstranit dalsi `NOK` archived surface, ktere nezustaly v `batch 1`.
+- [ ] Zbyvajici archived surface se smisenym verdict `OK / NOK` drzet jen jako referencni material, dokud nevznikne samostatne rozhodnuti o dalsi davce.

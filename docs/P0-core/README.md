@@ -71,6 +71,7 @@ Do `docs/P0-core/contracts/splneno/` se chodi jen:
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-d-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-audit-archivu-davka-d-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-priprava-audit-archivu-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-r1-priprava-audit-archivu-v1CZ.md)
 - [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-1-v1CZ.md)
+- [/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-2-v1CZ.md](/mnt/c/Projekty/Dataverse/docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-2-v1CZ.md)
 
 ### FE
 

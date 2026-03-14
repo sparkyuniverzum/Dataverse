@@ -92,5 +92,5 @@ Vysledek:
 
 ## 8. Co zustava otevrene
 
-- [ ] Rozhodnout `cleanup batch 2` pro dalsi archived surface, ktere nejsou pripraveny kod, ale zatim nebyly definitivne oznacene k odstraneni.
+- [x] 2026-03-14 `cleanup batch 2` uzavren v dokumentu `docs/P0-core/contracts/splneno/fe-reset/fe-archiv-cleanup-batch-2-v1CZ.md`.
 - [ ] Po FE-R1 navrhu pouzit reuse mapu a zapisovat do implementacnich dokumentu sekci `Pripraveny kod z archivu`.
