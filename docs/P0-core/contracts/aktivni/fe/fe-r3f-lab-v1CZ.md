@@ -11,6 +11,7 @@ Vlastnik: FE architektura + UX governance + user-agent governance
 - [x] 2026-03-14 Byla zapsana reuse mapa pro pripravene archivni helpery souvisejici s R3F harness vrstvou.
 - [x] 2026-03-14 Bylo explicitne potvrzeno, ze tento dokument neni povoleni k implementaci a respektuje aktivni pozastaveni FE vyvoje.
 - [x] 2026-03-14 Byla zapsana explicitni vyjimka, ze `R3F Lab` je povolena oddelena dev-only cesta mimo obecny FE stop stav.
+- [x] 2026-03-14 Bylo rozhodnuto, ze `R3F Lab` se ma planovat jako cela spike-ove rozdelena cesta a po dokonceni projit jeste 1-2 review pruchody robustnosti.
 
 ## 2. Proc to vzniklo
 
@@ -174,6 +175,13 @@ Pravidlo architektury:
 4. `Faze 3`: diagnostika a vykonnostni warningy,
 5. `Faze 4`: volitelna GUI vrstva typu `Leva`,
 6. `Faze 5`: teprve potom scenare a pokrocile sekvencovani.
+
+Pravidlo dalsi navaznosti:
+
+1. tyto faze se maji planovat jako cela navazna cesta uz od zacatku,
+2. implementace se ma rozpadnout do samostatnych spike-ovych bloku,
+3. po dokonceni cele cesty maji probehnout jeste 1-2 samostatne review pruchody robustnosti,
+4. cil neni jen "rozchodit Lab", ale pripravit ho tak, aby byl co nejvice neprustrelny a sel dal rozvijet rychle.
 
 ### 4.6 Pripraveny kod z archivu
 

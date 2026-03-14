@@ -12,12 +12,15 @@ Tento dokument vykonava:
 2. `docs/P0-core/contracts/aktivni/core/decision-log-v1CZ.md`
 3. `docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md`
 4. `docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`
+5. `docs/P0-core/contracts/aktivni/fe/r3f-lab/r3f-lab-implementacni-mapa-v1CZ.md`
 
 Tento dokument uz neni brainstorming.
 
 Je to implementacni podklad pro prvni omezeny blok `R3F Lab v1`.
 
 Tento dokument je povoleny jako oddelena vyjimka mimo obecny FE stop stav.
+
+Tento dokument je jen prvni implementacni cast cele planovane cesty `R3F Lab`.
 
 ## 2. Ucel bloku
 
@@ -32,7 +35,7 @@ Tento blok je povolen proto, ze `R3F Lab` je povazovan za klicovy enablement bod
 
 Blok ma dodat jen prvni provozuschopny zaklad.
 
-Ne ma dodat cely `Lab` ekosystem.
+Nema dodat cely `Lab` ekosystem.
 
 ## 3. Presny scope implementacniho bloku
 
@@ -53,7 +56,7 @@ Implementovat:
 1. `R3FLabEntry`,
 2. `R3FLabShell`,
 3. `LabCanvas`,
-4. jednu prvni aktivni lab scenu,
+4. placeholder scene surface uvnitr `LabCanvas` pro overeni shellu a renderer baseline,
 5. prepInace `debug / cinematic / performance-safe`,
 6. zakladni event log,
 7. zakladni `renderer.info` a frame timing signal.
@@ -64,6 +67,10 @@ V tomto bloku se ma skutecne otevrit jen:
 
 1. `star_core_interior_core`
 
+V uvodnim start bloku je dovolene otevrit jen placeholder povrch navazany na `star_core_interior_core` id.
+
+Konkretni doménovy adapter a render scena patri az do `Spike B`.
+
 Volitelna druha scena je az dalsi krok:
 
 1. `star_core_exterior`
@@ -71,7 +78,8 @@ Volitelna druha scena je az dalsi krok:
 Pravidlo:
 
 1. prvni blok se ma dokazat uzavrit i s jedinou skutecne fungujici scenou,
-2. pokud by druha scena hrozila rozsirenim scope, zustane mimo prvni blok.
+2. druha scena nema byt neplanovany dodatek, ale soucast navazneho spike planu cele cesty,
+3. pokud by druha scena hrozila rozsirenim prvniho bloku, zustane mimo tento blok, ale ne mimo cely plan.
 
 ## 4. Mimo scope
 
@@ -112,6 +120,8 @@ Preferovane nove soubory:
 11. `frontend/src/lab/r3f/__tests__/labConfigSchema.test.js`
 12. `frontend/src/lab/r3f/__tests__/labSceneRegistry.test.js`
 13. `frontend/src/lab/r3f/__tests__/labPresetStore.test.js`
+14. `frontend/src/lab/r3f/__tests__/R3FLabShell.test.jsx`
+15. `frontend/src/lab/r3f/__tests__/R3FLabEntry.test.jsx`
 
 Pravidlo:
 
@@ -178,11 +188,28 @@ Poradi implementace:
 4. vytvorit `R3FLabEntry` a dev-only vstupni guard,
 5. vytvorit `R3FLabShell`,
 6. vytvorit `LabCanvas`,
-7. vytvorit `starCoreInteriorLabAdapter`,
-8. vytvorit `StarCoreInteriorCoreLabScene`,
-9. doplnit diagnosticky model pro `renderer.info` a frame timing,
-10. doplnit focused testy,
-11. pripravit screenshot-ready stavy `debug` a `cinematic`.
+7. otevrit placeholder renderer surface pro `star_core_interior_core`,
+8. doplnit diagnosticky model pro `renderer.info` a frame timing,
+9. doplnit focused testy,
+10. pripravit screenshot-ready stavy `debug` a `cinematic`,
+11. presunout konkretni adapter a render scenu do `Spike B`.
+
+### 9.1 Navazny spike plan cele cesty
+
+Tento dokument otevira jen prvni spike.
+
+Navazna cesta se ma planovat uz ted takto:
+
+1. `Spike A`: `docs/P0-core/contracts/aktivni/fe/r3f-lab/r3f-lab-spike-a-core-shell-v1CZ.md`
+2. `Spike B`: `docs/P0-core/contracts/aktivni/fe/r3f-lab/r3f-lab-spike-b-interior-scene-v1CZ.md`
+3. `Spike C`: `docs/P0-core/contracts/aktivni/fe/r3f-lab/r3f-lab-spike-c-exterior-scene-v1CZ.md`
+4. `Spike D`: `docs/P0-core/contracts/aktivni/fe/r3f-lab/r3f-lab-spike-d-hardening-review-v1CZ.md`
+
+Pravidlo:
+
+1. kazdy spike musi zustat maly, explicitni a samostatne overitelny,
+2. dalsi spike se nema vymyslet ad hoc az po kodu, ale ma navazovat na predem zapsanou cestu a samostatny mensi dokument,
+3. po dokonceni cele cesty maji probehnout jeste 1-2 samostatne review pruchody robustnosti.
 
 ## 10. Focused gate
 
@@ -239,5 +266,6 @@ sed -n '1,220p' frontend/src/_inspiration_reset_20260312/components/universe/Cam
 
 ## 13. Co zustava otevrene
 
-- [ ] 2026-03-14 Implementace `R3F Lab v1` jeste neprobehla; tento dokument otevira jen prvni omezeny blok `Faze 0 + Faze 1`.
-- [ ] 2026-03-14 Druha scena `star_core_exterior` zustava volitelna a nema rozsirit prvni blok bez dalsiho rozhodnuti.
+- [ ] 2026-03-14 Implementace `R3F Lab v1` jeste neprobehla; tento dokument otevira jen prvni spike `Faze 0 + Faze 1`.
+- [x] 2026-03-14 Navazne spiky jsou rozsekane do mensich samostatnych dokumentu podle odpovednosti a slozek.
+- [ ] 2026-03-14 Po dokonceni cele cesty musi probehnout jeste 1-2 review pruchody robustnosti.

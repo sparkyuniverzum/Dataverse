@@ -1,0 +1,276 @@
+.r3f-lab-shell {
+  --lab-bg: #06101a;
+  --lab-panel: rgba(5, 16, 25, 0.78);
+  --lab-panel-border: rgba(126, 205, 239, 0.18);
+  --lab-strong: #eff8ff;
+  --lab-muted: #98b8c9;
+  --lab-accent: #82d5ff;
+  --lab-warm: #ffc46b;
+  --lab-danger: #ffb28c;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
+  color: var(--lab-strong);
+  background:
+    radial-gradient(circle at top left, rgba(82, 176, 222, 0.18), transparent 30%),
+    radial-gradient(circle at top right, rgba(235, 165, 69, 0.14), transparent 32%),
+    linear-gradient(180deg, #091520 0%, #050a11 100%);
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+.r3f-lab-topbar,
+.r3f-lab-layout,
+.r3f-lab-column,
+.r3f-lab-panel,
+.r3f-lab-stack,
+.r3f-lab-toggle-row,
+.r3f-lab-inline-actions,
+.r3f-lab-event-log {
+  display: flex;
+}
+
+.r3f-lab-topbar,
+.r3f-lab-stage-header,
+.r3f-lab-panel-header,
+.r3f-lab-diagnostics-row {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.r3f-lab-topbar {
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.r3f-lab-topbar h1,
+.r3f-lab-stage-header h2,
+.r3f-lab-panel-header h2 {
+  margin: 0;
+}
+
+.r3f-lab-kicker {
+  margin: 0 0 6px;
+  color: var(--lab-accent);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.r3f-lab-subtitle {
+  margin: 8px 0 0;
+  max-width: 760px;
+  color: var(--lab-muted);
+  line-height: 1.5;
+}
+
+.r3f-lab-topbar-actions,
+.r3f-lab-stage-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.r3f-lab-badge,
+.r3f-lab-warning-pill {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--lab-panel-border);
+  background: rgba(9, 23, 34, 0.72);
+  color: var(--lab-strong);
+  font-size: 13px;
+}
+
+.r3f-lab-warning-pill {
+  color: var(--lab-warm);
+  border-color: rgba(255, 196, 107, 0.28);
+}
+
+.r3f-lab-alert {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 178, 140, 0.35);
+  background: rgba(63, 21, 8, 0.42);
+  color: var(--lab-danger);
+}
+
+.r3f-lab-layout {
+  gap: 16px;
+  align-items: stretch;
+}
+
+.r3f-lab-column {
+  width: min(320px, 100%);
+  flex-direction: column;
+  gap: 14px;
+}
+
+.r3f-lab-stage {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.r3f-lab-panel,
+.r3f-lab-stage {
+  border: 1px solid var(--lab-panel-border);
+  border-radius: 18px;
+  background: var(--lab-panel);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+}
+
+.r3f-lab-panel {
+  padding: 14px;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.r3f-lab-panel-header h2 {
+  font-size: 15px;
+}
+
+.r3f-lab-stack,
+.r3f-lab-toggle-row,
+.r3f-lab-inline-actions,
+.r3f-lab-event-log {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.r3f-lab-inline-actions {
+  gap: 8px;
+}
+
+.r3f-lab-scene-button,
+.r3f-lab-toggle,
+.r3f-lab-ghost-button,
+.r3f-lab-solid-button {
+  width: 100%;
+  border-radius: 14px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.r3f-lab-scene-button,
+.r3f-lab-toggle,
+.r3f-lab-ghost-button {
+  border: 1px solid var(--lab-panel-border);
+  color: var(--lab-strong);
+  background: rgba(10, 22, 33, 0.88);
+}
+
+.r3f-lab-scene-button {
+  padding: 12px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.r3f-lab-scene-button span,
+.r3f-lab-scene-button small,
+.r3f-lab-hint,
+.r3f-lab-event-item span,
+.r3f-lab-event-item small,
+.r3f-lab-stage-footer p {
+  color: var(--lab-muted);
+}
+
+.r3f-lab-scene-button[data-active="true"],
+.r3f-lab-toggle[data-active="true"],
+.r3f-lab-ghost-button[data-active="true"] {
+  border-color: rgba(130, 213, 255, 0.48);
+  background: linear-gradient(180deg, rgba(18, 45, 62, 0.94), rgba(10, 24, 37, 0.92));
+}
+
+.r3f-lab-toggle,
+.r3f-lab-ghost-button,
+.r3f-lab-solid-button {
+  padding: 10px 12px;
+}
+
+.r3f-lab-solid-button {
+  border: 1px solid rgba(130, 213, 255, 0.48);
+  background: linear-gradient(180deg, #15364a, #0d2635);
+  color: var(--lab-strong);
+}
+
+.r3f-lab-textarea {
+  min-height: 180px;
+  resize: vertical;
+  border-radius: 14px;
+  border: 1px solid var(--lab-panel-border);
+  background: rgba(4, 12, 18, 0.92);
+  color: var(--lab-strong);
+  padding: 12px;
+  font:
+    13px/1.45 "IBM Plex Mono",
+    "Cascadia Code",
+    monospace;
+}
+
+.r3f-lab-stage-header,
+.r3f-lab-stage-footer {
+  padding: 16px 18px 0;
+}
+
+.r3f-lab-stage-footer {
+  padding: 0 18px 16px;
+}
+
+.r3f-lab-canvas-frame {
+  height: min(68vh, 760px);
+  margin: 0 18px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(130, 213, 255, 0.18);
+  background: #030814;
+}
+
+.r3f-lab-canvas-frame canvas {
+  display: block;
+}
+
+.r3f-lab-diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.r3f-lab-diagnostics-row {
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(126, 205, 239, 0.08);
+}
+
+.r3f-lab-warning-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--lab-warm);
+}
+
+.r3f-lab-event-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(126, 205, 239, 0.12);
+  background: rgba(7, 16, 24, 0.72);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+@media (max-width: 1180px) {
+  .r3f-lab-layout {
+    flex-direction: column;
+  }
+
+  .r3f-lab-column {
+    width: 100%;
+  }
+
+  .r3f-lab-canvas-frame {
+    height: min(54vh, 560px);
+  }
+}
