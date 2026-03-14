@@ -136,6 +136,27 @@ Zdroj pravdy:
 1. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
 2. `docs/P0-core/contracts/aktivni/fe/fe-vykonavaci-dokument-galaxy-space-workspace-v1CZ.md`
 
+### D-007 FE vyvoj je do odvolani pozastaven
+
+Datum: 2026-03-14
+Stav: aktivni
+
+Rozhodnuti:
+
+1. aktivni vyvoj frontend runtime je do odvolani oficialne pozastaven,
+2. duvodem jsou potize s kvalitou `Star Core interior` a prakticke omezeni dalsich FE moznosti,
+3. `Blok 3` ani zadny navazujici FE blok se nesmi dal implementacne rozvijet, dokud nevznikne explicitni rozhodnuti o obnoveni,
+4. dalsi FE prace se do odvolani omezuje jen na evidenci stavu, audit a pripravu podminek pro pripadne znovuotevreni.
+
+Vyrazeno:
+
+1. predpoklad, ze FE muze bezprostredne navazat dalsim iteracnim blokem nad interierem hvezdy.
+
+Zdroj pravdy:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
+2. `docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md`
+
 ## 3. Pravidlo pouziti
 
 1. Pri beznem navrhu a implementaci se tento log cte pred navratem ke starsim diskusim.

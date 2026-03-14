@@ -1,8 +1,30 @@
 # FE Blok 3 implementacni dokument v1
 
-Stav: aktivni (navrat na zacatek `Bloku 3`)
-Datum: 2026-03-12
+Stav: pozastaveno do odvolani
+Datum: 2026-03-14
 Vlastnik: FE architektura + Produktove UX + user-agent governance
+
+## 0. Oficialni stop stav
+
+Od `2026-03-14` plati:
+
+1. aktivni FE vyvoj `Bloku 3` je oficialne pozastaven do odvolani,
+2. duvodem jsou potize s kvalitou `Star Core interior` a prakticke omezeni dalsich FE moznosti,
+3. tento dokument zustava aktivni jen jako reference posledniho potvrzeneho scope a blockeru,
+4. bez noveho explicitniho rozhodnuti se nesmi otevirat dalsi FE implementacni blok nad interierem hvezdy ani nad navazujicimi FE vrstvami.
+
+Do odvolani je povoleno jen:
+
+1. audit stavu,
+2. evidence blockeru,
+3. priprava podminek pro eventualni obnoveni.
+
+Do odvolani je zakazano:
+
+1. dalsi FE implementace,
+2. dalsi UX rozsireni nebo redesign interieru,
+3. navazujici FE bloky zavisle na dokonceni interieru,
+4. tvrdit, ze `Blok 3` je pripraveny k pokracovani bez noveho rozhodnuti.
 
 ## 0. Redesign a duvod
 
