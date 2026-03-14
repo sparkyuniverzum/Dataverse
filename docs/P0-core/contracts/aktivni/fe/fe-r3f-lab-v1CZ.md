@@ -227,18 +227,141 @@ Pravidlo:
 1. dotyk `App.jsx` nebo `main.jsx` ma byt jen pro dev guard a vstupni vetveni,
 2. `UniverseWorkspace.jsx` a `StarCoreInteriorScreen.jsx` se v prvni lab implementaci nesmi znovu rozsirovat o experiment orchestration.
 
-## 5. Otevrene otazky
+## 5. Rozhodnute architektonicke volby `v1`
 
-1. ma byt dev guard resen pres `import.meta.env.DEV`, query parametr, nebo kombinaci obojiho,
-2. chceme v `v1` pouzit vlastni lehky panel, nebo rovnou prijmout externi GUI knihovnu,
-3. ma byt `renderer.info` baseline povinna soucast shellu, nebo volitelny panel,
-4. jaky presny preset schema boundary bude mit `star_core_interior_core`.
+Tato sekce uzavira drive otevrene body a zapisuje zvolenou variantu.
 
-## 6. Gate pro budouci implementacni blok
+### 5.1 Dev guard
 
-Budouci implementace `R3F Lab v1` se nesmi otevrit, dokud nebude explicitne schvaleno:
+Profesionalni varianta:
 
-1. ze FE stop stav je pro tento nastroj docasne zvednut nebo cilene omezen,
-2. ze `R3F Lab` je povoleny jako dev-only nastroj, ne dalsi produktova iterace,
-3. ze prvni blok zustane maximalne u `Faze 0` a `Faze 1`,
-4. ze budouci implementacni dokument navaze na tento navrh a zachova `Pripraveny kod z archivu`.
+1. hard gate pres `import.meta.env.DEV`,
+2. explicitni rucni aktivace,
+3. zadna verejna produkcni route bez guardu.
+
+Netradicni silnejsi varianta:
+
+1. hard gate pres `import.meta.env.DEV`,
+2. aktivace pres query parametr nebo persistovany `localStorage` flag,
+3. stejna bezpecnost, ale lepsi ergonomie pro opakovane ladeni a refresh.
+
+Zvolene reseni pro `v1`:
+
+1. hybridni guard,
+2. hard gate je vzdy `import.meta.env.DEV`,
+3. soft aktivace je `?lab=r3f` nebo `localStorage["dv:lab"] = "r3f"`,
+4. bez splneni obou podminek se `R3F Lab` nesmi otevrit.
+
+### 5.2 Ovládaci panel `v1`
+
+Profesionalni varianta:
+
+1. vlastni lehky panel,
+2. bez externi GUI knihovny v prvnim bloku,
+3. nejdriv harness kontrakt, az potom bohatsi ovladani.
+
+Netradicni silnejsi varianta:
+
+1. interni schema-driven panel generovany z `labConfigSchema`,
+2. bez prime zavislosti produkcnich scen na `Leva`,
+3. panel zustava flexibilni a zaroven nedela vendor lock do GUI vrstvy.
+
+Zvolene reseni pro `v1`:
+
+1. interni schema-driven panel,
+2. `Leva` ani jina externi GUI knihovna se v `v1` nezavadi,
+3. pripadna externi GUI vrstva je az navazna volitelna faze nad hotovym harness kontraktem.
+
+### 5.3 `renderer.info` a diagnostika
+
+Profesionalni varianta:
+
+1. raw panel s `renderer.info` jako volitelna cast shellu,
+2. pri potrebe si ho operator otevre,
+3. jinak nerusi lab plochu.
+
+Netradicni silnejsi varianta:
+
+1. sber `renderer.info` je povinny vzdy,
+2. raw panel muze byt sbaleny,
+3. shell stale zobrazuje aktivni warningy z metrik a frame budgetu.
+
+Zvolene reseni pro `v1`:
+
+1. metriky z `renderer.info` a zakladni frame timing se musi sbirat vzdy,
+2. raw diagnosticky panel je volitelny a defaultne sbaleny,
+3. shell musi vzdy umet zobrazit aspon lehke warning badge pro:
+   - rust poctu geometrii,
+   - rust poctu textur,
+   - drift poctu programu,
+   - riziko frame budgetu.
+
+### 5.4 Preset schema boundary pro `star_core_interior_core`
+
+Profesionalni varianta:
+
+1. preset serializuje jen stabilni, typed vstupy sceny,
+2. neuklada refy, geometry state ani raw material objekty,
+3. vnitrni render config zustava internim detailem adapteru.
+
+Netradicni silnejsi varianta:
+
+1. dvouvrstvy model,
+2. verejny preset je semanticky,
+3. adapter tento preset kompiluje do low-level render konfigurace,
+4. render internals se mohou menit bez rozbiti preset compatibility.
+
+Zvolene reseni pro `v1`:
+
+1. pouzije se dvouvrstvy model `semantic preset -> adapter -> render config`,
+2. verejny preset pro `star_core_interior_core` ma drzet jen tuto hranici:
+   - `scene_id`
+   - `preset_version`
+   - `phase`
+   - `constitution_profile`
+   - `camera_profile`
+   - `motion_profile`
+   - `telemetry_profile`
+   - `debug_profile`
+   - `overrides`
+3. `phase` musi byt omezeno na:
+   - `star_core_interior_entry`
+   - `constitution_select`
+   - `policy_lock_ready`
+   - `policy_lock_transition`
+   - `first_orbit_ready`
+4. `constitution_profile` musi byt omezeno na:
+   - `rust`
+   - `rovnovaha`
+   - `straz`
+   - `archiv`
+   - `null`
+5. `overrides` smi v `v1` zasahovat jen do domén:
+   - `lighting`
+   - `postfx`
+   - `chamber`
+6. zadna jina low-level render data se nesmi ukladat jako verejny preset contract.
+
+### 5.5 Duvod uzavreni techto bodu
+
+1. `R3F Lab v1` ma byt dlouhodobe udrzitelny interni harness, ne jednorazova ladici hracka,
+2. zvolene varianty drzi bezpecnost, ergonomii i budouci rozsiritelnost bez vendor locku,
+3. nejdriv se stabilizuje harness contract a preset boundary, teprve potom lze rozumne otevirat GUI a sequencer vrstvy.
+
+## 6. Navaznost po tomto rozhodnuti
+
+Tento dokument uz v teto chvili uzavira ctyri drive otevrene body:
+
+1. dev guard,
+2. panel `v1`,
+3. `renderer.info` baseline,
+4. preset schema boundary pro `star_core_interior_core`.
+
+Tento dokument nezavadi zadnou novou extra gate nad ramec uz existujiciho FE stop stavu a projektovych pravidel.
+
+Pro budouci navaznost plati jen:
+
+1. pripadny implementacni dokument ma vychazet z techto uz rozhodnutych voleb,
+2. implementace ma zustat v mezich `Faze 0` a `Faze 1`, pokud nebude pozdeji rozhodnuto jinak,
+3. ma zustat zachovana sekce `Pripraveny kod z archivu`,
+4. `R3F Lab` ma zustat dev-only internim harness nastrojem.
