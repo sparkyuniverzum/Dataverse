@@ -1,0 +1,244 @@
+# FE R3F Lab v1
+
+Stav: aktivni priprava + navrh (bez implementace)
+Datum: 2026-03-14
+Vlastnik: FE architektura + UX governance + user-agent governance
+
+## 1. Co se zmenilo
+
+- [x] 2026-03-14 Byl zapsan pripraveny navrh izolovaneho `R3F Lab` prostredi pro budouci FE obnovu.
+- [x] 2026-03-14 Byl urcen minimalni scope `v1`, red lines, architektura a file plan.
+- [x] 2026-03-14 Byla zapsana reuse mapa pro pripravene archivni helpery souvisejici s R3F harness vrstvou.
+- [x] 2026-03-14 Bylo explicitne potvrzeno, ze tento dokument neni povoleni k implementaci a respektuje aktivni pozastaveni FE vyvoje.
+
+## 2. Proc to vzniklo
+
+`Star Core interior` ukazal, ze soucasny FE nema dostatecne levne a disciplinovane misto pro:
+
+1. izolovane R3F experimenty,
+2. ladeni svetel, kamery a postprocessingu bez zasahu do produktoveho flow,
+3. opakovatelne porovnani presetu po refreshi,
+4. rychlou diagnostiku vykonu a interakci.
+
+Bez tohoto mezikroku hrozi:
+
+1. dalsi drahe iterace primo v `UniverseWorkspace`,
+2. michani produktoveho runtime a experimentu,
+3. znovuvznik paralelni FE truth vrstvy,
+4. ztrata reprodukovatelnosti mezi jednotlivymi pokusy.
+
+## 3. Priprava
+
+Tato cast je zavazna priprava pro pripadne budouci znovuotevreni.
+
+### 3.1 Zavazne podminky
+
+1. `R3F Lab` je interni dev-only nastroj, ne nova produktova surface.
+2. `R3F Lab` nesmi obchazet aktivni FE stop stav z `D-007`; bez noveho rozhodnuti se neimplementuje.
+3. `R3F Lab` musi byt `config-driven`; nesmi serializovat raw `three.js` objekty ani React refy.
+4. Produkcni scene komponenty nesmi dostat primou zavislost na debug GUI knihovne.
+5. `R3F Lab` nesmi vytvaret druhy zdroj pravdy pro `Galaxy Space` nebo `Star Core`.
+
+### 3.2 Mimo scope
+
+V `v1` je mimo scope:
+
+1. verejna nebo produkcni route dostupna bez guardu,
+2. timeline scrubbing,
+3. hot-swapping modelu a textur za behu,
+4. backend napojeni nebo zapis do canonical runtime stavu,
+5. plna scena-orchestrace s komplexnimi scenari,
+6. automaticky `GPU leak detector` s ambici presnych VRAM cisel,
+7. navrat dalsiho `Star Core interior` redesignu pres Lab sam o sobe.
+
+### 3.3 Dukaz dokonceni pripravy
+
+Za dokonceni pripravy se pocita:
+
+1. existuje aktivni navrhovy dokument pro `R3F Lab v1`,
+2. jsou explicitne zapsane red lines, architektura a minimalni file plan,
+3. je zapsano, ktere archivni helpery jsou `OK` a ktere `NOK` pro pozdejsi reuse,
+4. je jasne, ze prvni implementace ma byt dev-only harness, ne dalsi produktovy blok.
+
+### 3.4 Co se za dokonceni nepocita
+
+Za dokonceni se nepocita:
+
+1. obecny napad bez file planu,
+2. implicitni souhlas s implementaci,
+3. prepsani `UniverseWorkspace` do dalsi experimentalni vetve,
+4. pridani `Leva` nebo jine GUI knihovny bez predchoziho harness kontraktu,
+5. tvrzeni, ze Lab sam vyresi produktovou kvalitu interieru hvezdy.
+
+### 3.5 Evidence
+
+Evidence byla ziskana lokalnim ctenim runtime a archivu:
+
+1. prikaz `rg -n "@react-three|Canvas|OrbitControls|EffectComposer|Bloom|Perf|leva|tweakpane|zustand" frontend/src frontend/package.json`
+   vysledek: aktivni runtime uz pouziva `@react-three/fiber`, `@react-three/drei`, `@react-three/postprocessing` a ma `zustand`; `Leva` ani `r3f-perf` zatim v projektu nejsou.
+2. prikaz `sed -n '1,260p' frontend/src/components/universe/UniverseCanvas.jsx`
+   vysledek: exterior scene je dnes primo svazana s produkcnim workspace a neni vhodna jako experiment harness.
+3. prikaz `sed -n '1,220p' frontend/src/components/universe/starCoreInteriorScene3d.jsx`
+   vysledek: interior 3D scena uz existuje jako samostatna render vrstva a je vhodna jako prvni kandidat pro izolovany lab adapter.
+4. prikaz `sed -n '1,220p' frontend/src/_inspiration_reset_20260312/store/useUniverseStore.js`
+   vysledek: archiv obsahuje maly `zustand` store pattern vhodny jako reference pro jednoduchy lab store.
+5. prikaz `sed -n '1,220p' frontend/src/_inspiration_reset_20260312/components/universe/scene/performanceBudget.js`
+   vysledek: archiv obsahuje lehky vykonnostni guard, ktery lze pozdeji adaptovat pro lab budget warningy.
+6. prikaz `sed -n '1,220p' frontend/src/_inspiration_reset_20260312/components/universe/CameraPilot.jsx`
+   vysledek: archiv obsahuje oddelenou kamerovou logiku; to potvrzuje, ze camera orchestrace ma jit mimo hlavni scene komponentu.
+7. prikaz `rg -n "react-router|BrowserRouter|Routes|Route" frontend/src`
+   vysledek: projekt dnes nema standardni app router; `Lab` proto v `v1` nesmi vynucovat zavedeni plne routing vrstvy jen kvuli sandboxu.
+
+## 4. Navrh
+
+### 4.1 Hlavni rozhodnuti
+
+1. `R3F Lab v1` bude izolovany interni harness pro vizualni a interakcni experimenty nad existujicimi R3F scenami.
+2. Vstup do Labu ma byt v `v1` resen dev-only entry bodem, ne zavedenim nove produktove navigace.
+3. `R3F Lab v1` ma nejdriv obslouzit maximalne dve scene:
+   - `star_core_exterior`
+   - `star_core_interior_core`
+4. `R3F Lab v1` ma pracovat s typed `scene config` objektem a presetem, ne s mutovanim scene refs ad hoc.
+5. `Leva` nebo jina GUI vrstva je az druha vrstva nad hotovym harness kontraktem.
+
+### 4.2 Scope `v1`
+
+`R3F Lab v1` ma po budouci implementaci dodat jen toto minimum:
+
+1. dev-only vstup do sandboxu,
+2. jednotny `LabCanvas` s kontrolovanymi render defaulty,
+3. registr scen s prepnutim mezi 1-2 lab scenami,
+4. JSON preset import/export a rehydrataci po refreshi,
+5. globalni prepinace `debug / cinematic / performance-safe`,
+6. zakladni diagnosticky panel:
+   - `renderer.info`
+   - FPS signal nebo jednoduchy frame timing
+   - event log interakci
+
+### 4.3 Red lines
+
+V `R3F Lab v1` je zakazane:
+
+1. pridat do produkcnich komponent primy `useControls` import,
+2. vyrobit novy paralelni workspace nebo druhy `UniverseWorkspace`,
+3. drzet samostatnou business truth vrstvu vedle canonical FE/BE kontraktu,
+4. zavadet plny app router jen kvuli Labu,
+5. tahat do `v1` timeline sequencer, asset hot-swap a komplexni scenario runner,
+6. serializovat `three.js` instance, materialy nebo geometrie primo do persistence,
+7. maskovat lifecycle chyby pravidlem "`visible = false` je vzdy spravne reseni",
+8. vytvorit monolit typu `ProfessionalLab.jsx`, ktery nese canvas, store, scenar, export i debug panel najednou.
+
+### 4.4 Architektura `v1`
+
+Navrhovane vrstvy:
+
+1. `lab entry`
+   - dev-only aktivace pres explicitni guard
+   - bez zavedeni verejne produktove navigace
+2. `lab shell`
+   - vyber sceny
+   - prepinace rezimu
+   - preset toolbar
+   - event log panel
+3. `LabCanvas`
+   - jednotne `Canvas` defaulty
+   - dpr guard
+   - svetla, tone mapping, shadows policy
+   - volitelne helpery a postprocessing prepinace
+4. `scene registry`
+   - mapuje `scene_id -> renderer + default preset + schema`
+5. `scene adapter`
+   - prevadi `LabSceneConfig` do props existujici scene nebo male lab wrapper sceny
+6. `lab preset store`
+   - lokalni persistence
+   - export/import JSON
+   - reset na default
+7. `diagnostic adapters`
+   - `renderer.info`
+   - jednoduchy frame timing
+   - event log
+
+Pravidlo architektury:
+
+1. produkcni 3D komponenty maji zustat znovupouzitelne bez vedomi o tom, ze existuje Lab,
+2. debug GUI vrstva smi mluvit jen s `lab store` nebo `scene adapterem`,
+3. persistence smi ukladat jen validni `scene config`.
+
+### 4.5 Doporucene implementacni poradi po obnoveni FE
+
+1. `Faze 0`: schema + registry + dev guard,
+2. `Faze 1`: `LabCanvas` + `LabShell` + jedna scena,
+3. `Faze 2`: preset persistence + JSON export/import,
+4. `Faze 3`: diagnostika a vykonnostni warningy,
+5. `Faze 4`: volitelna GUI vrstva typu `Leva`,
+6. `Faze 5`: teprve potom scenare a pokrocile sekvencovani.
+
+### 4.6 Pripraveny kod z archivu
+
+Aktivni reuse reference pro tento dokument:
+
+1. `docs/P0-core/contracts/aktivni/fe/fe-archivni-technical-inventory-a-reuse-map-v1CZ.md`
+
+Archivni verdict:
+
+1. `OK`: `frontend/src/_inspiration_reset_20260312/store/useUniverseStore.js`
+   proc: reference pro maly izolovany `zustand` store bez produktoveho balastu
+   co prevzit: pattern maleho lab store, ne puvodni names a level semantiku
+2. `OK`: `frontend/src/_inspiration_reset_20260312/components/universe/scene/performanceBudget.js`
+   proc: lehky vykonnostni guard a warning logika
+   co prevzit: odhadove budget utility a warning pattern, ne puvodni domenu planet/moon
+3. `OK`: `frontend/src/_inspiration_reset_20260312/components/universe/CameraPilot.jsx`
+   proc: potvrzuje spravny smer oddeleni kamerove logiky od scene komponent
+   co prevzit: architektonicky pattern a pripadne male damping helpery, ne historickou asteroid terminologii
+4. `NOK`: archivni plne `UniverseCanvas` surface
+   proc: je to produktova surface z jineho smeru, ne izolovany lab harness
+   co odstranit z uvah: navrat celeho archivniho canvas shellu jako lab zakladu
+5. `NOK`: stare panelove a dashboard surface moduly
+   proc: nepatri do dev-only R3F harness vrstvy
+   co odstranit z uvah: jakykoli navrat starsich FE panelu jako ovladaciho UI pro Lab
+
+### 4.7 Minimalni file plan
+
+Minimalni navrh noveho scope po pripadnem schvaleni implementace:
+
+1. `frontend/src/lab/r3f/R3FLabEntry.jsx`
+2. `frontend/src/lab/r3f/R3FLabShell.jsx`
+3. `frontend/src/lab/r3f/LabCanvas.jsx`
+4. `frontend/src/lab/r3f/labSceneRegistry.js`
+5. `frontend/src/lab/r3f/labConfigSchema.js`
+6. `frontend/src/lab/r3f/labPresetStore.js`
+7. `frontend/src/lab/r3f/labPersistence.js`
+8. `frontend/src/lab/r3f/labDiagnosticsModel.js`
+9. `frontend/src/lab/r3f/scenes/StarCoreExteriorLabScene.jsx`
+10. `frontend/src/lab/r3f/scenes/StarCoreInteriorCoreLabScene.jsx`
+11. `frontend/src/lab/r3f/adapters/starCoreExteriorLabAdapter.js`
+12. `frontend/src/lab/r3f/adapters/starCoreInteriorLabAdapter.js`
+13. `frontend/src/lab/r3f/__tests__/labConfigSchema.test.js`
+14. `frontend/src/lab/r3f/__tests__/labPresetStore.test.js`
+15. `frontend/src/lab/r3f/__tests__/labSceneRegistry.test.js`
+
+Dotcene aktivni soubory az pri implementaci:
+
+1. `frontend/src/App.jsx`
+2. `frontend/src/main.jsx`
+
+Pravidlo:
+
+1. dotyk `App.jsx` nebo `main.jsx` ma byt jen pro dev guard a vstupni vetveni,
+2. `UniverseWorkspace.jsx` a `StarCoreInteriorScreen.jsx` se v prvni lab implementaci nesmi znovu rozsirovat o experiment orchestration.
+
+## 5. Otevrene otazky
+
+1. ma byt dev guard resen pres `import.meta.env.DEV`, query parametr, nebo kombinaci obojiho,
+2. chceme v `v1` pouzit vlastni lehky panel, nebo rovnou prijmout externi GUI knihovnu,
+3. ma byt `renderer.info` baseline povinna soucast shellu, nebo volitelny panel,
+4. jaky presny preset schema boundary bude mit `star_core_interior_core`.
+
+## 6. Gate pro budouci implementacni blok
+
+Budouci implementace `R3F Lab v1` se nesmi otevrit, dokud nebude explicitne schvaleno:
+
+1. ze FE stop stav je pro tento nastroj docasne zvednut nebo cilene omezen,
+2. ze `R3F Lab` je povoleny jako dev-only nastroj, ne dalsi produktova iterace,
+3. ze prvni blok zustane maximalne u `Faze 0` a `Faze 1`,
+4. ze budouci implementacni dokument navaze na tento navrh a zachova `Pripraveny kod z archivu`.
