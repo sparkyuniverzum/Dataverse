@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run --config vitest.config.js",
     "test:lab": "vitest run --config vitest.config.js --passWithNoTests=false src/lab/r3f/__tests__/labActivation.test.js src/lab/r3f/__tests__/labConfigSchema.test.js src/lab/r3f/__tests__/labSceneRegistry.test.js src/lab/r3f/__tests__/labPresetStore.test.js src/lab/r3f/__tests__/R3FLabShell.test.jsx src/lab/r3f/__tests__/R3FLabEntry.test.jsx",
-    "test:lab:shell": "vitest run --config vitest.config.js --reporter=verbose --passWithNoTests=false src/lab/r3f/__tests__/R3FLabShell.test.jsx",
+    "test:lab:shell": "vitest run --config vitest.config.js --passWithNoTests=false src/lab/r3f/__tests__/labActivation.test.js src/lab/r3f/__tests__/labConfigSchema.test.js src/lab/r3f/__tests__/labSceneRegistry.test.js src/lab/r3f/__tests__/labPresetStore.test.js src/lab/r3f/__tests__/R3FLabShell.test.jsx src/lab/r3f/__tests__/R3FLabEntry.test.jsx -t R3FLabShell",
     "test:unit:moon-impact": "vitest run --config vitest.config.js src/components/universe/civilizationInspectorModel.test.js",
     "test:unit:civ-batch": "vitest run --config vitest.config.js src/components/universe/QuickGridOverlay.civilizations.test.jsx",
     "test:unit:civ-inspector": "vitest run --config vitest.config.js src/components/universe/civilizationInspectorModel.test.js",

@@ -1,0 +1,11 @@
+node_modules/
+.venv/
+venv/
+env/
+__pycache__/
+dist/
+build/
+.git/
+.vscode/
+*.log
+archive_inspiration/

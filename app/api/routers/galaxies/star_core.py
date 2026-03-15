@@ -234,7 +234,9 @@ async def star_core_interior_constitution_select(
 
 
 @router.post(
-    "/galaxies/{galaxy_id}/star-core/policy/lock", response_model=StarCorePolicyPublic, status_code=status.HTTP_200_OK
+    "/galaxies/{galaxy_id}/star-core/policy/lock",
+    response_model=StarCoreInteriorPublic,
+    status_code=status.HTTP_200_OK,
 )
 async def star_core_policy_lock(
     galaxy_id: UUID,
@@ -242,7 +244,7 @@ async def star_core_policy_lock(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     services: ServiceContainer = Depends(get_service_container),
-) -> StarCorePolicyPublic:
+) -> StarCoreInteriorPublic:
     plan = plan_apply_profile_lock(
         profile_key=payload.profile_key,
         physical_profile_key=payload.physical_profile_key,
@@ -256,9 +258,9 @@ async def star_core_policy_lock(
         galaxy_id=galaxy_id,
     )
 
-    async def execute_scoped(target_scope_galaxy_id: UUID, _: UUID | None) -> StarCorePolicyPublic:
+    async def execute_scoped(target_scope_galaxy_id: UUID, _: UUID | None) -> StarCoreInteriorPublic:
         try:
-            policy = await apply_profile_and_lock_command(
+            await apply_profile_and_lock_command(
                 session=session,
                 services=services,
                 user_id=current_user.id,
@@ -268,9 +270,17 @@ async def star_core_policy_lock(
                 physical_profile_version=int(plan.request_payload["physical_profile_version"]),
                 lock_after_apply=bool(plan.request_payload["lock_after_apply"]),
             )
+            # Map valid policy update back to an interior read model for the same context
+            return await get_interior_query(
+                session=session,
+                services=services,
+                user_id=current_user.id,
+                galaxy_id=target_scope_galaxy_id,
+            )
         except StarCoreCommandError as exc:
             raise _command_to_http_exception(exc) from exc
-        return star_core_policy_to_public(policy)
+        except StarCoreQueryError as exc:
+            raise _query_to_http_exception(exc) from exc
 
     return await run_scoped_idempotent(
         session=session,
@@ -282,7 +292,7 @@ async def star_core_policy_lock(
         idempotency_key=payload.idempotency_key,
         request_payload=plan.request_payload,
         execute=execute_scoped,
-        replay_loader=StarCorePolicyPublic.model_validate,
+        replay_loader=StarCoreInteriorPublic.model_validate,
         response_dumper=lambda response: response.model_dump(mode="json"),
         empty_response_detail="Star-core policy lock failed",
         resolved_scope=(target_galaxy_id, None),

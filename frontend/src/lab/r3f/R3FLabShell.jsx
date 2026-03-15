@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import LabCanvas from "./LabCanvas.jsx";
 import { resolveLabDiagnosticsModel } from "./labDiagnosticsModel.js";
-import { getLabSceneDefinition, listLabScenes } from "./labSceneRegistry.js";
+import { getLabSceneById, listLabScenes } from "./labSceneRegistry.js";
 import { r3fLabPresetStore, useLabPresetStore } from "./labPresetStore.js";
 
 function ShellSection({ title, children, aside = null }) {
@@ -46,7 +46,7 @@ export default function R3FLabShell({ activationSource = "storage", onExit = nul
   const [presetMode, setPresetMode] = useState("idle");
   const [forceWarning, setForceWarning] = useState(false);
 
-  const selectedScene = getLabSceneDefinition(snapshot.selectedSceneId);
+  const selectedScene = getLabSceneById(snapshot.selectedSceneId);
   const selectedSceneConfig = snapshot.scenes[snapshot.selectedSceneId] || null;
   const diagnosticsModel = resolveLabDiagnosticsModel({
     diagnostics,
