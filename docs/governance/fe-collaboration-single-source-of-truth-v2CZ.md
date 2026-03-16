@@ -163,7 +163,9 @@ Tento dokument vykonava a odkazuje na:
 5. `docs/P0-core/contracts/aktivni/ux/ux-ia-navigation-architecture-v1CZ.md`,
 6. `docs/P0-core/contracts/aktivni/ux/ux-journeys-and-visual-language-v1CZ.md`,
 7. `docs/P0-core/contracts/aktivni/ux/ux-fe-component-behavior-contract-v1CZ.md`,
-8. `docs/P0-core/contracts/aktivni/ux/ux-operation-layer-grid-command-v1CZ.md`.
+8. `docs/P0-core/contracts/aktivni/ux/ux-operation-layer-grid-command-v1CZ.md`,
+9. `docs/contracts/fe/fe-be-active-runtime-baseline-v1CZ.md`,
+10. `docs/governance/fe-operating-baseline-v1CZ.md`.
 
 ## 14. Nahrazeni starsich governance dokumentu
 

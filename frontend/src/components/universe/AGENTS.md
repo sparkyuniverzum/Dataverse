@@ -5,9 +5,10 @@ Scope: `frontend/src/components/universe/`
 ## Mandatory Rule Load
 
 1. Precti `/mnt/c/Projekty/Dataverse/AGENTS.md`.
-2. Precti tento soubor.
-3. Teprve potom upravuj aktivni universe runtime soubory.
-4. Dodrz root `Collaboration Contract (Mandatory)` vcetne `Povel pro tebe`.
+2. Precti `/mnt/c/Projekty/Dataverse/docs/governance/fe-operating-baseline-v1CZ.md`.
+3. Precti `/mnt/c/Projekty/Dataverse/docs/contracts/fe/fe-be-active-runtime-baseline-v1CZ.md`.
+4. Precti tento soubor.
+5. Teprve potom upravuj aktivni universe runtime soubory.
 
 ## Local Priorities
 
@@ -20,6 +21,7 @@ Scope: `frontend/src/components/universe/`
 7. Udrzuj user-visible copy cesky a strucny.
 8. V tomto scope plati zavazne poradi `priprava -> navrh -> implementace`; novy UI smer se nejdriv schvaluje dokumentacne a screenshotove.
 9. Kazdy novy FE implementacni dokument v tomto scope musi obsahovat sekci `Pripraveny kod z archivu` a vyjmenovat konkretni archived helpery/controller moduly, ktere se maji v danem bloku vratit.
+10. Pri bezne FE praci se backend kod necte pro orientaci, pokud odpoved uz obsahuje aktivni FE-BE baseline packet.
 
 ## Local Validation
 

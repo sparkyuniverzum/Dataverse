@@ -5,9 +5,11 @@ Scope: `frontend/src/context/`
 ## Mandatory Rule Load
 
 1. Read `/mnt/c/Projekty/Dataverse/AGENTS.md`.
-2. Read this file.
-3. If changes affect workspace entry, also read `/mnt/c/Projekty/Dataverse/frontend/src/components/app/AGENTS.md`.
-4. Then edit frontend context modules.
+2. Read `/mnt/c/Projekty/Dataverse/docs/governance/fe-operating-baseline-v1CZ.md`.
+3. Read `/mnt/c/Projekty/Dataverse/docs/contracts/fe/fe-be-active-runtime-baseline-v1CZ.md`.
+4. Read this file.
+5. If changes affect workspace entry, also read `/mnt/c/Projekty/Dataverse/frontend/src/components/app/AGENTS.md`.
+6. Then edit frontend context modules.
 
 ## Local Priorities
 

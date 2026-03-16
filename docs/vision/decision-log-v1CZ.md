@@ -157,52 +157,6 @@ Zdroj pravdy:
 1. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
 2. `docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md`
 
-### D-008 R3F Lab je povolena oddelena vyjimka z FE stop stavu
-
-Datum: 2026-03-14
-Stav: aktivni
-
-Rozhodnuti:
-
-1. obecny FE stop stav zustava v platnosti pro produktovy FE runtime a navazujici interierove bloky,
-2. `R3F Lab` je povolen jako oddelena dev-only vyjimka,
-3. tato vyjimka je povolena proto, ze `R3F Lab` je povazovan za klicovy enablement bod pro dalsi realizaci projektu,
-4. `R3F Lab` se vede oddelene od produktoveho FE vyvoje a nesmi byt vykladan jako znovuotevreni `Bloku 3`,
-5. povoleny rozsah teto vyjimky je omezen na internI harness, preset contract, diagnostiku a navazne R3F experimenty podle aktivnich lab dokumentu.
-
-Vyrazeno:
-
-1. predstava, ze povoleni `R3F Lab` automaticky zveda stop stav pro ostatni FE bloky.
-
-Zdroj pravdy:
-
-1. `docs/P0-core/contracts/aktivni/fe/fe-r3f-lab-v1CZ.md`
-2. `docs/P0-core/contracts/aktivni/fe/fe-r3f-lab-implementacni-dokument-v1CZ.md`
-3. `docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md`
-
-### D-009 R3F Lab se ma planovat spike-ove jako cela cesta
-
-Datum: 2026-03-14
-Stav: aktivni
-
-Rozhodnuti:
-
-1. `R3F Lab` se nema vest jen jako jednorazovy prvni blok, ale jako cela implementacne rozpadnuta cesta,
-2. cela cesta se ma planovat spike-ove po malych, explicitnich fazich,
-3. implementace se ma rozdelit do vice navaznych bloku tak, aby bylo mozne postupovat relativne rychle bez ztraty discipliny,
-4. po dokonceni cele cesty maji probehnout jeste 1-2 spolecne review pruchody robustnosti,
-5. cil je, aby byl `R3F Lab` pred dalsim pouzitim co nejvice odolny, citelny a rychle rozvijitelny.
-
-Vyrazeno:
-
-1. predstava, ze staci ad hoc otevrit prvni blok bez planu cele navazne cesty,
-2. predstava, ze druha scena nebo dalsi faze zustanou jen volitelny neplanovany dodatek.
-
-Zdroj pravdy:
-
-1. `docs/P0-core/contracts/aktivni/fe/fe-r3f-lab-v1CZ.md`
-2. `docs/P0-core/contracts/aktivni/fe/fe-r3f-lab-implementacni-dokument-v1CZ.md`
-
 ## 3. Pravidlo pouziti
 
 1. Pri beznem navrhu a implementaci se tento log cte pred navratem ke starsim diskusim.
