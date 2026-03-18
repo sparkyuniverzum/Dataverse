@@ -2,9 +2,9 @@ function toObject(raw) {
   return raw && typeof raw === "object" ? raw : {};
 }
 
-function normalizeAsteroidSource(data) {
-  if (Array.isArray(data?.asteroids)) return data.asteroids;
+function normalizeCivilizationSource(data) {
   if (Array.isArray(data?.civilizations)) return data.civilizations;
+  if (Array.isArray(data?.asteroids)) return data.asteroids;
   if (Array.isArray(data?.moons)) return data.moons;
   if (Array.isArray(data?.atoms)) return data.atoms;
   return [];
@@ -17,8 +17,8 @@ function normalizeBondSource(data) {
   return [];
 }
 
-export function normalizeSnapshotAsteroids(data) {
-  return normalizeAsteroidSource(data)
+export function normalizeSnapshotCivilizations(data) {
+  return normalizeCivilizationSource(data)
     .map((raw) => {
       const source = toObject(raw);
       const id = String(source.id || source.civilization_id || source.moon_id || "").trim();
@@ -43,10 +43,10 @@ export function normalizeSnapshotAsteroids(data) {
             : metadataSource,
       };
     })
-    .filter((asteroid) => asteroid && asteroid.is_deleted !== true);
+    .filter((civilization) => civilization && civilization.is_deleted !== true);
 }
 
-export function normalizeSnapshotBonds(data, asteroidIds = new Set()) {
+export function normalizeSnapshotBonds(data, civilizationIds = new Set()) {
   return normalizeBondSource(data)
     .map((raw) => {
       const source = toObject(raw);
@@ -63,14 +63,16 @@ export function normalizeSnapshotBonds(data, asteroidIds = new Set()) {
       (bond) =>
         bond &&
         bond.is_deleted !== true &&
-        asteroidIds.has(String(bond.source_id)) &&
-        asteroidIds.has(String(bond.target_id))
+        civilizationIds.has(String(bond.source_id)) &&
+        civilizationIds.has(String(bond.target_id))
     );
 }
 
 export function normalizeSnapshotProjection(data) {
-  const asteroids = normalizeSnapshotAsteroids(data);
-  const asteroidIds = new Set(asteroids.map((asteroid) => String(asteroid.id)));
-  const bonds = normalizeSnapshotBonds(data, asteroidIds);
-  return { asteroids, bonds };
+  const civilizations = normalizeSnapshotCivilizations(data);
+  const civilizationIds = new Set(civilizations.map((civilization) => String(civilization.id)));
+  const bonds = normalizeSnapshotBonds(data, civilizationIds);
+  return { civilizations, bonds };
 }
+
+export const normalizeSnapshotAsteroids = normalizeSnapshotCivilizations;

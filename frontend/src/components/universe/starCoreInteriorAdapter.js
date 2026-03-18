@@ -348,6 +348,10 @@ export function resolveStarCoreInteriorModel({ interiorTruth = null, uiState = n
 
   return {
     phase: state.isOpen ? phase : "closed",
+    mode:
+      truth?.governanceSignal?.lockStatus === "locked" || backendPhase === "first_orbit_ready"
+        ? "observatory"
+        : "ritual",
     isOpen: Boolean(state.isOpen),
     availableConstitutions,
     selectedConstitutionId: truth?.selectedConstitutionId || "",

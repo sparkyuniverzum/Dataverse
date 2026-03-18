@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AuthExperience from "./components/app/AuthExperience";
 import WorkspaceShell from "./components/app/WorkspaceShell";
+import ResetPasswordScreen from "./components/screens/ResetPasswordScreen.jsx";
 import {
   buildOfflineEntryGuardMessage,
   resolveAppConnectivityNotice,
@@ -12,6 +13,7 @@ import { useConnectivityState } from "./hooks/useConnectivityState";
 export default function App() {
   const { isAuthenticated, isLoading, login, register, forgotPassword } = useAuth();
   const connectivity = useConnectivityState();
+  const [pathname, setPathname] = useState(() => window.location.pathname || "/");
 
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -19,6 +21,22 @@ export default function App() {
     () => resolveAppConnectivityNotice(connectivity.isOnline, "auth_entry"),
     [connectivity.isOnline]
   );
+
+  useEffect(() => {
+    const handlePopState = () => setPathname(window.location.pathname || "/");
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const navigateToPath = useCallback((nextPath) => {
+    const normalizedPath = String(nextPath || "/").trim() || "/";
+    if (normalizedPath === window.location.pathname) {
+      setPathname(normalizedPath);
+      return;
+    }
+    window.history.pushState({}, "", normalizedPath);
+    setPathname(normalizedPath);
+  }, []);
 
   const handleAuthLogin = useCallback(
     async (email, password) => {
@@ -89,6 +107,10 @@ export default function App() {
         Inicializuji Dataverse...
       </main>
     );
+  }
+
+  if (pathname === "/reset-password") {
+    return <ResetPasswordScreen onNavigateToLogin={() => navigateToPath("/")} />;
   }
 
   if (!isAuthenticated) {

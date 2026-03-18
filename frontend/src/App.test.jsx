@@ -20,9 +20,33 @@ vi.mock("./components/app/WorkspaceShell", () => ({
   default: () => <div data-testid="workspace-shell">workspace</div>,
 }));
 
+vi.mock("./components/screens/ResetPasswordScreen.jsx", () => ({
+  default: () => <div data-testid="reset-password-screen">reset</div>,
+}));
+
 import App from "./App.jsx";
 
 describe("App", () => {
+  it("renders reset password route on dedicated pathname", () => {
+    window.history.pushState({}, "", "/reset-password");
+    useAuthMock.mockReturnValue({
+      isAuthenticated: false,
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      forgotPassword: vi.fn(),
+    });
+    useConnectivityStateMock.mockReturnValue({
+      isOnline: true,
+      isOffline: false,
+    });
+
+    render(<App />);
+
+    expect(screen.getByTestId("reset-password-screen")).toBeTruthy();
+    window.history.pushState({}, "", "/");
+  });
+
   it("renders boot screen while auth is loading", () => {
     useAuthMock.mockReturnValue({
       isAuthenticated: false,

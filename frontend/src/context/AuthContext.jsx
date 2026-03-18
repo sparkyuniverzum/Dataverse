@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE, buildGalaxiesUrl, configureApiAuth } from "../lib/dataverseApi";
-import { normalizeGalaxyPublic } from "../lib/workspaceScopeContract";
+import { normalizeGalaxyList, normalizeGalaxyPublic } from "../lib/workspaceScopeContract";
 import {
   AUTH_SESSION_STATUS,
   classifyAuthHttpStatus,
@@ -14,6 +14,13 @@ import {
 const LEGACY_ACCESS_TOKEN_KEY = "dataverse_auth_token";
 const ACCESS_TOKEN_KEY = "dataverse_auth_access_token";
 const REFRESH_TOKEN_KEY = "dataverse_auth_refresh_token";
+const GALAXY_BOOTSTRAP_STATE = Object.freeze({
+  IDLE: "idle",
+  LOADING: "loading_galaxies",
+  EMPTY: "empty_galaxy",
+  READY: "workspace_ready",
+  ERROR: "workspace_error",
+});
 
 const AuthContext = createContext(null);
 
@@ -36,6 +43,8 @@ export function AuthProvider({ children }) {
   const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem(REFRESH_TOKEN_KEY) || "");
   const [user, setUser] = useState(null);
   const [defaultGalaxy, setDefaultGalaxy] = useState(null);
+  const [galaxyBootstrapState, setGalaxyBootstrapState] = useState(GALAXY_BOOTSTRAP_STATE.IDLE);
+  const [galaxyBootstrapError, setGalaxyBootstrapError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
   const accessTokenRef = useRef(accessToken);
@@ -72,6 +81,8 @@ export function AuthProvider({ children }) {
     setRefreshToken("");
     setUser(null);
     setDefaultGalaxy(null);
+    setGalaxyBootstrapState(GALAXY_BOOTSTRAP_STATE.IDLE);
+    setGalaxyBootstrapError("");
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
@@ -94,20 +105,52 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const fetchDefaultGalaxy = useCallback(async (token) => {
-    if (!token) return null;
+  const fetchGalaxyList = useCallback(async (token) => {
+    if (!token) {
+      return { galaxies: [], error: "" };
+    }
     try {
       const response = await fetch(buildGalaxiesUrl(API_BASE), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) return null;
+      if (!response.ok) {
+        return { galaxies: [], error: "Nepodařilo se načíst seznam galaxií." };
+      }
       const payload = await response.json();
-      const galaxies = Array.isArray(payload) ? payload.map((item) => normalizeGalaxyPublic(item)).filter(Boolean) : [];
-      return galaxies[0] || null;
+      return {
+        galaxies: normalizeGalaxyList(payload),
+        error: "",
+      };
     } catch {
-      return null;
+      return {
+        galaxies: [],
+        error: "Načtení galaxií selhalo kvůli síťové chybě.",
+      };
     }
   }, []);
+
+  const resolveGalaxyBootstrap = useCallback(
+    async (token) => {
+      setGalaxyBootstrapState(GALAXY_BOOTSTRAP_STATE.LOADING);
+      setGalaxyBootstrapError("");
+      const { galaxies, error } = await fetchGalaxyList(token);
+      if (error) {
+        setDefaultGalaxy(null);
+        setGalaxyBootstrapState(GALAXY_BOOTSTRAP_STATE.ERROR);
+        setGalaxyBootstrapError(error);
+        return null;
+      }
+      const nextDefaultGalaxy = galaxies[0] || null;
+      setDefaultGalaxy(nextDefaultGalaxy);
+      if (nextDefaultGalaxy) {
+        setGalaxyBootstrapState(GALAXY_BOOTSTRAP_STATE.READY);
+        return nextDefaultGalaxy;
+      }
+      setGalaxyBootstrapState(GALAXY_BOOTSTRAP_STATE.EMPTY);
+      return null;
+    },
+    [fetchGalaxyList]
+  );
 
   const refreshSession = useCallback(async () => {
     const inFlight = refreshPromiseRef.current;
@@ -245,9 +288,8 @@ export function AuthProvider({ children }) {
           }
         } else {
           setUser(nextUser);
-          const nextDefaultGalaxy = await fetchDefaultGalaxy(accessTokenRef.current);
+          await resolveGalaxyBootstrap(accessTokenRef.current);
           if (!alive) return;
-          setDefaultGalaxy(nextDefaultGalaxy);
         }
       } catch {
         if (!alive) return;
@@ -259,10 +301,10 @@ export function AuthProvider({ children }) {
     return () => {
       alive = false;
     };
-  }, [clearSession, fetchCurrentUser, fetchDefaultGalaxy, refreshSession]);
+  }, [clearSession, fetchCurrentUser, refreshSession, resolveGalaxyBootstrap]);
 
   const completeAuth = useCallback(
-    (body, fallbackTokenError) => {
+    async (body, fallbackTokenError) => {
       const nextAccessToken = String(body?.access_token || "").trim();
       const nextRefreshToken = String(body?.refresh_token || "").trim();
       if (!nextAccessToken || !nextRefreshToken) {
@@ -271,10 +313,17 @@ export function AuthProvider({ children }) {
 
       persistTokens(nextAccessToken, nextRefreshToken);
       setUser(body.user || null);
-      setDefaultGalaxy(normalizeGalaxyPublic(body.default_galaxy) || null);
+      const nextDefaultGalaxy = normalizeGalaxyPublic(body.default_galaxy) || null;
+      setDefaultGalaxy(nextDefaultGalaxy);
+      if (nextDefaultGalaxy) {
+        setGalaxyBootstrapState(GALAXY_BOOTSTRAP_STATE.READY);
+        setGalaxyBootstrapError("");
+      } else {
+        await resolveGalaxyBootstrap(nextAccessToken);
+      }
       return body;
     },
-    [persistTokens]
+    [persistTokens, resolveGalaxyBootstrap]
   );
 
   const login = useCallback(
@@ -312,7 +361,7 @@ export function AuthProvider({ children }) {
       const body = parseJsonSafe(bodyText);
       const hasTokens = Boolean(String(body?.access_token || "").trim() && String(body?.refresh_token || "").trim());
       if (hasTokens) {
-        completeAuth(body, "Registrace proběhla, ale nepodařilo se navázat session.");
+        await completeAuth(body, "Registrace proběhla, ale nepodařilo se navázat session.");
         return { authenticated: true };
       }
 
@@ -415,6 +464,54 @@ export function AuthProvider({ children }) {
     clearSession();
   }, [clearSession]);
 
+  const createGalaxy = useCallback(
+    async ({ name } = {}) => {
+      const safeName = String(name || "").trim();
+      if (!safeName) {
+        throw new Error("Název galaxie je povinný.");
+      }
+      const token = accessTokenRef.current;
+      if (!token) {
+        throw new Error("Nelze vytvořit galaxii bez aktivní session.");
+      }
+
+      setGalaxyBootstrapState(GALAXY_BOOTSTRAP_STATE.LOADING);
+      setGalaxyBootstrapError("");
+
+      const response = await fetch(buildGalaxiesUrl(API_BASE), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: safeName }),
+      });
+
+      const bodyText = await response.text();
+      if (!response.ok) {
+        const message = parseErrorMessage(bodyText, "Vytvoření galaxie selhalo. Zkuste to prosím znovu.");
+        setGalaxyBootstrapState(GALAXY_BOOTSTRAP_STATE.ERROR);
+        setGalaxyBootstrapError(message);
+        throw new Error(message);
+      }
+
+      const body = parseJsonSafe(bodyText);
+      const createdGalaxy = normalizeGalaxyPublic(body);
+      if (createdGalaxy) {
+        setDefaultGalaxy(createdGalaxy);
+        setGalaxyBootstrapState(GALAXY_BOOTSTRAP_STATE.READY);
+        return createdGalaxy;
+      }
+
+      const nextDefaultGalaxy = await resolveGalaxyBootstrap(token);
+      if (!nextDefaultGalaxy) {
+        throw new Error("Galaxie byla vytvořena, ale FE neobnovilo aktivní workspace.");
+      }
+      return nextDefaultGalaxy;
+    },
+    [resolveGalaxyBootstrap]
+  );
+
   const value = useMemo(
     () => ({
       user,
@@ -428,6 +525,9 @@ export function AuthProvider({ children }) {
       logout,
       refreshSession,
       setDefaultGalaxy,
+      galaxyBootstrapState,
+      galaxyBootstrapError,
+      createGalaxy,
       forgotPassword,
       resetPassword,
       updateProfile,
@@ -436,6 +536,8 @@ export function AuthProvider({ children }) {
     [
       accessToken,
       defaultGalaxy,
+      galaxyBootstrapError,
+      galaxyBootstrapState,
       isLoading,
       login,
       logout,
@@ -443,6 +545,7 @@ export function AuthProvider({ children }) {
       refreshToken,
       register,
       user,
+      createGalaxy,
       forgotPassword,
       resetPassword,
       updateProfile,

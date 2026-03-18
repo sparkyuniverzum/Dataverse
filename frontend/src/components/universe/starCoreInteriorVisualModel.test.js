@@ -50,7 +50,7 @@ describe("starCoreInteriorVisualModel", () => {
 
     expect(model.showFirstOrbit).toBe(true);
     expect(model.showSelectionOrbit).toBe(false);
-    expect(model.phaseCopy.eyebrow).toBe("FIRST ORBIT READY");
+    expect(model.phaseCopy.eyebrow).toBe("CANONICAL ORDER");
   });
 
   it("reduces chamber opacity during entering and returning transitions", () => {

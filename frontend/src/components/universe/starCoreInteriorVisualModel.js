@@ -37,16 +37,16 @@ function formatPercent(value) {
 
 function defaultTheme() {
   return {
-    tonePrimary: "#9bdcff",
-    toneSecondary: "#d7f3ff",
-    toneAccent: "#f1d38c",
-    chamberGlow: "rgba(155, 220, 255, 0.18)",
-    chamberBeam: "rgba(241, 211, 140, 0.16)",
-    orbitStroke: "rgba(155, 220, 255, 0.68)",
-    ringStroke: "rgba(155, 220, 255, 0.38)",
-    orbitFill: "rgba(215, 243, 255, 0.1)",
+    tonePrimary: "#a6d6f4",
+    toneSecondary: "#f6ebcf",
+    toneAccent: "#e7b56d",
+    chamberGlow: "rgba(166, 214, 244, 0.22)",
+    chamberBeam: "rgba(231, 181, 109, 0.18)",
+    orbitStroke: "rgba(166, 214, 244, 0.54)",
+    ringStroke: "rgba(246, 235, 207, 0.2)",
+    orbitFill: "rgba(246, 235, 207, 0.08)",
     shellGradient:
-      "radial-gradient(circle at 50% 18%, rgba(215, 243, 255, 0.1), transparent 22%), radial-gradient(circle at 50% 45%, rgba(155, 220, 255, 0.14), rgba(4, 10, 24, 0.82) 34%, rgba(1, 6, 16, 0.98) 100%)",
+      "radial-gradient(circle at 50% 18%, rgba(246, 235, 207, 0.08), transparent 20%), radial-gradient(circle at 50% 44%, rgba(166, 214, 244, 0.1), rgba(4, 9, 18, 0.82) 36%, rgba(2, 4, 10, 0.98) 100%)",
   };
 }
 
@@ -64,8 +64,8 @@ function resolveThemeFromConstitution(constitution) {
     orbitFill: withAlpha(toneSecondary, 0.12),
     shellGradient: `radial-gradient(circle at 50% 45%, ${withAlpha(
       toneSecondary,
-      0.18
-    )}, rgba(4, 10, 24, 0.82) 34%, rgba(1, 6, 16, 0.98) 100%)`,
+      0.15
+    )}, rgba(4, 9, 18, 0.82) 36%, rgba(2, 4, 10, 0.98) 100%)`,
   };
 }
 
@@ -230,32 +230,32 @@ function resolveStageCopy(phase, explainability) {
     return {
       eyebrow: "THE DIVE",
       title: "Prunik do srdce hvezdy",
-      body: "Vrstvy plazmy se rozpadaji a kamera prechazi do klidneho governance prostoru.",
+      body: "Povrchove vrstvy ustupuji a odhaluji centralni komoru, kde se ustavuje rad galaxie.",
     };
   }
   if (phase === "policy_lock_transition") {
     return {
-      eyebrow: "GOVERNANCE ASTROLABE",
-      title: explainability?.headline || "Astrolab se uzamyka",
-      body: explainability?.body || "Prstence zapadaji do finalni polohy a potvrzuji policy lock.",
+      eyebrow: "SEALING THE CORE",
+      title: explainability?.headline || "Jadro se stabilizuje",
+      body: explainability?.body || "Chaoticke pole se stahuje a architektura prechazi do canonical rytmu.",
     };
   }
   if (phase === "first_orbit_ready") {
     return {
-      eyebrow: "FIRST ORBIT READY",
+      eyebrow: "CANONICAL ORDER",
       title: explainability?.headline || "Prvni orbita je potvrzena",
-      body: explainability?.body || "Jadro je stabilni, pripraveno predat rizeni zpet do prostoru.",
+      body: explainability?.body || "Jadro je stabilni a pripraveno drzet zakonitosti galaxie bez dalsich mutaci.",
     };
   }
   if (phase === "policy_lock_ready") {
     return {
-      eyebrow: "GOVERNANCE ASTROLABE",
-      title: explainability?.headline || "Prstence cekaji na uzamceni",
-      body: explainability?.body || "Natoc astrolab a potvrd fyzicke uzamceni politik.",
+      eyebrow: "RITUAL OF FORMATION",
+      title: explainability?.headline || "Jadro ceka na zakon",
+      body: explainability?.body || "Vyber ustavu a potvrd vznik radu, ktery bude drzet celou galaxii pohromade.",
     };
   }
   return {
-    eyebrow: "CORE ALIGNMENT",
+    eyebrow: "PRIMORDIAL FIELD",
     title: explainability?.headline || "Nastav fyziku jadra",
     body: explainability?.body || "Kazda ustava okamzite meni puls, hustotu a rytmus celeho prostoru.",
   };
@@ -266,6 +266,13 @@ function resolveGovernanceLockStrength(phase) {
   if (phase === "first_orbit_ready") return 0.82;
   if (phase === "policy_lock_ready") return 0.58;
   return 0.22;
+}
+
+function resolveStability(phase, mode) {
+  if (mode === "observatory") return 0.96;
+  if (phase === "policy_lock_transition") return 0.7;
+  if (phase === "policy_lock_ready") return 0.46;
+  return 0.18;
 }
 
 function buildAstrolabeRings(telemetryProjection, governanceLockStrength) {
@@ -304,10 +311,13 @@ export function resolveStarCoreInteriorVisualModel({
 } = {}) {
   const phase = String(interiorModel?.phase || "constitution_select").trim() || "constitution_select";
   const telemetry = interiorModel?.telemetry || {};
+  const mode = String(interiorModel?.mode || "ritual").trim() || "ritual";
   const telemetryProjection = resolveTelemetryProjection(telemetry);
   const theme = selectedConstitution ? resolveThemeFromConstitution(selectedConstitution) : defaultTheme();
   const phaseCopy = resolveStageCopy(phase, interiorModel?.explainability || {});
   const governanceLockStrength = resolveGovernanceLockStrength(phase);
+  const stability = resolveStability(phase, mode);
+  const chaosIntensity = clamp(1 - stability, 0.04, 1);
   const lockScaleBase = phase === "policy_lock_transition" ? 0.92 : phase === "first_orbit_ready" ? 0.88 : 1;
   const lockRingScale = clamp(lockScaleBase - telemetryProjection.criticalLoad * 0.05, 0.82, 1.06);
   const chamberOpacityBase = screenModel?.isEntering || screenModel?.isReturning ? 0.78 : 1;
@@ -325,8 +335,11 @@ export function resolveStarCoreInteriorVisualModel({
 
   return {
     phase,
+    mode,
     phaseCopy,
     theme,
+    stability,
+    chaosIntensity,
     orbitalCount: constitutionOptions.length,
     showSelectionOrbit: phase === "constitution_select" || phase === "policy_lock_ready",
     showConstitutionField: phase === "constitution_select" || phase === "policy_lock_ready",

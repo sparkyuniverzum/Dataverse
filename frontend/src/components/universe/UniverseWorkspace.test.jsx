@@ -529,4 +529,206 @@ describe("UniverseWorkspace", () => {
     });
     expect(lockSeen).toBe(true);
   });
+
+  it("opens locked observatory without calling entry/start write endpoint", async () => {
+    let entryStartCalls = 0;
+
+    fetch.mockImplementation(async (input) => {
+      const url = String(input || "");
+      if (url.includes("/star-core/interior/entry/start")) {
+        entryStartCalls += 1;
+        return createJsonResponse({});
+      }
+      if (url.includes("/star-core/interior")) {
+        return createJsonResponse({
+          interior_phase: "first_orbit_ready",
+          selected_constitution_id: "rovnovaha",
+          available_constitutions: [],
+          lock_ready: false,
+          lock_blockers: [],
+          lock_transition_state: "locked",
+          first_orbit_ready: true,
+          next_action: { action_key: "review_first_orbit", label_cz: "Prvni obezna draha je pripravena" },
+          explainability: {
+            headline_cz: "Politiky jsou uzamceny.",
+            body_cz: "Star Core uz funguje jako observatory dashboard.",
+          },
+          source_truth: {
+            profile_key: "ORIGIN",
+            law_preset: "balanced",
+            physical_profile_key: "BALANCE",
+            physical_profile_version: 1,
+            policy_lock_status: "locked",
+            policy_version: 2,
+          },
+        });
+      }
+      if (url.includes("/star-core/policy")) {
+        return createJsonResponse({
+          profile_key: "ORIGIN",
+          law_preset: "balanced",
+          profile_mode: "locked",
+          lock_status: "locked",
+          policy_version: 2,
+          locked_at: "2026-03-12T10:00:00Z",
+          can_edit_core_laws: false,
+        });
+      }
+      if (url.includes("/star-core/physics/profile")) {
+        return createJsonResponse({
+          galaxy_id: "g-1",
+          profile_key: "BALANCE",
+          profile_version: 1,
+          lock_status: "locked",
+          coefficients: { a: 0.12 },
+        });
+      }
+      if (url.includes("/star-core/runtime")) return createJsonResponse({ events_count: 12, writes_per_minute: 4 });
+      if (url.includes("/star-core/pulse")) return createJsonResponse({ sampled_count: 3, events: [] });
+      if (url.includes("/star-core/metrics/domains")) return createJsonResponse({ total_events_count: 8, domains: [] });
+      if (url.includes("/universe/tables")) return createJsonResponse({ items: [] });
+      if (url.includes("/universe/snapshot")) return createJsonResponse({ civilizations: [], bonds: [] });
+      return createJsonResponse({});
+    });
+
+    render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("space_idle");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "approach star" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("screen-stage").textContent).toBe("active");
+      expect(screen.getByTestId("screen-phase").textContent).toBe("first_orbit_ready");
+    });
+    expect(entryStartCalls).toBe(0);
+  });
+
+  it("runs command preview and commit through canonical parser pipeline", async () => {
+    let commitSeen = false;
+
+    fetch.mockImplementation(async (input, init) => {
+      const url = String(input || "");
+      if (url.includes("/parser/plan")) {
+        return createJsonResponse({
+          resolved_command: "nastav civ-001.status na aktivni",
+          atomic_tasks: [{ kind: "UPDATE_CIVILIZATION", target_id: "civ-001" }],
+          expected_events: ["civilization.updated"],
+          because_chain: ["Civilizace dostane novy status."],
+          risk_flags: [],
+        });
+      }
+      if (url.includes("/tasks/execute-batch")) {
+        commitSeen = true;
+        const payload = JSON.parse(String(init?.body || "{}"));
+        expect(payload.mode).toBe("commit");
+        expect(payload.tasks).toHaveLength(1);
+        return createJsonResponse({ ok: true });
+      }
+      if (url.includes("/star-core/policy")) {
+        return createJsonResponse({
+          profile_key: "ORIGIN",
+          law_preset: "balanced",
+          profile_mode: "locked",
+          lock_status: "locked",
+          policy_version: 2,
+          locked_at: "2026-03-12T10:00:00Z",
+          can_edit_core_laws: false,
+        });
+      }
+      if (url.includes("/star-core/physics/profile")) {
+        return createJsonResponse({
+          galaxy_id: "g-1",
+          profile_key: "BALANCE",
+          profile_version: 1,
+          lock_status: "locked",
+          coefficients: { a: 0.12 },
+        });
+      }
+      if (url.includes("/star-core/interior")) {
+        return createJsonResponse({
+          interior_phase: "first_orbit_ready",
+          selected_constitution_id: "rovnovaha",
+          available_constitutions: [],
+          lock_ready: false,
+          lock_blockers: [],
+          lock_transition_state: "locked",
+          first_orbit_ready: true,
+          next_action: { action_key: "review_first_orbit", label_cz: "Prvni obezna draha je pripravena" },
+          explainability: {
+            headline_cz: "Politiky jsou uzamceny.",
+            body_cz: "Star Core je stabilni.",
+          },
+          source_truth: {
+            profile_key: "ORIGIN",
+            law_preset: "balanced",
+            physical_profile_key: "BALANCE",
+            physical_profile_version: 1,
+            policy_lock_status: "locked",
+            policy_version: 2,
+          },
+        });
+      }
+      if (url.includes("/star-core/runtime")) return createJsonResponse({ events_count: 12, writes_per_minute: 4 });
+      if (url.includes("/star-core/pulse")) return createJsonResponse({ sampled_count: 3, events: [] });
+      if (url.includes("/star-core/metrics/domains")) return createJsonResponse({ total_events_count: 8, domains: [] });
+      if (url.includes("/universe/tables")) {
+        return createJsonResponse({
+          items: [
+            {
+              table_id: "t-1",
+              planet_name: "Planeta A",
+              constellation_name: "Orion",
+              sector: { center: { x: 0, z: 0 }, size: 1 },
+            },
+          ],
+        });
+      }
+      if (url.includes("/universe/snapshot")) {
+        return createJsonResponse({
+          civilizations: [
+            {
+              id: "civ-001",
+              value: commitSeen ? "Civilizace aktivni" : "Civilizace draft",
+              table_id: "t-1",
+              table_name: "Planeta A",
+              planet_name: "Planeta A",
+              constellation_name: "Orion",
+              active_alerts: [],
+              error_count: 0,
+              current_event_seq: commitSeen ? 2 : 1,
+            },
+          ],
+          bonds: [],
+        });
+      }
+      return createJsonResponse({});
+    });
+
+    render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("operator-command-toggle").hasAttribute("disabled")).toBe(false);
+    });
+
+    fireEvent.click(screen.getByTestId("operator-command-toggle"));
+    fireEvent.change(screen.getByTestId("command-input"), { target: { value: "nastav civ-001.status na aktivni" } });
+    fireEvent.click(screen.getByTestId("command-preview-trigger"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("command-preview")).toBeTruthy();
+      expect(screen.getByText("Preview pripraven. Parser navrhl 1 task(s).")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId("command-commit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("read-grid")).toBeTruthy();
+      expect(screen.getByText("Konvergence potvrzena. Workspace byl obnoven z canonical read modelu.")).toBeTruthy();
+      expect(screen.getByText("Civilizace aktivni")).toBeTruthy();
+    });
+    expect(commitSeen).toBe(true);
+  });
 });

@@ -35,7 +35,11 @@ Ma odpovedet bez backend spelunkingu na:
 3. `POST /auth/refresh`
 4. `POST /auth/logout`
 5. `GET /auth/me`
-6. `GET /galaxies`
+6. `PATCH /auth/me`
+7. `DELETE /auth/me`
+8. `POST /auth/forgot-password`
+9. `POST /auth/reset-password`
+10. `GET /galaxies`
 
 Pouziti:
 
@@ -53,8 +57,8 @@ Pro aktivni workspace shell FE pouziva:
 3. `GET /galaxies/{galaxy_id}/star-core/interior`
 4. `GET /galaxies/{galaxy_id}/star-core/runtime`
 5. `GET /galaxies/{galaxy_id}/star-core/pulse`
-6. `GET /galaxies/{galaxy_id}/star-core/domain-metrics`
-7. `GET /galaxies/{galaxy_id}/star-core/planet-physics`
+6. `GET /galaxies/{galaxy_id}/star-core/metrics/domains`
+7. `GET /galaxies/{galaxy_id}/star-core/physics/planets`
 
 FE dnes aktivne pouziva tato pole:
 
@@ -66,7 +70,10 @@ FE dnes aktivne pouziva tato pole:
 4. `lock_status`
 5. `policy_version`
 6. `can_edit_core_laws`
-7. implicitne governance booleans typu `no_hard_delete`, `occ_enforced`, `idempotency_supported`, `branch_scope_supported`
+7. `deletion_mode`
+8. `locked_at`
+9. implicitne governance booleans typu `no_hard_delete`, `occ_enforced`, `idempotency_supported`, `branch_scope_supported`
+
 
 `physics/profile`
 
@@ -80,15 +87,18 @@ FE dnes aktivne pouziva tato pole:
 
 1. `interior_phase`
 2. `available_constitutions[]`
-3. `selected_constitution_id`
-4. `recommended_constitution_id`
-5. `lock_ready`
-6. `lock_blockers[]`
-7. `lock_transition_state`
-8. `first_orbit_ready`
-9. `next_action`
-10. `explainability`
-11. `source_truth`
+3. per item: `constitution_id`, `title_cz`, `summary_cz`, `pulse_hint`, `visual_tone`, `recommended`, `lock_allowed`, `profile_key`, `law_preset`, `physical_profile_key`, `physical_profile_version`
+4. `selected_constitution_id`
+5. `recommended_constitution_id`
+6. `lock_ready`
+7. `lock_blockers[]`
+8. `lock_transition_state`
+9. `first_orbit_ready`
+10. `next_action`
+11. `explainability`
+12. `source_truth`
+13. per `source_truth`: `profile_key`, `law_preset`, `physical_profile_key`, `physical_profile_version` (volitelne `policy_lock_status`, `policy_version`)
+
 
 `runtime`
 
@@ -103,13 +113,13 @@ FE dnes aktivne pouziva tato pole:
 3. `event_types[]`
 4. `events[]`
 
-`domain-metrics`
+`metrics/domains`
 
 1. `total_events_count`
 2. `updated_at`
 3. `domains[]`
 
-`planet-physics`
+`physics/planets`
 
 1. `as_of_event_seq`
 2. `items[]`
