@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.mappers.public import galaxy_to_public, user_to_public
@@ -29,6 +30,7 @@ from app.modules.auth.schemas import (
     AuthResponse,
     LoginRequest,
     LogoutResponse,
+    OAuthTokenResponse,
     RefreshRequest,
     RefreshResponse,
     RegisterRequest,
@@ -138,6 +140,40 @@ async def login(
         user=user_to_public(result.user),
         default_galaxy=galaxy_to_public(result.default_galaxy),
     )
+
+
+@router.post("/auth/token", response_model=OAuthTokenResponse, status_code=status.HTTP_200_OK)
+async def token_login(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: AsyncSession = Depends(get_session),
+    services: ServiceContainer = Depends(get_service_container),
+) -> OAuthTokenResponse:
+    plan = plan_login(
+        email=form_data.username,
+        password=form_data.password,
+    )
+    async with transactional_context(session):
+        try:
+            result = await login_command(
+                session=session,
+                services=services,
+                email=str(plan.request_payload["email"]),
+                password=str(plan.request_payload["password"]),
+                user_agent=_request_user_agent(request),
+                ip_address=_request_ip_address(request),
+            )
+        except AuthCommandError as exc:
+            raise _command_to_http_exception(exc) from exc
+        await ensure_onboarding_progress_safe(
+            session=session,
+            services=services,
+            user_id=result.user.id,
+            galaxy_id=result.default_galaxy.id,
+            context="auth.token",
+        )
+    await commit_if_active(session)
+    return OAuthTokenResponse(access_token=result.tokens.access_token, token_type="bearer")
 
 
 @router.post("/auth/refresh", response_model=RefreshResponse, status_code=status.HTTP_200_OK)

@@ -4,7 +4,6 @@ function toObject(raw) {
 
 function normalizeCivilizationSource(data) {
   if (Array.isArray(data?.civilizations)) return data.civilizations;
-  if (Array.isArray(data?.asteroids)) return data.asteroids;
   if (Array.isArray(data?.moons)) return data.moons;
   if (Array.isArray(data?.atoms)) return data.atoms;
   return [];
@@ -74,5 +73,3 @@ export function normalizeSnapshotProjection(data) {
   const bonds = normalizeSnapshotBonds(data, civilizationIds);
   return { civilizations, bonds };
 }
-
-export const normalizeSnapshotAsteroids = normalizeSnapshotCivilizations;

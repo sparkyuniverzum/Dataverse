@@ -561,6 +561,7 @@ def test_auth_domain_professional_setup() -> None:
         "LoginRequest",
         "RefreshRequest",
         "AuthResponse",
+        "OAuthTokenResponse",
         "RefreshResponse",
         "LogoutResponse",
     )

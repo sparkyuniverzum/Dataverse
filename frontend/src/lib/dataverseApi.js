@@ -388,17 +388,6 @@ export function buildCivilizationExtinguishUrl(apiBase, civilizationId, { expect
   return url.toString();
 }
 
-export function buildAsteroidExtinguishUrl(apiBase, asteroidId, { galaxyId = null, expectedEventSeq } = {}) {
-  const url = new URL(`${apiBase}/asteroids/${asteroidId}/extinguish`);
-  if (galaxyId) {
-    url.searchParams.set("galaxy_id", String(galaxyId));
-  }
-  if (Number.isFinite(expectedEventSeq) && Number(expectedEventSeq) >= 0) {
-    url.searchParams.set("expected_event_seq", String(Math.floor(Number(expectedEventSeq))));
-  }
-  return url.toString();
-}
-
 export function buildBondExtinguishUrl(apiBase, bondId, { galaxyId = null, expectedEventSeq } = {}) {
   const url = new URL(`${apiBase}/bonds/${bondId}/extinguish`);
   if (galaxyId) {

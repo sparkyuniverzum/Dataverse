@@ -165,6 +165,18 @@ Direct commands:
 - `./.venv/bin/ruff format --check .`
 - `./.venv/bin/ruff check .`
 
+## 8.1 Swagger/OpenAPI auth pro manualni API testy
+
+Pokud v OpenAPI dostavas `401 Unauthorized`, pouzij vestaveny OAuth2 flow:
+
+1. Otevri `http://localhost:8000/docs`.
+2. Klikni `Authorize`.
+3. Vypln:
+   - `username` = tvuj email
+   - `password` = tve heslo
+4. Potvrd `Authorize` (Swagger vola `POST /auth/token`).
+5. Nyni muzete volat chranene endpointy bez rucniho kopirovani bearer tokenu.
+
 ## 9. CI
 
 Repo obsahuje workflow:

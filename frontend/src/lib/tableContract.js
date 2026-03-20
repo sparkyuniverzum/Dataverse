@@ -15,10 +15,10 @@ function diff(required, provided) {
 
 export const TABLE_CONTRACT_VERSION = "1.0.0";
 export const TABLE_CONTRACT_SCOPE = "table-contract-v1";
-export const TABLE_CONTRACT_DOC = "docs/P0-core/contracts/table-contract-v1.md";
+export const TABLE_CONTRACT_DOC = "docs/contracts/fe/fe-be-active-runtime-baseline-v1CZ.md";
 
-export const SNAPSHOT_ASTEROID_TABLE_BE_FIELDS = Object.freeze(["table_id", "table_name"]);
-export const SNAPSHOT_ASTEROID_TABLE_FE_USED_FIELDS = Object.freeze(["table_id", "table_name"]);
+export const SNAPSHOT_CIVILIZATION_TABLE_BE_FIELDS = Object.freeze(["table_id", "table_name"]);
+export const SNAPSHOT_CIVILIZATION_TABLE_FE_USED_FIELDS = Object.freeze(["table_id", "table_name"]);
 
 export const SNAPSHOT_BOND_TABLE_BE_FIELDS = Object.freeze([
   "source_table_id",
@@ -97,7 +97,10 @@ export const TABLE_SECTOR_FE_USED_FIELDS = Object.freeze(["center", "size", "mod
 
 export function tableContractDiff() {
   return {
-    snapshot_asteroid_table: diff(SNAPSHOT_ASTEROID_TABLE_BE_FIELDS, SNAPSHOT_ASTEROID_TABLE_FE_USED_FIELDS),
+    snapshot_civilization_table: diff(
+      SNAPSHOT_CIVILIZATION_TABLE_BE_FIELDS,
+      SNAPSHOT_CIVILIZATION_TABLE_FE_USED_FIELDS
+    ),
     snapshot_bond_table: diff(SNAPSHOT_BOND_TABLE_BE_FIELDS, SNAPSHOT_BOND_TABLE_FE_USED_FIELDS),
     tables_response: diff(TABLES_RESPONSE_BE_FIELDS, TABLES_RESPONSE_FE_USED_FIELDS),
     table_row: diff(TABLE_ROW_BE_FIELDS, TABLE_ROW_FE_USED_FIELDS),

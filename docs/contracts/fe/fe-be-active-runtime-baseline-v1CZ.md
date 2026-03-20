@@ -1,7 +1,7 @@
 # FE-BE Active Runtime Baseline v1
 
 Stav: aktivni
-Datum: 2026-03-16
+Datum: 2026-03-21
 Vlastnik: FE integrace
 Rozsah: aktivni backend truth, kterou FE potrebuje znat bez cteni backend kodu
 
@@ -40,11 +40,13 @@ Ma odpovedet bez backend spelunkingu na:
 8. `POST /auth/forgot-password`
 9. `POST /auth/reset-password`
 10. `GET /galaxies`
+11. `POST /galaxies`
 
 Pouziti:
 
 1. `GET /galaxies` vraci seznam galaxii a FE bere prvni jako `defaultGalaxy`.
 2. `apiFetch` automaticky pridava bearer token a pri `401` zkousi refresh session.
+3. `POST /galaxies` se pouziva jen pri bootstrapu prazdneho workspace; po uspechu FE nastavi `defaultGalaxy` z response nebo znovu nacte `GET /galaxies`.
 
 ## 4. Aktivni workspace read surface
 
@@ -190,7 +192,7 @@ Pouzivana bond pole:
 
 ### 4.3 Branch scope
 
-Branch-aware surface:
+Branch-aware support surface:
 
 1. `/branches`
 2. `/branches/{branch_id}/promote`
@@ -204,6 +206,7 @@ FE ma pocitat s tim, ze:
 1. branch je volitelna vrstva nad galaxii,
 2. main timeline je bez branch id,
 3. promote je merge/propis vetve zpet do main timeline.
+4. K 2026-03-21 neni branch flow aktivni soucasti hlavniho `UniverseWorkspace` runtime; FE ho ma pripraveny v URL builderech a e2e smoke flow, ne jako beznou operator UI cestu.
 
 ## 5. Aktivni workspace write surface
 
@@ -250,8 +253,7 @@ Response truth:
 Aktivni canonical write pipeline pro editor/command vrstvu:
 
 1. `POST /parser/plan`
-2. `POST /parser/execute`
-3. `POST /tasks/execute-batch`
+2. `POST /tasks/execute-batch`
 
 Pravidla:
 
@@ -259,6 +261,7 @@ Pravidla:
 2. task batch umi `preview` i `commit`,
 3. FE ma pred realnou mutaci preferovat preview/plan flow,
 4. mutacni akce jsou OCC/idempotency sensitive.
+5. K 2026-03-21 aktivni `UniverseWorkspace` runtime nevola `POST /parser/execute`; FE jde cestou `plan -> execute-batch`.
 
 ## 6. Scope, OCC a idempotency pravidla pro FE
 

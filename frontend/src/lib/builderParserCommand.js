@@ -37,8 +37,8 @@ export function buildTypeCivilizationsCommand(params = {}) {
   return buildTypeMoonsCommand(params);
 }
 
-export function buildExtinguishMoonCommand({ asteroidId, asteroidLabel = "" } = {}) {
-  const operand = toParserOperand(asteroidId || asteroidLabel);
+export function buildExtinguishMoonCommand({ entityId, entityLabel = "", moonId, moonLabel = "" } = {}) {
+  const operand = toParserOperand(entityId || moonId || entityLabel || moonLabel);
   if (!operand) return "";
   return `Delete : ${operand}`;
 }

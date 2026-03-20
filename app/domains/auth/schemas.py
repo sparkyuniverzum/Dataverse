@@ -30,6 +30,11 @@ class AuthResponse(BaseModel):
     default_galaxy: GalaxyPublic
 
 
+class OAuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
 class RefreshResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -45,6 +50,7 @@ __all__ = [
     "AuthResponse",
     "LoginRequest",
     "LogoutResponse",
+    "OAuthTokenResponse",
     "RefreshRequest",
     "RefreshResponse",
     "RegisterRequest",

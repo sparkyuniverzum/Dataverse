@@ -1,11 +1,11 @@
 # FE Baseline Status (Frontend)
 
-Datum: 2026-03-16
+Datum: 2026-03-21
 Repo: `/mnt/c/Projekty/Dataverse` (branch `staging`, HEAD `db5e437`)
 
-## Gate stav (lokalne)
+## Gate stav (lokalne, focused repair)
 
-- `npm run test`: PASS (63/63)
+- `npm --prefix frontend run test -- src/context/AuthContext.test.jsx src/components/app/WorkspaceShell.test.jsx src/components/universe/UniverseWorkspace.test.jsx`: PASS (11/11)
 - `npm run lint`: PASS
 - `npm run build`: PASS (vite warning: bundle > 500 kB)
 
@@ -58,19 +58,18 @@ Primarni FE reference:
 
 Kanonicky packet: `/mnt/c/Projekty/Dataverse/docs/contracts/fe/fe-be-active-runtime-baseline-v1CZ.md`
 
-K 2026-03-16 byl packet sjednocen s realne volanymi endpointy a FE-used fields pro Star Core read model:
+K 2026-03-21 je packet srovnan s realne aktivnim FE runtime:
 
-- endpointy `.../star-core/metrics/domains` a `.../star-core/physics/planets`
-- policy: doplneno `deletion_mode`, `locked_at`
-- interior: dopsana pole uvnitr `available_constitutions[]` a shape `source_truth`
+- auth/bootstrap cast uz netvrdi neaktivni `POST /auth/token`
+- branch scope je zapsan jako support surface, ne jako bezna aktivni UI cesta
+- parser write pipeline odpovida realnemu flow `plan -> execute-batch`
 
 ## Dokumentacni dluh / rizika driftu
 
-- `frontend/src/lib/apiV1Contract.js` a `/mnt/c/Projekty/Dataverse/scripts/release_v1_gate.sh` odkazuji na neexistujici soubor `docs/P0-core/contracts/api-v1.md`.
-- Ve FE jsou stale interni nazvy `asteroids` (napr. `frontend/src/lib/snapshotNormalization.js`) a dokonce helper route `PATCH /asteroids/...`. To je v napeti s governance zakazem `asteroid*` terminologie.
+- `scripts/release_v1_gate.sh` stale odkazuje na starsi `docs/P0-core/contracts/api-v1.md`; frontend helper registry uz byla srovnana na aktualni FE baseline.
+- Build stale hlasi velky bundle (`dist/assets/index-*.js` > 500 kB); neni to baseline drift, ale zustava to performance dluh.
 
 ## Co je “baseline task” k uzavreni mapovani
 
-- Sjednotit packet `fe-be-active-runtime-baseline-v1CZ.md` s realne volanymi endpointy a FE-used fields (minimalne body z kapitoly Divergence).
-- Rozhodnout, co je kanonicky zdroj “API v1 kontraktu” (a doplnit chybejici `docs/P0-core/contracts/*.md` nebo upravit odkazy/gate).
-- Vyjasnit a zplanovat odstraneni `asteroid*` terminologie (min. v aktivni runtime + dokumentaci; idealne i v kodu).
+- Opravit zbyvajici repo-level gate skripty, ktere stale miri na archivni kontraktove cesty mimo aktivni FE baseline packet.
+- Rozhodnout, jestli se ma helper registry dale drzet jako aktivni surface index, nebo uplne nahradit jednim canonical packetem.

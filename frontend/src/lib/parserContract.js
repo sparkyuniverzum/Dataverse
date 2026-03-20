@@ -15,8 +15,8 @@ function diff(required, provided) {
 
 export const PARSER_CONTRACT_VERSION = "1.0.0";
 export const PARSER_CONTRACT_SCOPE = "parser-v1-v2-fe-freeze";
-export const PARSER_V1_DOC = "docs/P0-core/contracts/parser-v1.md";
-export const PARSER_V2_SPEC_DOC = "docs/P0-core/contracts/parser-v2-spec.md";
+export const PARSER_V1_DOC = "docs/contracts/fe/fe-be-active-runtime-baseline-v1CZ.md";
+export const PARSER_V2_SPEC_DOC = "docs/contracts/fe/fe-be-active-runtime-baseline-v1CZ.md";
 
 export const PARSER_EXECUTE_ENDPOINT_SIGNATURES = Object.freeze(["POST /parser/execute"]);
 

@@ -5,21 +5,19 @@ function toFiniteInt(value) {
 }
 
 export const SNAPSHOT_NORMALIZATION_BASELINE = Object.freeze({
-  maxAsteroids: 2500,
+  maxCivilizations: 2500,
   maxBonds: 5000,
   maxEntities: 6000,
 });
 
 export function estimateSnapshotNormalizationLoad(data = {}) {
-  const asteroidSource = Array.isArray(data?.asteroids)
-    ? data.asteroids
-    : Array.isArray(data?.civilizations)
-      ? data.civilizations
-      : Array.isArray(data?.moons)
-        ? data.moons
-        : Array.isArray(data?.atoms)
-          ? data.atoms
-          : [];
+  const civilizationSource = Array.isArray(data?.civilizations)
+    ? data.civilizations
+    : Array.isArray(data?.moons)
+      ? data.moons
+      : Array.isArray(data?.atoms)
+        ? data.atoms
+        : [];
   const bondSource = Array.isArray(data?.bonds)
     ? data.bonds
     : Array.isArray(data?.relations)
@@ -28,32 +26,34 @@ export function estimateSnapshotNormalizationLoad(data = {}) {
         ? data.links
         : [];
 
-  const asteroids = toFiniteInt(asteroidSource.length);
+  const civilizations = toFiniteInt(civilizationSource.length);
   const bonds = toFiniteInt(bondSource.length);
   return {
-    asteroids,
+    civilizations,
     bonds,
-    entities: asteroids + bonds,
+    entities: civilizations + bonds,
   };
 }
 
 export function evaluateSnapshotNormalizationBudget(
   data,
   {
-    maxAsteroids = SNAPSHOT_NORMALIZATION_BASELINE.maxAsteroids,
+    maxCivilizations = SNAPSHOT_NORMALIZATION_BASELINE.maxCivilizations,
     maxBonds = SNAPSHOT_NORMALIZATION_BASELINE.maxBonds,
     maxEntities = SNAPSHOT_NORMALIZATION_BASELINE.maxEntities,
   } = {}
 ) {
   const estimate = estimateSnapshotNormalizationLoad(data);
   const violations = [];
-  if (estimate.asteroids > maxAsteroids) violations.push(`asteroids:${estimate.asteroids}>${maxAsteroids}`);
+  if (estimate.civilizations > maxCivilizations) {
+    violations.push(`civilizations:${estimate.civilizations}>${maxCivilizations}`);
+  }
   if (estimate.bonds > maxBonds) violations.push(`bonds:${estimate.bonds}>${maxBonds}`);
   if (estimate.entities > maxEntities) violations.push(`entities:${estimate.entities}>${maxEntities}`);
   return {
     pass: violations.length === 0,
     violations,
     estimate,
-    limits: { maxAsteroids, maxBonds, maxEntities },
+    limits: { maxCivilizations, maxBonds, maxEntities },
   };
 }
