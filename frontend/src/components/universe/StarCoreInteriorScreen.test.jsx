@@ -3,10 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import StarCoreInteriorScreen from "./StarCoreInteriorScreen.jsx";
 
-vi.mock("./starCoreInteriorScene3d.jsx", () => ({
-  default: () => <div data-testid="ritual-3d-scene-mock" />,
-}));
-
 afterEach(() => {
   cleanup();
 });
@@ -77,47 +73,11 @@ function createProps(overrides = {}) {
 }
 
 describe("StarCoreInteriorScreen", () => {
-  it("renders only chamber shell and 3d scene", () => {
+  it("renders nothing even when screen model is visible", () => {
     render(<StarCoreInteriorScreen {...createProps()} />);
 
-    expect(screen.getByTestId("star-core-interior-screen")).toBeTruthy();
-    expect(screen.getByTestId("ritual-chamber-core")).toBeTruthy();
-    expect(screen.getByTestId("ritual-3d-scene-mock")).toBeTruthy();
-  });
-
-  it("removes ritual html overlays from the screen shell", () => {
-    render(<StarCoreInteriorScreen {...createProps()} />);
-
-    expect(screen.queryByTestId("star-core-mode-ritual")).toBeNull();
-    expect(screen.queryByTestId("constitution-selection-focus")).toBeNull();
-    expect(screen.queryByTestId("ritual-live-telemetry")).toBeNull();
-    expect(screen.queryByTestId("constitution-option-rovnovaha")).toBeNull();
-    expect(screen.queryByTestId("star-core-primary-action")).toBeNull();
-    expect(screen.queryByTestId("star-core-return-action")).toBeNull();
-  });
-
-  it("keeps observatory screen equally free of html chrome", () => {
-    render(
-      <StarCoreInteriorScreen
-        {...createProps({
-          interiorModel: {
-            ...createProps().interiorModel,
-            mode: "observatory",
-            phase: "first_orbit_ready",
-            availableConstitutions: [],
-            governanceSignal: {
-              lockStatus: "locked",
-              policyVersion: 2,
-              profileMode: "locked",
-            },
-          },
-        })}
-      />
-    );
-
-    expect(screen.queryByTestId("star-core-mode-observatory")).toBeNull();
-    expect(screen.queryByTestId("star-core-observatory-panel")).toBeNull();
-    expect(screen.queryByTestId("first-orbit-ready-surface")).toBeNull();
+    expect(screen.queryByTestId("star-core-interior-screen")).toBeNull();
+    expect(screen.queryByTestId("ritual-chamber-core")).toBeNull();
   });
 
   it("stays hidden when screen model is not visible", () => {

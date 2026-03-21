@@ -266,7 +266,7 @@ function PlanetNode({ item, navigationModel, onSelectObject, onApproachObject })
           position={[0, item.size * 0.52 + 0.02, 0]}
           text={labels.subtitle}
           size={0.11}
-          color="rgba(206, 236, 255, 0.78)"
+          color="#ceecffc7"
         />
       ) : null}
       {(state.selected || state.approached) && labels.detail ? (
