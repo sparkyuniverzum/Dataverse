@@ -139,7 +139,7 @@ Zdroj pravdy:
 ### D-007 FE vyvoj je do odvolani pozastaven
 
 Datum: 2026-03-14
-Stav: aktivni
+Stav: nahrazeno rozhodnutim D-008 z 2026-03-21
 
 Rozhodnuti:
 
@@ -156,6 +156,31 @@ Zdroj pravdy:
 
 1. `docs/P0-core/contracts/aktivni/fe/fe-blok-3-implementacni-dokument-v1CZ.md`
 2. `docs/P0-core/governance/fe-collaboration-single-source-of-truth-v2CZ.md`
+
+### D-008 FE vyvoj je obnoven a `Blok 3` pokracuje
+
+Datum: 2026-03-21
+Stav: aktivni
+
+Rozhodnuti:
+
+1. aktivni FE vyvoj uz neni pozastaven,
+2. `Blok 3` je znovu otevren pro implementaci,
+3. `Star Core interior` musi existovat jako samostatna pracovni obrazovka oddelena od `Galaxy Space`,
+4. historicky reset/minimal-shell stop stav uz neni aktivni veto pro dalsi FE praci,
+5. dalsi FE implementace se ma ridit aktualnim FE governance baseline a aktivnim `Blok 3` dokumentem.
+
+Vyrazeno:
+
+1. predstava, ze FE ma zustat jen v auditu, evidenci stavu a priprave bez aktivni implementace,
+2. pouzivani D-007 jako aktivniho blockeru pro navazujici FE bloky.
+
+Zdroj pravdy:
+
+1. `docs/governance/fe-collaboration-single-source-of-truth-v2CZ.md`
+2. `docs/governance/fe-operating-baseline-v1CZ.md`
+3. `docs/implementation/active/fe-blok-3-implementacni-dokument-v1CZ.md`
+4. `docs/implementation/active/fe-blok-3-return-packet-v1CZ.md`
 
 ## 3. Pravidlo pouziti
 

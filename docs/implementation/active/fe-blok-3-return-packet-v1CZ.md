@@ -1,7 +1,7 @@
 # FE Blok 3 return packet v1
 
 Stav: aktivni
-Datum: 2026-03-12
+Datum: 2026-03-21
 Vlastnik: FE architektura + Produkt + BE truth governance
 
 ## 1. Ucel
@@ -13,6 +13,14 @@ Je to zamerne kratky dokument pro setreni kontextu.
 ## 2. Presny cil
 
 Vratit FE runtime `Bloku 3` nad canonical backend pravdu pro interier hvezdy a postavit ho jako samostatnou `Star Core interior screen`.
+
+Obnoveni potvrzeno explicitnim rozhodnutim uzivatele z `2026-03-21`.
+
+Aktivni provadeci pravidla:
+
+1. `Star Core interior` musi existovat oddelene od `Galaxy Space`.
+2. Reset/minimal-shell dokumenty nesmi blokovat tento navrat.
+3. Pokud je v kodu nebo testech stale pritomen reset-only smer, ma byt odstraneny nebo oznacen jako neaktivni.
 
 ## 3. Mimo scope
 

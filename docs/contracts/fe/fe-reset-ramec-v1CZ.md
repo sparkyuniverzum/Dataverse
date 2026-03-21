@@ -2,16 +2,27 @@
 
 | Metadata | Hodnota |
 | :--- | :--- |
-| **Status** | AKTIVNÍ |
+| **Status** | NAHRAZENO PRO AKTIVNI FE VYVOJ |
 | **Verze** | 2.0 |
 | **Vlastník** | Frontend Architektura / UX Design |
 | **Poslední změna** | 2026-03-15 |
 
 ## 1. Účel Kontraktu
-Tento dokument definuje závazný rámec pro restart Frontendové části systému. Předchozí implementace byla vyhodnocena jako provozně nevyhovující. Reset stanovuje novou výchozí linii (Baseline), odděluje aktivní kód od inspirativního archivu a definuje fáze postupné obnovy systému (FE-R0 až FE-R4).
+Tento dokument zachovava historicky reset ramec FE.
 
-## 2. Definice Aktivního FE (Baseline)
-Po resetu tvoří aktivní a produkčně připravený Frontend pouze:
+Od explicitniho rozhodnuti uzivatele z `2026-03-21` uz neni aktivni ridici pravdou pro bezny FE vyvoj.
+
+Pro aktivni FE exekuci od tohoto data plati:
+- `docs/governance/fe-collaboration-single-source-of-truth-v2CZ.md`
+- `docs/governance/fe-operating-baseline-v1CZ.md`
+- `docs/contracts/fe/fe-be-active-runtime-baseline-v1CZ.md`
+- `docs/implementation/active/fe-blok-3-implementacni-dokument-v1CZ.md`
+- `docs/implementation/active/fe-blok-3-return-packet-v1CZ.md`
+
+Tento dokument se nadale pouziva jen jako archivni reference resetu a nesmi blokovat obnoveni plneho FE vyvoje.
+
+## 2. Definice Aktivního FE (Historicka baseline resetu)
+Po resetu tvoril aktivni a produkcne pripraveny Frontend pouze:
 - **Auth Experience**: Login flow a vstupní dashboard.
 - **Minimalist Shell**: Základní kontejner aplikace (`App.jsx`, `WorkspaceShell.jsx`).
 - **Clean Workspace**: Čistá vesmírná plocha bez legacy panelů, gridů a onboarding prvků.
@@ -35,6 +46,10 @@ Původní kód byl přesunut do `frontend/src/_inspiration_reset_20260312/`. Pro
 - [ ] Zákaz přidávání paralelních surface bez jasné hierarchie "First-view".
 - [ ] Zákaz obnovy operační vrstvy před schválením "First-view" konceptu.
 - [ ] Povinnost doložit funkční testy pro každý modul vrácený z archivu.
+
+Poznamka k aktivnimu vyvoji:
+- Tato hard-stop pravidla uz nejsou aktivnim blokujicim governance filtrem pro obnovene FE prace po `2026-03-21`.
+- Pokud jsou v konfliktu s aktivnimi dokumenty `Bloku 3`, maji prednost dokumenty `Bloku 3`.
 
 ## 6. Akceptační kritéria (Hard Gates)
 - [ ] Build aplikace (`npm run build`) proběhne bez chyb nad čistou bází.

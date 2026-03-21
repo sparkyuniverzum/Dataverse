@@ -1,14 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  adaptStarCoreInteriorTruth,
-  beginStarCoreInteriorUi,
-  beginStarCorePolicyLockUi,
-  resolveStarCoreInteriorEntryComplete,
-  resolveStarCoreInteriorModel,
-  resolveStarCorePolicyLockUiFailure,
-  resolveStarCorePolicyLockUiSuccess,
-} from "./starCoreInteriorAdapter.js";
+import { adaptStarCoreInteriorTruth } from "./starCoreInteriorAdapter.js";
 
 describe("starCoreInteriorAdapter", () => {
   it("normalizes backend payload to FE-safe truth", () => {
@@ -75,39 +67,6 @@ describe("starCoreInteriorAdapter", () => {
     expect(truth.telemetry.domains.items[0].domainName).toBe("governance");
     expect(truth.telemetry.planetPhysics.itemCount).toBe(2);
     expect(truth.governanceSignal.policyVersion).toBe(3);
-  });
-
-  it("uses backend phase after entry animation finishes", () => {
-    const model = resolveStarCoreInteriorModel({
-      interiorTruth: adaptStarCoreInteriorTruth({ interior_phase: "constitution_select" }),
-      uiState: resolveStarCoreInteriorEntryComplete(beginStarCoreInteriorUi()),
-    });
-    expect(model.phase).toBe("constitution_select");
-  });
-
-  it("keeps transient lock phase only while request is pending", () => {
-    const pending = beginStarCorePolicyLockUi(beginStarCoreInteriorUi());
-    const model = resolveStarCoreInteriorModel({
-      interiorTruth: adaptStarCoreInteriorTruth({ interior_phase: "policy_lock_ready", lock_ready: true }),
-      uiState: pending,
-    });
-    expect(model.phase).toBe("policy_lock_transition");
-
-    const success = resolveStarCorePolicyLockUiSuccess(pending);
-    const nextModel = resolveStarCoreInteriorModel({
-      interiorTruth: adaptStarCoreInteriorTruth({ interior_phase: "first_orbit_ready", first_orbit_ready: true }),
-      uiState: success,
-    });
-    expect(nextModel.phase).toBe("first_orbit_ready");
-  });
-
-  it("preserves recoverable error on backend-driven ready phase", () => {
-    const model = resolveStarCoreInteriorModel({
-      interiorTruth: adaptStarCoreInteriorTruth({ interior_phase: "policy_lock_ready", lock_ready: true }),
-      uiState: resolveStarCorePolicyLockUiFailure(beginStarCoreInteriorUi(), "Lock failed"),
-    });
-    expect(model.phase).toBe("policy_lock_ready");
-    expect(model.errorMessage).toBe("Lock failed");
   });
 
   it("keeps previous telemetry when constitution select response contains only workflow payload", () => {

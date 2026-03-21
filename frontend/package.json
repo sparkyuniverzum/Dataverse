@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run --config vitest.config.js",
+    "test:node": "VITEST_ENV=node vitest run --config vitest.config.js",
+    "test:jsdom": "VITEST_ENV=jsdom vitest run --config vitest.config.js",
     "test:unit:moon-impact": "vitest run --config vitest.config.js src/components/universe/civilizationInspectorModel.test.js",
     "test:unit:civ-batch": "vitest run --config vitest.config.js src/components/universe/QuickGridOverlay.civilizations.test.jsx",
     "test:unit:civ-inspector": "vitest run --config vitest.config.js src/components/universe/civilizationInspectorModel.test.js",

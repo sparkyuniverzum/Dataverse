@@ -1,31 +1,19 @@
 # FE Blok 3 implementacni dokument v1
 
-Stav: pozastaveno do odvolani
-Datum: 2026-03-14
+Stav: aktivni
+Datum: 2026-03-21
 Vlastnik: FE architektura + Produktove UX + user-agent governance
 
-## 0. Oficialni stop stav
+## 0. Obnoveni vyvoje
 
-Od `2026-03-14` plati:
+Od explicitniho rozhodnuti uzivatele z `2026-03-21` plati:
 
-1. aktivni FE vyvoj `Bloku 3` je oficialne pozastaven do odvolani,
-2. duvodem jsou potize s kvalitou `Star Core interior` a prakticke omezeni dalsich FE moznosti,
-3. tento dokument zustava aktivni jen jako reference posledniho potvrzeneho scope a blockeru,
-4. bez noveho explicitniho rozhodnuti se nesmi otevirat dalsi FE implementacni blok nad interierem hvezdy ani nad navazujicimi FE vrstvami.
+1. aktivni FE vyvoj `Bloku 3` je znovu otevren,
+2. `Star Core interior` musi existovat jako samostatna pracovni obrazovka,
+3. reset/minimal-shell dokumenty nesmi blokovat dalsi FE implementaci v tomto scope,
+4. dalsi FE prace se ma ridit timto dokumentem a navaznym return packetem, ne historickym stop stavem.
 
-Do odvolani je povoleno jen:
-
-1. audit stavu,
-2. evidence blockeru,
-3. priprava podminek pro eventualni obnoveni,
-4. oddelena vyjimka `R3F Lab`, pokud je explicitne vedena pres vlastni aktivni dokumenty a neni vykladana jako obnoveni `Bloku 3`.
-
-Do odvolani je zakazano:
-
-1. dalsi FE implementace,
-2. dalsi UX rozsireni nebo redesign interieru,
-3. navazujici FE bloky zavisle na dokonceni interieru,
-4. tvrdit, ze `Blok 3` je pripraveny k pokracovani bez noveho rozhodnuti.
+Timto se rusi drivejsi stop rezim pro `Blok 3`.
 
 ## 0. Redesign a duvod
 
@@ -62,9 +50,9 @@ Tento dokument vykonava:
 
 Provadeci pravidlo:
 
-1. aktivni source of truth pro dalsi FE praci je znovu jen tento dokument,
-2. vsechny navazne FE dokumenty za zacatkem `Bloku 3` byly vyradene jako chybny smer,
-3. dalsi FE navrh nebo implementace se musi znovu otevrit odsud, ne z pozdejsich odboceni.
+1. aktivni source of truth pro dalsi FE praci je tento dokument spolu s return packetem,
+2. historicke reset/stop dokumenty se berou jen jako reference blockeru, ne jako aktivni veto,
+3. dalsi FE navrh nebo implementace se musi znovu otevrit odsud.
 
 ## 2. Ucel bloku
 
@@ -218,6 +206,17 @@ Implementacni pravidla:
 8. interior screen muze mit jen tenkou lokalni UI vrstvu (`isOpen`, `transition`, recoverable error), ne canonical workflow pravdu,
 9. lokalni transient smi slouzit jen pro kratke screen-stage mezikroky a musi se po dobehnuti vratit k nove nactene BE pravde,
 10. `Galaxy Space` a `Star Core interior` musi byt renderove i mentalne oddelene.
+
+## 7.1 Test runtime poznamka
+
+Na aktualnim lokalnim workspace pod `/mnt/c` je `jsdom` FE test environment vyrazne pomaly pri cold-startu.
+
+Pravidla:
+
+1. To samo o sobe neni blocker `Bloku 3`.
+2. Pro rychly collect a logic gate je dovoleno pouzivat `node` test environment.
+3. Pro DOM gate se maji poustet `jsdom` testy s explicitnim timeout wrapperem.
+4. Pomalost `jsdom` se nesmi mylne vykladat jako chyba interior architektury nebo chyba test prikazu.
 
 ## 8. Pripraveny kod z archivu
 

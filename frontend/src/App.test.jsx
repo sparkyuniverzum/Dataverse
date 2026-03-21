@@ -80,7 +80,7 @@ describe("App", () => {
     expect(screen.getByTestId("auth-experience")).toBeTruthy();
   });
 
-  it("renders minimal workspace shell when user is authenticated", () => {
+  it("renders workspace shell when user is authenticated", () => {
     useAuthMock.mockReturnValue({
       isAuthenticated: true,
       isLoading: false,

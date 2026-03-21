@@ -22,28 +22,10 @@ vi.mock("./UniverseCanvas.jsx", () => ({
 }));
 
 vi.mock("./StarCoreInteriorScreen.jsx", () => ({
-  default: ({
-    screenModel,
-    interiorModel,
-    selectedConstitution,
-    onSelectConstitution,
-    onConfirmPolicyLock,
-    onReturnToSpace,
-  }) =>
+  default: ({ screenModel }) =>
     screenModel.isVisible ? (
       <div data-testid="star-core-interior-screen">
         <span data-testid="screen-stage">{screenModel.stage}</span>
-        <span data-testid="screen-phase">{interiorModel.phase}</span>
-        <span data-testid="screen-selected-constitution">{selectedConstitution?.id || "none"}</span>
-        <button type="button" onClick={() => onSelectConstitution("rovnovaha")}>
-          select constitution
-        </button>
-        <button type="button" data-testid="star-core-primary-action" onClick={onConfirmPolicyLock}>
-          primary action
-        </button>
-        <button type="button" onClick={onReturnToSpace}>
-          return to space
-        </button>
       </div>
     ) : null,
 }));
@@ -210,7 +192,7 @@ describe("UniverseWorkspace", () => {
   it("renders explicit data_unavailable state when galaxy is missing", async () => {
     const { container } = render(<UniverseWorkspace />);
 
-    expect(screen.getByTestId("workspace-reset-root")).toBeTruthy();
+    expect(screen.getByTestId("workspace-root")).toBeTruthy();
     expect(container.querySelectorAll('span[aria-hidden="true"]').length).toBeGreaterThan(200);
     await waitFor(() => {
       expect(screen.getByTestId("canvas-state").textContent).toBe("data_unavailable");
@@ -288,16 +270,11 @@ describe("UniverseWorkspace", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("star-core-interior-screen")).toBeTruthy();
-      expect(screen.getByTestId("screen-stage").textContent).toBe("entering");
-      expect(screen.getByTestId("screen-phase").textContent).toBe("star_core_interior_entry");
-    });
-    await waitFor(() => {
       expect(screen.getByTestId("screen-stage").textContent).toBe("active");
-      expect(screen.getByTestId("screen-phase").textContent).toBe("constitution_select");
     });
     expect(screen.queryByTestId("galaxy-selection-hud")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "return to space" }));
+    fireEvent.keyDown(window, { key: "Escape" });
 
     await waitFor(() => {
       expect(screen.queryByTestId("star-core-interior-screen")).toBeNull();
@@ -305,229 +282,6 @@ describe("UniverseWorkspace", () => {
     expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("object_selected");
     expect(screen.getByTestId("canvas-selected-object").textContent).toBe("star-core");
     expect(screen.getByTestId("galaxy-selection-hud")).toBeTruthy();
-  });
-
-  it("locks via canonical endpoint from interior screen", async () => {
-    let lockSeen = false;
-    let lockedInteriorReads = 0;
-
-    fetch.mockImplementation(async (input, init) => {
-      const url = String(input || "");
-      if (url.includes("/star-core/policy/lock")) {
-        lockSeen = true;
-        const payload = JSON.parse(String(init?.body || "{}"));
-        expect(payload.profile_key).toBe("ORIGIN");
-        expect(payload.physical_profile_key).toBe("BALANCE");
-        return createJsonResponse({ ok: true });
-      }
-      if (url.includes("/star-core/interior/entry/start")) {
-        return createJsonResponse({
-          interior_phase: "star_core_interior_entry",
-          selected_constitution_id: null,
-          available_constitutions: [
-            {
-              constitution_id: "rovnovaha",
-              title_cz: "Rovnováha",
-              summary_cz: "Stabilní režim",
-              visual_tone: "balanced_blue",
-              profile_key: "ORIGIN",
-              law_preset: "balanced",
-              physical_profile_key: "BALANCE",
-              physical_profile_version: 1,
-              recommended: true,
-              lock_allowed: true,
-            },
-          ],
-          lock_ready: false,
-          lock_blockers: [],
-          lock_transition_state: "idle",
-          first_orbit_ready: false,
-          next_action: { action_key: "stabilize_core_entry", label_cz: "Stabilizuji vstup do Srdce hvězdy" },
-          explainability: {
-            headline_cz: "Vstup do Srdce hvězdy se stabilizuje.",
-            body_cz: "Přechod do governance komory právě ustaluje vrstvy plazmy.",
-          },
-          source_truth: {
-            profile_key: "ORIGIN",
-            law_preset: "balanced",
-            physical_profile_key: "BALANCE",
-            physical_profile_version: 1,
-          },
-        });
-      }
-      if (url.includes("/star-core/interior/constitution/select")) {
-        return createJsonResponse({
-          interior_phase: "policy_lock_ready",
-          selected_constitution_id: "rovnovaha",
-          available_constitutions: [
-            {
-              constitution_id: "rovnovaha",
-              title_cz: "Rovnováha",
-              summary_cz: "Stabilní režim",
-              visual_tone: "balanced_blue",
-              profile_key: "ORIGIN",
-              law_preset: "balanced",
-              physical_profile_key: "BALANCE",
-              physical_profile_version: 1,
-              recommended: true,
-              lock_allowed: true,
-            },
-          ],
-          lock_ready: true,
-          lock_blockers: [],
-          lock_transition_state: "idle",
-          first_orbit_ready: false,
-          next_action: { action_key: "confirm_policy_lock", label_cz: "Potvrdit ústavu a uzamknout politiky" },
-          explainability: { headline_cz: "Ústava je připravena k uzamčení", body_cz: "Můžeš pokračovat." },
-          source_truth: {
-            profile_key: "ORIGIN",
-            law_preset: "balanced",
-            physical_profile_key: "BALANCE",
-            physical_profile_version: 1,
-          },
-        });
-      }
-      if (url.includes("/star-core/interior")) {
-        return createJsonResponse(
-          lockSeen
-            ? (lockedInteriorReads += 1) === 1
-              ? {
-                  interior_phase: "policy_lock_transition",
-                  selected_constitution_id: "rovnovaha",
-                  available_constitutions: [],
-                  lock_ready: false,
-                  lock_blockers: [],
-                  lock_transition_state: "locked",
-                  first_orbit_ready: true,
-                  next_action: { action_key: "stabilize_first_orbit", label_cz: "Dokončuji přechod k první orbitě" },
-                  explainability: {
-                    headline_cz: "Politiky se fyzicky uzamykají.",
-                    body_cz: "Governance prstenec dosedá do finální polohy.",
-                  },
-                  source_truth: {
-                    profile_key: "ORIGIN",
-                    law_preset: "balanced",
-                    physical_profile_key: "BALANCE",
-                    physical_profile_version: 1,
-                  },
-                }
-              : {
-                  interior_phase: "first_orbit_ready",
-                  selected_constitution_id: "rovnovaha",
-                  available_constitutions: [],
-                  lock_ready: false,
-                  lock_blockers: [],
-                  lock_transition_state: "locked",
-                  first_orbit_ready: true,
-                  next_action: { action_key: "review_first_orbit", label_cz: "První oběžná dráha je připravena" },
-                  explainability: {
-                    headline_cz: "Politiky jsou uzamčeny.",
-                    body_cz: "Governance základ je potvrzen.",
-                  },
-                  source_truth: {
-                    profile_key: "ORIGIN",
-                    law_preset: "balanced",
-                    physical_profile_key: "BALANCE",
-                    physical_profile_version: 1,
-                  },
-                }
-            : {
-                interior_phase: "constitution_select",
-                selected_constitution_id: null,
-                available_constitutions: [
-                  {
-                    constitution_id: "rovnovaha",
-                    title_cz: "Rovnováha",
-                    summary_cz: "Stabilní režim",
-                    visual_tone: "balanced_blue",
-                    profile_key: "ORIGIN",
-                    law_preset: "balanced",
-                    physical_profile_key: "BALANCE",
-                    physical_profile_version: 1,
-                    recommended: true,
-                    lock_allowed: true,
-                  },
-                ],
-                lock_ready: false,
-                lock_blockers: ["constitution_required"],
-                lock_transition_state: "idle",
-                first_orbit_ready: false,
-                next_action: { action_key: "select_constitution", label_cz: "Vyber ústavu vesmíru" },
-                explainability: {
-                  headline_cz: "Nejdřív vyber ústavu.",
-                  body_cz: "Dokud není potvrzen režim vesmíru, policy lock není připraven.",
-                },
-                source_truth: {
-                  profile_key: "ORIGIN",
-                  law_preset: "balanced",
-                  physical_profile_key: "BALANCE",
-                  physical_profile_version: 1,
-                },
-              }
-        );
-      }
-      if (url.includes("/star-core/policy")) {
-        return createJsonResponse(
-          lockSeen
-            ? {
-                profile_key: "ORIGIN",
-                law_preset: "balanced",
-                profile_mode: "locked",
-                lock_status: "locked",
-                policy_version: 2,
-                locked_at: "2026-03-12T10:00:00Z",
-                can_edit_core_laws: false,
-              }
-            : {
-                profile_key: "ORIGIN",
-                law_preset: "balanced",
-                profile_mode: "auto",
-                lock_status: "draft",
-                policy_version: 1,
-                locked_at: null,
-                can_edit_core_laws: true,
-              }
-        );
-      }
-      if (url.includes("/star-core/physics/profile")) {
-        return createJsonResponse({
-          galaxy_id: "g-1",
-          profile_key: "BALANCE",
-          profile_version: 1,
-          lock_status: lockSeen ? "locked" : "draft",
-          coefficients: { a: 0.12, b: 0.4 },
-        });
-      }
-      if (url.includes("/star-core/runtime")) return createJsonResponse({ events_count: 0, writes_per_minute: 0 });
-      if (url.includes("/star-core/pulse")) return createJsonResponse({ sampled_count: 0, events: [] });
-      if (url.includes("/star-core/metrics/domains")) return createJsonResponse({ total_events_count: 0, domains: [] });
-      if (url.includes("/universe/tables")) return createJsonResponse({ items: [] });
-      return createJsonResponse({ items: [] });
-    });
-
-    render(<UniverseWorkspace defaultGalaxy={{ id: "g-1", name: "Moje Galaxie" }} connectivity={{ isOnline: true }} />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("canvas-nav-mode").textContent).toBe("space_idle");
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "approach star" }));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("screen-phase").textContent).toBe("constitution_select");
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "select constitution" }));
-    await waitFor(() => {
-      expect(screen.getByTestId("screen-phase").textContent).toBe("policy_lock_ready");
-      expect(screen.getByTestId("screen-selected-constitution").textContent).toBe("rovnovaha");
-    });
-
-    fireEvent.click(screen.getByTestId("star-core-primary-action"));
-    await waitFor(() => {
-      expect(screen.getByTestId("screen-phase").textContent).toBe("first_orbit_ready");
-    });
-    expect(lockSeen).toBe(true);
   });
 
   it("opens locked observatory without calling entry/start write endpoint", async () => {
@@ -601,7 +355,6 @@ describe("UniverseWorkspace", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("screen-stage").textContent).toBe("active");
-      expect(screen.getByTestId("screen-phase").textContent).toBe("first_orbit_ready");
     });
     expect(entryStartCalls).toBe(0);
   });

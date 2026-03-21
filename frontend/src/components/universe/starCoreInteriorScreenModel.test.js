@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  beginStarCoreInteriorScreenEntry,
-  beginStarCoreInteriorScreenReturn,
   closeStarCoreInteriorScreen,
   createInitialStarCoreInteriorScreenState,
-  resolveStarCoreInteriorScreenEntryComplete,
+  openStarCoreInteriorScreen,
   resolveStarCoreInteriorScreenModel,
 } from "./starCoreInteriorScreenModel.js";
 
@@ -14,25 +12,10 @@ describe("starCoreInteriorScreenModel", () => {
     expect(createInitialStarCoreInteriorScreenState()).toEqual({ stage: "closed" });
   });
 
-  it("moves from entering to active", () => {
-    const entering = beginStarCoreInteriorScreenEntry();
-    const enteringModel = resolveStarCoreInteriorScreenModel({ screenState: entering });
-    expect(enteringModel.isEntering).toBe(true);
-    expect(enteringModel.transitionDurationMs).toBe(760);
-
-    const active = resolveStarCoreInteriorScreenEntryComplete(entering);
-    const model = resolveStarCoreInteriorScreenModel({ screenState: active });
+  it("opens directly into active state", () => {
+    const model = resolveStarCoreInteriorScreenModel({ screenState: openStarCoreInteriorScreen() });
     expect(model.isActive).toBe(true);
     expect(model.isVisible).toBe(true);
-  });
-
-  it("tracks returning state with reduced-motion timing", () => {
-    const model = resolveStarCoreInteriorScreenModel({
-      screenState: beginStarCoreInteriorScreenReturn(),
-      reducedMotion: true,
-    });
-    expect(model.isReturning).toBe(true);
-    expect(model.transitionDurationMs).toBe(40);
   });
 
   it("closes back to hidden state", () => {

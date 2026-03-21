@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const useAuthMock = vi.fn();
 const useConnectivityStateMock = vi.fn();
-const universeWorkspaceMock = vi.fn(() => <div data-testid="workspace-reset-root">workspace</div>);
+const universeWorkspaceMock = vi.fn(() => <div data-testid="workspace-root">workspace</div>);
 
 vi.mock("../../context/AuthContext.jsx", () => ({
   useAuth: () => useAuthMock(),
@@ -39,7 +39,7 @@ describe("WorkspaceShell", () => {
     cleanup();
   });
 
-  it("renders the reset workspace shell", () => {
+  it("renders the workspace shell", () => {
     useAuthMock.mockReturnValue({
       defaultGalaxy: { id: "g-1", name: "Moje Galaxie" },
       galaxyBootstrapState: "workspace_ready",
@@ -54,7 +54,7 @@ describe("WorkspaceShell", () => {
 
     render(<WorkspaceShell />);
 
-    expect(screen.getByTestId("workspace-reset-root")).toBeTruthy();
+    expect(screen.getByTestId("workspace-root")).toBeTruthy();
     expect(universeWorkspaceMock.mock.calls[0][0]).toEqual(
       expect.objectContaining({
         defaultGalaxy: { id: "g-1", name: "Moje Galaxie" },
@@ -80,7 +80,7 @@ describe("WorkspaceShell", () => {
     render(<WorkspaceShell />);
 
     expect(screen.getByTestId("empty-galaxy-screen")).toBeTruthy();
-    expect(screen.queryByTestId("workspace-reset-root")).toBeNull();
+    expect(screen.queryByTestId("workspace-root")).toBeNull();
     expect(universeWorkspaceMock).not.toHaveBeenCalled();
   });
 
