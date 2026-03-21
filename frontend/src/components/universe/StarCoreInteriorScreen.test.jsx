@@ -13,6 +13,11 @@ function createProps(overrides = {}) {
       stage: "active",
       isVisible: true,
       isActive: true,
+      interiorPhase: "constitution_select",
+      nextActionLabel: "",
+      explainabilityHeadline: "",
+      explainabilityBody: "",
+      errorMessage: "",
     },
     ...overrides,
   };
@@ -34,6 +39,11 @@ describe("StarCoreInteriorScreen", () => {
             stage: "closed",
             isVisible: false,
             isActive: false,
+            interiorPhase: "",
+            nextActionLabel: "",
+            explainabilityHeadline: "",
+            explainabilityBody: "",
+            errorMessage: "",
           },
         })}
       />

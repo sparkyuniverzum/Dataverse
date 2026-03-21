@@ -1,3 +1,7 @@
+// This module is a backend-contract normalizer for Star Core interior payloads.
+// Keep it limited to payload normalization and FE-safe guards.
+// Do not reintroduce UI-derived workflow models or command affordance logic here.
+
 const VISUAL_TONE_MAP = Object.freeze({
   growth_amber: { tonePrimary: "#ffbf73", toneSecondary: "#ffe0ad" },
   balanced_blue: { tonePrimary: "#7ee8ff", toneSecondary: "#82ffd4" },
